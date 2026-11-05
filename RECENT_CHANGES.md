@@ -1,5 +1,12 @@
 # Recent changes
 
+## 2026-11-05 — Deployment verification and texture loading
+
+- First GitHub Pages deployment verified: Deploy workflow green (lint, unit, build, Chromium E2E), and the full four-project Playwright suite passes against https://tmrk.github.io/globehops/ (`E2E_BASE_URL`). The live bundle hashes match a local build of the same commit.
+- Textures now load progressively: 1K → 4K for everyone; 8K only when zoomed in close on capable desktops (saves ~2 MB and ~130 MB GPU memory on typical visits).
+- `scripts/dataset.test.ts` skips its cache-backed CLI integration test when `.cache/ourairports/` is absent (CI), instead of failing.
+- Initial dataset rebuilt online so `data/airports-build.json` records the upstream OurAirports commit.
+
 ## 2026-11-05 — Initial release
 
 - Interactive textured Earth with true great-circle arcs, dashed ground tracks, projected airport labels and flight inspection.

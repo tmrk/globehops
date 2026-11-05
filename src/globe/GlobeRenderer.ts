@@ -428,6 +428,7 @@ export class GlobeRenderer {
     // OrbitControls.update() returns true while damping is still moving the camera.
     if (!this.cameraTween) active = this.controls.update() || active;
     this.updateRotateSpeed();
+    this.maybeLoadLargeTexture();
 
     this.renderer.render(this.scene, this.camera);
     this.updateLabels();
@@ -437,6 +438,12 @@ export class GlobeRenderer {
   // ---------------------------------------------------------------------------------------------
   // Textures
 
+  /**
+   * Progressive texture loading: a 1K placeholder appears almost instantly, then the 4K texture
+   * (or the placeholder alone on GPUs limited below 4096 px). The 8K texture (~2 MB download,
+   * ~170 MB of GPU memory with mipmaps) is fetched only when the user zooms in close on a
+   * capable non-touch device, where the extra detail is actually visible.
+   */
   private async loadTextures() {
     const preview = await this.loadTexture(this.options.textures.preview).catch(() => null);
     if (this.disposed) return;
@@ -444,27 +451,55 @@ export class GlobeRenderer {
       this.applyTexture(preview);
       this.options.onTextureReady?.('preview');
     }
-    const full = await this.loadTexture(this.pickTextureUrl()).catch(() => null);
+    if (this.renderer.capabilities.maxTextureSize < 4096) return;
+    // A close-up first view may already have started the 8K texture; don't download both.
+    if (this.largeTextureState === 'loading') return;
+    await this.loadMediumTexture(preview);
+  }
+
+  private async loadMediumTexture(previous: Texture | null) {
+    const full = await this.loadTexture(this.options.textures.medium).catch(() => null);
     if (this.disposed || !full) return;
-    this.applyTexture(full);
-    if (preview) {
-      // Keep the preview alive until the full texture has been uploaded on the next frame.
-      requestAnimationFrame(() => {
-        preview.dispose();
-        this.textures = this.textures.filter((t) => t !== preview);
-      });
-    }
+    this.swapTexture(full, previous);
     this.options.onTextureReady?.('full');
   }
 
-  private pickTextureUrl(): string {
-    const caps = this.renderer.capabilities;
+  private largeTextureState: 'idle' | 'loading' | 'done' = 'idle';
+
+  private canUseLargeTexture(): boolean {
     const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
     const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
-    const physical = Math.max(window.screen?.width ?? 0, window.screen?.height ?? 0) * (window.devicePixelRatio || 1);
-    if (caps.maxTextureSize >= 8192 && !coarse && memory >= 4 && physical >= 1800) return this.options.textures.large;
-    if (caps.maxTextureSize >= 4096) return this.options.textures.medium;
-    return this.options.textures.preview;
+    return this.renderer.capabilities.maxTextureSize >= 8192 && !coarse && memory >= 4;
+  }
+
+  /** Called every rendered frame; cheap until the zoom threshold is crossed once. */
+  private maybeLoadLargeTexture() {
+    if (this.largeTextureState !== 'idle' || this.camera.position.length() > 2.2) return;
+    if (!this.canUseLargeTexture()) {
+      this.largeTextureState = 'done';
+      return;
+    }
+    this.largeTextureState = 'loading';
+    const current = this.earthMaterial.map;
+    this.loadTexture(this.options.textures.large)
+      .then((large) => {
+        if (this.disposed) return large.dispose();
+        this.swapTexture(large, current);
+        this.options.onTextureReady?.('full');
+      })
+      // Fall back to the 4K texture if the large one fails (e.g. out of memory or offline).
+      .catch(() => (this.earthMaterial.map === current ? this.loadMediumTexture(current ?? null) : undefined))
+      .finally(() => (this.largeTextureState = 'done'));
+  }
+
+  private swapTexture(next: Texture, previous: Texture | null) {
+    this.applyTexture(next);
+    if (!previous) return;
+    // Keep the previous texture alive until the new one has been uploaded on the next frame.
+    requestAnimationFrame(() => {
+      previous.dispose();
+      this.textures = this.textures.filter((t) => t !== previous);
+    });
   }
 
   private async loadTexture(url: string): Promise<Texture> {

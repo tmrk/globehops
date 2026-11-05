@@ -20,7 +20,7 @@ The generated JSON is imported as an asset URL and fetched at startup. Its compa
 
 ## Renderer and lifecycle
 
-`GlobeView` loads lazily, creates one renderer, forwards props and disposes it on unmount. The scene includes an Earth sphere, atmosphere, camera lighting, great-circle lines and HTML overlays. A 1K texture appears first; GPU capability, pointer type, memory hint and screen size choose 4K or 8K next. Texture readiness marks `.stage.is-ready`.
+`GlobeView` loads lazily, creates one renderer, forwards props and disposes it on unmount. The scene includes an Earth sphere, atmosphere, camera lighting, great-circle lines and HTML overlays. A 1K texture appears first, then the 4K texture (skipped on GPUs limited below 4096 px). The 8K texture is fetched only once the camera comes close (distance < 2.2 Earth radii) on a non-touch device with 8192 px texture support, because it costs ~2 MB to download and ~170 MB of GPU memory with mipmaps; if a close-up first view already triggered it, the 4K download is skipped. Texture readiness marks `.stage.is-ready`.
 
 `requestRender()` schedules at most one animation frame. Each frame advances insets, camera tween, arc reveal and plane animation, then updates OrbitControls damping, renders and projects labels. Another frame is requested only while something changes. Input, resize, texture uploads and state setters request rendering. An idle scene has no perpetual animation loop.
 
