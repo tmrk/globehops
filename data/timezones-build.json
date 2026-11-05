@@ -3,10 +3,10 @@
   "release": "2026f",
   "license": "ODbL-1.0",
   "attribution": "Contains information from timezone-boundary-builder, which is made available under the Open Database License (ODbL); boundaries derived from OpenStreetMap © OpenStreetMap contributors.",
-  "generatedAt": "2026-11-05T13:23:14.205Z",
-  "airportsContentHash": "60d11ea3589e70aab29a8eb1e8e6e0cbe733be255096106dec148cd501965b9c",
+  "generatedAt": "2026-11-05T17:57:08.069Z",
+  "airportsContentHash": "80e2bca5e2a2c5999ebaa352f41a000cab183378d15d9e414b5f4c3ab3e55747",
   "counts": {
-    "airports": 9934,
+    "airports": 9932,
     "zones": 387,
     "nearest": 0,
     "overrides": 1
@@ -240,6 +240,144 @@
         "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
       }
     ],
-    "unusedOverrides": []
+    "unusedOverrides": [],
+    "countryOutliers": [
+      {
+        "id": 4701,
+        "ident": "MMCS",
+        "zone": "America/Ciudad_Juarez",
+        "country": "MX",
+        "others": [
+          "America/Cancun",
+          "America/Chihuahua",
+          "America/Hermosillo",
+          "America/Matamoros",
+          "America/Mazatlan",
+          "America/Merida",
+          "America/Mexico_City",
+          "America/Monterrey",
+          "America/Tijuana"
+        ],
+        "reviewed": true
+      },
+      {
+        "id": 4989,
+        "ident": "NTGJ",
+        "zone": "Pacific/Gambier",
+        "country": "PF",
+        "others": ["Pacific/Marquesas", "Pacific/Tahiti"],
+        "reviewed": true
+      },
+      {
+        "id": 5426,
+        "ident": "PCIS",
+        "zone": "Pacific/Kanton",
+        "country": "KI",
+        "others": ["Pacific/Kiritimati", "Pacific/Tarawa"],
+        "reviewed": true
+      },
+      {
+        "id": 5494,
+        "ident": "PMDY",
+        "zone": "Pacific/Midway",
+        "country": "UM",
+        "others": ["Pacific/Wake"],
+        "reviewed": true
+      },
+      {
+        "id": 5506,
+        "ident": "PWAK",
+        "zone": "Pacific/Wake",
+        "country": "UM",
+        "others": ["Pacific/Midway"],
+        "reviewed": true
+      },
+      {
+        "id": 5902,
+        "ident": "SBFN",
+        "zone": "America/Noronha",
+        "country": "BR",
+        "others": [
+          "America/Araguaina",
+          "America/Bahia",
+          "America/Belem",
+          "America/Boa_Vista",
+          "America/Campo_Grande",
+          "America/Cuiaba",
+          "America/Eirunepe",
+          "America/Fortaleza",
+          "America/Maceio",
+          "America/Manaus",
+          "America/Porto_Velho",
+          "America/Recife",
+          "America/Rio_Branco",
+          "America/Santarem",
+          "America/Sao_Paulo"
+        ],
+        "reviewed": true
+      },
+      {
+        "id": 6026,
+        "ident": "SCIP",
+        "zone": "Pacific/Easter",
+        "country": "CL",
+        "others": ["America/Coyhaique", "America/Punta_Arenas", "America/Santiago"],
+        "reviewed": true
+      },
+      {
+        "id": 27539,
+        "ident": "YECL",
+        "zone": "Australia/Eucla",
+        "country": "AU",
+        "others": [
+          "Australia/Adelaide",
+          "Australia/Brisbane",
+          "Australia/Broken_Hill",
+          "Australia/Darwin",
+          "Australia/Hobart",
+          "Australia/Lindeman",
+          "Australia/Lord_Howe",
+          "Australia/Melbourne",
+          "Australia/Perth",
+          "Australia/Sydney"
+        ],
+        "reviewed": true
+      },
+      {
+        "id": 27721,
+        "ident": "YLHI",
+        "zone": "Australia/Lord_Howe",
+        "country": "AU",
+        "others": [
+          "Australia/Adelaide",
+          "Australia/Brisbane",
+          "Australia/Broken_Hill",
+          "Australia/Darwin",
+          "Australia/Eucla",
+          "Australia/Hobart",
+          "Australia/Lindeman",
+          "Australia/Melbourne",
+          "Australia/Perth",
+          "Australia/Sydney"
+        ],
+        "reviewed": true
+      },
+      {
+        "id": 336953,
+        "ident": "AT03",
+        "zone": "Australia/Perth",
+        "country": "AQ",
+        "others": ["America/Punta_Arenas", "Antarctica/McMurdo", "Antarctica/Rothera", "Antarctica/Vostok"],
+        "reviewed": true
+      },
+      {
+        "id": 336959,
+        "ident": "AT28",
+        "zone": "Antarctica/Vostok",
+        "country": "AQ",
+        "others": ["America/Punta_Arenas", "Antarctica/McMurdo", "Antarctica/Rothera", "Australia/Perth"],
+        "reviewed": true
+      }
+    ]
   }
 }

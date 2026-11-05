@@ -135,6 +135,7 @@ export default function GlobeView(props: GlobeViewProps) {
       r.setIllumination(frame.subsolar);
       r.setAircraft(frame.aircraft);
       r.setHighlightLeg(frame.highlightLeg);
+      r.flush();
     };
     const unsubscribe = sim.subscribe(update);
     update();

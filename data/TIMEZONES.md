@@ -52,20 +52,49 @@ The one-line build summary includes coverage, fallbacks, overlaps, byte sizes an
 
 | Measure                                           |                Result |
 | ------------------------------------------------- | --------------------: |
-| Airports covered                                  |  9,934 / 9,934 (100%) |
+| Airports covered                                  |  9,932 / 9,932 (100%) |
 | Distinct assigned zones                           |                   387 |
-| Polygon assignments                               |                 9,933 |
+| Polygon assignments                               |                 9,931 |
 | Nearest-edge assignments                          |                     0 |
 | Manual overrides                                  |                     1 |
 | Airports in overlapping zones                     |                    36 |
 | Unsupported assigned zones / sentinel mismatches  |                 0 / 0 |
-| Generated JSON, raw / gzip                        | 65,799 / 15,241 bytes |
+| Country outliers, reviewed / unreviewed           |                11 / 0 |
+| Generated JSON, raw / gzip                        | 65,787 / 15,237 bytes |
 | Real build including fresh download (`--refresh`) |         19.96 seconds |
 
 The generated file is compact JSON ending with a newline. `zones` is sorted lexicographically;
 `ids` holds positive deltas of ascending numeric airport IDs (the first is relative to zero),
 and `zone` holds dictionary indices. The metadata includes the original `airports.json` content hash.
 The build record repeats that metadata and records the ZIP digest and full exception report.
+
+## Country plausibility check
+
+A zone can only be as right as the airport's position. Every build therefore compares each airport's
+zone with the other airports of its country: an airport is a **country outlier** when no other airport
+of its country uses its zone and all of them keep different clocks (January and July offsets). The
+build prints a warning for each unreviewed outlier and records all of them under
+`report.countryOutliers` in `data/timezones-build.json`; `scripts/timezones.test.ts` fails while any
+outlier is unexplained. Resolve one of two ways:
+
+- **The upstream position is wrong:** add the OurAirports ident to `data/excluded-airports.json` with
+  the evidence, then rerun `npm run data:update` and `npm run timezones:build`. The airport is left out
+  of the dataset (it would otherwise draw routes to the wrong place as well as keep the wrong clock).
+- **The airport really keeps its own clock:** add its ident to `data/timezone-reviewed.json` with the
+  reason.
+
+The November 2026 review (also cross-checked against the IANA `zone.tab` country assignments) found
+two misplaced OurAirports records, now excluded: Ulleung Airport, South Korea (KR-1113), recorded in
+Inner Mongolia and therefore on China Standard Time instead of Korea Standard Time; and a
+“(Misplaced duplicate?)” Venezuelan record (VE-0526) located in Chad. The 11 reviewed outliers are
+genuine local clocks: Ciudad Juárez, the Gambier Islands, Kanton, Midway, Wake, Fernando de Noronha,
+Easter Island, Eucla, Lord Howe Island, and the Concordia and Vostok stations in Antarctica. Other
+`zone.tab` mismatches keep the same clocks as their country (e.g. northern Vietnam on
+`Asia/Bangkok`, Svalbard on `Arctic/Longyearbyen`, Åland on `Europe/Mariehamn`, Kosovo on
+`Europe/Belgrade`), which the check correctly accepts.
+
+Each journey calculation uses these zones only to convert entered local times to UTC instants;
+durations, propagation and playback then work entirely in UTC.
 
 ## Override rationale
 

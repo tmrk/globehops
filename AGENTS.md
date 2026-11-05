@@ -29,7 +29,7 @@ Review screenshots at mobile and desktop sizes, including a picker and an edited
 
 ## Assets, data and deployment
 
-`npm run data:update` downloads and validates OurAirports before generating `src/data/generated/airports.json` and `data/airports-build.json`. `npm run data:check` validates without writes and reports changes; it does not fail solely because data changed. Offline validation: `npm run data:check -- --offline` requires cached CSVs. Keep aliases small, correct and justified in `data/ALIASES.md`; primary-airport ranking hints belong in `src/data/rankHints.ts` with rationale. Never hand-edit generated airport tuples. See [sources](docs/DATA_SOURCES.md).
+`npm run data:update` downloads and validates OurAirports before generating `src/data/generated/airports.json` and `data/airports-build.json`. `npm run data:check` validates without writes and reports changes; it does not fail solely because data changed. Offline validation: `npm run data:check -- --offline` requires cached CSVs. Keep aliases small, correct and justified in `data/ALIASES.md`; primary-airport ranking hints belong in `src/data/rankHints.ts` with rationale. Upstream airports with wrong positions go in `data/excluded-airports.json`; airports that genuinely keep a different clock from the rest of their country go in `data/timezone-reviewed.json` (the time-zone build flags both, and a test fails while one is unexplained). Never hand-edit generated airport tuples. See [sources](docs/DATA_SOURCES.md).
 
 `npm run borders:build` regenerates `src/data/generated/borders.json` from the pinned Natural Earth v5.1.2 GeoJSON (cached in `.cache/naturalearth/`; `--offline` and `--refresh` available). Never hand-edit it.
 
@@ -59,4 +59,4 @@ Never hand-edit generated `public/agent/*.json`: run `npm run agent:build` after
 
 ## Definition of done
 
-Lint, unit tests, all four E2E projects and production build pass. Review mobile and desktop screenshots. Update relevant documentation and `RECENT_CHANGES.md`; record genuine application bugs and limitations precisely. Keep changes within the user’s authorised scope.
+Lint, unit tests and production build pass, and the E2E specs affected by the change pass (Chromium by default; add WebKit for touch, date input, font or Safari-specific changes). The full four-project suite takes several minutes: run it only for broad UI changes or when asked; CI runs Chromium E2E before every deployment. Review mobile and desktop screenshots. Update relevant documentation and `RECENT_CHANGES.md`; record genuine application bugs and limitations precisely. Keep changes within the user’s authorised scope.

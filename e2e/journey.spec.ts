@@ -297,3 +297,80 @@ test('country borders are on by default and the choice is remembered', async ({ 
   await page.getByRole('button', { name: 'Country borders' }).click();
   await expect(page.getByRole('button', { name: 'Country borders' })).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('desktop search opens in place: rows keep their positions and suggestions float above them', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'Desktop inline picker; the mobile takeover covers the screen.');
+  await page.goto('./?route=CPH-LHR-JFK');
+  const destination = stopButtons(page).nth(2);
+  await expect(destination).toBeVisible();
+  const row = page.locator('[data-stop-row]').nth(1);
+  const before = { row: await row.boundingBox(), next: await destination.boundingBox() };
+  await stopButtons(page).nth(1).click();
+  await expect(airportField(page)).toBeFocused();
+  await expect(page.getByText(/Try a city, airport or code/)).toBeVisible();
+  await airportField(page).fill('par');
+  const list = page.getByRole('listbox', { name: 'Airport suggestions' });
+  await expect(list.getByRole('option').first()).toBeVisible();
+  const after = await row.boundingBox();
+  expect(after!.y).toBeCloseTo(before.row!.y, 0);
+  expect(after!.height).toBeCloseTo(before.row!.height, 0);
+  // The following stop has not moved even though eight suggestions are open.
+  expect((await page.locator('[data-stop-row]').nth(2).boundingBox())!.y).toBeCloseTo(before.next!.y - 2, -1);
+  const field = (await airportField(page).boundingBox())!;
+  expect((await list.boundingBox())!.y).toBeGreaterThan(field.y + field.height);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(list).toBeHidden();
+  await expectRoute(page, ['CPH', 'LHR', 'JFK']);
+});
+
+/** Dispatches a one-finger vertical swipe on an element (touch events carry only what the sheet reads). */
+async function swipe(target: import('@playwright/test').Locator, dy: number) {
+  await target.evaluate((element, distance) => {
+    const box = element.getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const y0 = box.top + box.height / 2;
+    const fire = (type: string, y: number | null) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      const touches = y === null ? [] : [{ clientX: x, clientY: y, identifier: 1, target: element }];
+      Object.defineProperty(event, 'touches', { value: touches });
+      element.dispatchEvent(event);
+    };
+    fire('touchstart', y0);
+    for (let step = 1; step <= 8; step++) fire('touchmove', y0 + (distance * step) / 8);
+    fire('touchend', null);
+  }, dy);
+}
+
+test('mobile sheet is dismissed by dragging it down and restored by lifting the peek bar', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, 'The bottom sheet exists on phones.');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('./?route=CPH-LHR-JFK');
+  await expectRoute(page, ['CPH', 'LHR', 'JFK']);
+  const head = page.locator('.panel__head');
+  // A short drag springs back.
+  await swipe(head, 40);
+  await expect(page.locator('.panel')).not.toHaveClass(/is-collapsed/);
+  await expect(stopButtons(page)).toHaveCount(3);
+  // A long drag down collapses the sheet to its peek bar, leaving the globe uncovered.
+  await swipe(head, 260);
+  const peek = page.locator('.peek');
+  await expect(peek).toBeVisible();
+  await expect(peek).toContainText('CPH → LHR → JFK');
+  await expect(page.locator('.panel')).toHaveClass(/is-collapsed/);
+  // Lifting the peek bar brings the journey back.
+  await swipe(peek, -80);
+  await expect(stopButtons(page)).toHaveCount(3);
+  await expect(page.getByRole('button', { name: 'Hide journey details' })).toBeVisible();
+  // Content scrolled to the top also drags the sheet; the handle still toggles it for taps and keyboards.
+  await swipe(page.locator('.panel__scroll'), 260);
+  await expect(page.locator('.panel')).toHaveClass(/is-collapsed/);
+  await page.getByRole('button', { name: 'Show journey details' }).first().click();
+  await expect(stopButtons(page)).toHaveCount(3);
+});

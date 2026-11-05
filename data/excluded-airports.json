@@ -1,0 +1,4 @@
+{
+  "KR-1113": "Ulleung Airport, South Korea: upstream coordinates (42.5474, 116.1337) are in Inner Mongolia, China, about 1,300 km from Ulleungdo (about 37.5 N, 130.9 E). Routes would be drawn to China and the airport would get China Standard Time (UTC+8) instead of Korea Standard Time (UTC+9).",
+  "VE-0526": "Self-described \"(Misplaced duplicate?)\" Venezuelan record of Simon Bolivar International Airport located in Chad (12.5042, 20.8154), which would get Chad's time zone (UTC+1). The real airport is the separate CCS/SVMI record."
+}

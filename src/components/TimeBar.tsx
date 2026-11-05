@@ -1,7 +1,7 @@
 import { airportCode } from '../data/airports.ts';
 import { useClock } from '../hooks/useClock.ts';
 import { formatDuration } from '../lib/flightTime.ts';
-import { clockZoneOptions, describeState } from '../lib/journeyText.ts';
+import { clockZoneOptions, describeState, formatDateLabel } from '../lib/journeyText.ts';
 import type { Journey } from '../lib/schedule.ts';
 import { journeyStateAt, type Timeline } from '../lib/timeline.ts';
 import {
@@ -16,6 +16,7 @@ import {
 } from '../lib/timezone.ts';
 import { legColor } from '../lib/legColors.ts';
 import { PLAYBACK_SPEEDS, type PlaybackSpeed, type SimulationClock } from '../state/clock.ts';
+import { DateTimeField } from './DateTimeField.tsx';
 import { IconChevronLeft, IconChevronRight, IconClose, IconPause, IconPlay } from './Icons.tsx';
 interface Props {
   clock: SimulationClock;
@@ -197,16 +198,15 @@ export function TimeBar({ clock, journey, timeline, clockZone, onClockZone, onCl
           </>
         ) : (
           <>
-            <input
-              className="time-bar__date"
-              type="date"
-              aria-label="Globe date"
+            <DateTimeField
+              kind="date"
+              label="Globe date"
               value={date}
-              min="1900-01-01"
-              max="2100-12-31"
-              onChange={(e) => {
+              display={formatDateLabel(date)}
+              placeholder="Date"
+              onChange={(value) => {
                 const local = parseLocalDateTime(
-                  `${e.target.value}T${formatLocalDateTime(utcToLocal(zone, snapshot.time)).slice(11)}`,
+                  `${value}T${formatLocalDateTime(utcToLocal(zone, snapshot.time)).slice(11)}`,
                 );
                 if (!local) return;
                 const resolved = resolveLocal(zone, local);

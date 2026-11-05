@@ -22,6 +22,7 @@ Selection and cleaning in `scripts/lib/dataset.ts`:
 
 - Exclude closed airports and balloonports. Retain valid IATA-coded records, scheduled service, or large/medium airports, including unscheduled ones. Eligible heliports/seaplane bases remain searchable.
 - Drop invalid/out-of-range coordinates, the (0,0) placeholder and empty names. Reject invalid IDs, identities, types and duplicate numeric IDs.
+- Leave out records listed in `data/excluded-airports.json`: upstream airports whose recorded position is demonstrably wrong (each entry states the evidence). Currently two: Ulleung, South Korea (KR-1113, recorded in Inner Mongolia) and a “(Misplaced duplicate?)” Venezuelan record in Chad (VE-0526). The time-zone build's country plausibility check finds such records; see [airport time zones](../data/TIMEZONES.md#country-plausibility-check).
 - Trim/collapse whitespace, uppercase valid IATA/ICAO codes and use a valid four-letter GPS code if ICAO is unavailable. Round coordinates to four decimals.
 - Keep region names for US, CA and AU; use country names for all records.
 - Resolve duplicate IATA/ICAO codes deterministically by scheduled service, airport type (large → medium → small → seaplane → heliport), ICAO presence, then lowest numeric ID. Clear losing codes but retain them as keywords.
@@ -71,4 +72,4 @@ The generated `src/data/generated/country-labels.json` contains 242 labels, 7,62
 
 ## Fonts
 
-Geist and Geist Mono by Vercel are bundled through `@fontsource-variable/geist` and `@fontsource-variable/geist-mono`. Both installed package manifests declare **OFL-1.1**. The font licence text is in each package’s `LICENSE`; these terms remain separate from the project code licence. See [third-party notices](../THIRD_PARTY_NOTICES.md).
+Barlow by Jeremy Tribby (weights 400–700) and Martian Mono by Evil Martians (variable weight and width) are bundled through `@fontsource/barlow` and `@fontsource-variable/martian-mono`. Both installed package manifests declare **OFL-1.1** (SIL Open Font License 1.1). Only the Latin, Latin Extended and Vietnamese subsets that a page actually uses are downloaded. The font licence text is in each package’s `LICENSE`; these terms remain separate from the project code licence. See [third-party notices](../THIRD_PARTY_NOTICES.md).

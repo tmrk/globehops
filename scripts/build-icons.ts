@@ -15,6 +15,19 @@ const pub = (f: string) => path.join(root, 'public', f);
 
 const logo = await readFile(pub('logo.svg'), 'utf8');
 const favicon = await readFile(pub('favicon.svg'), 'utf8');
+// The social card is rendered from an inline page, so embed the brand typeface rather than linking it.
+const barlow = async (weight: number) =>
+  (
+    await readFile(path.join(root, `node_modules/@fontsource/barlow/files/barlow-latin-${weight}-normal.woff2`))
+  ).toString('base64');
+const fontFaces = (
+  await Promise.all(
+    [500, 600, 700].map(
+      async (w) =>
+        `@font-face{font-family:Barlow;font-weight:${w};src:url(data:font/woff2;base64,${await barlow(w)}) format('woff2')}`,
+    ),
+  )
+).join('');
 
 const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
@@ -22,7 +35,10 @@ const browser = await chromium.launch({
 
 async function render(html: string, size: { width: number; height: number }, file: string) {
   const page = await browser.newPage({ viewport: size, deviceScaleFactor: 1 });
-  await page.setContent(`<!doctype html><html><body style="margin:0;background:transparent">${html}</body></html>`);
+  await page.setContent(
+    `<!doctype html><html><head><style>${fontFaces}</style></head><body style="margin:0;background:transparent">${html}</body></html>`,
+  );
+  await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: pub(file), omitBackground: true });
   await page.close();
   console.log('wrote', file);
@@ -60,13 +76,13 @@ if (ogIndex !== -1) {
   // 2. Compose the 1200×630 card.
   const img = `data:image/png;base64,${globe.toString('base64')}`;
   await render(
-    `<div style="position:relative;width:1200px;height:630px;overflow:hidden;background:radial-gradient(ellipse at 72% 45%,#10223d 0%,#05080f 62%);font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
+    `<div style="position:relative;width:1200px;height:630px;overflow:hidden;background:radial-gradient(ellipse at 72% 45%,#10223d 0%,#05080f 62%);font-family:Barlow,system-ui,sans-serif">
       <img src="${img}" style="position:absolute;right:-150px;top:-185px;width:1000px;height:1000px;-webkit-mask-image:radial-gradient(circle at 50% 50%,#000 46%,transparent 62%)">
       <div style="position:absolute;left:72px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;width:520px">
         <div style="display:flex;align-items:center;gap:18px">${svgAt(logo, 76)}
-          <span style="font-size:58px;font-weight:700;letter-spacing:-0.02em;color:#eef1f6">Globe<span style="color:#ffc24b">Hops</span></span></div>
-        <p style="margin:28px 0 0;font-size:34px;line-height:1.25;color:#eef1f6;font-weight:600;letter-spacing:-0.01em">Your journey by air,<br>on a real 3D globe.</p>
-        <p style="margin:18px 0 0;font-size:22px;line-height:1.4;color:#a9b2c3">Great-circle routes, distances and<br>estimated flight times — free &amp; open source.</p>
+          <span style="font-size:62px;font-weight:700;letter-spacing:-0.005em;color:#eef1f6">GlobeHops</span></div>
+        <p style="margin:28px 0 0;font-size:38px;line-height:1.2;color:#eef1f6;font-weight:600">Your journey by air,<br>on a real 3D globe.</p>
+        <p style="margin:18px 0 0;font-size:25px;line-height:1.35;color:#a9b2c3;font-weight:500">Great-circle routes, distances and<br>estimated flight times — free &amp; open source.</p>
       </div>
     </div>`,
     { width: 1200, height: 630 },

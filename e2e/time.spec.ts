@@ -40,6 +40,55 @@ test('undated route keeps exact estimates and progressively discloses local sche
   await expect(editor).toHaveCount(0);
 });
 
+test('each flight offers its times in place, with airport zones and estimates for empty fields', async ({ page }) => {
+  await page.goto('./?route=CPH-LHR-JFK');
+  await expect(flight(page, 1)).toContainText('Add times');
+  await expect(flight(page, 2)).toContainText('Add times');
+  await flight(page, 2).click();
+  const editor = page.getByRole('region', { name: 'Flight 2 times' });
+  await expect(editor.getByRole('group', { name: 'Departure, local time' })).toContainText('LHR London');
+  await expect(editor.getByRole('group', { name: 'Arrival, local time' })).toContainText(/EST · UTC−5|UTC−5/);
+  await expect(editor).toContainText('Add date');
+  await editor.getByLabel('Departure date', { exact: true }).fill('2026-11-20');
+  await editor.getByLabel('Departure time', { exact: true }).fill('11:00');
+  // The arrival is estimated from the departure in New York's local time and offered for editing.
+  // 11:00 GMT plus the 7h 00m estimate is 18:00 GMT, 13:00 in New York.
+  await expect(editor.getByLabel('Arrival time', { exact: true })).toHaveValue('13:00');
+  await expect(editor.getByLabel('Arrival date', { exact: true })).toHaveValue('2026-11-20');
+  await expect(editor.getByRole('group', { name: 'Arrival, local time' })).toContainText('≈Fri 20 Nov 2026');
+  await expect(editor).toContainText('Estimated from your other times');
+  await expect(flight(page, 2)).toContainText('11:00');
+  await expect(flight(page, 1)).toContainText('→');
+  await editor.getByRole('button', { name: 'Done' }).click();
+  await expect(editor).toHaveCount(0);
+  await expect(flight(page, 2)).toBeFocused();
+});
+
+test('the aircraft stays visible on every frame of a flight while playing', async ({ page }) => {
+  await page.goto(`./${scheduled}&t=2026-11-20T07:20Z&clock=utc`);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const bar = timeline(page);
+  await expect(bar).toContainText('En route to London Heathrow');
+  await bar.getByRole('combobox', { name: 'Playback speed' }).selectOption('1800');
+  await bar.getByRole('button', { name: 'Play journey' }).click();
+  const samples = await page.evaluate(
+    () =>
+      new Promise<{ opacity: string; transform: string }[]>((resolve) => {
+        const plane = document.querySelector<HTMLElement>('.globe-plane')!;
+        const out: { opacity: string; transform: string }[] = [];
+        const tick = () => {
+          out.push({ opacity: plane.style.opacity, transform: plane.style.transform });
+          if (out.length < 40) requestAnimationFrame(tick);
+          else resolve(out);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  await bar.getByRole('button', { name: 'Pause playback' }).click();
+  expect(samples.filter((s) => s.opacity !== '1')).toEqual([]);
+  expect(new Set(samples.map((s) => s.transform)).size).toBeGreaterThan(10);
+});
+
 test('scheduled playback advances, pauses, scrubs all phases, changes speed and seeks flights', async ({
   page,
   isMobile,

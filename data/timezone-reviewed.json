@@ -1,0 +1,13 @@
+{
+  "AT03": "Concordia Station keeps Australian Western time (UTC+8), unlike other Antarctic stations; TBB maps it to Australia/Perth.",
+  "AT28": "Vostok Station keeps its own UTC+5 (Antarctica/Vostok).",
+  "MMCS": "Ciudad Juarez follows US Mountain time with US daylight saving (America/Ciudad_Juarez since tzdb 2022g), unlike the rest of Mexico.",
+  "NTGJ": "The Gambier Islands keep UTC-9 (Pacific/Gambier), an hour behind Tahiti.",
+  "PCIS": "Kanton in the Phoenix Islands keeps UTC+13 (Pacific/Kanton).",
+  "PMDY": "Midway Atoll keeps Samoa time, UTC-11 (Pacific/Midway); the US Minor Outlying Islands straddle the date line.",
+  "PWAK": "Wake Island keeps UTC+12 (Pacific/Wake); the US Minor Outlying Islands straddle the date line.",
+  "SBFN": "Fernando de Noronha keeps UTC-2 (America/Noronha), an hour ahead of mainland north-east Brazil.",
+  "SCIP": "Easter Island keeps UTC-6 with Chilean daylight saving (Pacific/Easter).",
+  "YECL": "Eucla keeps the unofficial Central Western time, UTC+8:45 (Australia/Eucla).",
+  "YLHI": "Lord Howe Island keeps UTC+10:30 with a half-hour daylight saving shift (Australia/Lord_Howe)."
+}

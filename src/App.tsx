@@ -12,6 +12,7 @@ import { TimeBar } from './components/TimeBar.tsx';
 import { TimeChip } from './components/TimeChip.tsx';
 import { Toast } from './components/Toast.tsx';
 import { useToast } from './hooks/useToast.ts';
+import { useBottomSheet } from './hooks/useBottomSheet.ts';
 import { stopCaption, stopLabel, stopPlaceholder } from './lib/stopText.ts';
 import timezonesUrl from './data/generated/timezones.json?url';
 import { loadTimeZones, zoneForAirport, type TimeZoneTable } from './data/timezones.ts';
@@ -676,6 +677,12 @@ export default function App() {
     !journey.dated ||
     journey.legs.some((l) => l.departure?.provenance !== 'entered' || l.arrival?.provenance !== 'entered');
   const sheetCollapsed = !isDesktop && collapsed && editing === null;
+  const sheet = useBottomSheet(panelRef, {
+    enabled: !isDesktop,
+    collapsed: sheetCollapsed,
+    setCollapsed,
+    reducedMotion,
+  });
 
   return (
     <div className={`app ${isDesktop ? 'layout-desktop' : 'layout-mobile'}`}>
@@ -790,14 +797,14 @@ export default function App() {
             className="sheet-handle"
             aria-expanded={!sheetCollapsed}
             aria-label={sheetCollapsed ? 'Show journey details' : 'Hide journey details'}
-            onClick={() => setCollapsed((c) => !c)}
+            onClick={() => (sheetCollapsed ? sheet.expand() : sheet.collapse())}
           >
             <span />
           </button>
         )}
 
         {sheetCollapsed ? (
-          <button type="button" className="peek" onClick={() => setCollapsed(false)} aria-label="Show journey details">
+          <button type="button" className="peek" onClick={() => sheet.expand()} aria-label="Show journey details">
             <span className="peek__route">
               {filledAirports.length ? filledAirports.map(airportCode).join(' → ') : 'Plan a journey'}
             </span>

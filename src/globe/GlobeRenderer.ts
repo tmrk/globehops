@@ -7,7 +7,9 @@
  * - Routes are true great circles (spherical interpolation of unit vectors). The visual arc follows
  *   a simplified flight profile (climb to cruising altitude, cruise, descend; see lib/altitude.ts)
  *   with the vertical axis exaggerated. It lies entirely in the great-circle plane, so its ground
- *   projection is exactly the great-circle track (drawn as a faint dashed line).
+ *   projection is exactly the great-circle track.
+ * - Translucent lines use the stencil buffer so each pixel blends once: overlapping segment joints
+ *   never form brighter beads, and every line reads as one smooth stroke.
  * - Airport labels are HTML elements projected from 3D and hidden on the far side of the globe.
  * - Country borders (Natural Earth) are fetched only when first shown.
  */
@@ -18,6 +20,7 @@ import {
   Color,
   DirectionalLight,
   Group,
+  InterleavedBufferAttribute,
   Mesh,
   MeshLambertMaterial,
   NotEqualStencilFunc,
@@ -117,7 +120,7 @@ const MIN_DISTANCE = 1.32;
 const ROUTE_LIFT = 0.0018;
 /** Highest point of any arc: cruising altitude (exaggerated) above the base lift. */
 const ARC_PEAK = ROUTE_LIFT + exaggeratedLift(DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm);
-/** Borders sit above the sphere's flat facets but below the dashed ground tracks. */
+/** Borders sit just above the sphere's flat facets. */
 const BORDER_RADIUS = 1.0004;
 const BORDER_STEP_DEG = 0.5;
 const ATMOSPHERE_RADIUS = 1.055;
@@ -133,13 +136,13 @@ interface LegObject {
   /** Sparse ground samples (≤ 2° apart) for camera framing; the enclosing-cap search is O(points). */
   frame: Vector3[];
   arc: Vector3[]; // lifted arc points
+  /** The arc from destination to origin; drawing its first part shows what remains to be flown. */
+  arcReversed: Vector3[];
   line: Line2;
   casing: Line2;
-  track: Line2;
   remaining: Line2;
   material: LineMaterial;
   casingMaterial: LineMaterial;
-  trackMaterial: LineMaterial;
   remainingMaterial: LineMaterial;
   segments: number;
   /** 0..1 reveal progress */
@@ -399,9 +402,12 @@ export class GlobeRenderer {
       return;
     this.aircraft = view ? { ...view } : null;
     this.plane.classList.toggle('is-ground', view?.kind === 'ground');
-    this.plane.style.opacity = '0';
+    // The next frame (or flush()) places a simulated aircraft; hiding it here would make it blink.
     if (view) this.planeAnim = null;
-    else this.startSelectionPlane();
+    else {
+      this.plane.style.opacity = '0';
+      this.startSelectionPlane();
+    }
     for (const leg of this.legs) if (leg) this.applyProgress(leg);
     this.requestRender();
   }
@@ -579,6 +585,17 @@ export class GlobeRenderer {
     if (this.disposed || this.frame) return;
     this.frame = requestAnimationFrame(this.renderFrame);
   };
+
+  /**
+   * Draws a pending frame now. Simulation updates arrive inside the clock's animation frame; drawing
+   * there (instead of in the next one) keeps the aircraft, trail and labels in step with the clock.
+   */
+  flush() {
+    if (this.disposed || !this.frame) return;
+    cancelAnimationFrame(this.frame);
+    this.frame = 0;
+    this.renderFrame(performance.now());
+  }
 
   private renderFrame = (now: number) => {
     this.frame = 0;
@@ -781,7 +798,6 @@ export class GlobeRenderer {
     const arc = ground.map((g, i) =>
       g.clone().multiplyScalar(1 + ROUTE_LIFT + exaggeratedLift(altitudeAt(profile, fractions[i] * distanceKm))),
     );
-    const trackPts = ground.map((g) => g.clone().multiplyScalar(1.0008));
 
     const color = new Color(leg.color);
     const material = new LineMaterial({ color, linewidth: 2.6, transparent: true, worldUnits: false });
@@ -799,44 +815,37 @@ export class GlobeRenderer {
       opacity: 0.35,
       worldUnits: false,
     });
-    const trackMaterial = new LineMaterial({
-      color: 0xffffff,
-      linewidth: 1.1,
-      transparent: true,
-      opacity: 0.32,
-      dashed: true,
-      dashSize: 0.012,
-      gapSize: 0.01,
-      worldUnits: false,
-    });
-    for (const m of [material, casingMaterial, trackMaterial, remainingMaterial]) {
+    for (const m of [material, casingMaterial, remainingMaterial]) {
       m.resolution.set(this.width, this.height);
       // Lines are depth-tested against the globe (so far-side routes hide) but don't write
       // depth themselves — avoids z-fighting between the casing and the coloured line.
       m.depthWrite = false;
+      // One stencil value per line: a pixel already covered by this line is not blended again, so
+      // translucent strokes stay even instead of beading where segment ends overlap.
+      m.stencilWrite = true;
+      m.stencilRef = this.nextStencilRef();
+      m.stencilFunc = NotEqualStencilFunc;
+      m.stencilZPass = ReplaceStencilOp;
     }
 
     const line = makeLine(arc, material, 3);
     const casing = makeLine(arc, casingMaterial, 2);
-    const track = makeLine(trackPts, trackMaterial, 1);
-    // Reversed once: drawing its first N instances exposes the unflown suffix, without uploads.
-    const remaining = makeLine([...arc].reverse(), remainingMaterial, 2.5);
+    const arcReversed = [...arc].reverse();
+    const remaining = makeLine(arcReversed, remainingMaterial, 2.5);
     remaining.visible = false;
-    track.computeLineDistances();
-    this.routeGroup.add(track, casing, remaining, line);
+    this.routeGroup.add(casing, remaining, line);
     return {
       key: leg.key,
       fractions,
       ground,
       frame,
       arc,
+      arcReversed,
       line,
       casing,
-      track,
       remaining,
       material,
       casingMaterial,
-      trackMaterial,
       remainingMaterial,
       segments: n,
       progress: 1,
@@ -844,19 +853,23 @@ export class GlobeRenderer {
   }
 
   private applyProgress(leg: LegObject) {
-    // Progress is a fraction of the distance flown; samples are uneven, so map it to a segment count.
+    // Progress is a fraction of the distance flown. The drawn line ends exactly at that point (the
+    // last visible segment is shortened), so the trail grows continuously instead of in steps.
     const aircraft = this.aircraft;
     const trail = aircraft?.kind === 'air' && aircraft.leg === this.highlightLeg && this.legs[aircraft.leg] === leg;
-    const progress = trail ? clamp01(aircraft.fraction) : leg.progress;
-    const { index, t } = locateFraction(leg.fractions, clamp01(progress));
-    const count = progress <= 0 ? 0 : Math.min(leg.segments, index + Math.round(t));
-    leg.line.geometry.instanceCount = count;
-    leg.casing.geometry.instanceCount = count;
-    leg.track.geometry.instanceCount = trail ? leg.segments : count;
-    leg.line.visible = leg.casing.visible = count > 0;
-    leg.track.visible = leg.track.geometry.instanceCount > 0;
-    leg.remaining.geometry.instanceCount = trail ? leg.segments - count : 0;
-    leg.remaining.visible = leg.remaining.geometry.instanceCount > 0;
+    const progress = clamp01(trail ? aircraft.fraction : leg.progress);
+    const { index, t } = locateFraction(leg.fractions, progress);
+    const flown = progress > 0;
+    revealLine(leg.line, leg.arc, flown ? index : -1, t);
+    revealLine(leg.casing, leg.arc, flown ? index : -1, t);
+    revealLine(leg.remaining, leg.arcReversed, trail && progress < 1 ? leg.segments - 1 - index : -1, 1 - t);
+  }
+
+  /** Stencil values for translucent route lines; 1 belongs to the borders. */
+  private stencilRef = 1;
+  private nextStencilRef(): number {
+    this.stencilRef = this.stencilRef >= 255 ? 2 : this.stencilRef + 1;
+    return this.stencilRef;
   }
 
   private applySelectionStyles() {
@@ -868,7 +881,6 @@ export class GlobeRenderer {
       leg.material.opacity = active ? 1 : this.highlightLeg !== null ? 0.55 : 0.38;
       leg.casingMaterial.opacity = active ? 0.38 : 0.12;
       leg.casingMaterial.linewidth = sel === i ? 6.6 : 5.2;
-      leg.trackMaterial.opacity = active ? 0.34 : 0.1;
     });
     // Emphasise endpoints of the selected leg.
     const emph = new Set<string>();
@@ -888,16 +900,16 @@ export class GlobeRenderer {
   private clearLegs() {
     for (const leg of this.legs) {
       if (!leg) continue;
-      for (const l of [leg.line, leg.casing, leg.track, leg.remaining]) {
+      for (const l of [leg.line, leg.casing, leg.remaining]) {
         this.routeGroup.remove(l);
         l.geometry.dispose();
       }
       leg.material.dispose();
       leg.casingMaterial.dispose();
-      leg.trackMaterial.dispose();
       leg.remainingMaterial.dispose();
     }
     this.legs = [];
+    this.stencilRef = 1;
   }
 
   private buildMarker(m: GlobeMarker): MarkerObject {
@@ -1177,8 +1189,7 @@ export class GlobeRenderer {
     this.controls.maxDistance = this.overviewDistance() * 1.6;
     for (const leg of this.legs) {
       if (!leg) continue;
-      for (const m of [leg.material, leg.casingMaterial, leg.trackMaterial, leg.remainingMaterial])
-        m.resolution.set(w, h);
+      for (const m of [leg.material, leg.casingMaterial, leg.remainingMaterial]) m.resolution.set(w, h);
     }
     this.borders?.material.resolution.set(w, h);
     this.updateProjection();
@@ -1320,6 +1331,33 @@ function makeLine(points: Vector3[], material: LineMaterial, order: number): Lin
   line.renderOrder = order;
   line.frustumCulled = false;
   return line;
+}
+
+/**
+ * Shows a polyline up to segment `index`, cut at fraction `t` of that segment (index < 0 hides it).
+ * Only the end of the partial segment is rewritten; the previously cut segment is restored first.
+ */
+function revealLine(line: Line2, points: Vector3[], index: number, t: number) {
+  const geometry = line.geometry;
+  const end = geometry.getAttribute('instanceEnd') as InterleavedBufferAttribute;
+  const segments = points.length - 1;
+  const cut = index >= 0 && index < segments ? index : -1;
+  const previous = (line.userData.cut as number | undefined) ?? -1;
+  if (previous !== -1 && previous !== cut) {
+    const p = points[previous + 1];
+    end.setXYZ(previous, p.x, p.y, p.z);
+    end.data.needsUpdate = true;
+  }
+  if (cut !== -1) {
+    const a = points[cut];
+    const b = points[cut + 1];
+    const k = Math.min(1, Math.max(0, t));
+    end.setXYZ(cut, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, a.z + (b.z - a.z) * k);
+    end.data.needsUpdate = true;
+  }
+  line.userData.cut = cut;
+  geometry.instanceCount = cut === -1 ? (index >= segments ? segments : 0) : cut + 1;
+  line.visible = geometry.instanceCount > 0;
 }
 
 function distToSegment(px: number, py: number, a: { x: number; y: number }, b: { x: number; y: number }) {

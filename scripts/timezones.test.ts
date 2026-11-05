@@ -5,6 +5,7 @@ import { crc32, deflateRawSync, gzipSync } from 'node:zlib';
 import { main, verifyTimeZoneZip } from './build-timezones.ts';
 import { extractJsonFromZip } from './lib/zip.ts';
 import {
+  findCountryOutliers,
   buildTimeZones,
   distanceToEdgeKm,
   lookupTimeZone,
@@ -246,6 +247,56 @@ describe('time-zone spatial lookup', () => {
     ];
     for (const raw of bad) expect(() => parseTimeZonePolygons(raw)).toThrow();
     expect(() => lookupTimeZone({ lat: 91, lng: 0 }, [])).toThrow('coordinates');
+  });
+});
+
+describe('country plausibility check', () => {
+  const airport = (id: number, countryCode: string) => ({ id, ident: `X${id}`, countryCode });
+  it('flags an airport whose zone keeps different clocks from the rest of its country', () => {
+    const airports = [airport(1, 'KR'), airport(2, 'KR'), airport(3, 'KR'), airport(4, 'VE'), airport(5, 'VE')];
+    const zones = new Map([
+      [1, 'Asia/Seoul'],
+      [2, 'Asia/Seoul'],
+      [3, 'Asia/Shanghai'],
+      [4, 'America/Caracas'],
+      [5, 'Africa/Ndjamena'],
+    ]);
+    expect(
+      findCountryOutliers(airports, zones, { X4: 'Checked.' }).map((o) => [o.ident, o.others, o.reviewed]),
+    ).toEqual([
+      ['X3', ['Asia/Seoul'], false],
+      ['X4', ['Africa/Ndjamena'], true],
+      ['X5', ['America/Caracas'], false],
+    ]);
+  });
+  it('accepts multi-zone countries, equivalent zones and single-airport countries', () => {
+    const airports = [airport(1, 'US'), airport(2, 'US'), airport(3, 'NO'), airport(4, 'NO'), airport(5, 'XK')];
+    const zones = new Map([
+      [1, 'America/New_York'],
+      [2, 'America/Los_Angeles'],
+      [3, 'Europe/Oslo'],
+      [4, 'Arctic/Longyearbyen'],
+      [5, 'Europe/Belgrade'],
+    ]);
+    // New York and Los Angeles are each alone in this tiny fixture, so both are reported; real data has many.
+    expect(findCountryOutliers(airports, zones).map((o) => o.ident)).toEqual(['X1', 'X2']);
+    zones.set(2, 'America/New_York');
+    expect(findCountryOutliers(airports, zones)).toEqual([]);
+  });
+});
+
+describe('committed airport time zones', () => {
+  it('have no unexplained country outliers and no excluded airports', async () => {
+    const record = JSON.parse(await readFile('data/timezones-build.json', 'utf8')) as {
+      report: { countryOutliers: { ident: string; reviewed: boolean }[] };
+    };
+    const reviewed = JSON.parse(await readFile('data/timezone-reviewed.json', 'utf8')) as Record<string, string>;
+    const excluded = JSON.parse(await readFile('data/excluded-airports.json', 'utf8')) as Record<string, string>;
+    // A new outlier is usually an upstream airport with wrong coordinates: exclude it, or explain why it is right.
+    expect(record.report.countryOutliers.filter((o) => !o.reviewed).map((o) => o.ident)).toEqual([]);
+    expect(Object.keys(reviewed).sort()).toEqual(record.report.countryOutliers.map((o) => o.ident).sort());
+    const { airports } = decodeDataset(JSON.parse(await readFile('src/data/generated/airports.json', 'utf8')));
+    expect(airports.filter((a) => Object.hasOwn(excluded, a.ident))).toEqual([]);
   });
 });
 

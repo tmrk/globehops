@@ -1,36 +1,43 @@
 import { useId } from 'react';
 
-/** The GlobeHops mark: a globe with a great-circle "hop" between two airports (same art as public/logo.svg). */
+/**
+ * The GlobeHops mark: a globe with one great-circle hop between two airports, drawn with the same
+ * origin (ring) and destination (filled) markers as the globe itself. Same art as public/logo.svg.
+ */
 export function LogoMark({ size = 30 }: { size?: number }) {
-  const id = useId();
-  const gradient = `${id}-globe`;
+  const gradient = `${useId()}-globe`;
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false" className="logo-mark">
       <defs>
-        <radialGradient id={gradient} cx="38%" cy="32%" r="78%">
-          <stop offset="0" stopColor="#3a7fc4" />
-          <stop offset="0.55" stopColor="#16406f" />
-          <stop offset="1" stopColor="#0a1c35" />
+        <radialGradient id={gradient} cx="36%" cy="28%" r="82%">
+          <stop offset="0" stopColor="#4a92da" />
+          <stop offset="0.55" stopColor="#1b5592" />
+          <stop offset="1" stopColor="#0a2547" />
         </radialGradient>
       </defs>
-      <circle cx="31" cy="34" r="22" fill={`url(#${gradient})`} />
+      <circle cx="32" cy="32" r="25" fill={`url(#${gradient})`} />
+      <g fill="none" stroke="#cfe5ff" strokeOpacity=".28" strokeWidth="1.5">
+        <ellipse cx="32" cy="32" rx="10.5" ry="25" />
+        <path d="M8.2 25.5c15.6 5 32 5 47.6 0M10.7 44.5c13.8 3.9 28.8 3.9 42.6 0" />
+      </g>
+      <circle cx="32" cy="32" r="25" fill="none" stroke="#9ccaff" strokeOpacity=".85" strokeWidth="1.8" />
       <path
-        d="M31 12.6c-5.2 5.6-8 13-8 21.4s2.8 15.8 8 21.4M9.4 31.5c6.6 2.1 14 3.2 21.6 3.2s15-1.1 21.6-3.2"
+        d="M18.5 43.5C21.5 25 34 15.5 47.5 19.5"
         fill="none"
-        stroke="#a9cfff"
-        strokeOpacity=".28"
-        strokeWidth="1.6"
-      />
-      <circle cx="31" cy="34" r="22" fill="none" stroke="#a9cfff" strokeOpacity=".45" strokeWidth="1.6" />
-      <path
-        d="M12.5 46.5C17.5 27.5 33 15 53 15.5"
-        fill="none"
-        stroke="#ffc24b"
-        strokeWidth="4.6"
+        stroke="#04060c"
+        strokeOpacity=".45"
+        strokeWidth="8"
         strokeLinecap="round"
       />
-      <circle cx="12.5" cy="46.5" r="5.4" fill="#ffc24b" />
-      <circle cx="53" cy="15.5" r="5" fill="#fff" stroke="#ffc24b" strokeWidth="2.8" />
+      <path
+        d="M18.5 43.5C21.5 25 34 15.5 47.5 19.5"
+        fill="none"
+        stroke="#ffc24b"
+        strokeWidth="4.2"
+        strokeLinecap="round"
+      />
+      <circle cx="18.5" cy="43.5" r="4.6" fill="#0a0f1a" stroke="#ffc24b" strokeWidth="2.8" />
+      <circle cx="47.5" cy="19.5" r="5" fill="#ffc24b" stroke="#fff" strokeWidth="2.4" />
     </svg>
   );
 }
@@ -39,9 +46,7 @@ export function Brand() {
   return (
     <div className="brand">
       <LogoMark />
-      <span className="brand__name">
-        Globe<span>Hops</span>
-      </span>
+      <span className="brand__name">GlobeHops</span>
     </div>
   );
 }

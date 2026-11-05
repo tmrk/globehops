@@ -3,7 +3,14 @@ import { airportCode, airportShortName, displayCity } from '../data/airports.ts'
 import type { Journey, JourneyLeg } from './schedule.ts';
 import type { JourneyState } from './timeline.ts';
 import { formatDuration } from './flightTime.ts';
-import { formatClock, localDayDifference, parseLocalDateTime, zoneAbbreviation } from './timezone.ts';
+import {
+  formatClock,
+  localDayDifference,
+  offsetMinutesAt,
+  parseLocalDate,
+  parseLocalDateTime,
+  zoneAbbreviation,
+} from './timezone.ts';
 
 export function describeState(
   j: Journey,
@@ -56,4 +63,34 @@ export function clockZoneOptions(journey: Journey, browserZone: string): { value
     options.push({ value: airportCode(stop.airport), label: `${displayCity(stop.airport)} time` });
   }
   return options;
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** A calendar date ("2026-11-20") as "Thu 20 Nov 2026"; '' for anything else. Independent of time zones. */
+export function formatDateLabel(isoDate: string): string {
+  const date = parseLocalDate(isoDate);
+  if (!date) return '';
+  const utc = new Date(0);
+  utc.setUTCFullYear(date.year, date.month - 1, date.day);
+  return `${WEEKDAYS[utc.getUTCDay()]} ${date.day} ${MONTHS[date.month - 1]} ${date.year}`;
+}
+
+/** UTC offset with an explicit sign, including zero: "UTC+1", "UTC−3:30", "UTC+0". */
+export function formatUtcOffset(offsetMin: number): string {
+  const total = Math.round(Math.abs(offsetMin));
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  return `UTC${offsetMin < 0 ? '−' : '+'}${hours}${minutes ? `:${String(minutes).padStart(2, '0')}` : ''}`;
+}
+
+/**
+ * The zone in effect at an airport at an instant: "CET · UTC+1", "GMT · UTC+0", or only the offset
+ * where there is no well-known abbreviation ("UTC+5:30").
+ */
+export function formatZoneLabel(zone: string, instant: number): string {
+  const offset = formatUtcOffset(offsetMinutesAt(zone, instant));
+  const abbreviation = zoneAbbreviation(zone, instant);
+  return /^(?:UTC|GMT)?[+−-]|^UTC$/.test(abbreviation) ? offset : `${abbreviation} · ${offset}`;
 }

@@ -3,6 +3,7 @@ import { decodeDataset } from '../../src/data/airports.ts';
 import { decodeTimeZones } from '../../src/data/timezones.ts';
 import type { TimeZoneMeta } from '../../src/data/timezones.ts';
 import type { Airport, LatLng } from '../../src/types.ts';
+import { offsetMinutesAt } from '../../src/lib/timezone.ts';
 
 export const TIMEZONE_RELEASE = '2026f';
 export const TIMEZONE_SOURCE_URL = `https://github.com/evansiroky/timezone-boundary-builder/releases/download/${TIMEZONE_RELEASE}/timezones.geojson.zip`;
@@ -74,6 +75,8 @@ export interface TimeZoneReport {
   overrides: (Assignment & { reason: string })[];
   overlaps: (Assignment & { candidates: string[] })[];
   unusedOverrides: string[];
+  /** Airports whose zone keeps different clocks from every other airport in their country: usually misplaced records. */
+  countryOutliers: (Assignment & { country: string; others: string[]; reviewed: boolean })[];
 }
 export interface LookupResult {
   zone: string;
@@ -293,7 +296,12 @@ export function buildTimeZones(
   raw: unknown,
   airportRaw: unknown,
   overrideRaw: unknown,
-  options: { generatedAt?: string; sentinels?: Readonly<Record<string, string>> } = {},
+  options: {
+    generatedAt?: string;
+    sentinels?: Readonly<Record<string, string>>;
+    /** Outliers checked by hand and found correct, keyed by ident (data/timezone-reviewed.json). */
+    reviewed?: Readonly<Record<string, string>>;
+  } = {},
 ): { dataset: TimeZoneDataset; report: TimeZoneReport } {
   const { airports } = decodeDataset(airportRaw);
   if (
@@ -305,7 +313,13 @@ export function buildTimeZones(
     throw new Error('Missing airport content hash');
   const polygons = parseTimeZonePolygons(raw);
   const overrides = parseOverrides(overrideRaw);
-  const report: TimeZoneReport = { nearest: [], overrides: [], overlaps: [], unusedOverrides: [] };
+  const report: TimeZoneReport = {
+    nearest: [],
+    overrides: [],
+    overlaps: [],
+    unusedOverrides: [],
+    countryOutliers: [],
+  };
   const assigned = new Map<number, string>();
   const unresolved: string[] = [];
   for (const airport of [...airports].sort((a, b) => a.id - b.id)) {
@@ -325,6 +339,7 @@ export function buildTimeZones(
     throw new Error(`No time zone within ${NEAREST_LIMIT_KM} km; overrides required:\n${unresolved.join('\n')}`);
   validateSupportedZones(assigned.values());
   validateSentinels(airports, assigned, options.sentinels);
+  report.countryOutliers = findCountryOutliers(airports, assigned, options.reviewed);
   report.unusedOverrides = Object.keys(overrides)
     .filter((id) => !report.overrides.some((entry) => entry.id === Number(id)))
     .sort();
@@ -363,4 +378,53 @@ export function buildTimeZones(
   if (table.byAirportId.size !== airports.length || airports.some((airport) => !table.byAirportId.has(airport.id)))
     throw new Error('Incomplete time-zone coverage');
   return { dataset, report };
+}
+
+/** January and July offsets, so zones that differ only in daylight saving also count as different clocks. */
+function clockSignature(zone: string, year: number): string {
+  return [Date.UTC(year, 0, 15, 12), Date.UTC(year, 6, 15, 12)].map((t) => offsetMinutesAt(zone, t)).join('/');
+}
+
+/**
+ * A plausibility check of airport positions against their countries: an airport is an outlier when no
+ * other airport of its country uses its zone and all of them keep different clocks (e.g. a Korean
+ * airport recorded in China). Countries spanning several zones are fine as long as another airport
+ * shares the offsets. Outliers are reported for review, normally fixed with data/excluded-airports.json.
+ */
+export function findCountryOutliers(
+  airports: readonly Pick<Airport, 'id' | 'ident' | 'countryCode'>[],
+  assigned: ReadonlyMap<number, string>,
+  reviewed: Readonly<Record<string, string>> = {},
+  year = 2026,
+): TimeZoneReport['countryOutliers'] {
+  const byCountry = new Map<string, { id: number; ident: string; zone: string }[]>();
+  for (const airport of airports) {
+    const zone = assigned.get(airport.id);
+    if (!zone) continue;
+    const list = byCountry.get(airport.countryCode) ?? [];
+    list.push({ id: airport.id, ident: airport.ident, zone });
+    byCountry.set(airport.countryCode, list);
+  }
+  const signatures = new Map<string, string>();
+  const signature = (zone: string) => {
+    let value = signatures.get(zone);
+    if (value === undefined) signatures.set(zone, (value = clockSignature(zone, year)));
+    return value;
+  };
+  const outliers: TimeZoneReport['countryOutliers'] = [];
+  for (const [country, list] of byCountry) {
+    for (const airport of list) {
+      const others = list.filter((other) => other.id !== airport.id);
+      if (!others.length || others.some((other) => other.zone === airport.zone)) continue;
+      const own = signature(airport.zone);
+      if (others.some((other) => signature(other.zone) === own)) continue;
+      outliers.push({
+        ...airport,
+        country,
+        others: [...new Set(others.map((other) => other.zone))].sort(),
+        reviewed: Object.hasOwn(reviewed, airport.ident),
+      });
+    }
+  }
+  return outliers.sort((a, b) => a.id - b.id);
 }

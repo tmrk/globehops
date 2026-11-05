@@ -23,6 +23,8 @@ export type AirportTuple = [
 ];
 export interface BuildOptions {
   aliases?: Record<string, string[]>;
+  /** Upstream records known to be wrong (e.g. misplaced coordinates), keyed by ident, with the reason. */
+  excluded?: Record<string, string>;
   previousCount?: number;
   generatedAt?: string;
   upstreamCommit?: string | null;
@@ -115,8 +117,13 @@ export function buildDataset(inputs: DatasetInputs, options: BuildOptions = {}) 
   const airports: AirportTuple[] = [];
   const keywords = new Map<number, string[]>();
   let dropped = 0;
+  const excluded: string[] = [];
   for (const row of tables['airports.csv']) {
     if (['closed', 'closed_airport', 'balloonport'].includes(row.type)) continue;
+    if (options.excluded && Object.hasOwn(options.excluded, row.ident.trim())) {
+      excluded.push(row.ident.trim());
+      continue;
+    }
     const iata = code(row.iata_code, /^[A-Z]{3}$/),
       scheduled = row.scheduled_service === 'yes';
     if (!iata && !scheduled && !['large_airport', 'medium_airport'].includes(row.type)) continue;
@@ -219,7 +226,17 @@ export function buildDataset(inputs: DatasetInputs, options: BuildOptions = {}) 
     },
     contentHash: sha256(JSON.stringify(content)),
   };
-  return { dataset: { format: 1, meta, ...content }, report: { dropped, duplicates } };
+  return { dataset: { format: 1, meta, ...content }, report: { dropped, duplicates, excluded } };
+}
+
+/** Validates `data/excluded-airports.json`: ident → non-empty reason. */
+export function parseExclusions(raw: unknown): Record<string, string> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new Error('Invalid airport exclusions');
+  for (const [ident, reason] of Object.entries(raw)) {
+    if (!ident.trim() || typeof reason !== 'string' || reason.trim().length < 10)
+      throw new Error(`Airport exclusion ${ident} needs a reason`);
+  }
+  return raw as Record<string, string>;
 }
 
 export function serializeDataset(dataset: ReturnType<typeof buildDataset>['dataset']): string {

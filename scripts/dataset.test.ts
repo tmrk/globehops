@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildDataset, serializeDataset } from './lib/dataset.ts';
+import { buildDataset, parseExclusions, serializeDataset } from './lib/dataset.ts';
 import type { BuildOptions, DatasetInputs } from './lib/dataset.ts';
 import { main } from './update-airports.ts';
 const fields = [
@@ -80,6 +80,17 @@ describe('airport dataset build', () => {
     expect(result.dataset.airports.map((a) => a[0])).toEqual([4, 5, 6, 13]);
     expect(result.report.dropped).toBe(5);
     expect(result.dataset.airports[0].slice(4, 10)).toEqual(['Test Airport', 'Test City', 'DK', '', 55.1235, 12.6543]);
+  });
+  it('leaves out documented upstream records with wrong positions', () => {
+    const result = buildDataset(fixture([{}, {}, {}]), {
+      ...options,
+      excluded: { TEST1: 'Misplaced upstream: wrong country.', MISSING: 'No longer upstream, kept harmlessly.' },
+    });
+    expect(result.dataset.airports.map((a) => a[1])).toEqual(['TEST0', 'TEST2']);
+    expect(result.report.excluded).toEqual(['TEST1']);
+    expect(parseExclusions({ X: 'A reason that explains it.' })).toEqual({ X: 'A reason that explains it.' });
+    expect(() => parseExclusions({ X: '' })).toThrow('needs a reason');
+    expect(() => parseExclusions([])).toThrow('Invalid');
   });
   it('resolves duplicate codes deterministically and preserves losing codes as keywords', () => {
     const result = buildDataset(

@@ -61,7 +61,7 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
             Each arc follows a <strong>simplified flight profile</strong>: a climb of about {a.climbMinutes} min to a
             typical cruising altitude of {a.cruiseAltitudeKm} km, level cruise, and a descent over the last{' '}
             {a.descentMinutes} min. Short flights peak lower. Height is exaggerated {ALTITUDE_EXAGGERATION}× so it shows
-            at globe scale; the dashed line beneath is the ground track.
+            at globe scale; seen from above, the arc follows the great-circle ground track.
           </li>
           <li>
             Flight times are <strong>estimates</strong>: distance at an average {m.cruiseSpeedKmh} km/h plus{' '}
@@ -93,8 +93,8 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
             <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">
               Natural Earth
             </a>{' '}
-            1:50m boundary lines (public domain). They show de facto boundaries and imply no position on territorial
-            disputes.
+            1:50m boundary lines and country names (public domain). They show de facto boundaries and imply no position
+            on territorial disputes.
           </li>
           <li>
             Time zones:{' '}
@@ -112,7 +112,7 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
             .
           </li>
           <li>
-            Built with React, Three.js and the Geist typefaces. Open source under the MIT licence —{' '}
+            Built with React, Three.js and the Barlow and Martian Mono typefaces. Open source under the MIT licence —{' '}
             <a href={REPO_URL} target="_blank" rel="noreferrer">
               source code on GitHub
             </a>

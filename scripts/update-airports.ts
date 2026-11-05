@@ -10,7 +10,7 @@
 import { readFile, writeFile, mkdir, rename, appendFile, rm } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { buildDataset, FILE_NAMES, serializeDataset } from './lib/dataset.ts';
+import { buildDataset, FILE_NAMES, parseExclusions, serializeDataset } from './lib/dataset.ts';
 import type { DatasetInputs, FileName } from './lib/dataset.ts';
 export { buildDataset } from './lib/dataset.ts';
 
@@ -98,8 +98,10 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     }
   }
   const aliases = JSON.parse(await readFile(resolve(ROOT, 'data/aliases.json'), 'utf8')) as Record<string, string[]>;
+  const excluded = parseExclusions(JSON.parse(await readFile(resolve(ROOT, 'data/excluded-airports.json'), 'utf8')));
   const { dataset, report } = buildDataset(inputs, {
     aliases,
+    excluded,
     previousCount: previous?.meta?.counts?.airports,
     upstreamCommit,
     lastModified,
@@ -119,7 +121,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     }
   }
   console.log(
-    `${check ? 'Check' : 'Build'}: ${dataset.airports.length} airports (${dataset.meta.counts.scheduled} scheduled, ${dataset.meta.counts.withIata} IATA); dropped ${report.dropped}; duplicate codes: ${report.duplicates.iata} IATA, ${report.duplicates.icao} ICAO; ${changed ? (check ? 'would change' : 'changed') : 'unchanged'}.`,
+    `${check ? 'Check' : 'Build'}: ${dataset.airports.length} airports (${dataset.meta.counts.scheduled} scheduled, ${dataset.meta.counts.withIata} IATA); dropped ${report.dropped}; excluded ${report.excluded.length}/${Object.keys(excluded).length}; duplicate codes: ${report.duplicates.iata} IATA, ${report.duplicates.icao} ICAO; ${changed ? (check ? 'would change' : 'changed') : 'unchanged'}.`,
   );
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `CHANGED=${changed}\n`);
 }

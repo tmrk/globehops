@@ -197,7 +197,7 @@ export function StopList(props: StopListProps) {
                       (transfer.arrival?.provenance !== 'entered' || transfer.departure?.provenance !== 'entered')
                         ? '≈ '
                         : ''}
-                      {formatLayover(transfer?.source === 'times' ? transfer.minutes : layover.minutes)} layover
+                      <b>{formatLayover(transfer?.source === 'times' ? transfer.minutes : layover.minutes)}</b> layover
                     </span>
                     {transfer?.source !== 'times' && (
                       <>
@@ -232,6 +232,7 @@ export function StopList(props: StopListProps) {
                     <button
                       type="button"
                       className="connector__leg"
+                      data-leg={leg.index}
                       aria-pressed={selectedLeg === leg.index}
                       aria-expanded={selectedLeg === leg.index}
                       aria-controls={selectedLeg === leg.index ? `leg-schedule-${leg.index}` : undefined}
@@ -241,34 +242,46 @@ export function StopList(props: StopListProps) {
                       )}${legTimes ? `, ${legTimes.dep} to ${legTimes.arr} local time` : leg.durationMin !== null ? `, about ${formatDuration(leg.durationMin)}` : ''}. ${
                         selectedLeg === leg.index
                           ? 'Selected. Close flight times'
-                          : 'Show on globe and edit flight times'
+                          : legTimes
+                            ? 'Show on globe and change flight times'
+                            : 'Show on globe and add flight times'
                       }`}
                       onClick={() => props.onSelectLeg(selectedLeg === leg.index ? null : leg.index)}
                     >
                       <span className="connector__num">{leg.index + 1}</span>
-                      <span className="connector__dist">{formatDistance(leg.distanceKm, unit)}</span>
-                      {legTimes ? (
-                        <span className="connector__times">
-                          <span className={journeyLeg?.departure?.provenance !== 'entered' ? 'is-estimated' : ''}>
-                            {journeyLeg?.departure?.provenance !== 'entered' ? '≈ ' : ''}
-                            {legTimes.dep}
-                          </span>{' '}
-                          →{' '}
-                          <span className={journeyLeg?.arrival?.provenance !== 'entered' ? 'is-estimated' : ''}>
-                            {journeyLeg?.arrival?.provenance !== 'entered' ? '≈ ' : ''}
-                            {legTimes.arr}
+                      <span className="connector__facts">
+                        <span className="connector__dist">{formatDistance(leg.distanceKm, unit)}</span>
+                        {!legTimes && (
+                          <span className="connector__time">
+                            {leg.durationMin !== null ? `≈ ${formatDuration(leg.durationMin)}` : 'same airport'}
                           </span>
-                          {legTimes.dayShift !== 0 && (
-                            <sup>
-                              {legTimes.dayShift > 0 ? '+' : '−'}
-                              {Math.abs(legTimes.dayShift)}
-                            </sup>
+                        )}
+                      </span>
+                      {leg.durationMin !== null && (
+                        <span className={`connector__when${legTimes ? ' has-times' : ''}`}>
+                          <IconClock size={14} className="connector__clock" />
+                          {legTimes ? (
+                            <span className="connector__times">
+                              <span className={journeyLeg?.departure?.provenance !== 'entered' ? 'is-estimated' : ''}>
+                                {journeyLeg?.departure?.provenance !== 'entered' ? '≈' : ''}
+                                {legTimes.dep}
+                              </span>
+                              <span className="connector__arrow">→</span>
+                              <span className={journeyLeg?.arrival?.provenance !== 'entered' ? 'is-estimated' : ''}>
+                                {journeyLeg?.arrival?.provenance !== 'entered' ? '≈' : ''}
+                                {legTimes.arr}
+                              </span>
+                              {legTimes.dayShift !== 0 && (
+                                <sup>
+                                  {legTimes.dayShift > 0 ? '+' : '−'}
+                                  {Math.abs(legTimes.dayShift)}
+                                </sup>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="connector__add">Add times</span>
                           )}
                         </span>
-                      ) : leg.durationMin !== null ? (
-                        <span className="connector__time">≈ {formatDuration(leg.durationMin)}</span>
-                      ) : (
-                        <span className="connector__time">same airport</span>
                       )}
                     </button>
                   ) : (
@@ -287,7 +300,19 @@ export function StopList(props: StopListProps) {
                 </div>
               )}
               {leg && journeyLeg && selectedLeg === leg.index && (
-                <LegSchedule journey={props.journey} leg={journeyLeg} onChange={props.onTimeChange} />
+                <LegSchedule
+                  journey={props.journey}
+                  leg={journeyLeg}
+                  onChange={props.onTimeChange}
+                  onClose={() => {
+                    const index = leg.index;
+                    props.onSelectLeg(null);
+                    // The Done button disappears with the editor; return focus to the flight it belonged to.
+                    requestAnimationFrame(() =>
+                      listRef.current?.querySelector<HTMLElement>(`.connector__leg[data-leg="${index}"]`)?.focus(),
+                    );
+                  }}
+                />
               )}
             </li>
           );

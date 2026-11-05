@@ -1,15 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <radialGradient id="gh-globe" cx="38%" cy="32%" r="78%">
-      <stop offset="0" stop-color="#3a7fc4"/>
-      <stop offset="0.55" stop-color="#16406f"/>
-      <stop offset="1" stop-color="#0a1c35"/>
+    <radialGradient id="globe" cx="36%" cy="28%" r="82%">
+      <stop offset="0" stop-color="#4a92da"/>
+      <stop offset="0.55" stop-color="#1b5592"/>
+      <stop offset="1" stop-color="#0a2547"/>
     </radialGradient>
   </defs>
-  <circle cx="31" cy="34" r="22" fill="url(#gh-globe)"/>
-  <path d="M31 12.6c-5.2 5.6-8 13-8 21.4s2.8 15.8 8 21.4M9.4 31.5c6.6 2.1 14 3.2 21.6 3.2s15-1.1 21.6-3.2" fill="none" stroke="#a9cfff" stroke-opacity=".28" stroke-width="1.6"/>
-  <circle cx="31" cy="34" r="22" fill="none" stroke="#a9cfff" stroke-opacity=".45" stroke-width="1.6"/>
-  <path d="M12.5 46.5C17.5 27.5 33 15 53 15.5" fill="none" stroke="#ffc24b" stroke-width="4.6" stroke-linecap="round"/>
-  <circle cx="12.5" cy="46.5" r="5.4" fill="#ffc24b"/>
-  <circle cx="53" cy="15.5" r="5" fill="#fff" stroke="#ffc24b" stroke-width="2.8"/>
+  <circle cx="32" cy="32" r="25" fill="url(#globe)"/>
+  <g fill="none" stroke="#cfe5ff" stroke-opacity=".28" stroke-width="1.5">
+    <ellipse cx="32" cy="32" rx="10.5" ry="25"/>
+    <path d="M8.2 25.5c15.6 5 32 5 47.6 0M10.7 44.5c13.8 3.9 28.8 3.9 42.6 0"/>
+  </g>
+  <circle cx="32" cy="32" r="25" fill="none" stroke="#9ccaff" stroke-opacity=".85" stroke-width="1.8"/>
+  <path d="M18.5 43.5C21.5 25 34 15.5 47.5 19.5" fill="none" stroke="#04060c" stroke-opacity=".45" stroke-width="8" stroke-linecap="round"/>
+  <path d="M18.5 43.5C21.5 25 34 15.5 47.5 19.5" fill="none" stroke="#ffc24b" stroke-width="4.2" stroke-linecap="round"/>
+  <circle cx="18.5" cy="43.5" r="4.6" fill="#0a0f1a" stroke="#ffc24b" stroke-width="2.8"/>
+  <circle cx="47.5" cy="19.5" r="5" fill="#ffc24b" stroke="#fff" stroke-width="2.4"/>
 </svg>

@@ -82,7 +82,11 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   const raw: unknown = JSON.parse(extractJsonFromZip(zip).toString('utf8'));
   const airportRaw: unknown = JSON.parse(await readFile(resolve(ROOT, 'src/data/generated/airports.json'), 'utf8'));
   const overrideRaw: unknown = JSON.parse(await readFile(resolve(ROOT, 'data/timezone-overrides.json'), 'utf8'));
-  const { dataset, report } = buildTimeZones(raw, airportRaw, overrideRaw);
+  const reviewed = JSON.parse(await readFile(resolve(ROOT, 'data/timezone-reviewed.json'), 'utf8')) as Record<
+    string,
+    string
+  >;
+  const { dataset, report } = buildTimeZones(raw, airportRaw, overrideRaw, { reviewed });
   // A no-change rebuild preserves generatedAt and bytes for reproducible, reviewable diffs.
   try {
     const previous: unknown = JSON.parse(await readFile(OUTPUT_PATH, 'utf8'));
@@ -109,9 +113,13 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   if (downloaded) await atomicWrite(CACHE_PATH, zip);
   await atomicWrite(OUTPUT_PATH, output);
   await writeBuildReport({ ...dataset.meta, zipSha256: TIMEZONE_ZIP_SHA256, report });
+  for (const o of report.countryOutliers.filter((outlier) => !outlier.reviewed))
+    console.warn(
+      `Check airport ${o.ident} (${o.country}): ${o.zone} keeps different clocks from its country's other airports (${o.others.join(', ')}). Misplaced? Exclude it in data/excluded-airports.json, or record why it is right in data/timezone-reviewed.json.`,
+    );
   const c = dataset.meta.counts;
   console.log(
-    `Time zones: ${c.airports}/${c.airports} airports, ${c.zones} zones, ${c.nearest} nearest, ${c.overrides} overrides, ${report.overlaps.length} overlaps, ${report.unusedOverrides.length} unused overrides; ${rawBytes} bytes (${gzipBytes} gzip); ${((performance.now() - started) / 1000).toFixed(2)}s.`,
+    `Time zones: ${c.airports}/${c.airports} airports, ${c.zones} zones, ${c.nearest} nearest, ${c.overrides} overrides, ${report.overlaps.length} overlaps, ${report.unusedOverrides.length} unused overrides, ${report.countryOutliers.filter((o) => !o.reviewed).length} unreviewed country outliers; ${rawBytes} bytes (${gzipBytes} gzip); ${((performance.now() - started) / 1000).toFixed(2)}s.`,
   );
 }
 

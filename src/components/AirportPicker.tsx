@@ -1,4 +1,5 @@
-import { forwardRef, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { airportPlace } from '../data/airports.ts';
 import { searchAirports, type SearchIndex } from '../data/search.ts';
 import type { Airport } from '../types.ts';
@@ -38,6 +39,8 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
   const pressRef = useRef<{ id: number; x: number; y: number } | null>(null);
   const tapSelectedAt = useRef(-Infinity);
   const listRef = useRef<HTMLUListElement>(null);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const popover = usePopoverPosition(fieldRef, variant === 'inline');
   const id = useId();
   const listId = `${id}-list`;
   const optionId = (i: number) => `${id}-opt-${i}`;
@@ -109,6 +112,55 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
   else if (!results.length) status = `No airports match “${trimmed}”`;
   else status = `${results.length} suggestion${results.length === 1 ? '' : 's'}`;
 
+  const list = (
+    <ul
+      ref={listRef}
+      id={listId}
+      role="listbox"
+      aria-label="Airport suggestions"
+      className="picker__list"
+      hidden={!open}
+    >
+      {results.map((a, i) => (
+        <li
+          key={a.id}
+          id={optionId(i)}
+          role="option"
+          aria-selected={i === active}
+          className={`picker__option${i === active ? ' is-active' : ''}`}
+          // Keep focus in the input so the keyboard stays up and blur doesn't close the list.
+          onPointerDown={(e) => {
+            e.preventDefault();
+            pressRef.current = { id: a.id, x: e.clientX, y: e.clientY };
+          }}
+          onPointerMove={(e) => e.pointerType === 'mouse' && active !== i && setActive(i)}
+          onPointerUp={(e) => {
+            // Touch: preventing pointerdown (to keep the keyboard up) can suppress the click
+            // event in some browsers, so select on pointerup for taps that didn't scroll.
+            const press = pressRef.current;
+            pressRef.current = null;
+            if (e.pointerType === 'mouse' || !press || press.id !== a.id) return;
+            if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) return;
+            tapSelectedAt.current = performance.now();
+            choose(a);
+          }}
+          onPointerCancel={() => (pressRef.current = null)}
+          onClick={() => {
+            // Mouse and keyboard-synthesised clicks; skip the click that may follow a handled tap.
+            if (performance.now() - tapSelectedAt.current < 700) return;
+            choose(a);
+          }}
+        >
+          <CodeBadge airport={a} />
+          <span className="picker__text">
+            <span className="picker__name">{a.name}</span>
+            <span className="picker__place">{airportPlace(a)}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
     <div className={`picker picker--${variant}`} onBlur={onBlur}>
       <div className="picker__bar">
@@ -117,7 +169,7 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
             <IconBack />
           </button>
         )}
-        <div className="picker__field">
+        <div className="picker__field" ref={fieldRef}>
           {variant === 'takeover' && <span className="picker__caption">{caption}</span>}
           <IconSearch className="picker__icon" size={18} />
           <input
@@ -147,56 +199,61 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
           />
         </div>
       </div>
-      <ul
-        ref={listRef}
-        id={listId}
-        role="listbox"
-        aria-label="Airport suggestions"
-        className="picker__list"
-        hidden={!open}
-      >
-        {results.map((a, i) => (
-          <li
-            key={a.id}
-            id={optionId(i)}
-            role="option"
-            aria-selected={i === active}
-            className={`picker__option${i === active ? ' is-active' : ''}`}
-            // Keep focus in the input so the keyboard stays up and blur doesn't close the list.
-            onPointerDown={(e) => {
-              e.preventDefault();
-              pressRef.current = { id: a.id, x: e.clientX, y: e.clientY };
-            }}
-            onPointerMove={(e) => e.pointerType === 'mouse' && active !== i && setActive(i)}
-            onPointerUp={(e) => {
-              // Touch: preventing pointerdown (to keep the keyboard up) can suppress the click
-              // event in some browsers, so select on pointerup for taps that didn't scroll.
-              const press = pressRef.current;
-              pressRef.current = null;
-              if (e.pointerType === 'mouse' || !press || press.id !== a.id) return;
-              if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) return;
-              tapSelectedAt.current = performance.now();
-              choose(a);
-            }}
-            onPointerCancel={() => (pressRef.current = null)}
-            onClick={() => {
-              // Mouse and keyboard-synthesised clicks; skip the click that may follow a handled tap.
-              if (performance.now() - tapSelectedAt.current < 700) return;
-              choose(a);
-            }}
-          >
-            <CodeBadge airport={a} />
-            <span className="picker__text">
-              <span className="picker__name">{a.name}</span>
-              <span className="picker__place">{airportPlace(a)}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-      {!open && <p className="picker__status">{status}</p>}
+      {variant === 'inline' ? (
+        // The inline suggestions float over the itinerary, so opening the search never moves the rows.
+        popover &&
+        createPortal(
+          <div className={`picker__popover${popover.above ? ' is-above' : ''}`} style={popover.style}>
+            {list}
+            {!open && <p className="picker__status">{status}</p>}
+          </div>,
+          document.body,
+        )
+      ) : (
+        <>
+          {list}
+          {!open && <p className="picker__status">{status}</p>}
+        </>
+      )}
       <span className="sr-only" role="status" aria-live="polite">
         {trimmed ? status : ''}
       </span>
     </div>
   );
 });
+
+const GAP = 6;
+const MARGIN = 12;
+
+/** Fixed-position placement under (or, when space is short, above) the field; follows scroll and resize. */
+function usePopoverPosition(fieldRef: React.RefObject<HTMLElement | null>, enabled: boolean) {
+  const [placement, setPlacement] = useState<{ style: React.CSSProperties; above: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const field = fieldRef.current;
+    if (!enabled || !field) return;
+    const update = () => {
+      const r = field.getBoundingClientRect();
+      const below = window.innerHeight - r.bottom - GAP - MARGIN;
+      const aboveSpace = r.top - GAP - MARGIN;
+      const above = below < 240 && aboveSpace > below;
+      const style: React.CSSProperties = {
+        left: Math.round(r.left),
+        width: Math.round(r.width),
+        maxHeight: Math.max(120, Math.min(420, above ? aboveSpace : below)),
+        ...(above ? { bottom: Math.round(window.innerHeight - r.top + GAP) } : { top: Math.round(r.bottom + GAP) }),
+      };
+      setPlacement((prev) => (prev && JSON.stringify(prev.style) === JSON.stringify(style) ? prev : { style, above }));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(field);
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [fieldRef, enabled]);
+  return enabled ? placement : null;
+}

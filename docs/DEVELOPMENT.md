@@ -58,7 +58,7 @@ npx playwright show-report
 npx playwright show-trace test-results/<test-directory>/trace.zip
 ```
 
-Before finishing: lint, unit tests, build, all four E2E projects, screenshot review and relevant docs/`RECENT_CHANGES.md` updates.
+Before finishing: lint, unit tests, build, the E2E specs the change affects (e.g. `npx playwright test e2e/time.spec.ts -g "flight times" --project=desktop-chromium --project=mobile-chromium`), screenshot review and relevant docs/`RECENT_CHANGES.md` updates. Run all four projects only for broad UI changes or on request; CI runs Chromium E2E before deploying.
 
 ## Regeneration
 

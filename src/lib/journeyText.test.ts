@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import type { Airport } from '../types.ts';
 import { computeJourney } from './schedule.ts';
-import { describeState, formatLegTimes, clockZoneOptions } from './journeyText.ts';
+import {
+  describeState,
+  formatLegTimes,
+  clockZoneOptions,
+  formatDateLabel,
+  formatUtcOffset,
+  formatZoneLabel,
+} from './journeyText.ts';
 import { buildTimeline, journeyStateAt } from './timeline.ts';
 const airport = (iata: string, city: string, lat: number, lng: number): Airport => ({
   id: lat,
@@ -87,5 +94,32 @@ describe('journey text', () => {
       ),
     ).toHaveLength(1);
     expect(clockZoneOptions(j, 'UTC').find((o) => o.value === 'CPH')?.label).toBe('Copenhagen time');
+  });
+});
+
+describe('date and zone labels', () => {
+  it('formats calendar dates without time-zone shifts', () => {
+    expect(formatDateLabel('2026-11-20')).toBe('Fri 20 Nov 2026');
+    expect(formatDateLabel('2024-02-29')).toBe('Thu 29 Feb 2024');
+    expect(formatDateLabel('0099-01-01')).toBe('Thu 1 Jan 99');
+    expect(formatDateLabel('2026-02-30')).toBe('');
+    expect(formatDateLabel('2026-11-20T08:15')).toBe('');
+  });
+  it('always signs offsets, including zero and half hours', () => {
+    expect(formatUtcOffset(0)).toBe('UTC+0');
+    expect(formatUtcOffset(60)).toBe('UTC+1');
+    expect(formatUtcOffset(330)).toBe('UTC+5:30');
+    expect(formatUtcOffset(-210)).toBe('UTC−3:30');
+  });
+  it('names each airport zone with its abbreviation where one is customary', () => {
+    const winter = Date.parse('2026-01-15T12:00Z');
+    const summer = Date.parse('2026-07-15T12:00Z');
+    // ICU versions differ: browsers currently name London's winter zone "GMT+0", Node "GMT".
+    expect(formatZoneLabel('Europe/London', winter)).toMatch(/^(?:GMT · )?UTC\+0$/);
+    expect(formatZoneLabel('Europe/London', summer)).toMatch(/^(?:BST · )?UTC\+1$/);
+    expect(formatZoneLabel('Europe/Copenhagen', summer)).toMatch(/^(?:CEST · )?UTC\+2$/);
+    expect(formatZoneLabel('America/New_York', winter)).toBe('EST · UTC−5');
+    expect(formatZoneLabel('Asia/Kolkata', winter)).toBe('UTC+5:30');
+    expect(formatZoneLabel('UTC', winter)).toBe('UTC+0');
   });
 });
