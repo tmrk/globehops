@@ -1,6 +1,6 @@
 import { test, expect, expectRoute, chooseAirport, stopButtons, airportField } from './fixtures.ts';
 
-test('first visit loads the example, its stops, legs and totals', async ({ page }) => {
+test('first visit loads the example, its stops, legs and totals', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('./');
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
   await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();

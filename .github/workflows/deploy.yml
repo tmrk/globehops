@@ -53,10 +53,12 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: End-to-end tests (against the production build)
+      # A short smoke check (app loads, globe renders, Pages base path) gates deployment; the full
+      # suite (~12 min in CI) runs locally for broad UI changes.
+      - name: Smoke tests (against the production build)
         env:
           E2E_SKIP_BUILD: 1
-        run: npm run test:e2e -- --project=desktop-chromium --project=mobile-chromium
+        run: npm run test:e2e -- --project=desktop-chromium --grep @smoke
 
       - uses: actions/upload-artifact@v7
         if: failure()

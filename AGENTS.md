@@ -23,7 +23,7 @@ Pure logic lives in `src/lib/` (geography, time-zone conversion, solar position,
 
 Use Node 22.18+; CI uses Node 24. Run `npm install` locally or `npm ci` for a clean lockfile install. `npm run dev` serves development; `npm run build` type-checks and builds; `npm run preview` serves `dist/`. `npm run timezones:build` regenerates airport time zones, `npm run agent:build` regenerates agent discovery JSON, and `npm run mcp` starts the local stdio server.
 
-Run `npm run lint`, `npm test`, `npm run build`, then `npm run test:e2e`. Install browsers with `npx playwright install chromium webkit`. The suite has desktop/mobile Chromium and WebKit projects; CI runs Chromium only. Firefox is not configured. Use `npm run format` for formatting. See [development](docs/DEVELOPMENT.md) for focused test commands and screenshot review.
+Run `npm run lint`, `npm test`, `npm run build`, then `npm run test:e2e`. Install browsers with `npx playwright install chromium webkit`. The suite has desktop/mobile Chromium and WebKit projects; CI deploys after only the three `@smoke` E2E tests (desktop Chromium). Firefox is not configured. Use `npm run format` for formatting. See [development](docs/DEVELOPMENT.md) for focused test commands and screenshot review.
 
 Review screenshots at mobile and desktop sizes, including a picker and an edited route. The E2E rendering/layout checks save captures under `test-results/`; inspect them as well as assertions. Prefer accessible selectors and web-first assertions; avoid sleeps. Every E2E test uses the shared console/page error audit.
 
@@ -59,4 +59,4 @@ Never hand-edit generated `public/agent/*.json`: run `npm run agent:build` after
 
 ## Definition of done
 
-Lint, unit tests and production build pass, and the E2E specs affected by the change pass (Chromium by default; add WebKit for touch, date input, font or Safari-specific changes). The full four-project suite takes several minutes: run it only for broad UI changes or when asked; CI runs Chromium E2E before every deployment. Review mobile and desktop screenshots. Update relevant documentation and `RECENT_CHANGES.md`; record genuine application bugs and limitations precisely. Keep changes within the user’s authorised scope.
+Lint, unit tests and production build pass, and the E2E specs affected by the change pass (Chromium by default; add WebKit for touch, date input, font or Safari-specific changes). The full four-project suite takes several minutes: run it only for broad UI changes or when asked; CI runs only the three `@smoke` E2E tests (desktop Chromium) before every deployment. Review mobile and desktop screenshots. Update relevant documentation and `RECENT_CHANGES.md`; record genuine application bugs and limitations precisely. Keep changes within the user’s authorised scope.

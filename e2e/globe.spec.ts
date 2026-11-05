@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 import { test, expect, expectRoute, chooseAirport } from './fixtures.ts';
 
-test('WebGL canvas renders varied pixels and airport labels', async ({ page }, testInfo) => {
+test('WebGL canvas renders varied pixels and airport labels', { tag: '@smoke' }, async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('./?route=CPH-LHR-JFK');
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
@@ -88,37 +88,41 @@ test('reduced motion renders routes and responds to changes', async ({ page }) =
   await expect(page.getByRole('region', { name: 'Journey totals' })).toContainText('2 flights');
 });
 
-test('production assets and every same-origin request respect the Pages base path', async ({ page, baseURL }) => {
-  const origin = new URL(baseURL!).origin;
-  const paths: string[] = [];
-  const responses: { path: string; status: number }[] = [];
-  const failures: string[] = [];
-  page.on('request', (request) => {
-    const url = new URL(request.url());
-    if (url.origin === origin) paths.push(url.pathname);
-  });
-  page.on('response', (response) => {
-    const url = new URL(response.url());
-    if (url.origin === origin) responses.push({ path: url.pathname, status: response.status() });
-  });
-  page.on('requestfailed', (request) => failures.push(request.url()));
-  // Await the upgraded texture as well as the preview, so late asset failures are included.
-  const fullTexture = page.waitForResponse((response) =>
-    /earth-(?:4k|8k)-.*\.webp$/.test(new URL(response.url()).pathname),
-  );
-  const borders = page.waitForResponse((response) => /borders-.*\.json$/.test(new URL(response.url()).pathname));
-  await page.goto('./');
-  await expectRoute(page, ['CPH', 'LHR', 'JFK']);
-  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
-  await (await fullTexture).finished();
-  await (await borders).finished();
-  expect(responses.some(({ path, status }) => /earth-.*\.webp$/.test(path) && status === 200)).toBe(true);
-  expect(responses.some(({ path, status }) => /airports-.*\.json$/.test(path) && status === 200)).toBe(true);
-  expect(responses.some(({ path, status }) => /borders-.*\.json$/.test(path) && status === 200)).toBe(true);
-  expect(paths.filter((path) => !path.startsWith('/globehops/'))).toEqual([]);
-  expect(responses.filter(({ status }) => status >= 400)).toEqual([]);
-  expect(failures).toEqual([]);
-});
+test(
+  'production assets and every same-origin request respect the Pages base path',
+  { tag: '@smoke' },
+  async ({ page, baseURL }) => {
+    const origin = new URL(baseURL!).origin;
+    const paths: string[] = [];
+    const responses: { path: string; status: number }[] = [];
+    const failures: string[] = [];
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.origin === origin) paths.push(url.pathname);
+    });
+    page.on('response', (response) => {
+      const url = new URL(response.url());
+      if (url.origin === origin) responses.push({ path: url.pathname, status: response.status() });
+    });
+    page.on('requestfailed', (request) => failures.push(request.url()));
+    // Await the upgraded texture as well as the preview, so late asset failures are included.
+    const fullTexture = page.waitForResponse((response) =>
+      /earth-(?:4k|8k)-.*\.webp$/.test(new URL(response.url()).pathname),
+    );
+    const borders = page.waitForResponse((response) => /borders-.*\.json$/.test(new URL(response.url()).pathname));
+    await page.goto('./');
+    await expectRoute(page, ['CPH', 'LHR', 'JFK']);
+    await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+    await (await fullTexture).finished();
+    await (await borders).finished();
+    expect(responses.some(({ path, status }) => /earth-.*\.webp$/.test(path) && status === 200)).toBe(true);
+    expect(responses.some(({ path, status }) => /airports-.*\.json$/.test(path) && status === 200)).toBe(true);
+    expect(responses.some(({ path, status }) => /borders-.*\.json$/.test(path) && status === 200)).toBe(true);
+    expect(paths.filter((path) => !path.startsWith('/globehops/'))).toEqual([]);
+    expect(responses.filter(({ status }) => status >= 400)).toEqual([]);
+    expect(failures).toEqual([]);
+  },
+);
 
 for (const width of [320, 390, 768, 1440]) {
   test(`layout fits ${width}px without horizontal overflow`, async ({ page, isMobile }, testInfo) => {

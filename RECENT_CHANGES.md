@@ -10,6 +10,7 @@
 - **Typography system:** Barlow (signage grotesque) for the interface and Martian Mono, condensed, for codes, times, dates, distances and totals, with a token scale, caps tracking and tightened mono spacing. Replaces Geist.
 - **New logo:** a globe with one great-circle hop, drawn with the globe's own origin and destination markers; new favicon, app icons and social image.
 - **Country names (optional, off by default):** Natural Earth 1:50m label points, ranks and minimum zooms; names appear progressively as you zoom, sized by importance, without overlapping each other or airport labels. Lazy-loaded; the choice is remembered (`npm run labels:build`).
+- **Faster deploys:** the Pages workflow gates on lint, unit tests, build and three `@smoke` E2E tests instead of the full Chromium suite (≈ 12 min → under 2 min); run affected E2E specs locally.
 - **Mobile sheet gestures:** drag the journey sheet down (from its handle, header, or content scrolled to the top) to collapse it to the peek bar; lift the peek bar to bring it back. Short drags spring back.
 
 Limitations: native date/time pickers and the sheet gesture still need real-device review (Playwright emulates touch with synthetic events). Zone abbreviations come from the browser's ICU data, which currently prints London's winter zone as GMT+0, so GlobeHops shows “UTC+0” there. Country names follow Natural Earth's de facto depiction.

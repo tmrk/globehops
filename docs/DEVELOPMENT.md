@@ -45,7 +45,7 @@ npm run test:e2e -- --grep 'autocomplete'
 
 Unit tests cover pure geography, flight-time/units, route reducer, URL/storage, search/decoding and the CSV/data pipeline, time-zone conversion/coverage, solar accuracy/alignment, schedule propagation, provenance, progress, timeline and clock. MCP tests exercise schema parity, handlers and a real stdio child process. Tests use the checked-in airport dataset; ordinary builds/tests do not download source data.
 
-Playwright builds with Vite and previews the production `/globehops/` path on port 4173. After an explicit `npm run build`, use `E2E_SKIP_BUILD=1 npm run test:e2e` to reuse build output. A running preview can be reused locally; stop stale servers when validating changed assets. CI always starts a fresh server and tests desktop/mobile Chromium; local `npm run test:e2e` also runs desktop/mobile WebKit. Firefox is not installed/configured here.
+Playwright builds with Vite and previews the production `/globehops/` path on port 4173. After an explicit `npm run build`, use `E2E_SKIP_BUILD=1 npm run test:e2e` to reuse build output. A running preview can be reused locally; stop stale servers when validating changed assets. CI always starts a fresh server and runs only the `@smoke` tests (`--grep @smoke`) on desktop Chromium; local `npm run test:e2e` also runs desktop/mobile WebKit. Firefox is not installed/configured here.
 
 Fresh browser contexts isolate storage. Tests use roles/labels, auto-waiting assertions and a shared console/page-error audit. Only the test deliberately disabling WebGL allows its expected creation diagnostics. Clipboard testing is desktop Chromium only because WebKit lacks the required permission support and mobile can invoke native sharing. Chromium launches with SwiftShader flags for headless WebGL.
 
@@ -58,7 +58,7 @@ npx playwright show-report
 npx playwright show-trace test-results/<test-directory>/trace.zip
 ```
 
-Before finishing: lint, unit tests, build, the E2E specs the change affects (e.g. `npx playwright test e2e/time.spec.ts -g "flight times" --project=desktop-chromium --project=mobile-chromium`), screenshot review and relevant docs/`RECENT_CHANGES.md` updates. Run all four projects only for broad UI changes or on request; CI runs Chromium E2E before deploying.
+Before finishing: lint, unit tests, build, the E2E specs the change affects (e.g. `npx playwright test e2e/time.spec.ts -g "flight times" --project=desktop-chromium --project=mobile-chromium`), screenshot review and relevant docs/`RECENT_CHANGES.md` updates. Run all four projects only for broad UI changes or on request; CI runs only the smoke tests before deploying.
 
 ## Regeneration
 
