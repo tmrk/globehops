@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// E2E_BASE_URL runs the suite against an existing deployment (e.g. the live GitHub Pages site)
+// instead of a local production preview.
+const externalBaseURL = process.env.E2E_BASE_URL;
+
 export default defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
@@ -10,7 +14,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://localhost:4173/globehops/',
+    baseURL: externalBaseURL ?? 'http://localhost:4173/globehops/',
     locale: 'en-GB',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
@@ -39,12 +43,14 @@ export default defineConfig({
     { name: 'desktop-webkit', use: { ...devices['Desktop Safari'] } },
     { name: 'mobile-webkit', use: { ...devices['iPhone 13'] } },
   ],
-  webServer: {
-    command: process.env.E2E_SKIP_BUILD
-      ? 'npx vite preview --port 4173 --strictPort'
-      : 'npx vite build && npx vite preview --port 4173 --strictPort',
-    url: 'http://localhost:4173/globehops/',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: externalBaseURL
+    ? undefined
+    : {
+        command: process.env.E2E_SKIP_BUILD
+          ? 'npx vite preview --port 4173 --strictPort'
+          : 'npx vite build && npx vite preview --port 4173 --strictPort',
+        url: 'http://localhost:4173/globehops/',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
 });

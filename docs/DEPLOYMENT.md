@@ -30,3 +30,9 @@ gh run list --repo tmrk/globehops --workflow update-airports.yml
 ## Verify a release
 
 Check that both build and deploy jobs succeeded and inspect the `github-pages` deployment URL. Open `/globehops/?route=CPH-LHR-JFK` in a fresh browser context: confirm stops, totals, textured globe and labels. Reload, open About and test an airport search at desktop and mobile widths. Network requests for JS/CSS, fonts, `airports-*.json` and `earth-*.webp` must remain under `/globehops/` and succeed. Confirm the About data date matches the committed build record for a data release. Do not infer live deployment success from a local build alone.
+
+The full browser suite can also run against the live site (no local server is started):
+
+```sh
+E2E_BASE_URL=https://tmrk.github.io/globehops/ npx playwright test
+```

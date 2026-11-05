@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -152,7 +153,10 @@ describe('airport dataset build', () => {
     expect(a.meta.contentHash).toBe(b.meta.contentHash);
     expect(JSON.parse(serializeDataset(a))).toEqual(a);
   });
-  it('offline no-change and check runs preserve timestamps and emit a machine result', async () => {
+  // Integration test over the real cached OurAirports CSVs (.cache/ is gitignored, so this only
+  // runs where `npm run data:update` has populated it; CI exercises the online path instead).
+  const hasCache = existsSync(new URL('../.cache/ourairports/airports.csv', import.meta.url));
+  it.skipIf(!hasCache)('offline no-change and check runs preserve timestamps and emit a machine result', async () => {
     const datasetPath = new URL('../src/data/generated/airports.json', import.meta.url),
       buildPath = new URL('../data/airports-build.json', import.meta.url);
     const before = [(await stat(datasetPath)).mtimeMs, (await stat(buildPath)).mtimeMs];
