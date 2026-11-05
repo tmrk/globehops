@@ -15,6 +15,8 @@ Earth textures derive from NASA Blue Marble Next Generation, July 2004, with top
 
 Country borders derive from [Natural Earth](https://www.naturalearthdata.com/) 1:50m Admin 0 boundary lines (land), v5.1.2, which is in the public domain ([terms of use](https://www.naturalearthdata.com/about/terms-of-use/)). Made with Natural Earth.
 
+Country names derive from Natural Earth 1:50m **Admin 0 – Countries**, v5.1.2, from the pinned [GeoJSON](https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_50m_admin_0_countries.geojson), in the **public domain** ([terms of use](https://www.naturalearthdata.com/about/terms-of-use/)). The generated layer extracts cartographic short names, label coordinates, minimum zooms and label ranks; “United States of America” is shortened to “United States”. It contains 242 labels (7,621 bytes; 3,628 bytes gzipped). Made with Natural Earth.
+
 Airport content derives from [OurAirports](https://ourairports.com/data/), released to the public domain without an accuracy guarantee. Source provenance, cleaning rules and texture modifications are documented in [DATA_SOURCES.md](docs/DATA_SOURCES.md). Local UI icons and logo are drawn in the project’s SVG components.
 
 ## Time-zone database

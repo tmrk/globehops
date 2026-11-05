@@ -61,6 +61,14 @@ Natural Earth vector and raster data are in the **public domain** ([terms of use
 
 `scripts/lib/borders.ts` keeps every LineString and MultiLineString part in source order, rounds coordinates to 0.01° (about 1.1 km, finer than the 1:50m source accuracy), drops consecutive duplicate points and delta-encodes each line. Validation rejects out-of-range or non-integer coordinates and requires at least 200 lines and 10,000 points. The committed `src/data/generated/borders.json` holds 392 lines and 19,735 points (about 109 KB, 35 KB gzipped). The browser downloads it only while borders are shown, subdivides steps longer than 0.5° in latitude/longitude (so borders along parallels keep following them) and draws the lines just above the globe surface.
 
+## Country names
+
+Source: Natural Earth 1:50m **Admin 0 – Countries**, v5.1.2, from the pinned [GeoJSON](https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_50m_admin_0_countries.geojson). The data are **public domain** under Natural Earth's [terms of use](https://www.naturalearthdata.com/about/terms-of-use/). Names and boundaries are a cartographic reference, including Natural Earth's de facto treatment of disputed areas.
+
+`scripts/lib/countryLabels.ts` extracts `NAME`, `LABEL_Y`/`LABEL_X`, `MIN_LABEL` and `LABELRANK`. It skips missing/invalid names or label points, rounds coordinates to 0.01° and zoom to 0.1, and sorts by rank, minimum zoom and name. Natural Earth's short cartographic names are preserved; the only display override is “United States of America” → “United States” to fit a map label. Validation requires at least 180 labels, unique non-empty names, finite in-range coordinates, zoom 0–12 and rank 0–20 before atomic writes.
+
+The generated `src/data/generated/country-labels.json` contains 242 labels, 7,621 bytes (3,628 bytes gzipped). Never hand-edit it; run `npm run labels:build`. The source cache lives at `.cache/naturalearth/ne_50m_admin_0_countries.geojson`. Country names default off and download only on first use. Their visibility follows Natural Earth's minimum zoom, fades over 0.6 zoom levels and near the globe limb, and yields to airport labels/dots and higher-priority countries. The preference stays in local storage and is excluded from shared links.
+
 ## Fonts
 
 Geist and Geist Mono by Vercel are bundled through `@fontsource-variable/geist` and `@fontsource-variable/geist-mono`. Both installed package manifests declare **OFL-1.1**. The font licence text is in each package’s `LICENSE`; these terms remain separate from the project code licence. See [third-party notices](../THIRD_PARTY_NOTICES.md).

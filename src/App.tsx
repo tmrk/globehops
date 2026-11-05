@@ -41,9 +41,11 @@ import { formatDistance } from './lib/units.ts';
 import { computeLayovers, computeLegs, createRouteState, routeReducer, hasEnteredTimes } from './state/route.ts';
 import {
   loadBorders,
+  loadCountryNames,
   loadLastRoute,
   loadUnit,
   saveBorders,
+  saveCountryNames,
   saveUnit,
   loadLastJourney,
   saveLastJourney,
@@ -126,6 +128,7 @@ export default function App() {
   const [dataError, setDataError] = useState(false);
   const [route, dispatch] = useReducer(routeReducer, undefined, () => createRouteState());
   const [unit, setUnit] = useState<DistanceUnit>(() => loadUnit() ?? defaultUnit());
+  const [showCountryNames, setShowCountryNames] = useState(() => loadCountryNames() ?? false);
   const [showBorders, setShowBorders] = useState(() => loadBorders() ?? true);
   const [isExample, setIsExample] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -555,6 +558,13 @@ export default function App() {
     saveUnit(u);
   };
 
+  const toggleCountryNames = () => {
+    setShowCountryNames((on) => {
+      saveCountryNames(!on);
+      return !on;
+    });
+  };
+
   const toggleBorders = () => {
     setShowBorders((on) => {
       saveBorders(!on);
@@ -692,6 +702,7 @@ export default function App() {
                 selectedLeg={route.selectedLeg}
                 insets={insets}
                 showBorders={showBorders}
+                showCountryNames={showCountryNames}
                 reducedMotion={reducedMotion}
                 fitNonce={fitNonce}
                 onLegClick={(leg) => selectLeg(route.selectedLeg === leg ? null : leg)}
@@ -762,9 +773,11 @@ export default function App() {
               selectedLeg={route.selectedLeg}
               fits={fits}
               showBorders={showBorders}
+              showCountryNames={showCountryNames}
               onSelectLeg={selectLeg}
               onFit={() => setFitNonce((n) => n + 1)}
               onToggleBorders={toggleBorders}
+              onToggleCountryNames={toggleCountryNames}
             />
           )}
         </div>

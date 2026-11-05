@@ -94,3 +94,12 @@ export function loadClockZone(): 'local' | 'utc' | null {
 export function saveClockZone(zone: 'local' | 'utc'): void {
   write(CLOCK_ZONE_KEY, zone);
 }
+
+/** Local-only country-name preference; null leaves the layer off by default. */
+export function loadCountryNames(): boolean | null {
+  const value = read('globehops:countryNames');
+  return value === 'on' ? true : value === 'off' ? false : null;
+}
+export function saveCountryNames(visible: boolean): void {
+  write('globehops:countryNames', visible ? 'on' : 'off');
+}

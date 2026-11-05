@@ -57,6 +57,7 @@ import {
   slerpUnit,
   sunDirectionScene,
 } from './math3d.ts';
+import { CountryLabelLayer } from './countryLabels.ts';
 import type { AircraftView } from './simFeed.ts';
 
 export type MarkerRole = 'origin' | 'transfer' | 'destination' | 'single';
@@ -100,6 +101,8 @@ export interface GlobeRendererOptions {
   /** URL of the generated country-border dataset. */
   bordersUrl: string;
   showBorders: boolean;
+  countryLabelsUrl: string;
+  showCountryLabels: boolean;
   reducedMotion: boolean;
   onLegClick?: (leg: number) => void;
   onFitChange?: (fitsInView: boolean) => void;
@@ -187,6 +190,7 @@ export class GlobeRenderer {
   private atmosphere: Mesh;
   private routeGroup = new Group();
   private labelLayer: HTMLDivElement;
+  private countryLabels: CountryLabelLayer;
   private plane: HTMLDivElement;
   private legs: LegObject[] = [];
   private markers: MarkerObject[] = [];
@@ -239,6 +243,8 @@ export class GlobeRenderer {
     this.labelLayer.className = 'globe-labels';
     this.labelLayer.setAttribute('aria-hidden', 'true');
     container.appendChild(this.labelLayer);
+    this.countryLabels = new CountryLabelLayer(this.labelLayer, options.countryLabelsUrl, this.requestRender);
+    this.countryLabels.setVisible(options.showCountryLabels);
 
     this.plane = document.createElement('div');
     this.plane.className = 'globe-plane';
@@ -517,6 +523,11 @@ export class GlobeRenderer {
     this.requestRender();
   }
 
+  setCountryLabelsVisible(visible: boolean) {
+    this.countryLabels.setVisible(visible);
+    this.requestRender();
+  }
+
   /** Keyboard rotation / zoom for accessibility. */
   nudge(dLng: number, dLat: number, zoom = 1) {
     this.follow = false;
@@ -543,6 +554,7 @@ export class GlobeRenderer {
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.clearLegs();
     this.clearMarkers();
+    this.countryLabels.dispose();
     if (this.borders) {
       this.scene.remove(this.borders.line);
       this.borders.line.geometry.dispose();
@@ -586,7 +598,8 @@ export class GlobeRenderer {
     this.camera.updateMatrixWorld();
     this.sunView.value.copy(this.sunScene).transformDirection(this.camera.matrixWorldInverse);
     this.renderer.render(this.scene, this.camera);
-    this.updateLabels();
+    const reserved = this.updateLabels();
+    this.countryLabels.update({ camera: this.camera, width: this.width, height: this.height, reserved });
     if (this.aircraft) {
       const view = this.aircraft;
       const leg = this.legs[view.leg];
@@ -1230,6 +1243,7 @@ export class GlobeRenderer {
       placed.push({ x0: s.x - 7, y0: s.y - 7, x1: s.x + 7, y1: s.y + 7 });
       m.label.style.transform = `translate(${choice[0]}px, ${choice[1]}px)`;
     }
+    return placed;
   }
 
   private hitTestLeg(x: number, y: number): number | null {

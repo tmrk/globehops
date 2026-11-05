@@ -1,6 +1,14 @@
 import { airportCode } from '../data/airports.ts';
 import type { Leg } from '../types.ts';
-import { IconBorders, IconChevronLeft, IconChevronRight, IconClose, IconFrame, IconSunMoon } from './Icons.tsx';
+import {
+  IconBorders,
+  IconChevronLeft,
+  IconChevronRight,
+  IconClose,
+  IconFrame,
+  IconLabels,
+  IconSunMoon,
+} from './Icons.tsx';
 
 interface GlobeHudProps {
   legs: Leg[];
@@ -10,6 +18,8 @@ interface GlobeHudProps {
   dayNight: boolean;
   onToggleDayNight: () => void;
   showBorders: boolean;
+  showCountryNames: boolean;
+  onToggleCountryNames: () => void;
   onSelectLeg: (leg: number | null) => void;
   onFit: () => void;
   onToggleBorders: () => void;
@@ -21,6 +31,8 @@ export function GlobeHud({
   selectedLeg,
   fits,
   showBorders,
+  showCountryNames,
+  onToggleCountryNames,
   onSelectLeg,
   onFit,
   onToggleBorders,
@@ -86,6 +98,16 @@ export function GlobeHud({
           onClick={onToggleBorders}
         >
           <IconBorders />
+        </button>
+        <button
+          type="button"
+          className="icon-btn icon-btn--floating"
+          aria-label="Country names"
+          aria-pressed={showCountryNames}
+          title={showCountryNames ? 'Hide country names' : 'Show country names'}
+          onClick={onToggleCountryNames}
+        >
+          <IconLabels />
         </button>
         <button
           type="button"

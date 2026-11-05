@@ -142,3 +142,10 @@ export const IconSunMoon = (p: IconProps) => (
     <path d="M5 2v2M2 5h2M4 4l1 1" />
   </Icon>
 );
+
+/** Atlas text layer: two letter sizes over a text baseline. */
+export const IconLabels = (p: IconProps) => (
+  <Icon viewBox="0 0 24 24" {...p}>
+    <path d="M3 16L7.5 5 12 16M4.6 12h5.8M20 16v-5a3 3 0 1 0 0 4M20 12h-2a2 2 0 1 0 2 2M3 20h18" />
+  </Icon>
+);

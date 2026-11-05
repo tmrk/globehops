@@ -13,7 +13,7 @@
 | `src/components/AirportPicker.tsx`                                    | Inline/mobile combobox, suggestions and keyboard interaction.                                     |
 | `src/components/StopList.tsx`                                         | Stops, leg rows, layover menus, insertion/removal and reordering.                                 |
 | `src/components/Summary.tsx`                                          | Totals incl. layovers, unit controls and time explanation.                                        |
-| `src/components/GlobeHud.tsx`                                         | Flight stepping, border toggle and camera framing controls.                                       |
+| `src/components/GlobeHud.tsx`                                         | Flight stepping, border/name toggles and camera framing controls.                                 |
 | `src/components/AboutDialog.tsx`                                      | Method, credits and source links.                                                                 |
 | `src/components/CodeBadge.tsx`                                        | IATA/ICAO badges and the no-code plane glyph.                                                     |
 | `src/components/ErrorBoundary.tsx`                                    | Lazy globe failure boundary.                                                                      |
@@ -33,6 +33,7 @@
 | `src/data/generated/timezones.json`                                   | Generated ODbL derivative database, separate from airports.                                       |
 | `src/data/rankHints.ts`                                               | Documented primary-airport ranking hints.                                                         |
 | `src/data/generated/airports.json`                                    | Generated compact airport tuples and dictionaries.                                                |
+| `src/data/generated/country-labels.json`                              | Generated Natural Earth country names, label points, minimum zooms and ranks.                     |
 | `src/data/generated/borders.json`                                     | Generated delta-encoded Natural Earth land borders.                                               |
 | `src/lib/timezone.ts`                                                 | Cached Intl conversion, wall-time resolution, offsets and formatting.                             |
 | `src/lib/sun.ts`                                                      | NOAA/Meeus subsolar point, geometric elevation and daylight classes.                              |
@@ -52,12 +53,14 @@
 | `src/lib/flightTime.ts`                                               | Configurable estimates, duration formatting and totals.                                           |
 | `src/lib/altitude.ts`                                                 | Climb/cruise/descent profile, arc sampling and vertical exaggeration.                             |
 | `src/lib/layover.ts`                                                  | Default layover, menu choices, validation and formatting.                                         |
+| `src/lib/countryLabels.ts`, `src/lib/countryLabels.test.ts`           | Strict label decoding, map zoom/style calibration and collision placement with unit tests.        |
 | `src/lib/borders.ts`                                                  | Border dataset decoding and lat/lng densification.                                                |
 | `src/lib/units.ts`                                                    | Distance conversion, rounding and formatting.                                                     |
 | `src/lib/normalize.ts`                                                | Shared accent/special-letter search normalisation.                                                |
 | `src/lib/legColors.ts`                                                | Leg colour palette.                                                                               |
 | `src/lib/stopText.ts`                                                 | Stop labels, captions and placeholders.                                                           |
 | `src/globe/GlobeView.tsx`                                             | Lazy React lifecycle, props and keyboard boundary.                                                |
+| `src/globe/countryLabels.ts`                                          | Lazy country-name DOM layer, projection, cached measurement and airport-aware placement.          |
 | `src/globe/GlobeRenderer.ts`                                          | Scene, camera, controls, routes, labels, textures and animation.                                  |
 | `src/globe/simFeed.ts`                                                | Renderer-neutral feed and air/ground aircraft frame types.                                        |
 | `src/globe/sunAlignment.test.ts`                                      | Independent astronomical check of Earth-fixed scene alignment.                                    |
@@ -67,6 +70,8 @@
 | `scripts/update-airports.ts`                                          | Downloads, caching and validated atomic output writes.                                            |
 | `scripts/lib/dataset.ts`                                              | Pure dataset selection, cleaning, validation and hashing.                                         |
 | `scripts/lib/csv.ts`                                                  | Strict RFC 4180 CSV parser.                                                                       |
+| `scripts/build-country-labels.ts`                                     | Pinned country GeoJSON download/cache and validated atomic label writes.                          |
+| `scripts/lib/countryLabels.ts`, `scripts/countryLabels.test.ts`       | Pure country label extraction/validation and synthetic/cache-backed tests.                        |
 | `scripts/build-borders.ts`                                            | Natural Earth download/cache and validated border output writes.                                  |
 | `scripts/lib/borders.ts`                                              | Pure border extraction, quantisation, delta encoding and validation.                              |
 | `scripts/build-timezones.ts`                                          | Pinned ZIP download/cache, validation and atomic table/build-record writes.                       |

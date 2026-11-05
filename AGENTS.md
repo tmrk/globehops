@@ -33,6 +33,8 @@ Review screenshots at mobile and desktop sizes, including a picker and an edited
 
 `npm run borders:build` regenerates `src/data/generated/borders.json` from the pinned Natural Earth v5.1.2 GeoJSON (cached in `.cache/naturalearth/`; `--offline` and `--refresh` available). Never hand-edit it.
 
+`npm run labels:build` regenerates `src/data/generated/country-labels.json` from pinned Natural Earth v5.1.2 Admin 0 countries (cached at `.cache/naturalearth/ne_50m_admin_0_countries.geojson`; `--offline`, `--refresh` and an optional source path are available). Never hand-edit the generated labels.
+
 `npm run timezones:build` uses the SHA-256-pinned TBB 2026f ZIP in `.cache/timezones/2026f/` (downloads if absent; `--offline` and `--refresh` available). Never hand-edit `src/data/generated/timezones.json`; commit it with `data/timezones-build.json`. Keep this ODbL derivative database separate from public-domain `airports.json`. Source updates and justified overrides are documented in `data/TIMEZONES.md`.
 
 Never hand-edit generated `public/agent/*.json`: run `npm run agent:build` after contract, calculation or dataset changes. `scripts/agent-files.test.ts` fails on drift. `agent/dataset.json` is emitted separately by Vite from current build metadata; it is not a checked-in file.

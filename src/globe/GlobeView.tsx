@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import previewUrl from '../assets/textures/earth-1k.webp';
 import mediumUrl from '../assets/textures/earth-4k.webp';
 import largeUrl from '../assets/textures/earth-8k.webp';
+import countryLabelsUrl from '../data/generated/country-labels.json?url';
 import bordersUrl from '../data/generated/borders.json?url';
 import { GlobeRenderer, type GlobeRoute, type Insets } from './GlobeRenderer.ts';
 import type { SimulationFeed } from './simFeed.ts';
@@ -11,6 +12,7 @@ export interface GlobeViewProps {
   selectedLeg: number | null;
   insets: Insets;
   showBorders: boolean;
+  showCountryNames: boolean;
   reducedMotion: boolean;
   sim?: SimulationFeed | null;
   /** Increment to re-frame the camera on the current route / leg. */
@@ -40,6 +42,8 @@ export default function GlobeView(props: GlobeViewProps) {
       renderer = new GlobeRenderer(el, {
         textures: { preview: previewUrl, medium: mediumUrl, large: largeUrl },
         bordersUrl,
+        countryLabelsUrl,
+        showCountryLabels: latest.current.showCountryNames,
         showBorders: latest.current.showBorders,
         reducedMotion: latest.current.reducedMotion,
         onLegClick: (leg) => latest.current.onLegClick(leg),
@@ -72,7 +76,7 @@ export default function GlobeView(props: GlobeViewProps) {
     };
   }, []);
 
-  const { route, selectedLeg, insets, showBorders, reducedMotion, fitNonce, sim } = props;
+  const { route, selectedLeg, insets, showBorders, showCountryNames, reducedMotion, fitNonce, sim } = props;
 
   useEffect(() => {
     rendererRef.current?.setReducedMotion(reducedMotion);
@@ -81,6 +85,10 @@ export default function GlobeView(props: GlobeViewProps) {
   useEffect(() => {
     rendererRef.current?.setBordersVisible(showBorders);
   }, [showBorders]);
+
+  useEffect(() => {
+    rendererRef.current?.setCountryLabelsVisible(showCountryNames);
+  }, [showCountryNames]);
 
   // Insets first, so the initial framing accounts for panels covering the globe.
   useEffect(() => {

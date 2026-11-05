@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   loadBorders,
+  loadCountryNames,
+  saveCountryNames,
   loadLastRoute,
   loadUnit,
   saveBorders,
@@ -31,6 +33,15 @@ describe('safe storage', () => {
       expect(loadLastRoute()).toHaveLength(10);
       saveLastRoute(['CPH', 'LHR_180', 'JFK']);
       expect(loadLastRoute()).toEqual(['CPH', 'LHR_180', 'JFK']);
+      expect(loadCountryNames()).toBeNull();
+      saveCountryNames(true);
+      expect(loadCountryNames()).toBe(true);
+      expect(data.get('globehops:countryNames')).toBe('on');
+      saveCountryNames(false);
+      expect(loadCountryNames()).toBe(false);
+      expect(data.get('globehops:countryNames')).toBe('off');
+      data.set('globehops:countryNames', 'maybe');
+      expect(loadCountryNames()).toBeNull();
       expect(loadBorders()).toBeNull();
       saveBorders(false);
       expect(loadBorders()).toBe(false);
@@ -66,9 +77,11 @@ describe('safe storage', () => {
         expect(loadUnit()).toBeNull();
         expect(loadLastRoute()).toBeNull();
         expect(loadBorders()).toBeNull();
+        expect(loadCountryNames()).toBeNull();
         expect(() => {
           saveUnit('km');
           saveBorders(false);
+          saveCountryNames(true);
           saveLastRoute([]);
         }).not.toThrow();
       } finally {
