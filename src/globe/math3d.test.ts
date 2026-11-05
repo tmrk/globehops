@@ -1,13 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import { toVec3 } from '../lib/geo.ts';
-import { ecefToScene, latLngToVector3, sceneToEcef, slerpUnit } from './math3d.ts';
+import { ecefToScene, latLngToVector3, sceneToEcef, slerpUnit, sunDirectionScene } from './math3d.ts';
 
 const expectVector = (actual: Vector3, expected: Vector3) => {
   expect(actual.distanceTo(expected)).toBeLessThan(1e-12);
 };
 
 describe('scene coordinate convention', () => {
+  it.each([
+    { lat: 0, lng: -91.8 },
+    { lat: 23.44, lng: 179.9 },
+    { lat: -23.44, lng: -179.9 },
+    { lat: 90, lng: 42 },
+    { lat: -90, lng: -42 },
+  ])('aligns sunlight with a subsolar marker at $lat, $lng', (subsolar) => {
+    const target = new Vector3();
+    const sun = sunDirectionScene(subsolar, target);
+    expect(sun).toBe(target);
+    expect(sun.dot(latLngToVector3(subsolar.lat, subsolar.lng))).toBeCloseTo(1, 12);
+    expect(sun.dot(latLngToVector3(-subsolar.lat, subsolar.lng + 180))).toBeCloseTo(-1, 12);
+  });
+
   it.each([
     [0, 0, [1, 0, 0]],
     [0, 90, [0, 0, -1]],

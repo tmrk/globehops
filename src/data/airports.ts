@@ -105,3 +105,20 @@ export function shortName(a: Airport): string {
   const name = displayCity(a);
   return name.length > 16 ? `${name.slice(0, 15)}…` : name;
 }
+
+/**
+ * Short, unambiguous airport name for status text: "London Heathrow", "Copenhagen Kastrup",
+ * "New York JFK". Uses the airport name without generic suffixes when it already starts with the
+ * city; otherwise the city followed by the airport's code.
+ */
+export function airportShortName(a: Airport): string {
+  const city = displayCity(a).split(',')[0].trim();
+  const name = a.name
+    .replace(/\s+Airport\s+/i, ' ')
+    .replace(/\s+(?:International\s+)?(?:Airport|Airfield|Aerodrome|Air Base)$/i, '')
+    .replace(/\s+International$/i, '')
+    .trim();
+  if (name && name.toLowerCase().startsWith(city.toLowerCase()) && name.length <= 32) return name;
+  const code = displayCode(a);
+  return code ? `${city} ${code}` : city;
+}

@@ -1,8 +1,9 @@
-import type { Airport, Layover, Leg, RouteState, Stop } from '../types.ts';
+import type { Airport, Layover, Leg, LocalTimeInput, RouteState, Stop } from '../types.ts';
 import { greatCircleDistanceKm } from '../lib/geo.ts';
 import { estimateFlightMinutes } from '../lib/flightTime.ts';
 import { DEFAULT_LAYOVER_MIN, isValidLayover } from '../lib/layover.ts';
-export const MAX_STOPS = 10;
+import { MAX_STOPS } from '../agent/contract.ts';
+export { MAX_STOPS } from '../agent/contract.ts';
 export type RouteAction =
   | { type: 'setAirport'; index: number; airportId: number | null }
   | { type: 'addStop' }
@@ -13,20 +14,40 @@ export type RouteAction =
   | { type: 'clear' }
   | { type: 'selectLeg'; leg: number | null }
   | { type: 'setLayover'; index: number; minutes: number | null }
-  | { type: 'load'; airportIds: (number | null)[]; layovers?: (number | null)[] };
+  | { type: 'setTime'; index: number; field: 'arrival' | 'departure'; value: LocalTimeInput | null }
+  | { type: 'clearTimes' }
+  | {
+      type: 'load';
+      airportIds: (number | null)[];
+      layovers?: (number | null)[];
+      arrivals?: (LocalTimeInput | null)[];
+      departures?: (LocalTimeInput | null)[];
+    };
 let nextKey = 0;
 /** Stored layovers are null when they equal the default, so only real changes reach the URL. */
 const normalizeLayover = (minutes: number | null | undefined): number | null =>
   isValidLayover(minutes) && minutes !== DEFAULT_LAYOVER_MIN ? minutes : null;
-const stop = (airportId: number | null, layoverMin: number | null = null): Stop => ({
+const stop = (
+  airportId: number | null,
+  layoverMin: number | null = null,
+  arrival: LocalTimeInput | null = null,
+  departure: LocalTimeInput | null = null,
+): Stop => ({
   key: `s${++nextKey}`,
   airportId,
   layoverMin: normalizeLayover(layoverMin),
+  arrival,
+  departure,
 });
-export function createRouteState(airportIds: (number | null)[] = [], layovers: (number | null)[] = []): RouteState {
+export function createRouteState(
+  airportIds: (number | null)[] = [],
+  layovers: (number | null)[] = [],
+  arrivals: (LocalTimeInput | null)[] = [],
+  departures: (LocalTimeInput | null)[] = [],
+): RouteState {
   const ids = airportIds.slice(0, MAX_STOPS);
   while (ids.length < 2) ids.push(null);
-  return { stops: ids.map((id, i) => stop(id, layovers[i])), selectedLeg: null };
+  return { stops: ids.map((id, i) => stop(id, layovers[i], arrivals[i], departures[i])), selectedLeg: null };
 }
 const validIndex = (index: number, length: number) => Number.isInteger(index) && index >= 0 && index < length;
 export function routeReducer(state: RouteState, action: RouteAction): RouteState {
@@ -37,6 +58,18 @@ export function routeReducer(state: RouteState, action: RouteAction): RouteState
       const leg = action.leg !== null && action.leg < 0 ? null : action.leg;
       return leg === state.selectedLeg ? state : { ...state, selectedLeg: leg };
     }
+    case 'setTime': {
+      if (!validIndex(action.index, stops.length) || sameTime(stops[action.index][action.field], action.value))
+        return state;
+      return {
+        ...state,
+        stops: stops.map((s, i) => (i === action.index ? { ...s, [action.field]: action.value } : s)),
+      };
+    }
+    case 'clearTimes':
+      return hasEnteredTimes(stops)
+        ? { ...state, stops: stops.map((s) => ({ ...s, arrival: null, departure: null })) }
+        : state;
     case 'setLayover': {
       const minutes = normalizeLayover(action.minutes);
       if (!validIndex(action.index, stops.length) || stops[action.index].layoverMin === minutes) return state;
@@ -64,9 +97,12 @@ export function routeReducer(state: RouteState, action: RouteAction): RouteState
       return changed(next);
     }
     case 'reverse':
-      return changed([...stops].reverse());
+      return changed([...stops].reverse().map((s) => ({ ...s, arrival: null, departure: null })));
     case 'clear':
-      return stops.length === 2 && stops.every((s) => s.airportId === null) && state.selectedLeg === null
+      return stops.length === 2 &&
+        stops.every((s) => s.airportId === null) &&
+        !hasEnteredTimes(stops) &&
+        state.selectedLeg === null
         ? state
         : createRouteState();
     case 'load': {
@@ -74,10 +110,16 @@ export function routeReducer(state: RouteState, action: RouteAction): RouteState
       while (ids.length < 2) ids.push(null);
       const layovers = ids.map((_, i) => normalizeLayover(action.layovers?.[i]));
       return ids.length === stops.length &&
-        ids.every((id, i) => id === stops[i].airportId && layovers[i] === stops[i].layoverMin) &&
+        ids.every(
+          (id, i) =>
+            id === stops[i].airportId &&
+            layovers[i] === stops[i].layoverMin &&
+            sameTime(stops[i].arrival, action.arrivals?.[i] ?? null) &&
+            sameTime(stops[i].departure, action.departures?.[i] ?? null),
+        ) &&
         state.selectedLeg === null
         ? state
-        : createRouteState(ids, layovers);
+        : createRouteState(ids, layovers, action.arrivals, action.departures);
     }
   }
 }
@@ -114,4 +156,10 @@ export function computeLayovers(stops: Stop[], legs: Leg[]): Layover[] {
       custom: custom !== null,
     };
   });
+}
+
+const sameTime = (a: LocalTimeInput | null, b: LocalTimeInput | null): boolean =>
+  a === b || (a !== null && b !== null && a.local === b.local && a.offsetMin === b.offsetMin);
+export function hasEnteredTimes(stops: Stop[]): boolean {
+  return stops.some((s) => s.arrival !== null || s.departure !== null);
 }

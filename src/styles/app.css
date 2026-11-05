@@ -261,6 +261,11 @@ a {
   fill: currentColor;
 }
 
+.globe-plane.is-ground svg {
+  scale: 0.82;
+  opacity: 0.7;
+}
+
 .globe-fallback {
   position: absolute;
   left: 50%;
@@ -400,6 +405,12 @@ a {
     background-color 0.15s,
     color 0.15s,
     border-color 0.15s;
+}
+
+.chip-btn--icon {
+  justify-content: center;
+  width: var(--control-h);
+  padding: 0;
 }
 
 .chip-btn:not(:disabled):hover {
@@ -1605,4 +1616,394 @@ a {
   place-items: center;
   color: var(--text-3);
   padding-block: 3px;
+}
+
+/* Time is disclosed only when a flight or the globe clock is opened. */
+.topbar__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.time-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--float-h);
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface-float);
+  box-shadow: var(--shadow-float);
+  color: var(--text-2);
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.leg-schedule {
+  position: relative;
+  margin: 4px 4px 10px 30px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--hover);
+}
+.leg-schedule__fields {
+  display: grid;
+  gap: 12px;
+}
+.leg-schedule fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.leg-schedule legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.leg-schedule__inputs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.leg-schedule input,
+.time-bar__date {
+  min-width: 0;
+  height: var(--control-h);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-full);
+  padding: 0 9px;
+  background: var(--surface-solid);
+  color: var(--text);
+  font: 16px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.leg-schedule input[type='date'] {
+  flex: 1;
+  width: 145px;
+}
+.leg-schedule input[type='time'] {
+  width: 105px;
+  flex: 0 1 105px;
+}
+.leg-schedule__zone,
+.leg-schedule__hint,
+.leg-schedule__foot {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.leg-schedule__duration {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.schedule-issue {
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.schedule-issue p {
+  margin: 0 0 5px;
+}
+.schedule-issue--error,
+.schedule-error {
+  color: var(--danger);
+}
+.schedule-issue--warning {
+  color: var(--accent);
+}
+.schedule-issue .suggestion {
+  margin: 2px 4px 2px 0;
+  font-size: 12px;
+}
+.schedule-issue .suggestion[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+.connector__times {
+  font: 12px var(--mono);
+  white-space: nowrap;
+}
+.connector__times sup {
+  margin-left: 3px;
+  color: var(--accent);
+  font-size: 10px;
+}
+.is-estimated {
+  color: var(--text-3);
+}
+.connector.is-active .connector__line {
+  box-shadow: 0 0 9px var(--next-color);
+  opacity: 1;
+}
+.stop.is-active-transfer .stop__node {
+  box-shadow:
+    0 0 0 4px var(--surface-solid),
+    0 0 0 6px var(--accent);
+}
+.time-bar {
+  position: relative;
+  width: min(560px, 100%);
+  margin-inline: auto;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-float);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: auto;
+  touch-action: none;
+}
+.time-bar__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.time-bar__play {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.time-bar__status {
+  flex: 1;
+  min-width: 0;
+}
+.time-bar__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.time-bar__detail {
+  min-height: 18px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.time-bar__detail .text-btn {
+  color: var(--text-2);
+  font-size: inherit;
+  padding: 0;
+}
+.time-bar__scrubber {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  margin: 2px 0;
+}
+.time-bar__track {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+}
+.time-bar__segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+.time-bar__segment--ground {
+  background-image: repeating-linear-gradient(to right, var(--text-3) 0 2px, transparent 2px 5px);
+}
+.time-bar input[type='range'] {
+  position: relative;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+.time-bar input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  background: transparent;
+}
+.time-bar input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -12px;
+  border: 7px solid var(--surface-solid);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.time-bar input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 7px solid var(--surface-solid);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+.time-bar__foot {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.time-bar__clock,
+.time-bar__speed {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: var(--control-h);
+  border-radius: var(--radius-full);
+  font: 11.5px var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.time-bar__clock {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.time-bar__speed {
+  flex: none;
+  min-width: 48px;
+  justify-content: center;
+  padding: 0 6px;
+  color: var(--text-2);
+  background: var(--hover);
+}
+.time-bar select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: inherit;
+}
+.time-bar select option {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.time-bar label:has(select:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.time-bar__date {
+  width: 138px;
+  font-size: 16px;
+}
+.has-timeline .hud {
+  min-height: 0;
+}
+.has-timeline .hud__tools {
+  bottom: calc(100% + 12px);
+}
+.layout-desktop .has-timeline {
+  left: calc(var(--inset-left, 0px) + 24px);
+  right: 24px;
+}
+.layout-mobile .has-timeline {
+  left: 12px;
+  right: 12px;
+}
+@media (pointer: coarse) {
+  .leg-schedule input,
+  .leg-schedule .icon-btn,
+  .schedule-issue .suggestion,
+  .time-bar__play,
+  .time-bar .icon-btn,
+  .time-bar__clock,
+  .time-bar__speed,
+  .time-bar__date,
+  .time-bar .text-btn {
+    min-height: 44px;
+  }
+  .leg-schedule .icon-btn,
+  .time-bar .icon-btn {
+    min-width: 44px;
+  }
+  .time-bar__play {
+    width: 44px;
+  }
+  .time-bar input[type='range'],
+  .time-bar__scrubber {
+    height: 44px;
+  }
+}
+@media (max-width: 380px) {
+  .time-bar {
+    padding-inline: 8px;
+  }
+  .time-bar__head {
+    gap: 7px;
+  }
+  .time-bar__clock {
+    font-size: 10px;
+  }
+  .time-bar__foot {
+    gap: 0;
+  }
+  .time-bar__speed {
+    min-width: 43px;
+    font-size: 10px;
+    padding-inline: 3px;
+  }
+  .connector__leg {
+    gap: 6px;
+    padding-right: 6px;
+  }
+  .connector__times {
+    font-size: 10px;
+  }
+  .leg-schedule__inputs {
+    flex-wrap: wrap;
+  }
+  .leg-schedule input[type='date'] {
+    width: 132px;
+  }
+  .leg-schedule input[type='time'] {
+    width: 90px;
+    flex-basis: 90px;
+  }
+  .time-bar__date {
+    width: 125px;
+  }
+}
+@media (max-height: 450px) and (orientation: landscape) {
+  .layout-desktop .has-timeline {
+    bottom: 8px;
+  }
+  .has-timeline .hud__tools {
+    bottom: calc(100% + 8px);
+    gap: 5px;
+    flex-direction: row;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout-mobile .hud-wrap {
+    transition: none;
+  }
+}
+@media (pointer: coarse) {
+  .chip-btn,
+  .connector__leg {
+    min-height: 44px;
+  }
+}
+
+/* With the sheet expanded, a row leaves room for all map tools below the top bar. */
+.layout-mobile:has(.panel:not(.is-collapsed)) .has-timeline .hud__tools {
+  flex-direction: row;
 }

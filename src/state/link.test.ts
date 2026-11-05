@@ -1,0 +1,152 @@
+import { describe, it, expect } from 'vitest';
+import type { Airport } from '../types.ts';
+import { parseLink, serializeLink, buildLinkUrl, type SerializableLinkStop } from './link.ts';
+import { encodeItineraryParam } from '../agent/itinerary.ts';
+const airports = ['CPH', 'LHR', 'JFK'].map((code, i): Airport => ({
+  id: i,
+  iata: code,
+  icao: null,
+  ident: code,
+  name: code,
+  city: code,
+  lat: 0,
+  lng: 0,
+  country: '',
+  countryCode: '',
+  region: '',
+  type: 'large',
+  scheduled: true,
+  keywords: [],
+}));
+const stops: SerializableLinkStop[] = airports.map((airport, i) => ({
+  airport,
+  layoverMin: i === 1 ? 180 : null,
+  departure: null,
+  arrival: null,
+}));
+describe('journey share links', () => {
+  it('keeps the legacy route/layover grammar unchanged', () => {
+    const query = '?route=CPH-LHR_180-JFK';
+    expect(serializeLink(stops, {})).toBe(query);
+    expect(parseLink(query).stops?.map((s) => [s.code, s.layoverMin])).toEqual([
+      ['CPH', null],
+      ['LHR', 180],
+      ['JFK', null],
+    ]);
+    expect(parseLink(query).issues).toEqual([]);
+    expect(parseLink('').stops).toBeNull();
+    expect(parseLink('?route=').stops).toEqual([]);
+    expect(serializeLink([], {})).toBe('');
+  });
+  it('round trips entered times, offsets and every view setting in canonical order', () => {
+    const entered = stops.map((s, i) => ({
+      ...s,
+      departure: i < 2 ? { local: '2026-11-20T08:15', offsetMin: 60 } : null,
+      arrival: i > 0 ? { local: '2026-11-20T09:05', offsetMin: null } : null,
+    }));
+    const view = {
+      time: Date.UTC(2026, 10, 20, 9, 30),
+      play: true,
+      speed: 3600 as const,
+      clock: 'JFK',
+      units: 'mi' as const,
+      dayNight: false,
+    };
+    const query = serializeLink(entered, view);
+    expect(query).toBe(
+      '?route=CPH-LHR_180-JFK&dep1=2026-11-20T08:15%2B01:00&arr2=2026-11-20T09:05&dep2=2026-11-20T08:15%2B01:00&arr3=2026-11-20T09:05&t=2026-11-20T09:30Z&play=1&speed=3600&clock=JFK&units=mi&daynight=0',
+    );
+    const parsed = parseLink(query);
+    expect(parsed.view).toEqual(view);
+    expect(parsed.stops).toEqual(
+      entered.map((s) => ({
+        code: s.airport.iata,
+        layoverMin: s.layoverMin,
+        departure: s.departure,
+        arrival: s.arrival,
+      })),
+    );
+    expect(parsed.issues).toEqual([]);
+    expect(new URL(buildLinkUrl('https://example.com/globehops/?old=1#view', entered, view)).search).toBe(query);
+  });
+  it.each(['%2B', '+', '%20'])('accepts a positive offset encoded as %s', (plus) => {
+    const s = parseLink(`?route=CPH-LHR&dep1=2026-11-20T08:15${plus}01:00&t=2026-11-20T08:15${plus}01:00`);
+    expect(s.stops?.[0].departure).toEqual({ local: '2026-11-20T08:15', offsetMin: 60 });
+    expect(s.view.time).toBe(Date.UTC(2026, 10, 20, 7, 15));
+    expect(s.issues).toEqual([]);
+  });
+  it('accepts case-insensitive parameter names and route codes', () => {
+    const s = parseLink('?RoUtE=cph-lhr-jfk&DeP1=2026-11-20T08:15&SpEeD=AUTO&ClOcK=lHr&UnItS=MI&DaYnIgHt=0');
+    expect(s.stops?.[0].code).toBe('CPH');
+    expect(s.stops?.[0].departure?.local).toBe('2026-11-20T08:15');
+    expect(s.view).toMatchObject({ clock: 'LHR', units: 'mi', dayNight: false });
+    expect(s.issues).toEqual([]);
+  });
+  it.each([
+    'dep1=bad',
+    'dep1=2026-11-20Z',
+    'dep1=2026-02-30T12:00',
+    'arr2=2026-11-20T12:00%2B24:00',
+    't=nope',
+    'speed=fast',
+    'clock=NYC',
+    'units=meters',
+    'daynight=maybe',
+    'play=yes',
+    'dep4=2026-11-20T08:00',
+    'arr0=2026-11-20T08:00',
+  ])('ignores malformed %s while retaining valid parts', (param) => {
+    const s = parseLink(`?route=CPH-LHR&${param}&units=km`);
+    expect(s.stops).toHaveLength(2);
+    expect(s.issues).toHaveLength(1);
+  });
+  it('omits endpoint times, defaults and endpoint layovers', () => {
+    const allTimes = stops.map((s) => ({
+      ...s,
+      arrival: { local: '2026-11-20T12:00', offsetMin: null },
+      departure: { local: '2026-11-20T12:00', offsetMin: null },
+    }));
+    const query = serializeLink(allTimes, { speed: 'auto', clock: 'local', dayNight: true });
+    expect(query).not.toContain('arr1=');
+    expect(query).not.toContain('dep3=');
+    expect(query).not.toContain('speed=');
+    expect(query).not.toContain('clock=');
+    expect(parseLink('?route=CPH-LHR&arr1=2026-11-20T12:00&dep2=2026-11-20T12:00').issues).toHaveLength(2);
+  });
+  it('retains date-only inputs and normalizes optional zero seconds', () => {
+    expect(
+      parseLink('?route=CPH-LHR&dep1=2026-11-20&arr2=2026-11-20T09:00:00').stops?.map((s) => [s.departure, s.arrival]),
+    ).toEqual([
+      [{ local: '2026-11-20', offsetMin: null }, null],
+      [null, { local: '2026-11-20T09:00', offsetMin: null }],
+    ]);
+  });
+  it('uses itinerary documents ahead of other route parameters and falls back on invalid ones', () => {
+    const doc = {
+      version: 1 as const,
+      stops: [{ airport: 'JFK' }, { airport: 'LAX' }],
+      view: { speed: 1800 as const },
+    };
+    const encoded = encodeItineraryParam(doc);
+    expect(parseLink(`?route=CPH-LHR&itinerary=${encoded}`).stops?.map((s) => s.code)).toEqual(['JFK', 'LAX']);
+    const invalid = parseLink('?itinerary=!!!&route=CPH-LHR');
+    expect(invalid.stops).toHaveLength(2);
+    expect(invalid.issues).toHaveLength(1);
+  });
+  it('caps stop count and reports malformed route tokens and layovers', () => {
+    expect(parseLink(`?route=${Array(11).fill('CPH').join('-')}`).stops).toHaveLength(10);
+    expect(parseLink(`?route=${Array(11).fill('CPH').join('-')}`).issues).toHaveLength(1);
+    expect(parseLink('?route=CPH-LHR_99999-JFK').issues).toHaveLength(1);
+    expect(parseLink('?route=CPH-!-JFK').stops?.map((s) => s.code)).toEqual(['CPH', 'JFK']);
+  });
+  it('ignores unknown params, handles duplicate names deterministically and rejects oversize inputs', () => {
+    expect(parseLink('?route=CPH-LHR&alien=1').issues).toEqual([]);
+    expect(parseLink('?route=CPH-LHR&speed=1800&SPEED=7200').view.speed).toBe(1800);
+    expect(parseLink(`?route=${'A'.repeat(8001)}`).issues).toHaveLength(1);
+    expect(parseLink(`?route=${'A'.repeat(8001)}`).stops).toBeNull();
+    expect(() =>
+      serializeLink([{ ...stops[0], departure: { local: 'X'.repeat(9000), offsetMin: null } }, stops[1]], {}),
+    ).toThrow(RangeError);
+    expect(() => buildLinkUrl(`https://example.com/${'x'.repeat(8000)}`, stops)).toThrow(RangeError);
+  });
+});

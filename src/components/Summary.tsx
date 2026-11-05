@@ -4,21 +4,26 @@ import { DEFAULT_FLIGHT_TIME_MODEL, formatDuration, sumDurations } from '../lib/
 import { DEFAULT_LAYOVER_MIN, formatLayover } from '../lib/layover.ts';
 import { formatDistanceNumber } from '../lib/units.ts';
 import type { DistanceUnit, Layover, Leg } from '../types.ts';
+import type { Journey } from '../lib/schedule.ts';
+import { airportCode } from '../data/airports.ts';
+import { formatClock } from '../lib/timezone.ts';
 import { IconInfo } from './Icons.tsx';
 
 interface SummaryProps {
+  journey: Journey;
+  onCheckLeg: (leg: number) => void;
   legs: Leg[];
   layovers: Layover[];
   unit: DistanceUnit;
   onUnitChange: (unit: DistanceUnit) => void;
 }
 
-export function Summary({ legs, layovers, unit, onUnitChange }: SummaryProps) {
+export function Summary({ journey, onCheckLeg, legs, layovers, unit, onUnitChange }: SummaryProps) {
   const [showInfo, setShowInfo] = useState(false);
   const infoId = useId();
   const totalKm = legs.reduce((s, l) => s + l.distanceKm, 0);
-  const flightMin = sumDurations(legs.map((l) => l.durationMin));
-  const groundMin = layovers.reduce((s, l) => s + l.minutes, 0);
+  const flightMin = journey.dated ? journey.totals.flightMin : sumDurations(legs.map((l) => l.durationMin));
+  const groundMin = journey.dated ? journey.totals.layoverMin : layovers.reduce((s, l) => s + l.minutes, 0);
   const totalMin = flightMin ? flightMin + groundMin : 0;
   const flights = legs.length;
   const m = DEFAULT_FLIGHT_TIME_MODEL;
@@ -49,7 +54,7 @@ export function Summary({ legs, layovers, unit, onUnitChange }: SummaryProps) {
         </div>
         <div className="stat">
           <span className="stat__label">
-            {layovers.length ? 'Est. total time' : 'Est. flight time'}
+            {journey.dated ? 'Journey time' : layovers.length ? 'Est. total time' : 'Est. flight time'}
             <button
               type="button"
               className="info-btn"
@@ -61,7 +66,11 @@ export function Summary({ legs, layovers, unit, onUnitChange }: SummaryProps) {
               <IconInfo size={15} />
             </button>
           </span>
-          <span className="stat__value">{flights && totalMin ? `≈ ${formatDuration(totalMin)}` : '—'}</span>
+          <span className="stat__value">
+            {flights && totalMin
+              ? `${!journey.dated || journey.legs.some((l) => l.departure?.provenance !== 'entered' || l.arrival?.provenance !== 'entered') ? '≈ ' : ''}${formatDuration(totalMin)}`
+              : '—'}
+          </span>
         </div>
         <div className="unit-toggle" role="radiogroup" aria-label="Distance unit">
           {(['km', 'mi'] as const).map((u) => (
@@ -78,12 +87,30 @@ export function Summary({ legs, layovers, unit, onUnitChange }: SummaryProps) {
           ))}
         </div>
       </div>
+      {journey.dated && journey.start && journey.end && (
+        <p className="summary__note">
+          Departs{' '}
+          {formatClock(journey.start.epochMs, journey.start.zone, { weekday: true, date: true }).replace(',', '')}{' '}
+          {airportCode(journey.stops[0].airport)} · arrives {formatClock(journey.end.epochMs, journey.end.zone)}{' '}
+          {airportCode(journey.stops.at(-1)!.airport)}
+        </p>
+      )}
       <p className="summary__note">{note}</p>
+      {(() => {
+        const issue = journey.issues.find((i) => i.severity === 'error');
+        const leg =
+          issue?.leg ?? (issue?.field === 'arrival' ? Math.max(0, (issue.stop ?? 1) - 1) : (issue?.stop ?? 0));
+        return issue ? (
+          <button type="button" className="text-btn schedule-error" onClick={() => onCheckLeg(leg)}>
+            Check flight {leg + 1} times
+          </button>
+        ) : null;
+      })()}
       <div id={infoId} className="summary__info" hidden={!showInfo}>
         <p>
-          Flight times are estimates, not schedules: great-circle distance at an average {speed}, plus{' '}
-          {m.overheadMinutes} min for take-off, climb, approach and landing. Real flights vary with winds, routing, air
-          traffic control and taxi times.
+          Entered times use each airport’s local time zone; missing times are estimated. Flight times are estimates, not
+          schedules: great-circle distance at an average {speed}, plus {m.overheadMinutes} min for take-off, climb,
+          approach and landing. Real flights vary with winds, routing, air traffic control and taxi times.
         </p>
         <p>
           Each connection adds a layover, {formatLayover(DEFAULT_LAYOVER_MIN)} unless you change it under the connecting

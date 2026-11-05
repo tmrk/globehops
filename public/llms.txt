@@ -1,0 +1,39 @@
+# GlobeHops
+
+> GlobeHops visualises air journeys as great-circle routes on an interactive 3D globe, with shared distance, flight-time, layover, local-time and daylight calculations. Free, static, no account or API key.
+
+This guide lives at the project path `/globehops/llms.txt`, not the site-root `/llms.txt`. These discovery files describe GlobeHops's own contract; they do not claim conformance to a formal agent standard.
+
+## Build a link
+
+- [Simple CPH–JFK](https://tmrk.github.io/globehops/?route=CPH-JFK): airport codes separated by hyphens.
+- [Three-hour Heathrow connection](https://tmrk.github.io/globehops/?route=CPH-LHR_180-JFK): custom transfer minutes follow `_`; default is 90 minutes.
+- [Scheduled departure](https://tmrk.github.io/globehops/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15): depN/arrN are airport-local times at 1-based stop N. Omitted times are estimated when anchored by an entered time.
+- [Worked examples](https://tmrk.github.io/globehops/agent/examples.json): complete readable and alternative `?itinerary=<base64url UTF-8 JSON>` URLs. The itinerary parameter overrides readable parameters.
+
+View parameters: `t` is an ISO instant, `play=1` starts playback (respecting reduced motion), `speed=auto|1800|3600|7200`, `clock=local|utc|<route airport code>`, `units=km|mi`, `daynight=0` disables shading.
+
+## Contract and limits
+
+- [Capabilities](https://tmrk.github.io/globehops/agent/capabilities.json): parameters, limits, issue vocabulary and estimation model.
+- [Itinerary v1 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json): 1–10 stops; transfer-only integer layovers 0–10080 minutes. No unknown properties except a top-level string `$schema`.
+- [External agent integration](https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md): link construction, validation and local MCP setup.
+
+Use IATA, ICAO, alphanumeric OurAirports ident or numeric airport id strings; unknown codes are reported and skipped. Hyphenated idents require numeric IDs in readable links. Maximum URL: 8000 characters; itinerary parameter: 6000 characters. Supported calendar years: 1900–2100.
+
+Local times: `YYYY-MM-DDTHH:MM`, optional `:00` seconds and `±HH:MM` or `Z`. Offsets must match the airport zone at that local wall time. `Z` means a local UTC+0 offset; it does not convert another zone's wall time. Repeated DST hours warn and choose the earlier instant unless disambiguated; nonexistent times error. Absolute instants (`t`, timeline queries) require `Z` or an offset. Date-only readable links are incomplete; document times require hours and minutes.
+
+## Estimates and provenance
+
+Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distances use great circles on a sphere of radius 6371.0088 km. Winds, actual routing, airline timetables and aircraft types are not modelled. Aircraft positions and altitudes are illustrative, not live tracking. Entered and estimated times are labelled. Undated timelines require an explicit assumed departure. Time-zone rules come from runtime Intl and may change for future dates.
+
+- [Dataset freshness](https://tmrk.github.io/globehops/agent/dataset.json): build date, upstream airport commit, counts and time-zone release metadata.
+- [Data sources](https://github.com/tmrk/globehops/blob/main/docs/DATA_SOURCES.md): OurAirports public domain, timezone-boundary-builder/OSM ODbL-1.0, NASA imagery and Natural Earth borders.
+- [Licence notices](https://github.com/tmrk/globehops/blob/main/THIRD_PARTY_NOTICES.md): code is MIT; data retains its own terms.
+
+## Local MCP server
+
+- [Server source](https://github.com/tmrk/globehops/blob/main/mcp/server.ts): local stdio; clone the repository, run `npm ci` with Node 22.18+, then `node /absolute/path/to/globehops/mcp/server.ts` (or `npm run mcp` in the checkout).
+- [MCP configuration and tool examples](https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md): search_airports, calculate_route, validate_itinerary, visualize_route, get_journey_timeline.
+
+Set `GLOBEHOPS_BASE_URL` to override generated links. There is no remote MCP endpoint: GitHub Pages hosts static files. Tools reuse the same calculations as the browser and require no network services.

@@ -48,7 +48,16 @@ import {
 import { countSegments, decodeBorders, densifyLine } from '../lib/borders.ts';
 import { enclosingCap, greatCircleDistanceKm, greatCirclePath, slerpVec, toVec3 } from '../lib/geo.ts';
 import type { LatLng } from '../types.ts';
-import { clamp01, easeInOutCubic, ecefToScene, latLngToVector3, sceneToEcef, slerpUnit } from './math3d.ts';
+import {
+  clamp01,
+  easeInOutCubic,
+  ecefToScene,
+  latLngToVector3,
+  sceneToEcef,
+  slerpUnit,
+  sunDirectionScene,
+} from './math3d.ts';
+import type { AircraftView } from './simFeed.ts';
 
 export type MarkerRole = 'origin' | 'transfer' | 'destination' | 'single';
 
@@ -124,9 +133,11 @@ interface LegObject {
   line: Line2;
   casing: Line2;
   track: Line2;
+  remaining: Line2;
   material: LineMaterial;
   casingMaterial: LineMaterial;
   trackMaterial: LineMaterial;
+  remainingMaterial: LineMaterial;
   segments: number;
   /** 0..1 reveal progress */
   progress: number;
@@ -191,6 +202,15 @@ export class GlobeRenderer {
   private reveal: RevealAnim | null = null;
   private planeAnim: PlaneAnim | null = null;
   private selectedLeg: number | null = null;
+  private highlightLeg: number | null = null;
+  private aircraft: AircraftView | null = null;
+  private follow = false;
+  private keyLight = new DirectionalLight(0xfff6ea, 2.1);
+  private subsolar: LatLng | null = null;
+  private sunScene = new Vector3(1, 0, 0);
+  private sunView = { value: new Vector3(1, 0, 0) };
+  private dayNight = { value: 0 };
+  private illuminationTween: { from: number; to: number; start: number } | null = null;
   private disposed = false;
   private resizeObserver: ResizeObserver;
   private pointerDown: { x: number; y: number; t: number } | null = null;
@@ -229,23 +249,36 @@ export class GlobeRenderer {
     // Lighting: a soft key light that travels with the camera keeps the visible hemisphere
     // daylit with a gentle falloff toward the lower-right limb.
     this.scene.add(new AmbientLight(0xffffff, 1.35));
-    const key = new DirectionalLight(0xfff6ea, 2.1);
-    key.position.set(-1.6, 1.4, 2.2);
-    this.camera.add(key);
+    this.keyLight.position.set(-1.6, 1.4, 2.2);
+    this.camera.add(this.keyLight);
     this.scene.add(this.camera);
 
     this.earthMaterial = new MeshLambertMaterial({ color: 0xffffff });
     this.earthMaterial.onBeforeCompile = (shader) => {
       shader.uniforms.uAtmo = { value: ATMOSPHERE_COLOR };
+      shader.uniforms.uSunView = this.sunView;
+      shader.uniforms.uDayNight = this.dayNight;
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform vec3 uAtmo;')
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform vec3 uAtmo;\nuniform vec3 uSunView;\nuniform float uDayNight;',
+        )
         .replace(
           '#include <opaque_fragment>',
           `#include <opaque_fragment>
           {
+            float mu = dot(normalize(normal), uSunView);
+            float day = smoothstep(-0.12, 0.10, mu);
+            vec3 nightTint = vec3(0.88, 0.94, 1.08);
+            vec3 lit = gl_FragColor.rgb;
+            vec3 timed = lit * mix(0.13 * nightTint, vec3(1.0), day);
+            float twilight = (1.0 - smoothstep(0.0, 0.18, abs(mu))) * 0.045;
+            timed += diffuseColor.rgb * vec3(1.0, 0.38, 0.12) * twilight;
+            gl_FragColor.rgb = mix(lit, timed, uDayNight);
             float facing = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
             float fres = pow(1.0 - facing, 3.0);
-            gl_FragColor.rgb = mix(gl_FragColor.rgb, uAtmo * 0.9, fres * 0.55);
+            float rimLight = mix(1.0, mix(0.16, 1.0, day), uDayNight);
+            gl_FragColor.rgb = mix(gl_FragColor.rgb, uAtmo * 0.9 * rimLight, fres * 0.55);
           }`,
         );
     };
@@ -263,6 +296,8 @@ export class GlobeRenderer {
         uniforms: {
           uColor: { value: ATMOSPHERE_COLOR },
           uLimb: { value: Math.sqrt(1 - 1 / (ATMOSPHERE_RADIUS * ATMOSPHERE_RADIUS)) },
+          uSunView: this.sunView,
+          uDayNight: this.dayNight,
         },
         vertexShader: /* glsl */ `
           varying vec3 vNormal;
@@ -276,12 +311,16 @@ export class GlobeRenderer {
         fragmentShader: /* glsl */ `
           uniform vec3 uColor;
           uniform float uLimb;
+          uniform vec3 uSunView;
+          uniform float uDayNight;
           varying vec3 vNormal;
           varying vec3 vView;
           void main() {
             float d = -dot(normalize(vNormal), normalize(vView));
             float t = clamp(d / uLimb, 0.0, 1.0);
             float glow = pow(t, 3.2) * 0.85;
+            float day = smoothstep(-0.12, 0.10, dot(normalize(vNormal), uSunView));
+            glow *= mix(1.0, mix(0.16, 1.0, day), uDayNight);
             gl_FragColor = vec4(uColor * glow, glow);
           }`,
       }),
@@ -318,6 +357,64 @@ export class GlobeRenderer {
 
   // ---------------------------------------------------------------------------------------------
   // Public API
+
+  setIllumination(subsolar: LatLng | null) {
+    if (subsolar?.lat === this.subsolar?.lat && subsolar?.lng === this.subsolar?.lng) return;
+    const toggled = (subsolar === null) !== (this.subsolar === null);
+    this.subsolar = subsolar ? { ...subsolar } : null;
+    if (subsolar) {
+      sunDirectionScene(subsolar, this.sunScene);
+      if (this.keyLight.parent !== this.scene) this.scene.add(this.keyLight);
+      this.keyLight.position.copy(this.sunScene).multiplyScalar(5);
+    }
+    if (toggled) {
+      const to = subsolar ? 1 : 0;
+      this.illuminationTween = this.options.reducedMotion
+        ? null
+        : { from: this.dayNight.value, to, start: performance.now() };
+      if (this.options.reducedMotion) this.dayNight.value = to;
+    }
+    if (!subsolar && !this.illuminationTween) this.restoreCameraLight();
+    this.requestRender();
+  }
+
+  setAircraft(view: AircraftView | null) {
+    const old = this.aircraft;
+    if (
+      (old === null && view === null) ||
+      (old &&
+        view &&
+        old.kind === view.kind &&
+        old.leg === view.leg &&
+        (old.kind === 'air' && view.kind === 'air'
+          ? old.fraction === view.fraction
+          : old.kind === 'ground' && view.kind === 'ground' && old.at === view.at))
+    )
+      return;
+    this.aircraft = view ? { ...view } : null;
+    this.plane.classList.toggle('is-ground', view?.kind === 'ground');
+    this.plane.style.opacity = '0';
+    if (view) this.planeAnim = null;
+    else this.startSelectionPlane();
+    for (const leg of this.legs) if (leg) this.applyProgress(leg);
+    this.requestRender();
+  }
+
+  setHighlightLeg(index: number | null) {
+    if (index === this.highlightLeg) return;
+    this.highlightLeg = index;
+    this.applySelectionStyles();
+    for (const leg of this.legs) if (leg) this.applyProgress(leg);
+    if (this.follow && index !== null && this.legs[index] && this.lastFits === false) {
+      // Preserve the whole-route fit result while following individual legs.
+      this.frameView(true, index, false);
+    }
+    this.requestRender();
+  }
+
+  setFollow(enabled: boolean) {
+    this.follow = enabled;
+  }
 
   setRoute(route: GlobeRoute, opts: { animate: boolean; frame: boolean }) {
     const previousKeys = new Set(this.legs.map((l) => l.key));
@@ -357,25 +454,23 @@ export class GlobeRenderer {
     if (!changed) return;
     this.selectedLeg = valid;
     this.applySelectionStyles();
-    if (changed && valid !== null && !this.options.reducedMotion && !this.reveal) {
-      const obj = this.legs[valid];
-      const dur = Math.min(2600, 1100 + obj.ground[0].angleTo(obj.ground[obj.ground.length - 1]) * 600);
-      this.planeAnim = { leg: valid, start: performance.now() + 450, duration: dur };
-    } else if (valid === null) {
-      this.planeAnim = null;
-    }
+    this.startSelectionPlane();
     if (opts.frame) this.frameCurrent(true);
     this.requestRender();
   }
 
   /** Fly the camera to show the selected leg, or the whole route. */
   frameCurrent(animate = true) {
+    this.frameView(animate, this.selectedLeg);
+  }
+
+  private frameView(animate: boolean, index: number | null, reportFit = true) {
     const points: Vector3[] = [];
-    const legs = this.selectedLeg !== null ? [this.legs[this.selectedLeg]] : this.legs;
+    const legs = index !== null ? [this.legs[index]] : this.legs;
     for (const leg of legs) if (leg) points.push(...leg.frame);
     if (!points.length) for (const m of this.markers) points.push(m.position.clone().normalize());
     if (!points.length) {
-      this.notifyFit(true);
+      if (reportFit) this.notifyFit(true);
       return;
     }
     const cap = enclosingCap(points.map(sceneToEcef));
@@ -392,7 +487,7 @@ export class GlobeRenderer {
       radius += tilt * 0.7;
     }
     const { distance, fits } = this.distanceForCap(radius, points.length === 1);
-    this.notifyFit(fits);
+    if (reportFit) this.notifyFit(fits);
     this.flyTo(center, distance, animate);
   }
 
@@ -407,6 +502,12 @@ export class GlobeRenderer {
 
   setReducedMotion(reduced: boolean) {
     this.options.reducedMotion = reduced;
+    if (reduced && this.illuminationTween) {
+      this.dayNight.value = this.illuminationTween.to;
+      this.illuminationTween = null;
+      if (!this.subsolar) this.restoreCameraLight();
+      this.requestRender();
+    }
   }
 
   setBordersVisible(visible: boolean) {
@@ -418,6 +519,7 @@ export class GlobeRenderer {
 
   /** Keyboard rotation / zoom for accessibility. */
   nudge(dLng: number, dLat: number, zoom = 1) {
+    this.follow = false;
     this.cancelTween();
     const pos = this.camera.position;
     const dist = pos.length() * zoom;
@@ -475,13 +577,28 @@ export class GlobeRenderer {
     active = this.stepTween(now) || active;
     active = this.stepReveal(now) || active;
     active = this.stepPlane(now) || active;
+    active = this.stepIllumination(now) || active;
     // OrbitControls.update() returns true while damping is still moving the camera.
     if (!this.cameraTween) active = this.controls.update() || active;
     this.updateRotateSpeed();
     this.maybeLoadLargeTexture();
 
+    this.camera.updateMatrixWorld();
+    this.sunView.value.copy(this.sunScene).transformDirection(this.camera.matrixWorldInverse);
     this.renderer.render(this.scene, this.camera);
     this.updateLabels();
+    if (this.aircraft) {
+      const view = this.aircraft;
+      const leg = this.legs[view.leg];
+      if (leg)
+        this.placePlaneOnLeg(
+          leg,
+          view.kind === 'air' ? clamp01(view.fraction) : view.at === 'start' ? 0 : 1,
+          true,
+          true,
+        );
+      else this.plane.style.opacity = '0';
+    }
     if (active) this.requestRender();
   };
 
@@ -655,6 +772,13 @@ export class GlobeRenderer {
 
     const color = new Color(leg.color);
     const material = new LineMaterial({ color, linewidth: 2.6, transparent: true, worldUnits: false });
+    const remainingMaterial = new LineMaterial({
+      color,
+      linewidth: 1.6,
+      transparent: true,
+      opacity: 0.45,
+      worldUnits: false,
+    });
     const casingMaterial = new LineMaterial({
       color: 0x050a14,
       linewidth: 5.2,
@@ -672,7 +796,7 @@ export class GlobeRenderer {
       gapSize: 0.01,
       worldUnits: false,
     });
-    for (const m of [material, casingMaterial, trackMaterial]) {
+    for (const m of [material, casingMaterial, trackMaterial, remainingMaterial]) {
       m.resolution.set(this.width, this.height);
       // Lines are depth-tested against the globe (so far-side routes hide) but don't write
       // depth themselves — avoids z-fighting between the casing and the coloured line.
@@ -682,8 +806,11 @@ export class GlobeRenderer {
     const line = makeLine(arc, material, 3);
     const casing = makeLine(arc, casingMaterial, 2);
     const track = makeLine(trackPts, trackMaterial, 1);
+    // Reversed once: drawing its first N instances exposes the unflown suffix, without uploads.
+    const remaining = makeLine([...arc].reverse(), remainingMaterial, 2.5);
+    remaining.visible = false;
     track.computeLineDistances();
-    this.routeGroup.add(track, casing, line);
+    this.routeGroup.add(track, casing, remaining, line);
     return {
       key: leg.key,
       fractions,
@@ -693,9 +820,11 @@ export class GlobeRenderer {
       line,
       casing,
       track,
+      remaining,
       material,
       casingMaterial,
       trackMaterial,
+      remainingMaterial,
       segments: n,
       progress: 1,
     };
@@ -703,21 +832,27 @@ export class GlobeRenderer {
 
   private applyProgress(leg: LegObject) {
     // Progress is a fraction of the distance flown; samples are uneven, so map it to a segment count.
-    const { index, t } = locateFraction(leg.fractions, clamp01(leg.progress));
-    const count = leg.progress <= 0 ? 0 : Math.min(leg.segments, index + Math.round(t));
+    const aircraft = this.aircraft;
+    const trail = aircraft?.kind === 'air' && aircraft.leg === this.highlightLeg && this.legs[aircraft.leg] === leg;
+    const progress = trail ? clamp01(aircraft.fraction) : leg.progress;
+    const { index, t } = locateFraction(leg.fractions, clamp01(progress));
+    const count = progress <= 0 ? 0 : Math.min(leg.segments, index + Math.round(t));
     leg.line.geometry.instanceCount = count;
     leg.casing.geometry.instanceCount = count;
-    leg.track.geometry.instanceCount = count;
-    leg.line.visible = leg.casing.visible = leg.track.visible = count > 0;
+    leg.track.geometry.instanceCount = trail ? leg.segments : count;
+    leg.line.visible = leg.casing.visible = count > 0;
+    leg.track.visible = leg.track.geometry.instanceCount > 0;
+    leg.remaining.geometry.instanceCount = trail ? leg.segments - count : 0;
+    leg.remaining.visible = leg.remaining.geometry.instanceCount > 0;
   }
 
   private applySelectionStyles() {
-    const sel = this.selectedLeg;
+    const sel = this.highlightLeg ?? this.selectedLeg;
     this.legs.forEach((leg, i) => {
       if (!leg) return;
       const active = sel === null || sel === i;
       leg.material.linewidth = sel === i ? 3.6 : 2.6;
-      leg.material.opacity = active ? 1 : 0.38;
+      leg.material.opacity = active ? 1 : this.highlightLeg !== null ? 0.55 : 0.38;
       leg.casingMaterial.opacity = active ? 0.38 : 0.12;
       leg.casingMaterial.linewidth = sel === i ? 6.6 : 5.2;
       leg.trackMaterial.opacity = active ? 0.34 : 0.1;
@@ -740,13 +875,14 @@ export class GlobeRenderer {
   private clearLegs() {
     for (const leg of this.legs) {
       if (!leg) continue;
-      for (const l of [leg.line, leg.casing, leg.track]) {
+      for (const l of [leg.line, leg.casing, leg.track, leg.remaining]) {
         this.routeGroup.remove(l);
         l.geometry.dispose();
       }
       leg.material.dispose();
       leg.casingMaterial.dispose();
       leg.trackMaterial.dispose();
+      leg.remainingMaterial.dispose();
     }
     this.legs = [];
   }
@@ -781,6 +917,33 @@ export class GlobeRenderer {
   // ---------------------------------------------------------------------------------------------
   // Animation steps
 
+  private restoreCameraLight() {
+    this.camera.add(this.keyLight);
+    this.keyLight.position.set(-1.6, 1.4, 2.2);
+  }
+
+  private stepIllumination(now: number): boolean {
+    const tween = this.illuminationTween;
+    if (!tween) return false;
+    const t = clamp01((now - tween.start) / 360);
+    this.dayNight.value = tween.from + (tween.to - tween.from) * easeInOutCubic(t);
+    if (t >= 1) {
+      this.illuminationTween = null;
+      if (!this.subsolar) this.restoreCameraLight();
+    }
+    return t < 1;
+  }
+
+  private startSelectionPlane() {
+    this.planeAnim = null;
+    const valid = this.selectedLeg;
+    if (this.aircraft || valid === null || this.options.reducedMotion || this.reveal) return;
+    const obj = this.legs[valid];
+    if (!obj) return;
+    const duration = Math.min(2600, 1100 + obj.ground[0].angleTo(obj.ground[obj.ground.length - 1]) * 600);
+    this.planeAnim = { leg: valid, start: performance.now() + 450, duration };
+  }
+
   private stepReveal(now: number): boolean {
     const r = this.reveal;
     if (!r) return false;
@@ -790,14 +953,14 @@ export class GlobeRenderer {
     if (leg) {
       leg.progress = easeInOutCubic(t);
       this.applyProgress(leg);
-      this.placePlaneOnLeg(leg, leg.progress, t < 1);
+      if (!this.aircraft) this.placePlaneOnLeg(leg, leg.progress, t < 1);
     }
     if (t >= 1) {
       r.current++;
       r.start = now;
       if (r.current >= r.queue.length) {
         this.reveal = null;
-        this.plane.style.opacity = '0';
+        if (!this.aircraft) this.plane.style.opacity = '0';
         return true;
       }
     }
@@ -806,7 +969,7 @@ export class GlobeRenderer {
 
   private stepPlane(now: number): boolean {
     const p = this.planeAnim;
-    if (!p || this.reveal) return false;
+    if (!p || this.reveal || this.aircraft) return false;
     const leg = this.legs[p.leg];
     if (!leg) {
       this.planeAnim = null;
@@ -823,7 +986,7 @@ export class GlobeRenderer {
     return true;
   }
 
-  private placePlaneOnLeg(leg: LegObject, f: number, visible: boolean) {
+  private placePlaneOnLeg(leg: LegObject, f: number, visible: boolean, simulated = false) {
     const pts = leg.arc;
     const { index: i, t } = locateFraction(leg.fractions, f);
     const pos = this.tmp.copy(pts[i]).lerp(pts[i + 1], t);
@@ -832,13 +995,21 @@ export class GlobeRenderer {
     const s0 = this.project(pts[i]);
     const s1 = this.project(this.tmp2.copy(pts[i + 1]));
     const facing = this.facing(pos);
-    if (!a || !s0 || !s1 || facing < 0.02) {
+    // The lifted aircraft can still clear the horizon after its surface normal turns away.
+    // Test the camera sightline against the unit sphere instead of fading it near the limb.
+    let hidden = facing < 0.02;
+    if (simulated) {
+      const toCamera = this.tmp2.copy(this.camera.position).sub(pos);
+      const t = clamp01(-pos.dot(toCamera) / toCamera.lengthSq());
+      hidden = toCamera.multiplyScalar(t).add(pos).lengthSq() < 1;
+    }
+    if (!a || !s0 || !s1 || hidden) {
       this.plane.style.opacity = '0';
       return;
     }
     const angle = (Math.atan2(s1.y - s0.y, s1.x - s0.x) * 180) / Math.PI + 90;
     const fade = Math.min(1, f * 12, (1 - f) * 12);
-    this.plane.style.opacity = visible ? String(Math.min(fade, facing * 6)) : '0';
+    this.plane.style.opacity = visible ? (simulated ? '1' : String(Math.min(fade, facing * 6))) : '0';
     this.plane.style.transform = `translate3d(${a.x}px, ${a.y}px, 0) translate(-50%, -50%) rotate(${angle}deg)`;
   }
 
@@ -993,7 +1164,8 @@ export class GlobeRenderer {
     this.controls.maxDistance = this.overviewDistance() * 1.6;
     for (const leg of this.legs) {
       if (!leg) continue;
-      for (const m of [leg.material, leg.casingMaterial, leg.trackMaterial]) m.resolution.set(w, h);
+      for (const m of [leg.material, leg.casingMaterial, leg.trackMaterial, leg.remainingMaterial])
+        m.resolution.set(w, h);
     }
     this.borders?.material.resolution.set(w, h);
     this.updateProjection();
@@ -1101,6 +1273,7 @@ export class GlobeRenderer {
 
   private onControlsStart = () => {
     // Direct manipulation always wins over automatic camera movement.
+    this.follow = false;
     this.cancelTween();
   };
 

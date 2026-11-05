@@ -69,6 +69,10 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
             connection ({formatLayover(DEFAULT_LAYOVER_MIN)} unless you change it).
           </li>
         </ul>
+        <p>
+          Playback estimates positions along the great circle at an illustrative altitude; these are not real flight
+          tracks. Sun position uses the NOAA/Meeus algorithm.
+        </p>
         <h3>Sources &amp; credits</h3>
         <ul>
           <li>
@@ -91,6 +95,21 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
             </a>{' '}
             1:50m boundary lines (public domain). They show de facto boundaries and imply no position on territorial
             disputes.
+          </li>
+          <li>
+            Time zones:{' '}
+            <a href="https://github.com/evansiroky/timezone-boundary-builder" target="_blank" rel="noreferrer">
+              timezone-boundary-builder 2026f
+            </a>{' '}
+            (ODbL) — Contains information from timezone-boundary-builder, which is made available under the{' '}
+            <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noreferrer">
+              Open Database License (ODbL)
+            </a>
+            ; boundaries ©{' '}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+              OpenStreetMap contributors
+            </a>
+            .
           </li>
           <li>
             Built with React, Three.js and the Geist typefaces. Open source under the MIT licence —{' '}

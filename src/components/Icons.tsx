@@ -126,3 +126,19 @@ export const IconPlane = (p: IconProps) => (
     <path d="M12 1.8c.75 0 1.25.9 1.25 2.1v5.3l7.25 4.35v2.05l-7.25-2.25v4.4l2.25 1.7v1.6L12 20.1l-3.5.95v-1.6l2.25-1.7v-4.4L3.5 15.6v-2.05l7.25-4.35V3.9c0-1.2.5-2.1 1.25-2.1z" />
   </Icon>
 );
+export const IconPlay = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M7 4.5l8 5.5-8 5.5z" fill="currentColor" stroke="none" />
+  </Icon>
+);
+export const IconPause = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M7 5v10M13 5v10" strokeWidth={3} />
+  </Icon>
+);
+export const IconSunMoon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12.7 3.7a6.5 6.5 0 11-8.9 8.9 5.5 5.5 0 008.9-8.9z" />
+    <path d="M5 2v2M2 5h2M4 4l1 1" />
+  </Icon>
+);

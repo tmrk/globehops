@@ -1,11 +1,14 @@
 import { airportCode } from '../data/airports.ts';
 import type { Leg } from '../types.ts';
-import { IconBorders, IconChevronLeft, IconChevronRight, IconClose, IconFrame } from './Icons.tsx';
+import { IconBorders, IconChevronLeft, IconChevronRight, IconClose, IconFrame, IconSunMoon } from './Icons.tsx';
 
 interface GlobeHudProps {
   legs: Leg[];
   selectedLeg: number | null;
   fits: boolean;
+  timeOpen: boolean;
+  dayNight: boolean;
+  onToggleDayNight: () => void;
   showBorders: boolean;
   onSelectLeg: (leg: number | null) => void;
   onFit: () => void;
@@ -13,12 +16,23 @@ interface GlobeHudProps {
 }
 
 /** Small floating controls over the globe: leg stepper, map layer toggle and "frame route" button. */
-export function GlobeHud({ legs, selectedLeg, fits, showBorders, onSelectLeg, onFit, onToggleBorders }: GlobeHudProps) {
+export function GlobeHud({
+  legs,
+  selectedLeg,
+  fits,
+  showBorders,
+  onSelectLeg,
+  onFit,
+  onToggleBorders,
+  timeOpen,
+  dayNight,
+  onToggleDayNight,
+}: GlobeHudProps) {
   const showStepper = legs.length > 1 && (selectedLeg !== null || !fits);
   const sel = selectedLeg !== null ? legs[selectedLeg] : null;
   return (
     <div className="hud">
-      {showStepper && (
+      {showStepper && !timeOpen && (
         <div className="leg-stepper" role="group" aria-label="Inspect flights one by one">
           <button
             type="button"
@@ -72,6 +86,15 @@ export function GlobeHud({ legs, selectedLeg, fits, showBorders, onSelectLeg, on
           onClick={onToggleBorders}
         >
           <IconBorders />
+        </button>
+        <button
+          type="button"
+          className="icon-btn icon-btn--floating"
+          aria-label="Day and night"
+          aria-pressed={dayNight}
+          onClick={onToggleDayNight}
+        >
+          <IconSunMoon />
         </button>
         {legs.length > 0 && (
           <button

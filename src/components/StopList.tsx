@@ -7,10 +7,18 @@ import { legColor } from '../lib/legColors.ts';
 import { MAX_STOPS } from '../state/route.ts';
 import { stopCaption, stopLabel, stopPlaceholder } from '../lib/stopText.ts';
 import type { Airport, DistanceUnit, Layover, Leg, Stop } from '../types.ts';
+import type { Journey } from '../lib/schedule.ts';
+import { formatLegTimes } from '../lib/journeyText.ts';
+import { LegSchedule } from './LegSchedule.tsx';
+import type { LocalTimeInput } from '../types.ts';
 import { CodeBadge } from './CodeBadge.tsx';
 import { IconChevronDown, IconClock, IconClose, IconGrip, IconPlus } from './Icons.tsx';
 
 export interface StopListProps {
+  journey: Journey;
+  activeLeg: number | null;
+  activeStop: number | null;
+  onTimeChange: (stop: number, field: 'arrival' | 'departure', value: LocalTimeInput | null) => void;
   stops: Stop[];
   legs: Leg[];
   /** Layovers at transfer stops, keyed by their stop index. */
@@ -103,6 +111,11 @@ export function StopList(props: StopListProps) {
           const showDropBelow = drag && drag.target === i && drag.target > drag.index;
           const nextColor = leg ? legColor(leg.index) : undefined;
           const layover = layoverByStop.get(i);
+          const journeyLeg = leg ? props.journey.legs[leg.index] : null;
+          const legTimes = journeyLeg && props.journey.dated ? formatLegTimes(journeyLeg) : null;
+          const transfer = props.journey.transfers.find(
+            (t) => t.stop === stops.slice(0, i).filter((s) => s.airportId !== null).length,
+          );
 
           return (
             <li
@@ -111,7 +124,7 @@ export function StopList(props: StopListProps) {
               style={{ '--next-color': nextColor } as React.CSSProperties}
             >
               <div
-                className={`stop stop--${role}${airport ? '' : ' stop--empty'}${editing === i ? ' is-editing' : ''}`}
+                className={`stop${props.activeStop === stops.slice(0, i).filter((s) => s.airportId !== null).length ? ' is-active-transfer' : ''} stop--${role}${airport ? '' : ' stop--empty'}${editing === i ? ' is-editing' : ''}`}
                 data-stop-row
                 style={style}
               >
@@ -174,34 +187,45 @@ export function StopList(props: StopListProps) {
               {layover && (
                 <div className="layover" style={style}>
                   <span className="layover__line" aria-hidden="true" />
-                  <span className="layover__pick">
+                  <span
+                    className="layover__pick"
+                    title={transfer?.source === 'times' ? 'From your flight times' : undefined}
+                  >
                     <IconClock size={15} className="layover__icon" />
-                    <span className="layover__value" aria-hidden="true">
-                      {formatLayover(layover.minutes)} layover
+                    <span className="layover__value" aria-hidden={transfer?.source !== 'times' ? true : undefined}>
+                      {transfer?.source === 'times' &&
+                      (transfer.arrival?.provenance !== 'entered' || transfer.departure?.provenance !== 'entered')
+                        ? '≈ '
+                        : ''}
+                      {formatLayover(transfer?.source === 'times' ? transfer.minutes : layover.minutes)} layover
                     </span>
-                    <IconChevronDown size={14} className="layover__chev" />
-                    <select
-                      className="layover__select"
-                      aria-label={`Layover in ${displayCity(layover.airport)}`}
-                      value={layover.minutes}
-                      onChange={(e) => {
-                        const minutes = Number(e.target.value);
-                        props.onLayoverChange(i, minutes === DEFAULT_LAYOVER_MIN ? null : minutes);
-                      }}
-                    >
-                      {layoverChoices(layover.minutes).map((m) => (
-                        <option key={m} value={m}>
-                          {formatLayover(m)}
-                          {m === DEFAULT_LAYOVER_MIN ? ' (default)' : ''}
-                        </option>
-                      ))}
-                    </select>
+                    {transfer?.source !== 'times' && (
+                      <>
+                        <IconChevronDown size={14} className="layover__chev" />
+                        <select
+                          className="layover__select"
+                          aria-label={`Layover in ${displayCity(layover.airport)}`}
+                          value={layover.minutes}
+                          onChange={(e) => {
+                            const minutes = Number(e.target.value);
+                            props.onLayoverChange(i, minutes === DEFAULT_LAYOVER_MIN ? null : minutes);
+                          }}
+                        >
+                          {layoverChoices(layover.minutes).map((m) => (
+                            <option key={m} value={m}>
+                              {formatLayover(m)}
+                              {m === DEFAULT_LAYOVER_MIN ? ' (default)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
                   </span>
                 </div>
               )}
               {!isLast && (
                 <div
-                  className={`connector${leg ? ' connector--leg' : ''}${leg && selectedLeg === leg.index ? ' is-selected' : ''}`}
+                  className={`connector${leg ? ' connector--leg' : ''}${leg && selectedLeg === leg.index ? ' is-selected' : ''}${leg && props.activeLeg === leg.index ? ' is-active' : ''}`}
                 >
                   <span className="connector__line" aria-hidden="true" />
                   {leg ? (
@@ -209,17 +233,39 @@ export function StopList(props: StopListProps) {
                       type="button"
                       className="connector__leg"
                       aria-pressed={selectedLeg === leg.index}
+                      aria-expanded={selectedLeg === leg.index}
+                      aria-controls={selectedLeg === leg.index ? `leg-schedule-${leg.index}` : undefined}
                       aria-label={`Flight ${leg.index + 1}, ${airportCode(leg.from)} to ${airportCode(leg.to)}: ${formatDistance(
                         leg.distanceKm,
                         unit,
-                      )}${leg.durationMin !== null ? `, about ${formatDuration(leg.durationMin)}` : ''}. ${
-                        selectedLeg === leg.index ? 'Selected. Activate to show the full route' : 'Show on globe'
+                      )}${legTimes ? `, ${legTimes.dep} to ${legTimes.arr} local time` : leg.durationMin !== null ? `, about ${formatDuration(leg.durationMin)}` : ''}. ${
+                        selectedLeg === leg.index
+                          ? 'Selected. Close flight times'
+                          : 'Show on globe and edit flight times'
                       }`}
                       onClick={() => props.onSelectLeg(selectedLeg === leg.index ? null : leg.index)}
                     >
                       <span className="connector__num">{leg.index + 1}</span>
                       <span className="connector__dist">{formatDistance(leg.distanceKm, unit)}</span>
-                      {leg.durationMin !== null ? (
+                      {legTimes ? (
+                        <span className="connector__times">
+                          <span className={journeyLeg?.departure?.provenance !== 'entered' ? 'is-estimated' : ''}>
+                            {journeyLeg?.departure?.provenance !== 'entered' ? '≈ ' : ''}
+                            {legTimes.dep}
+                          </span>{' '}
+                          →{' '}
+                          <span className={journeyLeg?.arrival?.provenance !== 'entered' ? 'is-estimated' : ''}>
+                            {journeyLeg?.arrival?.provenance !== 'entered' ? '≈ ' : ''}
+                            {legTimes.arr}
+                          </span>
+                          {legTimes.dayShift !== 0 && (
+                            <sup>
+                              {legTimes.dayShift > 0 ? '+' : '−'}
+                              {Math.abs(legTimes.dayShift)}
+                            </sup>
+                          )}
+                        </span>
+                      ) : leg.durationMin !== null ? (
                         <span className="connector__time">≈ {formatDuration(leg.durationMin)}</span>
                       ) : (
                         <span className="connector__time">same airport</span>
@@ -239,6 +285,9 @@ export function StopList(props: StopListProps) {
                     </button>
                   )}
                 </div>
+              )}
+              {leg && journeyLeg && selectedLeg === leg.index && (
+                <LegSchedule journey={props.journey} leg={journeyLeg} onChange={props.onTimeChange} />
               )}
             </li>
           );

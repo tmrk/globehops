@@ -22,7 +22,10 @@
     "textures:build": "node scripts/build-textures.ts",
     "icons:build": "node scripts/build-icons.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "timezones:build": "node scripts/build-timezones.ts",
+    "agent:build": "node scripts/build-agent-files.ts",
+    "mcp": "node mcp/server.ts"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",
@@ -33,12 +36,15 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@playwright/test": "^1.64.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^6.2.1",
+    "ajv": "^8.20.0",
+    "astronomy-engine": "^2.1.19",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
@@ -49,6 +55,7 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
     "vite": "^8.3.6",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.0",
+    "zod": "^4.6.7"
   }
 }

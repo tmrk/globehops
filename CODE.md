@@ -1,62 +1,95 @@
 # Code organisation
 
-| Path                                       | Responsibility                                                             |
-| ------------------------------------------ | -------------------------------------------------------------------------- |
-| `index.html`                               | Document metadata and React mount.                                         |
-| `src/main.tsx`                             | React entry, fonts and global CSS.                                         |
-| `src/App.tsx`                              | Data loading, route orchestration, persistence, editing and layout insets. |
-| `src/types.ts`                             | Shared dependency-free domain types.                                       |
-| `src/components/AirportPicker.tsx`         | Inline/mobile combobox, suggestions and keyboard interaction.              |
-| `src/components/StopList.tsx`              | Stops, leg rows, layover menus, insertion/removal and reordering.          |
-| `src/components/Summary.tsx`               | Totals incl. layovers, unit controls and time explanation.                 |
-| `src/components/GlobeHud.tsx`              | Flight stepping, border toggle and camera framing controls.                |
-| `src/components/AboutDialog.tsx`           | Method, credits and source links.                                          |
-| `src/components/CodeBadge.tsx`             | IATA/ICAO badges and the no-code plane glyph.                              |
-| `src/components/ErrorBoundary.tsx`         | Lazy globe failure boundary.                                               |
-| `src/components/Brand.tsx`                 | Wordmark and SVG logo.                                                     |
-| `src/components/Icons.tsx`                 | Small inline SVG icon set.                                                 |
-| `src/components/Toast.tsx`                 | Live status messages and share fallback.                                   |
-| `src/hooks/`                               | Media-query, visual-viewport and toast hooks.                              |
-| `src/state/route.ts`                       | Ten-stop reducer, per-stop layovers, derived legs and layovers.            |
-| `src/state/url.ts`                         | Tolerant route/layover tokens, code resolution and share URLs.             |
-| `src/state/storage.ts`                     | Defensive unit, border and last-route persistence.                         |
-| `src/data/airports.ts`                     | Tuple validation/decoding and airport display helpers.                     |
-| `src/data/search.ts`                       | Normalised prefix index, ranking and code lookup.                          |
-| `src/data/rankHints.ts`                    | Documented primary-airport ranking hints.                                  |
-| `src/data/generated/airports.json`         | Generated compact airport tuples and dictionaries.                         |
-| `src/data/generated/borders.json`          | Generated delta-encoded Natural Earth land borders.                        |
-| `src/lib/geo.ts`                           | Spherical geometry, great circles and enclosing caps.                      |
-| `src/lib/flightTime.ts`                    | Configurable estimates, duration formatting and totals.                    |
-| `src/lib/altitude.ts`                      | Climb/cruise/descent profile, arc sampling and vertical exaggeration.      |
-| `src/lib/layover.ts`                       | Default layover, menu choices, validation and formatting.                  |
-| `src/lib/borders.ts`                       | Border dataset decoding and lat/lng densification.                         |
-| `src/lib/units.ts`                         | Distance conversion, rounding and formatting.                              |
-| `src/lib/normalize.ts`                     | Shared accent/special-letter search normalisation.                         |
-| `src/lib/legColors.ts`                     | Leg colour palette.                                                        |
-| `src/lib/stopText.ts`                      | Stop labels, captions and placeholders.                                    |
-| `src/globe/GlobeView.tsx`                  | Lazy React lifecycle, props and keyboard boundary.                         |
-| `src/globe/GlobeRenderer.ts`               | Scene, camera, controls, routes, labels, textures and animation.           |
-| `src/globe/math3d.ts`                      | ECEF/scene conversions and robust spherical interpolation.                 |
-| `src/styles/app.css`                       | Tokens, layout, component styles and reduced-motion rules.                 |
-| `src/assets/textures/`                     | Generated NASA Earth WebP textures.                                        |
-| `scripts/update-airports.ts`               | Downloads, caching and validated atomic output writes.                     |
-| `scripts/lib/dataset.ts`                   | Pure dataset selection, cleaning, validation and hashing.                  |
-| `scripts/lib/csv.ts`                       | Strict RFC 4180 CSV parser.                                                |
-| `scripts/build-borders.ts`                 | Natural Earth download/cache and validated border output writes.           |
-| `scripts/lib/borders.ts`                   | Pure border extraction, quantisation, delta encoding and validation.       |
-| `scripts/build-icons.ts`                   | PNG icons from SVGs and optional globe social preview capture.             |
-| `public/`                                  | SVG/PNG icons, manifest and social preview.                                |
-| `scripts/build-textures.ts`                | NASA JPEG resampling and WebP generation.                                  |
-| `data/`                                    | Aliases, their rationale and airport build provenance.                     |
-| `src/**/*.test.ts`, `scripts/*.test.ts`    | Unit tests beside production logic.                                        |
-| `e2e/fixtures.ts`                          | Shared page/console error audit and route helpers.                         |
-| `e2e/journey.spec.ts`, `e2e/globe.spec.ts` | Journey interactions, rendering, assets and layout tests.                  |
-| `playwright.config.ts`, `vite.config.ts`   | Browser projects, Pages preview and bundling/unit-test configuration.      |
-| `.github/workflows/`                       | Pages deployment and daily airport refresh.                                |
+| Path                                                                  | Responsibility                                                                                    |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `index.html`                                                          | Document metadata and React mount.                                                                |
+| `src/main.tsx`                                                        | React entry, fonts and global CSS.                                                                |
+| `src/App.tsx`                                                         | Airport/zone loading, route/journey/timeline orchestration, clock, persistence and layout insets. |
+| `src/components/LegSchedule.tsx`                                      | Leg-local date/time editor and schedule issues.                                                   |
+| `src/components/TimeChip.tsx`                                         | Minute-level live globe clock chip and timeline entry.                                            |
+| `src/components/TimeBar.tsx`                                          | Clock, timeline, scrubbing and playback controls.                                                 |
+| `src/hooks/useClock.ts`                                               | External-store clock subscription and phase-only App subscription.                                |
+| `src/types.ts`                                                        | Shared dependency-free domain types.                                                              |
+| `src/components/AirportPicker.tsx`                                    | Inline/mobile combobox, suggestions and keyboard interaction.                                     |
+| `src/components/StopList.tsx`                                         | Stops, leg rows, layover menus, insertion/removal and reordering.                                 |
+| `src/components/Summary.tsx`                                          | Totals incl. layovers, unit controls and time explanation.                                        |
+| `src/components/GlobeHud.tsx`                                         | Flight stepping, border toggle and camera framing controls.                                       |
+| `src/components/AboutDialog.tsx`                                      | Method, credits and source links.                                                                 |
+| `src/components/CodeBadge.tsx`                                        | IATA/ICAO badges and the no-code plane glyph.                                                     |
+| `src/components/ErrorBoundary.tsx`                                    | Lazy globe failure boundary.                                                                      |
+| `src/components/Brand.tsx`                                            | Wordmark and SVG logo.                                                                            |
+| `src/components/Icons.tsx`                                            | Small inline SVG icon set.                                                                        |
+| `src/components/Toast.tsx`                                            | Live status messages and share fallback.                                                          |
+| `src/hooks/`                                                          | Media-query, visual-viewport and toast hooks.                                                     |
+| `src/state/route.ts`                                                  | Ten-stop reducer, stop-based local times/layovers and legacy derived geometry.                    |
+| `src/state/clock.ts`                                                  | UTC simulation clock, live time and playback rates.                                               |
+| `src/state/link.ts`                                                   | Readable schedule/view links and itinerary-parameter parsing.                                     |
+| `src/state/simulation.ts`                                             | Imperative clock-to-renderer feed derived from journey state and sun.                             |
+| `src/state/url.ts`                                                    | Tolerant route/layover tokens, code resolution and share URLs.                                    |
+| `src/state/storage.ts`                                                | Defensive preferences and remembered journey, with legacy route fallback.                         |
+| `src/data/airports.ts`                                                | Tuple validation/decoding and airport display helpers.                                            |
+| `src/data/search.ts`                                                  | Normalised prefix index, ranking and code lookup.                                                 |
+| `src/data/timezones.ts`                                               | Validates/loads the separate airport-ID → IANA-zone table.                                        |
+| `src/data/generated/timezones.json`                                   | Generated ODbL derivative database, separate from airports.                                       |
+| `src/data/rankHints.ts`                                               | Documented primary-airport ranking hints.                                                         |
+| `src/data/generated/airports.json`                                    | Generated compact airport tuples and dictionaries.                                                |
+| `src/data/generated/borders.json`                                     | Generated delta-encoded Natural Earth land borders.                                               |
+| `src/lib/timezone.ts`                                                 | Cached Intl conversion, wall-time resolution, offsets and formatting.                             |
+| `src/lib/sun.ts`                                                      | NOAA/Meeus subsolar point, geometric elevation and daylight classes.                              |
+| `src/lib/schedule.ts`                                                 | Journey model, propagation, provenance, totals and semantic issues.                               |
+| `src/lib/flightProgress.ts`                                           | Monotonic elapsed-time → great-circle distance progress.                                          |
+| `src/lib/timeline.ts`                                                 | Absolute UTC flight/ground segments and state at an instant.                                      |
+| `src/lib/journeyText.ts`                                              | Shared status text, leg time labels and clock-zone options.                                       |
+| `src/agent/contract.ts`                                               | Single source for contract version, link vocabulary, limits and speeds.                           |
+| `src/agent/itinerary.ts`                                              | Itinerary v1 types, structural validation, base64url and link conversion.                         |
+| `src/agent/schema.ts`                                                 | Published JSON Schema derived from shared syntax and limits.                                      |
+| `src/agent/plan.ts`                                                   | Shared airport search, planning, validation and timeline sampling for agents.                     |
+| `mcp/server.ts`, `mcp/data.ts`                                        | Local stdio entry and module-relative dataset/context loading.                                    |
+| `mcp/tools.ts`                                                        | Five bounded MCP tools, schemas and structured results.                                           |
+| `mcp/document-corpus.ts`                                              | Shared document cases for schema/runtime/MCP parity tests.                                        |
+| `mcp/*.test.ts`                                                       | Tool validation and real stdio handshake/integration tests.                                       |
+| `src/lib/geo.ts`                                                      | Spherical geometry, great circles and enclosing caps.                                             |
+| `src/lib/flightTime.ts`                                               | Configurable estimates, duration formatting and totals.                                           |
+| `src/lib/altitude.ts`                                                 | Climb/cruise/descent profile, arc sampling and vertical exaggeration.                             |
+| `src/lib/layover.ts`                                                  | Default layover, menu choices, validation and formatting.                                         |
+| `src/lib/borders.ts`                                                  | Border dataset decoding and lat/lng densification.                                                |
+| `src/lib/units.ts`                                                    | Distance conversion, rounding and formatting.                                                     |
+| `src/lib/normalize.ts`                                                | Shared accent/special-letter search normalisation.                                                |
+| `src/lib/legColors.ts`                                                | Leg colour palette.                                                                               |
+| `src/lib/stopText.ts`                                                 | Stop labels, captions and placeholders.                                                           |
+| `src/globe/GlobeView.tsx`                                             | Lazy React lifecycle, props and keyboard boundary.                                                |
+| `src/globe/GlobeRenderer.ts`                                          | Scene, camera, controls, routes, labels, textures and animation.                                  |
+| `src/globe/simFeed.ts`                                                | Renderer-neutral feed and air/ground aircraft frame types.                                        |
+| `src/globe/sunAlignment.test.ts`                                      | Independent astronomical check of Earth-fixed scene alignment.                                    |
+| `src/globe/math3d.ts`                                                 | ECEF/scene conversions and robust spherical interpolation.                                        |
+| `src/styles/app.css`                                                  | Tokens, layout, component styles and reduced-motion rules.                                        |
+| `src/assets/textures/`                                                | Generated NASA Earth WebP textures.                                                               |
+| `scripts/update-airports.ts`                                          | Downloads, caching and validated atomic output writes.                                            |
+| `scripts/lib/dataset.ts`                                              | Pure dataset selection, cleaning, validation and hashing.                                         |
+| `scripts/lib/csv.ts`                                                  | Strict RFC 4180 CSV parser.                                                                       |
+| `scripts/build-borders.ts`                                            | Natural Earth download/cache and validated border output writes.                                  |
+| `scripts/lib/borders.ts`                                              | Pure border extraction, quantisation, delta encoding and validation.                              |
+| `scripts/build-timezones.ts`                                          | Pinned ZIP download/cache, validation and atomic table/build-record writes.                       |
+| `scripts/lib/timezones.ts`, `scripts/lib/zip.ts`                      | Polygon lookup/fallbacks/coverage and bounded ZIP extraction.                                     |
+| `scripts/build-agent-files.ts`                                        | Deterministic capabilities, itinerary schema and worked examples.                                 |
+| `scripts/agent-files.test.ts`                                         | Rejects discovery drift; checks schema and both link round-trips.                                 |
+| `public/llms.txt`                                                     | External-agent discovery and links to the contract.                                               |
+| `public/agent/{capabilities,itinerary.schema,examples}.json`          | Generated static contract, schema and computed examples.                                          |
+| `vite.config.ts`                                                      | Vite/Vitest configuration; emits/serves `agent/dataset.json` freshness metadata.                  |
+| `data/{timezones-build,timezone-overrides}.json`, `data/TIMEZONES.md` | Zone provenance, exception report, sourced overrides and ODbL terms.                              |
+| `scripts/build-icons.ts`                                              | PNG icons from SVGs and optional globe social preview capture.                                    |
+| `public/`                                                             | SVG/PNG icons, manifest and social preview.                                                       |
+| `scripts/build-textures.ts`                                           | NASA JPEG resampling and WebP generation.                                                         |
+| `data/`                                                               | Aliases, their rationale and airport build provenance.                                            |
+| `src/**/*.test.ts`, `scripts/*.test.ts`                               | Unit tests beside production logic.                                                               |
+| `e2e/fixtures.ts`                                                     | Shared page/console error audit and route helpers.                                                |
+| `e2e/journey.spec.ts`, `e2e/globe.spec.ts`, `e2e/time.spec.ts`        | Journey editing, schedules, playback, daylight, rendering, assets and layout tests.               |
+| `playwright.config.ts`                                                | Browser projects and Pages preview configuration.                                                 |
+| `.github/workflows/`                                                  | Pages deployment and daily airport/time-zone refresh.                                             |
 
 ## Conventions
 
-Strict TypeScript; pure calculations separate from React/Three.js effects. Prettier uses single quotes and a 120-column width. CSS stays in the existing token-based stylesheet. Node scripts use erasable TypeScript with `.ts` imports. See [AGENTS.md](AGENTS.md) for verification and contribution rules.
+Strict TypeScript; pure calculations separate from React/Three.js effects. Prettier uses single quotes and a 120-column width. CSS stays in the existing token-based stylesheet. Node scripts, the local MCP adapter and all modules they import use erasable TypeScript with `.ts` imports; keep Vite asset imports and module-scope DOM effects out of shared modules. See [AGENTS.md](AGENTS.md) for verification and contribution rules.
 
 ## Decisions
 
@@ -74,4 +107,20 @@ Strict TypeScript; pure calculations separate from React/Three.js effects. Prett
 
 **Search.** Match quality plus importance ranks suggestions. Exact ICAO/IATA, city and name prefixes, keywords and token prefixes have different weights; scheduled service, airport size and IATA presence add importance. A short primary-airport hint set breaks major-city ties; its comments explain the policy. It is not a traffic dataset or a guarantee that every city query ranks airports by passenger count.
 
-**URLs and storage.** `?route=CPH-LHR-JFK` uses IATA, then ICAO/ident, with a numeric OurAirports ID for identifiers unsafe in the URL format. A custom layover follows its transfer airport in minutes (`LHR_180`); default layovers and layovers at the first/last stop are omitted. Tokens travel with their stop, so reversing or reordering keeps layovers with the airport, and unknown codes cannot misalign them. Parsing accepts several separators and caps at ten stops. Unknown codes produce a toast while valid stops survive. URL > remembered route > CPH–LHR–JFK example determines startup. Explicit `?route=` loads an empty route; canonical empty URLs omit the parameter. Route edits use `history.replaceState`; the mobile picker adds a temporary history entry so Back dismisses it. Navigation between shared URLs loads their routes. Unit, border and last-route keys are prefixed `globehops:`; the remembered route uses the same tokens as the URL.
+**URLs and storage.** `?route=CPH-LHR-JFK` uses IATA, then ICAO/ident, with a numeric OurAirports ID for identifiers unsafe in the URL format. A custom layover follows its transfer airport in minutes (`LHR_180`); default layovers and layovers at the first/last stop are omitted. Tokens travel with their stop, so reversing or reordering keeps layovers with the airport, and unknown codes cannot misalign them. Parsing accepts several separators and caps at ten stops. Unknown codes produce a toast while valid stops survive. URL > remembered route > CPH–LHR–JFK example determines startup. Explicit `?route=` loads an empty route; canonical empty URLs omit the parameter. Route edits use `history.replaceState`; the mobile picker adds a temporary history entry so Back dismisses it. Navigation between shared URLs loads their routes. Preferences and remembered journey keys are prefixed `globehops:`; `lastJourney` stores a canonical query without `t`, `play` or `units`, with `lastRoute` as a legacy fallback.
+
+**Time zones.** Build-time point-in-polygon lookup against pinned timezone-boundary-builder data produces a small airport-to-IANA table. Runtime `Intl.DateTimeFormat` supplies historical offsets and DST rules; there is no Temporal polyfill or shipped polygon database. Formatter caching keeps repeated conversion cheap. Runtime tzdb versions may differ; mapping a zone does not freeze its rules. The ODbL table remains separate from public-domain airport data.
+
+**Schedule storage and propagation.** Facts belong to stops: each arrival, departure and fallback layover has one home, while the editor presents a flight's departure and arrival together. Insertion/reordering carries times with stops; reversing clears times. `computeJourney` preserves resolved entered anchors, propagates forward with flight estimates and layovers, then fills unknowns backwards. An explicit assumed start can anchor an undated journey. Derived points carry `estimated` or `assumed` provenance; independently anchored endpoints can produce `mixed` durations. Chronology errors prevent playback. See [time and simulation](docs/TIME_AND_SIMULATION.md) for rules and issue codes.
+
+**Flight progress.** Elapsed time maps piecewise linearly to climb, cruise and descent distance using the altitude model's average speeds. Short flights scale climb/descent to fit; longer flights reserve at least 20% of duration for cruise if those phases need compression. Great-circle distance progress is monotonic. The entire departure-to-arrival interval is treated as flight, without separate taxi phases; altitude and track are illustrative.
+
+**Solar model and alignment.** NOAA/Meeus equations compute declination and equation of time from UTC, giving an Earth-fixed subsolar point. `sunDirectionScene` uses the same Y-north, +X-Greenwich, −Z-east conversion as airport markers and the texture. Independent astronomy-engine tests check geographic solar position and scene dot products; astronomy-engine is absent from production calculations.
+
+**Day/night shading.** Existing Lambert Earth shading is extended through `onBeforeCompile` with shared sun-direction and blend uniforms. A smooth surface-normal dot-product transition darkens/cools the night, adds restrained twilight and dims the atmospheric rim. There is no second texture or rebuilt terminator mesh. Null illumination restores camera-relative lighting; toggling blends over 360 ms unless reduced motion is active.
+
+**Links and itinerary documents.** Share-link v1 extends legacy route tokens with airport-local `depN`/`arrN` and UTC view time, speed, clock, units and shading. A v1 itinerary document offers a strict JSON representation, encoded as base64url in `itinerary`; a valid document takes precedence over readable parameters. Structural checks are separate from airport/time/chronology validation. Preserve existing links when adding fields; incompatible document changes need a new version. App debounces paused `t` updates and never writes playback frames to history (Safari throttles `replaceState`).
+
+**Shared agent contract.** `src/agent/contract.ts`, itinerary syntax and `schema.ts` supply the vocabulary and schema consumed by links, discovery and MCP. `plan.ts` reuses the browser's decoding, search, schedule, timeline and sun modules. Generate `public/agent/*.json` with `agent:build`; drift is a test failure. Vite emits current freshness metadata separately as `agent/dataset.json`.
+
+**Local MCP only.** `mcp/` loads checked-in datasets and exposes five tools over stdio, using the same planning functions. Its SDK and Zod dependencies are tooling dependencies outside the web bundle. GitHub Pages hosts static discovery files, not a server endpoint. [Agent integration](docs/AGENT_INTEGRATION.md) is the external consumer guide.

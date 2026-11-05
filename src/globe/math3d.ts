@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import type { Vec3 } from '../lib/geo.ts';
+import type { LatLng } from '../types.ts';
 
 const DEG = Math.PI / 180;
 
@@ -13,6 +14,11 @@ export function latLngToVector3(lat: number, lng: number, radius = 1, target = n
   const lambda = lng * DEG;
   const c = Math.cos(phi);
   return target.set(radius * c * Math.cos(lambda), radius * Math.sin(phi), -radius * c * Math.sin(lambda));
+}
+
+/** Earth-fixed sunlight uses exactly the same scene coordinates as geographic markers. */
+export function sunDirectionScene(subsolar: LatLng, target = new Vector3()): Vector3 {
+  return latLngToVector3(subsolar.lat, subsolar.lng, 1, target);
 }
 
 /** Converts a math/ECEF unit vector (x→0°,0°; y→0°,90°E; z→north) to scene space. */

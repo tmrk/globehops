@@ -6,6 +6,7 @@ import {
   computeLegs,
   createRouteState,
   filledAirportIds,
+  hasEnteredTimes,
   MAX_STOPS,
   routeReducer as reduce,
 } from './route.ts';
@@ -130,4 +131,68 @@ describe('route reducer', () => {
     });
     expect(computeLayovers(state.stops, [])).toEqual([]);
   });
+});
+
+describe('stop-based journey times', () => {
+  const departure = { local: '2026-11-20T08:15', offsetMin: 60 };
+  const arrival = { local: '2026-11-20T13:50', offsetMin: -300 };
+  it('initializes every time to null and preserves selection while editing or clearing times', () => {
+    let s = reduce(createRouteState([1, 2]), { type: 'selectLeg', leg: 0 });
+    expect(s.stops.every((stop) => stop.arrival === null && stop.departure === null)).toBe(true);
+    s = reduce(s, { type: 'setTime', index: 0, field: 'departure', value: departure });
+    expect(s.selectedLeg).toBe(0);
+    expect(s.stops[0].departure).toEqual(departure);
+    expect(reduce(s, { type: 'setTime', index: 0, field: 'departure', value: { ...departure } })).toBe(s);
+    expect(reduce(s, { type: 'setTime', index: -1, field: 'arrival', value: arrival })).toBe(s);
+    expect(reduce(s, { type: 'setTime', index: 5, field: 'arrival', value: arrival })).toBe(s);
+    const cleared = reduce(s, { type: 'clearTimes' });
+    expect(cleared.selectedLeg).toBe(0);
+    expect(cleared.stops[0].departure).toBeNull();
+    expect(reduce(cleared, { type: 'clearTimes' })).toBe(cleared);
+    expect(s.stops[0].departure).toEqual(departure);
+  });
+  it('keeps facts attached to their stop when inserting, moving and removing', () => {
+    let s = createRouteState([1, 2], [], [null, arrival], [departure]);
+    s = reduce(s, { type: 'insertStop', index: 1 });
+    expect(s.stops[0].departure).toEqual(departure);
+    expect(s.stops[2].arrival).toEqual(arrival);
+    expect(s.stops[1].arrival).toBeNull();
+    s = reduce(s, { type: 'moveStop', from: 2, to: 1 });
+    expect(s.stops[1].arrival).toEqual(arrival);
+    s = reduce(s, { type: 'removeStop', index: 2 });
+    expect(s.stops[1].arrival).toEqual(arrival);
+  });
+  it('includes wall time and chosen offset in load equality and clears times when omitted', () => {
+    const action: RouteAction = {
+      type: 'load',
+      airportIds: [1, 2],
+      arrivals: [null, arrival],
+      departures: [departure],
+    };
+    const s = reduce(createRouteState(), action);
+    expect(reduce(s, action)).toBe(s);
+    expect(reduce(s, { ...action, departures: [{ ...departure, offsetMin: 120 }] })).not.toBe(s);
+    expect(reduce(s, { ...action, arrivals: [null, { ...arrival, local: '2026-11-21T13:50' }] })).not.toBe(s);
+    expect(reduce(s, { type: 'load', airportIds: [1, 2] }).stops.every((s) => !s.arrival && !s.departure)).toBe(true);
+  });
+  it('clears times on reverse and clear, preserving airport/layover behavior', () => {
+    const s = createRouteState([1, 2, 3], [null, 180], [null, null, arrival], [departure]);
+    const reversed = reduce(s, { type: 'reverse' });
+    expect(reversed.stops.map((s) => s.airportId)).toEqual([3, 2, 1]);
+    expect(reversed.stops[1].layoverMin).toBe(180);
+    expect(reversed.stops.every((s) => !s.arrival && !s.departure)).toBe(true);
+    const emptyWithTimes = createRouteState([], [], [], [departure]);
+    expect(reduce(emptyWithTimes, { type: 'clear' }).stops[0].departure).toBeNull();
+  });
+});
+
+it('detects entered times including date-only inputs on empty stops', () => {
+  expect(hasEnteredTimes(createRouteState().stops)).toBe(false);
+  const state = reduce(createRouteState(), {
+    type: 'setTime',
+    index: 0,
+    field: 'departure',
+    value: { local: '2026-11-20', offsetMin: null },
+  });
+  expect(hasEnteredTimes(state.stops)).toBe(true);
 });

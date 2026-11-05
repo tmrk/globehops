@@ -1,0 +1,356 @@
+import sharp from 'sharp';
+import { test, expect } from './fixtures.ts';
+import type { Page } from '@playwright/test';
+
+const scheduled =
+  '?route=CPH-LHR-JFK&dep1=2026-11-20T08:15&arr2=2026-11-20T09:05&dep2=2026-11-20T11:00&arr3=2026-11-20T13:50';
+const timeline = (page: Page) => page.getByRole('region', { name: 'Timeline', exact: true });
+const flight = (page: Page, number: number) => page.getByRole('button', { name: new RegExp(`^Flight ${number},`) });
+
+test.beforeEach(async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+});
+
+test('undated route keeps exact estimates and progressively discloses local schedule inputs', async ({
+  page,
+}, testInfo) => {
+  await page.goto('./?route=CPH-LHR-JFK');
+  const totals = page.getByRole('region', { name: 'Journey totals' });
+  await expect(totals).toContainText('8h 40m flying · 1h 30m layover');
+  await expect(totals).toContainText('≈ 10h 10m');
+  await expect(timeline(page)).toHaveCount(0);
+  await expect(page.getByLabel('Departure date', { exact: true })).toHaveCount(0);
+  await flight(page, 1).click();
+  const editor = page.getByRole('region', { name: 'Flight 1 times' });
+  await expect(editor.getByLabel('Departure date', { exact: true })).toBeEnabled();
+  await editor.getByLabel('Departure date', { exact: true }).fill('2026-11-20');
+  await expect(editor).toContainText('Add a time');
+  await editor.getByLabel('Departure time', { exact: true }).fill('08:15');
+  await expect(page).toHaveURL(/dep1=2026-11-20T08:15/);
+  await expect(flight(page, 1)).toContainText('08:15');
+  await expect(flight(page, 1)).toContainText('→');
+  await expect(totals).toContainText('Journey time');
+  await expect(editor).toContainText('estimated');
+  await editor.getByLabel('Arrival time', { exact: true }).fill('09:05');
+  await expect(editor.getByLabel('Arrival date', { exact: true })).toHaveValue('2026-11-20');
+  await expect(page).toHaveURL(/arr2=2026-11-20T09:05/);
+  await expect(editor).toContainText('Scheduled 1h 50m');
+  await page.screenshot({ path: testInfo.outputPath('leg-schedule.png'), animations: 'disabled' });
+  await flight(page, 1).click();
+  await expect(editor).toHaveCount(0);
+});
+
+test('scheduled playback advances, pauses, scrubs all phases, changes speed and seeks flights', async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  await page.goto(`./${scheduled}&t=2026-11-20T07:15Z&clock=utc`);
+  const bar = timeline(page);
+  await expect(bar).toBeVisible();
+  await expect(bar).toContainText('En route to London Heathrow');
+  await expect(bar.getByRole('button', { name: 'Play journey' })).toBeEnabled();
+  await expect(page.getByRole('combobox', { name: 'Layover in London' })).toHaveCount(0);
+  await expect(page.locator('.layover')).toContainText('1h 55m layover');
+  const slider = bar.getByRole('slider', { name: 'Journey time' });
+  const initial = await slider.inputValue();
+  const initialClock = await bar.locator('.time-bar__clock').innerText();
+  await bar.getByRole('button', { name: 'Play journey' }).click();
+  if (isMobile) await expect(page.getByRole('button', { name: 'Show journey details' }).first()).toBeVisible();
+  await expect.poll(() => slider.inputValue()).not.toBe(initial);
+  await expect.poll(() => bar.locator('.time-bar__clock').innerText()).not.toBe(initialClock);
+  await expect(page.locator('.globe-plane')).toHaveCSS('opacity', '1');
+  await bar.getByRole('button', { name: 'Pause playback' }).click();
+  const paused = await slider.inputValue();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let frames = 0;
+        const tick = () => (++frames === 8 ? resolve() : requestAnimationFrame(tick));
+        requestAnimationFrame(tick);
+      }),
+  );
+  expect(await slider.inputValue()).toBe(paused);
+  await bar.getByRole('combobox', { name: 'Playback speed' }).selectOption('3600');
+  await expect(page).toHaveURL(/speed=3600/);
+  await slider.focus();
+  await slider.press('Home');
+  await expect(bar).toContainText('Ready to depart Copenhagen');
+  await slider.press('ArrowRight');
+  await expect(slider).toHaveAttribute('aria-valuetext', /Departs in/);
+  await slider.press('End');
+  await expect(bar).toContainText('Arrived at New York JFK');
+  await bar.getByRole('button', { name: 'Previous flight' }).click();
+  await expect(bar).toContainText('En route to New York JFK');
+  await slider.focus();
+  await slider.press('ArrowLeft');
+  await expect(bar).toContainText('Connecting at London Heathrow');
+  await bar.getByRole('button', { name: 'Previous flight' }).click();
+  await expect(bar).toContainText('En route to London Heathrow');
+  await bar.getByRole('button', { name: 'Next flight' }).click();
+  await expect(bar).toContainText('En route to New York JFK');
+  if (isMobile) await page.getByRole('button', { name: 'Show journey details' }).first().click();
+  await flight(page, 1).click();
+  await expect(bar).toContainText('En route to London Heathrow');
+  await flight(page, 1).click();
+  if (isMobile) await page.getByRole('button', { name: 'Hide journey details' }).click();
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
+  await page.screenshot({
+    path: testInfo.outputPath(isMobile ? 'time-mobile.png' : 'time-desktop.png'),
+    animations: 'disabled',
+  });
+  await bar.getByRole('button', { name: 'Close timeline' }).click();
+  await expect(bar).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]t=/);
+});
+
+test('shared schedule restores paused instant and itinerary JSON canonicalises', async ({ page }) => {
+  await page.goto(`./${scheduled}&t=2026-11-20T10:00Z&clock=utc`);
+  await expect(timeline(page)).toContainText('Connecting at London Heathrow');
+  await expect(timeline(page)).toContainText('Fri 20 Nov, 10:00 UTC');
+  await expect(timeline(page).getByRole('button', { name: 'Play journey' })).toBeVisible();
+  await page.reload();
+  await expect(timeline(page)).toContainText('Connecting at London Heathrow');
+  const document = {
+    version: 1,
+    stops: [
+      { airport: 'CPH', departure: '2026-11-20T08:15' },
+      { airport: 'LHR', arrival: '2026-11-20T09:05', departure: '2026-11-20T11:00' },
+      { airport: 'JFK', arrival: '2026-11-20T13:50' },
+    ],
+    view: { time: '2026-11-20T10:00Z', clock: 'utc', play: true },
+  };
+  await page.goto(`./?itinerary=${Buffer.from(JSON.stringify(document)).toString('base64url')}`);
+  await expect(page).toHaveURL(/route=CPH-LHR-JFK&dep1=/);
+  await expect(page).not.toHaveURL(/itinerary=|play=/);
+  await expect(timeline(page)).toContainText('Connecting at London Heathrow');
+  await expect(timeline(page).getByRole('button', { name: 'Play journey' })).toBeVisible();
+  await page.goto(`./${scheduled}&t=2026-11-20T05:15Z&clock=utc`);
+  await expect(timeline(page)).toContainText('Ready to depart Copenhagen');
+  await expect(timeline(page)).toContainText('Departs in 2h 00m');
+  await expect(timeline(page).getByRole('slider')).toHaveValue(String(Date.parse('2026-11-20T05:15Z')));
+  await page.goto(`./${scheduled}&t=2026-11-20T20:00Z&clock=utc`);
+  await expect(timeline(page)).toContainText('Arrived at New York JFK');
+  await expect(timeline(page).getByRole('slider')).toHaveValue(String(Date.parse('2026-11-20T20:00Z')));
+  await timeline(page).getByRole('button', { name: 'Play journey' }).click();
+  await expect(timeline(page)).toContainText('En route to London Heathrow');
+});
+
+test('repeated local hour offers offsets and nonexistent hour prevents playback', async ({ page }) => {
+  await page.goto('./?route=JFK-LHR&dep1=2026-11-01T01:30');
+  await flight(page, 1).click();
+  const editor = page.getByRole('region', { name: 'Flight 1 times' });
+  await expect(editor.getByRole('button', { name: /01:30.*UTC−4/ })).toBeVisible();
+  await editor.getByRole('button', { name: /01:30.*UTC−5/ }).click();
+  await expect(page).toHaveURL(/dep1=2026-11-01T01:30-05:00/);
+  await page.goto('./?route=JFK-LHR&dep1=2026-03-08T02:30');
+  await flight(page, 1).click();
+  await expect(page.getByRole('region', { name: 'Flight 1 times' })).toContainText(/doesn.t exist/);
+  await expect(timeline(page).getByRole('button', { name: 'Play journey' })).toBeDisabled();
+  await expect(timeline(page)).toContainText("Fix flight 1's times to play");
+});
+
+test('day and night aligns with airport positions at opposite UTC instants', async ({ page }) => {
+  async function sample(time: string) {
+    await page.goto(`./?route=JFK-DXB&t=${time}`);
+    await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+    await expect(timeline(page)).toBeVisible();
+    await expect(timeline(page).getByRole('slider')).toHaveValue(String(Date.parse(time.split('&')[0])));
+    await page.locator('.globe-labels').evaluate((el) => {
+      (el as HTMLElement).style.opacity = '0';
+    });
+    const measure = async () => {
+      const positions = await page.locator('.globe-marker').evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const transform = new DOMMatrix(getComputedStyle(node).transform);
+          return { code: node.querySelector('.globe-marker__label')?.textContent, x: transform.m41, y: transform.m42 };
+        }),
+      );
+      const pixels = await page
+        .locator('canvas.globe-canvas')
+        .screenshot({ animations: 'disabled', style: '.hud-wrap { opacity: 0 !important; }' });
+      const { data, info } = await sharp(pixels).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const scale = info.width / (await page.locator('canvas.globe-canvas').boundingBox())!.width;
+      const lumas = positions.map((position) => {
+        const values: number[] = [];
+        for (let dy = -16; dy <= 16; dy++)
+          for (let dx = -16; dx <= 16; dx++) {
+            if (Math.hypot(dx, dy) < 7 || Math.hypot(dx, dy) > 16) continue;
+            const x = Math.round((position.x + dx) * scale),
+              y = Math.round((position.y + dy) * scale);
+            const i = (y * info.width + x) * 3;
+            values.push(0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]);
+          }
+        values.sort((a, b) => a - b);
+        return values[Math.floor(values.length / 2)];
+      });
+      return {
+        jfk: lumas[positions.findIndex((p) => p.code === 'JFK')],
+        dxb: lumas[positions.findIndex((p) => p.code === 'DXB')],
+      };
+    };
+    // WebKit can expose texture-ready before its composited WebGL frame is visible.
+    let result = await measure();
+    await expect
+      .poll(
+        async () => {
+          result = await measure();
+          return time.includes('daynight=0')
+            ? Math.min(result.jfk, result.dxb)
+            : time.includes('18:00')
+              ? result.jfk - result.dxb
+              : result.dxb - result.jfk;
+        },
+        { message: 'Sunlit airport must be visibly brighter in the composited canvas' },
+      )
+      .toBeGreaterThan(time.includes('daynight=0') ? 45 : 20);
+    return result;
+  }
+
+  const evening = await sample('2026-03-20T18:00Z');
+  expect(evening.jfk - evening.dxb).toBeGreaterThan(20);
+  const morning = await sample('2026-03-21T06:00Z');
+  expect(morning.dxb - morning.jfk).toBeGreaterThan(20);
+  await page.getByRole('button', { name: 'Day and night', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Day and night', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  // Reload the same camera/time with the explicit off view, then compare both bright surfaces.
+  const off = await sample('2026-03-21T06:00Z&daynight=0');
+  expect(off.jfk).toBeGreaterThan(morning.jfk + 20);
+  expect(off.dxb).toBeGreaterThan(45);
+  expect(Math.abs(off.jfk - off.dxb)).toBeLessThan(65);
+});
+
+test('mobile timeline avoids the sheet, supports touch and stays usable at narrow and landscape sizes', async ({
+  page,
+  isMobile,
+  browserName,
+  context,
+}, testInfo) => {
+  test.skip(!isMobile, 'Touch layout on Pixel and iPhone.');
+  await page.goto(`./${scheduled}&t=2026-11-20T07:15Z`);
+  await expect.poll(async () => (await page.locator('.hud__tools').boundingBox())!.y).toBeGreaterThan(60);
+  await timeline(page).getByRole('button', { name: 'Play journey' }).click();
+  await expect(page.locator('.panel')).toHaveClass(/is-collapsed/);
+  await timeline(page).getByRole('button', { name: 'Pause playback' }).click();
+  const bar = await timeline(page).boundingBox();
+  const sheet = await page.locator('.panel').boundingBox();
+  expect(bar!.y + bar!.height).toBeLessThanOrEqual(sheet!.y);
+  await expect
+    .poll(async () => {
+      const b = (await timeline(page).boundingBox())!;
+      const s = (await page.locator('.panel').boundingBox())!;
+      return Math.round(s.y - b.y - b.height);
+    })
+    .toBe(12);
+  const slider = timeline(page).getByRole('slider');
+  const bounds = (await slider.boundingBox())!;
+  const previous = await slider.inputValue();
+  await page.touchscreen.tap(bounds.x + bounds.width * 0.7, bounds.y + bounds.height / 2);
+  await expect.poll(() => slider.inputValue()).not.toBe(previous);
+  if (browserName === 'chromium') {
+    const touchBefore = Number(await slider.inputValue());
+    const session = await context.newCDPSession(page);
+    const point = { x: bounds.x + bounds.width * 0.7, y: bounds.y + bounds.height / 2 };
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+    for (const fraction of [0.6, 0.5, 0.4, 0.3])
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ ...point, x: bounds.x + bounds.width * fraction }],
+      });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await session.detach();
+    await expect.poll(async () => Number(await slider.inputValue())).toBeLessThan(touchBefore);
+  }
+  await page.screenshot({ path: testInfo.outputPath('time-mobile.png'), animations: 'disabled' });
+  await page.setViewportSize({ width: 320, height: 700 });
+  await expect(timeline(page)).toBeInViewport();
+  expect(await timeline(page).evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('time-320.png'), animations: 'disabled' });
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(timeline(page)).toBeInViewport();
+  await expect(timeline(page).getByRole('button', { name: 'Play journey' })).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('time-landscape.png'), animations: 'disabled' });
+});
+
+test('remembered schedules omit transient time and view units; explicit empty route stays empty', async ({ page }) => {
+  await page.goto(`./${scheduled}&t=2026-11-20T10:00Z&units=mi&clock=utc&speed=3600`);
+  await expect(timeline(page)).toContainText('Connecting at London Heathrow');
+  const saved = await page.evaluate(() => localStorage.getItem('globehops:lastJourney'));
+  expect(saved).toContain('dep1=2026-11-20T08:15');
+  expect(saved).not.toMatch(/[?&](t|play|units)=/);
+  await page.goto('./');
+  await expect(timeline(page)).toContainText('En route to London Heathrow');
+  await expect(page).toHaveURL(/dep1=2026-11-20T08:15/);
+  await expect(page.getByRole('radio', { name: 'km', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await page.evaluate(() => {
+    history.pushState(null, '', '?route=CPH-LHR&units=mi');
+    dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await expect(page.getByRole('radio', { name: 'mi', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await page.evaluate(() => {
+    history.pushState(null, '', '?route=CPH-LHR');
+    dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await expect(page.getByRole('radio', { name: 'km', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await page.goto('./?route=');
+  await expect(page).toHaveURL(/\/globehops\/$/);
+  await expect(timeline(page)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Departure airport: choose an airport' })).toBeVisible();
+});
+
+test('globe clock opens a native day explorer without a route, and day-night preference is remembered', async ({
+  page,
+}) => {
+  await page.goto('./?route=');
+  await page.getByRole('button', { name: /Globe time: now/ }).click();
+  const bar = timeline(page);
+  await expect(bar).toContainText('Day and night');
+  await expect(bar.getByRole('button', { name: 'Play journey' })).toBeDisabled();
+  await bar.getByRole('combobox', { name: 'Clock time zone' }).selectOption('utc');
+  await bar.getByLabel('Globe date', { exact: true }).fill('2026-03-20');
+  await bar.getByRole('slider').focus();
+  await bar.getByRole('slider').press('Home');
+  await expect(bar).toContainText('Fri 20 Mar, 00:00 UTC');
+  await bar.getByRole('button', { name: 'Now', exact: true }).click();
+  await expect(bar.getByLabel('Globe date', { exact: true })).not.toHaveValue('2026-03-20');
+  await page.getByRole('button', { name: 'Day and night', exact: true }).click();
+  await bar.getByRole('button', { name: 'Close timeline' }).click();
+  await expect(page.getByRole('button', { name: /Globe time: now/ })).toHaveCount(0);
+  await page.goto('./');
+  await expect(page.getByRole('button', { name: 'Day and night', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+});
+
+test('unsupported browser time zones disable local inputs while route editing and playback remain usable', async ({
+  context,
+  page,
+  isMobile,
+}) => {
+  await context.addInitScript(() => {
+    const Original = Intl.DateTimeFormat;
+    Intl.DateTimeFormat = new Proxy(Original, {
+      construct(target, args: ConstructorParameters<typeof Intl.DateTimeFormat>) {
+        if (args[1]?.timeZone === 'Europe/Copenhagen') throw new RangeError('Unsupported time zone');
+        return Reflect.construct(target, args);
+      },
+    });
+  });
+  await page.goto('./?route=CPH-JFK&clock=CPH');
+  await flight(page, 1).click();
+  const editor = page.getByRole('region', { name: 'Flight 1 times' });
+  await expect(editor.getByLabel('Departure date', { exact: true })).toBeDisabled();
+  await expect(editor.getByLabel('Arrival date', { exact: true })).toBeEnabled();
+  await expect(editor).toContainText('Time zone unavailable in this browser');
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(timeline(page).getByRole('button', { name: 'Pause playback' })).toBeVisible();
+  await timeline(page).getByRole('button', { name: 'Pause playback' }).click();
+  await expect(timeline(page).getByRole('slider')).toBeVisible();
+  if (isMobile) await page.getByRole('button', { name: 'Show journey details' }).first().click();
+  await expect(page.getByRole('button', { name: /Change airport/ }).first()).toBeVisible();
+});

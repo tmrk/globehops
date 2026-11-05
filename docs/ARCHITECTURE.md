@@ -1,34 +1,51 @@
 # Architecture
 
 ```text
-OurAirports CSVs + data/aliases.json
-  → scripts/update-airports.ts + scripts/lib/{csv,dataset}.ts
-  → src/data/generated/airports.json + data/airports-build.json
-  → loadAirports / decodeDataset
-  → buildSearchIndex → AirportPicker → selected airport ID
-  → routeReducer → stops (+ custom layovers) → computeLegs (great-circle distance + time)
-                                             → computeLayovers (default or custom ground time)
-  → App → StopList + Summary
-        → GlobeView → GlobeRenderer (markers, ground tracks, altitude-profile arcs, borders)
+OurAirports CSVs + aliases → update-airports → airports.json (public domain)
+TBB 2026f ZIP + overrides + airports.json → build-timezones → timezones.json (ODbL)
+  ↓ decodeDataset / decodeTimeZones
+  airport lookup + search index + airport-ID → IANA zone lookup
+  ↓
+URL / remembered journey / example → routeReducer → filled stops + local times + layovers
+  ↓                                                 ↓
+computeLegs → precomputed globe route geometry     computeJourney → Journey + issues/provenance
+                                                    ↓
+                                                 buildTimeline → UTC flight/ground segments
+                                                    ↓
+SimulationClock (one UTC instant; live / paused / playing)
+  → createSimulationFeed (journeyStateAt + subsolarPoint) → GlobeView → GlobeRenderer
+  → scoped clock subscriptions → timeline/readouts/status UI
+Journey → leg time editor + endpoint labels + summary
+Filled stops + paused view → serializeLink → replaceState + safe storage
 
-URL / localStorage → initial route (URL > remembered > example)
-filled stops → share URL + replaceState + localStorage
-unit and border preferences → localStorage
-NASA JPEG → scripts/build-textures.ts → imported WebP assets → GlobeRenderer
-Natural Earth GeoJSON → scripts/build-borders.ts → borders.json asset → fetched while borders are shown
+src/agent/{contract,itinerary,schema,plan}
+  → reuse decoding/search/schedule/timeline/sun/link modules
+  → build-agent-files → public/agent/{capabilities,itinerary.schema,examples}.json
+  → mcp/ local stdio tools (same calculations; no hosted endpoint)
+Vite → agent/dataset.json (current dataset provenance)
+public/llms.txt → external-agent discovery
+
+NASA JPEG → build-textures → WebP assets → GlobeRenderer
+Natural Earth GeoJSON → build-borders → borders.json → lazy border layer
 ```
 
-The generated JSON is imported as an asset URL and fetched at startup. Its compact tuples decode to typed airports plus ID maps; the normalised prefix index is built once per load. React owns route state and interface state. Selected flights are derived from legs; changing stops resets selection. No runtime backend or remote map service is involved.
+Airport and time-zone JSON are imported as asset URLs and fetched independently at startup. Airport tuples decode to typed records and ID maps; the normalised search index is built once per load. The separate zone table supplies names; runtime `Intl` supplies offsets and DST. Missing zones leave route planning available.
+
+React owns editing and interface state and memoises the journey/timeline when inputs change. The clock is an external store: its imperative feed updates the renderer without an App render per playback frame. App subscribes to phase/leg changes, TimeChip to whole minutes, and TimeBar to full clock snapshots during playback. URL > remembered journey (legacy route fallback) > example determines startup; only paused view time is debounced into history. See [time and simulation](TIME_AND_SIMULATION.md). No runtime backend or remote map service is involved.
 
 ## Renderer and lifecycle
 
 `GlobeView` loads lazily, creates one renderer, forwards props and disposes it on unmount. The scene includes an Earth sphere, atmosphere, camera lighting, great-circle lines and HTML overlays. A 1K texture appears first, then the 4K texture (skipped on GPUs limited below 4096 px). The 8K texture is fetched only once the camera comes close (distance < 2.2 Earth radii) on a non-touch device with 8192 px texture support, because it costs ~2 MB to download and ~170 MB of GPU memory with mipmaps; if a close-up first view already triggered it, the 4K download is skipped. Texture readiness marks `.stage.is-ready`.
 
-`requestRender()` schedules at most one animation frame. Each frame advances insets, camera tween, arc reveal and plane animation, then updates OrbitControls damping, renders and projects labels. Another frame is requested only while something changes. Input, resize, texture uploads and state setters request rendering. An idle scene has no perpetual animation loop.
+`requestRender()` schedules at most one animation frame. Each frame advances insets, camera tween, arc reveal, selection-plane animation and illumination fade, then updates OrbitControls damping, the view-space sun uniform, rendering and projected labels/aircraft. Another frame is requested only while something changes. Input, resize, texture uploads and state setters request rendering. An idle scene has no perpetual animation loop.
+
+`GlobeView` subscribes directly to `SimulationFeed` and forwards illumination, air/ground aircraft state, active-leg highlight and follow transitions. The renderer moves the directional light into the Earth-fixed scene while shading is on and restores camera-relative lighting when it is off. The Earth material and atmosphere share sun-direction/blend uniforms; disabling shading fades over 360 ms, immediately under reduced motion.
+
+The simulated aircraft uses distance progress on the precomputed arc, including parked endpoints before departure, during transfers and after arrival. The active leg has a stronger line and endpoint emphasis; flown and remaining portions use instance counts on prebuilt forward/reversed line geometry. Simulation highlight is separate from manually selected flight. Follow reframes on active-leg changes when the whole route does not fit; it does not continuously chase the aircraft. Drag/zoom or keyboard camera input cancels follow until a feed follow transition re-enables it.
 
 Country borders load lazily: the renderer fetches the generated border asset only when borders are first shown (on by default, remembered per browser), decodes and densifies it, and builds one `LineSegments2` object at radius 1.0004 — above the sphere's flat facets, below the ground tracks. Its translucent material writes and tests the stencil buffer so each pixel blends once, avoiding bright beads where segment ends overlap. Toggling only changes visibility. A failed border download logs a warning and leaves the globe usable.
 
-Leg replacement disposes line geometries/materials; marker replacement removes HTML elements. Final disposal also releases border, texture, sphere/atmosphere resources, controls, observers and listeners. Renderer creation failure leaves the journey panel usable with a WebGL fallback note.
+Leg replacement disposes line geometries/materials, including the remaining-trail line; marker replacement removes HTML elements. Final disposal also releases border, texture, sphere/atmosphere resources, controls, observers and listeners. Renderer creation failure leaves the journey panel usable with a WebGL fallback note.
 
 ## Geometry and camera
 
@@ -40,6 +57,14 @@ Framing computes an enclosing spherical cap over sampled ground tracks (or marke
 
 ## Layout insets and projection
 
-At widths of 760px and above, the panel’s right edge becomes the left inset. Below 760px, the top bar reserves 56px and the panel height becomes the bottom inset. ResizeObserver and window resize keep these measurements current. Insets interpolate unless reduced motion is active; `camera.setViewOffset` centres the globe in the remaining area without moving the UI. The smaller screen dimension determines the base field of view.
+The side-panel layout applies at widths ≥1000px, or ≥760px in landscape. Its right edge becomes the left inset. In the bottom-sheet layout, the top bar reserves 56px and the panel height becomes the bottom inset. ResizeObserver and window resize keep these measurements current. Insets interpolate unless reduced motion is active; `camera.setViewOffset` centres the globe in the remaining area without moving the UI. The smaller screen dimension determines the base field of view.
 
 The mobile picker is a separate takeover dialog. `flushSync` mounts it within the tap handler, followed immediately by focus so iOS can open its keyboard. Visual viewport CSS variables position picker content around viewport changes. Desktop uses an inline picker. Labels are projected every rendered frame, hidden behind Earth and positioned using a small set of collision-avoidance offsets.
+
+## Performance boundaries
+
+Route samples, altitude arcs, ground tracks and the reversed remaining trail are built on route changes, not clock ticks. Playback changes illumination uniforms, aircraft projection and line instance counts; labels are projected on rendered frames. Only camera/appearance transitions and active playback request continuing renderer frames. TimeBar renders from clock snapshots; App does not render on each tick. Live mode ticks every 30 seconds; an unchanged feed frame is ignored.
+
+Keep the WebKit framing optimisation: camera caps use separate sparse ground samples (at most about 2° apart), rather than the denser altitude-profile samples used for drawing. `enclosingCap` keeps its dot-product hot loop, with one `acos` per radius evaluation. Do not reintroduce expensive per-point trigonometry on playback or resize. Texture loading remains progressive and capability-gated, and border geometry is built once on first use.
+
+`mcp/` imports the pure modules natively in Node. Shared imports must remain erasable TypeScript with explicit `.ts` extensions and no Vite-only asset imports or module-scope browser globals. The adapter reads the same generated datasets from module-relative paths. External usage is documented in [AGENT_INTEGRATION.md](AGENT_INTEGRATION.md); contributor rules are in [AGENTS.md](../AGENTS.md).

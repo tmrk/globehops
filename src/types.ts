@@ -34,12 +34,21 @@ export interface LatLng {
 
 export type DistanceUnit = 'km' | 'mi';
 
+export interface LocalTimeInput {
+  /** Local wall time (YYYY-MM-DDTHH:MM), or a date awaiting a time. */
+  local: string;
+  /** Explicit UTC offset in minutes, or null when none has been chosen. */
+  offsetMin: number | null;
+}
+
 export interface Stop {
   /** Stable key for React lists (not persisted). */
   key: string;
   airportId: number | null;
   /** Connection time when this stop is a transfer; null means the default. */
   layoverMin: number | null;
+  arrival: LocalTimeInput | null;
+  departure: LocalTimeInput | null;
 }
 
 export interface RouteState {

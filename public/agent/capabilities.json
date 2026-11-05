@@ -1,0 +1,195 @@
+{
+  "name": "GlobeHops",
+  "description": "Explore air journeys on an interactive globe; shared route estimates and local-time schedules for people and agents.",
+  "contractVersion": 1,
+  "homepage": "https://tmrk.github.io/globehops/",
+  "urlTemplates": {
+    "simple": "https://tmrk.github.io/globehops/?route={route}",
+    "scheduled": "https://tmrk.github.io/globehops/?route={route}&dep1={localDeparture}",
+    "document": "https://tmrk.github.io/globehops/?itinerary={base64urlJson}"
+  },
+  "parameters": {
+    "route": {
+      "type": "string",
+      "required": false,
+      "format": "hyphen-separated airport tokens",
+      "examples": ["CPH-JFK", "CPH-LHR_180-JFK"],
+      "semantics": "Up to ten stops; transfer suffix _minutes overrides the default layover. Explicit empty route clears the route."
+    },
+    "depN/arrN": {
+      "type": "string",
+      "required": false,
+      "format": "YYYY-MM-DDTHH:MM[±HH:MM|Z]",
+      "examples": ["2026-11-20T08:15", "2026-11-01T01:30-04:00"],
+      "semantics": "Airport-local wall time at 1-based stop N. Optional :00 seconds. Date-only links are accepted as incomplete; documents require a time. Arrival at origin and departure at destination are ignored."
+    },
+    "t": {
+      "type": "string",
+      "required": false,
+      "format": "ISO instant with Z or offset",
+      "examples": ["2026-11-20T09:30Z"],
+      "semantics": "Simulation clock instant, independent of airport-local input times."
+    },
+    "play": {
+      "type": "string",
+      "required": false,
+      "format": "0 or 1",
+      "examples": ["1"],
+      "semantics": "Start playback on open; reduced motion prevents autoplay."
+    },
+    "speed": {
+      "type": "string or integer",
+      "required": false,
+      "format": "auto|1800|3600|7200",
+      "examples": ["auto", 3600],
+      "semantics": "Simulation seconds per real second; auto covers the journey in about 15 seconds."
+    },
+    "clock": {
+      "type": "string",
+      "required": false,
+      "format": "local|utc|airport code",
+      "examples": ["local", "utc", "JFK"],
+      "semantics": "Timeline display zone; airport code must belong to the route."
+    },
+    "units": {
+      "type": "string",
+      "required": false,
+      "format": "km|mi",
+      "examples": ["km", "mi"],
+      "semantics": "Distance display only."
+    },
+    "daynight": {
+      "type": "string",
+      "required": false,
+      "format": "0 or 1",
+      "examples": ["0"],
+      "semantics": "Day/night shading; on by default."
+    },
+    "itinerary": {
+      "type": "string",
+      "required": false,
+      "format": "base64url UTF-8 JSON without padding",
+      "examples": ["See agent/examples.json"],
+      "semantics": "ItineraryDocument v1 overrides readable parameters; structural schema linked below."
+    }
+  },
+  "schema": "https://tmrk.github.io/globehops/agent/itinerary.schema.json",
+  "limits": {
+    "stops": 10,
+    "minimumDocumentStops": 1,
+    "urlCharacters": 8000,
+    "itineraryParamCharacters": 6000,
+    "maximumLayoverMinutes": 10080,
+    "years": [1900, 2100],
+    "timelineSamples": [2, 1000],
+    "searchLimit": [1, 100]
+  },
+  "airportIdentifiers": {
+    "accepted": ["IATA", "ICAO", "OurAirports ident", "numeric OurAirports id string"],
+    "documentPattern": "^(?:[A-Za-z]{3}|[A-Za-z0-9]{4,8}|[0-9]+)$",
+    "semantics": "Case-insensitive resolution; unknown codes are reported and skipped. Idents containing hyphens use numeric IDs in readable routes; the document syntax accepts 4–8 alphanumeric idents."
+  },
+  "timeFormats": {
+    "local": "YYYY-MM-DDTHH:MM (optional :00 seconds and ±HH:MM or Z)",
+    "instant": "YYYY-MM-DDTHH:MM[:SS](Z|±HH:MM)",
+    "offsets": "An offset disambiguates airport-local time; it must match the zone at that wall time. Z means local UTC+0, not conversion from UTC.",
+    "rules": "Runtime Intl IANA rules; DST gaps error, ambiguous times warn and choose earlier unless offset supplied."
+  },
+  "estimationModel": {
+    "cruiseSpeedKmh": 850,
+    "overheadMinutes": 30,
+    "roundingMinutes": 5,
+    "earthRadiusKm": 6371.0088,
+    "defaultLayoverMinutes": 90,
+    "notes": "Great circle on a sphere; no winds, airline schedules, aircraft type or actual flight tracking. Altitude is illustrative."
+  },
+  "visualisationOptions": ["t", "play", "speed", "clock", "units", "daynight"],
+  "validation": {
+    "valid": "No error issues; warnings and info preserve validity. Structural validation precedes semantic resolution. Tolerant readable links keep usable values.",
+    "issues": [
+      { "code": "invalid_time", "severity": "error", "meaning": "Malformed local calendar time." },
+      { "code": "date_out_of_range", "severity": "error", "meaning": "Supported years are 1900–2100." },
+      { "code": "time_missing", "severity": "warning", "meaning": "A date was supplied without a time." },
+      { "code": "timezone_unknown", "severity": "error", "meaning": "No zone mapped for this airport." },
+      {
+        "code": "timezone_unsupported",
+        "severity": "error",
+        "meaning": "Runtime Intl does not support the mapped zone."
+      },
+      {
+        "code": "ambiguous_local_time",
+        "severity": "warning",
+        "meaning": "Repeated hour; earlier instant used unless an offset selects one."
+      },
+      {
+        "code": "nonexistent_local_time",
+        "severity": "error",
+        "meaning": "Local time falls in a daylight-saving gap."
+      },
+      {
+        "code": "offset_mismatch",
+        "severity": "error",
+        "meaning": "Explicit offset is invalid at this airport wall time."
+      },
+      {
+        "code": "ignored_time",
+        "severity": "warning",
+        "meaning": "Arrival at origin or departure at destination is ignored."
+      },
+      {
+        "code": "negative_flight_time",
+        "severity": "error",
+        "meaning": "Arrival must follow departure for a nonzero flight."
+      },
+      { "code": "connection_overlap", "severity": "error", "meaning": "Connection departs before its arrival." },
+      { "code": "short_connection", "severity": "warning", "meaning": "Connection is shorter than 20 minutes." },
+      {
+        "code": "unusual_flight_time",
+        "severity": "warning",
+        "meaning": "Entered duration differs substantially from the estimate."
+      },
+      { "code": "long_layover", "severity": "warning", "meaning": "Connection exceeds seven days." },
+      { "code": "future_rules", "severity": "info", "meaning": "Future times use current runtime time-zone rules." }
+    ],
+    "agentIssues": [
+      { "code": "unknown_airport", "severity": "error", "meaning": "Unrecognised airport skipped." },
+      { "code": "no_airports", "severity": "error", "meaning": "No known airport supplied." },
+      { "code": "invalid_link", "severity": "error", "meaning": "Readable route syntax or limits invalid." },
+      { "code": "invalid_assumption", "severity": "error", "meaning": "assumeDeparture is not an ISO instant." },
+      {
+        "code": "assume_departure_required",
+        "severity": "error",
+        "meaning": "Undated timeline needs an explicit anchor."
+      },
+      { "code": "timeline_unavailable", "severity": "error", "meaning": "No playable flight timeline." },
+      { "code": "invalid_samples", "severity": "error", "meaning": "Sample count or instant array exceeds bounds." },
+      { "code": "invalid_instant", "severity": "error", "meaning": "Requested instant malformed." },
+      { "code": "link_too_large", "severity": "error", "meaning": "Cannot encode within sharing limits." }
+    ],
+    "structuralCodes": ["type", "const", "items", "pattern", "range", "position", "enum", "additionalProperties"]
+  },
+  "versioning": "Additive compatible changes retain v1. Breaking changes require document version 2 and a v2 link parameter/version contract; existing v1 links remain readable.",
+  "dataset": {
+    "freshness": "https://tmrk.github.io/globehops/agent/dataset.json",
+    "airports": "OurAirports, public domain; checked daily, freshness is recorded rather than guaranteed.",
+    "timeZones": "timezone-boundary-builder 2026f, derived from OpenStreetMap; ODbL-1.0. Separate derivative database at src/data/generated/timezones.json.",
+    "repository": "https://github.com/tmrk/globehops"
+  },
+  "mcp": {
+    "transport": "local stdio",
+    "run": "node /absolute/path/to/globehops/mcp/server.ts",
+    "prerequisites": "Node >=22.18; npm ci in the checkout.",
+    "baseUrlEnvironment": "GLOBEHOPS_BASE_URL",
+    "tools": ["search_airports", "calculate_route", "validate_itinerary", "visualize_route", "get_journey_timeline"],
+    "documentation": "https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md",
+    "remoteEndpoint": null
+  },
+  "licences": {
+    "code": "MIT",
+    "airports": "Public domain (OurAirports)",
+    "timeZones": "ODbL-1.0; © OpenStreetMap contributors",
+    "earth": "NASA public-use imagery; attribution in project notices",
+    "borders": "Natural Earth public domain",
+    "notices": "https://github.com/tmrk/globehops/blob/main/THIRD_PARTY_NOTICES.md"
+  }
+}

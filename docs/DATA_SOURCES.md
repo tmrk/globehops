@@ -33,6 +33,26 @@ Validation requires expected columns, consistent CSV row widths and at least 50,
 
 Local aliases belong in `data/aliases.json`, with a reason for each in `data/ALIASES.md`; currently the alias map is empty. Prefer upstream names/keywords and shared accent normalisation. Ranking uses match quality plus scheduled service, size, code presence and the short, commented primary-airport list in `src/data/rankHints.ts`. OurAirports provides no traffic figures; these hints are a maintained ordering aid, not measured traffic data.
 
+## Time zones
+
+Source: [timezone-boundary-builder (TBB) 2026f](https://github.com/evansiroky/timezone-boundary-builder/releases/tag/2026f), comprehensive land-zone [timezones.geojson.zip](https://github.com/evansiroky/timezone-boundary-builder/releases/download/2026f/timezones.geojson.zip). The ZIP is pinned to SHA-256 `2d160501c844d382233f30b0cd0db2533fe17f93a118a3d38959fe73e3ac20c3`; both cached and downloaded bytes must match.
+
+Contains information from timezone-boundary-builder, made available under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/); boundaries derived from OpenStreetMap © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright). TBB's build code is MIT; its output data is ODbL. Retain source/licence attribution, attribute publicly used outputs and share publicly used derivative databases under ODbL, with machine-readable access as required by sections 4.2–4.6.
+
+GlobeHops offers its derivative airport-to-zone database, [src/data/generated/timezones.json](../src/data/generated/timezones.json), under **ODbL-1.0**. It stays separate from public-domain `airports.json` and MIT application code. The committed JSON and deployed hashed asset provide the machine-readable database; scripts, provenance and overrides document its construction. Preserve visible credits and licence links when reusing the data.
+
+`scripts/build-timezones.ts` verifies/extracts the ZIP and looks up each decoded airport coordinate against polygon bounds and rings, including holes. If containment fails, the nearest polygon edge within 30 km is used; a sourced override is the final fallback. Assignment fails if any airport remains unresolved. Node `Intl` zone support, 30 sentinels and a 30 KiB gzip budget are checked before output writes. The browser downloads only the compact ID/zone dictionary, never the polygons. Historical offsets and DST rules come from runtime `Intl`, independently of the TBB release.
+
+The committed build covers **9,934/9,934 airports in 387 zones**, with no nearest-edge fallbacks and one override: Union Glacier (UGL/SCGC) uses `America/Punta_Arenas`, supported by its [operator's timekeeping statement](https://antarctic-logistics.com/services/camp-services/). This does not establish historical timekeeping before the camp existed.
+
+TBB includes overlapping zones in disputed or dual-timekeeping areas. GlobeHops chooses the lexicographically first containing zone, independent of feature order; equal nearest-edge distances use the same tie-break. The 36 recorded overlaps select `Asia/Shanghai` over `Asia/Urumqi` at 34 Xinjiang airports, and `Asia/Tbilisi` over `Europe/Moscow` at UG0U/UGSS. These choices do not establish the operational clock or take a position on territorial claims. Every overlap and fallback is recorded in `data/timezones-build.json`; method, coverage, ambiguity and sourced override rationale are in [data/TIMEZONES.md](../data/TIMEZONES.md). Regenerate with `npm run timezones:build`; never hand-edit the table.
+
+## Solar position
+
+`src/lib/sun.ts` implements low-precision apparent solar coordinates using [NOAA's Meeus-based equations](https://gml.noaa.gov/grad/solcalc/calcdetails.html), including declination, obliquity and equation of time. Julian day is calculated directly from epoch milliseconds. Geometric elevation excludes atmospheric refraction; daylight labels use −0.833° and −6° thresholds. The renderer uses the subsolar direction for continuous terminator/twilight shading, not a downloaded lighting dataset.
+
+Independent tests use MIT-licensed [astronomy-engine](https://github.com/cosinekitty/astronomy), **only in tests**, to check subsolar coordinates across 1900–2100 and scene alignment. Coordinate tests require errors below 0.05°; the separate topocentric elevation comparison allows 0.1°. These are numerical test tolerances, not guarantees of observed sunrise or sunset: atmospheric conditions and the illustrative shader are outside that accuracy claim. See [time and simulation](TIME_AND_SIMULATION.md).
+
 ## Country borders
 
 Source: [Natural Earth](https://www.naturalearthdata.com/downloads/50m-cultural-vectors/50m-admin-0-boundary-lines/) 1:50m Cultural Vectors, **Admin 0 – Boundary Lines (land)**, version 5.1.2, read as GeoJSON from the pinned [natural-earth-vector v5.1.2 tag](https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_50m_admin_0_boundary_lines_land.geojson).

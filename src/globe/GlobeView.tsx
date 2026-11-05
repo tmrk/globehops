@@ -4,6 +4,7 @@ import mediumUrl from '../assets/textures/earth-4k.webp';
 import largeUrl from '../assets/textures/earth-8k.webp';
 import bordersUrl from '../data/generated/borders.json?url';
 import { GlobeRenderer, type GlobeRoute, type Insets } from './GlobeRenderer.ts';
+import type { SimulationFeed } from './simFeed.ts';
 
 export interface GlobeViewProps {
   route: GlobeRoute;
@@ -11,6 +12,7 @@ export interface GlobeViewProps {
   insets: Insets;
   showBorders: boolean;
   reducedMotion: boolean;
+  sim?: SimulationFeed | null;
   /** Increment to re-frame the camera on the current route / leg. */
   fitNonce: number;
   onLegClick: (leg: number) => void;
@@ -70,7 +72,7 @@ export default function GlobeView(props: GlobeViewProps) {
     };
   }, []);
 
-  const { route, selectedLeg, insets, showBorders, reducedMotion, fitNonce } = props;
+  const { route, selectedLeg, insets, showBorders, reducedMotion, fitNonce, sim } = props;
 
   useEffect(() => {
     rendererRef.current?.setReducedMotion(reducedMotion);
@@ -103,6 +105,33 @@ export default function GlobeView(props: GlobeViewProps) {
   useEffect(() => {
     if (fitNonce > 0) rendererRef.current?.frameCurrent(true);
   }, [fitNonce]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    if (!sim) {
+      r.setIllumination(null);
+      r.setAircraft(null);
+      r.setHighlightLeg(null);
+      r.setFollow(false);
+      return;
+    }
+    let previousFollow: boolean | undefined;
+    const update = () => {
+      const frame = sim.getFrame();
+      // Only a feed transition re-enables follow after a user camera gesture.
+      if (frame.follow !== previousFollow) {
+        r.setFollow(frame.follow);
+        previousFollow = frame.follow;
+      }
+      r.setIllumination(frame.subsolar);
+      r.setAircraft(frame.aircraft);
+      r.setHighlightLeg(frame.highlightLeg);
+    };
+    const unsubscribe = sim.subscribe(update);
+    update();
+    return unsubscribe;
+  }, [sim]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     const r = rendererRef.current;

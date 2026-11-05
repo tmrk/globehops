@@ -25,3 +25,4 @@ blob-report/
 # Logs
 *.log
 npm-debug.log*
+.vitest/

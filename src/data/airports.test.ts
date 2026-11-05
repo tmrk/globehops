@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import raw from './generated/airports.json';
-import { airportCode, airportPlace, decodeDataset, displayCity, loadAirports } from './airports.ts';
+import { airportCode, airportPlace, airportShortName, decodeDataset, displayCity, loadAirports } from './airports.ts';
 describe('airport decoder', () => {
   it('decodes tuples and place names', () => {
     const data = decodeDataset(raw),
@@ -51,5 +51,42 @@ describe('airport decoder', () => {
     } finally {
       fetcher.mockRestore();
     }
+  });
+});
+
+describe('airportShortName', () => {
+  const base = {
+    id: 1,
+    ident: 'X',
+    icao: null,
+    region: '',
+    countryCode: 'GB',
+    country: 'United Kingdom',
+    lat: 0,
+    lng: 0,
+    type: 'large' as const,
+    scheduled: true,
+    keywords: [],
+  };
+  it('keeps names that start with the city and drops generic suffixes', () => {
+    expect(airportShortName({ ...base, iata: 'LHR', name: 'London Heathrow Airport', city: 'London' })).toBe(
+      'London Heathrow',
+    );
+    expect(airportShortName({ ...base, iata: 'AMS', name: 'Amsterdam Airport Schiphol', city: 'Amsterdam' })).toBe(
+      'Amsterdam Schiphol',
+    );
+  });
+  it('falls back to the city and code', () => {
+    expect(
+      airportShortName({ ...base, iata: 'JFK', name: 'John F. Kennedy International Airport', city: 'New York' }),
+    ).toBe('New York JFK');
+    expect(
+      airportShortName({
+        ...base,
+        iata: 'HNL',
+        name: 'Daniel K. Inouye International Airport',
+        city: 'Honolulu, Oahu',
+      }),
+    ).toBe('Honolulu HNL');
   });
 });
