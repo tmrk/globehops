@@ -1,6 +1,7 @@
 import type { DistanceUnit } from '../types.ts';
 const UNIT_KEY = 'globehops:unit',
-  ROUTE_KEY = 'globehops:lastRoute';
+  ROUTE_KEY = 'globehops:lastRoute',
+  BORDERS_KEY = 'globehops:borders';
 export function loadUnit(): DistanceUnit | null {
   try {
     const unit = globalThis.localStorage?.getItem(UNIT_KEY);
@@ -31,5 +32,21 @@ export function saveLastRoute(codes: string[]): void {
     globalThis.localStorage?.setItem(ROUTE_KEY, JSON.stringify(codes.slice(0, 10)));
   } catch {
     /* Quota/private-mode failures are harmless. */
+  }
+}
+/** Country-border visibility; null when the user hasn't chosen (borders default to on). */
+export function loadBorders(): boolean | null {
+  try {
+    const value = globalThis.localStorage?.getItem(BORDERS_KEY);
+    return value === 'on' ? true : value === 'off' ? false : null;
+  } catch {
+    return null;
+  }
+}
+export function saveBorders(visible: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(BORDERS_KEY, visible ? 'on' : 'off');
+  } catch {
+    /* Storage may be disabled. */
   }
 }

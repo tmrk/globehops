@@ -1,71 +1,50 @@
 # GlobeHops
 
-GlobeHops shows air journeys as great-circle routes on an interactive 3D Earth. Choose airports, add transfers, and inspect each flight’s distance and estimated duration. Routes can be shared through the page URL; the last route and distance unit are remembered in your browser.
+**See any air journey as it really curves around the Earth.** GlobeHops draws your flights as great-circle routes on an interactive 3D globe, with distances, estimated flight times and layovers for every connection.
 
-[Live site](https://tmrk.github.io/globehops/) · [Source](https://github.com/tmrk/globehops)
+**[Open GlobeHops → tmrk.github.io/globehops](https://tmrk.github.io/globehops/)**
 
-![GlobeHops journey planner](docs/screenshot.png)
+It runs in any modern browser on phones, tablets and desktops. There is nothing to install and no account to create.
 
-## Features
+![GlobeHops on a desktop: a Copenhagen–London–New York journey on the globe, with the journey panel on the left](docs/screenshot.png)
 
-- Airport search by city, name, IATA/ICAO code and keywords, with accent-insensitive matching.
-- Up to ten stops; insert, remove, reverse or reorder with pointer and keyboard controls.
-- Great-circle arcs, ground tracks, airport labels, flight inspection, rotation and zoom.
-- Kilometres or miles, per-flight estimates and journey totals excluding layovers.
-- Mobile airport picker, reduced-motion support and route editing when WebGL is unavailable.
-- Static hosting, locally served assets, no accounts, backend or analytics.
+<img src="docs/screenshot-mobile.png" alt="GlobeHops on a phone: the globe above, the journey panel below" width="300">
 
-## Development
+## What you can do
 
-Requires Node.js **22.18+** (CI uses Node 24) and npm.
+- **Find airports** by city, airport name, IATA or ICAO code, or alternative names. Accents are optional: “malmo” finds Malmö.
+- **Plan up to ten stops.** Insert, remove, drag or use the keyboard to reorder them, or reverse the whole journey.
+- **Explore the globe.** Drag to rotate and scroll or pinch to zoom; arrow keys and +/− work too. Select a flight in the list or on the globe to fly to it. Routes too wide for one view can be stepped through flight by flight.
+- **Set layovers.** Each connection starts at 1h 30m. Change it under the connecting airport, from 30 minutes to three days.
+- **Show or hide country borders** with the button on the globe. They are on by default.
+- **Switch kilometres and miles.** The journey totals show distance, time in the air, layovers and the overall journey time.
+- **Share the journey.** The page address always holds the current route, so you can bookmark it or send it to someone. The Share button copies it or opens your device’s share sheet.
 
-```sh
-npm install
-npm run dev
-```
+### Route links
 
-Open the URL Vite prints, under `/globehops/`. For browser tests, install Chromium and WebKit once:
+Routes use airport codes separated by hyphens: [`?route=CPH-LHR-JFK`](https://tmrk.github.io/globehops/?route=CPH-LHR-JFK). A layover different from the default follows its airport in minutes, e.g. [`?route=LHR-DXB_240-SIN-SYD`](https://tmrk.github.io/globehops/?route=LHR-DXB_240-SIN-SYD) for four hours in Dubai. Unknown codes are reported and skipped. Without a route in the address, GlobeHops reopens your last journey in that browser.
 
-```sh
-npx playwright install chromium webkit
-npm run test:e2e
-```
+## How the numbers are worked out
 
-The stack is React 19, TypeScript, Three.js and Vite, with Vitest, Playwright, ESLint, Prettier and sharp for development.
+- **Distance** is the shortest great-circle path on a spherical Earth (mean radius 6,371.0088 km). Real flights often deviate because of winds, air-traffic control, weather and restricted airspace.
+- **Flight time** is an estimate, not a schedule: distance at an average 850 km/h plus 30 minutes for take-off, climb, approach and landing, rounded to five minutes.
+- **Total time** adds the layover at each connection to the flight times.
+- **The arcs** follow a simplified flight profile. Each flight climbs to a typical cruising altitude of about 11 km over roughly 20 minutes, holds it, and descends over about the last 25 minutes. Flights too short to reach cruise peak lower. Height is exaggerated 12× so it is visible on the globe. The dashed line beneath each arc is the ground track.
 
-| Command                  | Purpose                                                                          |
-| ------------------------ | -------------------------------------------------------------------------------- |
-| `npm install`            | Install dependencies; use `npm ci` for the lockfile in CI.                       |
-| `npm run dev`            | Start the Vite development server.                                               |
-| `npm run build`          | Type-check and build `dist/`.                                                    |
-| `npm run preview`        | Serve the production build.                                                      |
-| `npm test`               | Run unit tests.                                                                  |
-| `npm run test:e2e`       | Build and test the Pages path in all four browser projects.                      |
-| `npm run lint`           | ESLint and TypeScript checks.                                                    |
-| `npm run format`         | Apply Prettier formatting.                                                       |
-| `npm run data:update`    | Download, validate and regenerate airport data if content changes.               |
-| `npm run data:check`     | Validate a fresh download without writing files; report whether it would change. |
-| `npm run textures:build` | Build WebP textures from a separately downloaded NASA source image.              |
-| `npm run icons:build`    | Generate PNG app icons from the SVG sources in `public/`.                        |
+## Privacy
 
-See [development](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md) and [code organisation](CODE.md).
+GlobeHops has no accounts, cookies, analytics or backend. Your route lives only in the page address and in your browser’s local storage, together with your unit and border preferences. All maps, data and fonts are served with the site.
 
-## Sources and licensing
+## Sources and credits
 
-Code is [MIT licensed](LICENSE). Earth imagery is NASA Blue Marble Next Generation, July 2004, with topography and bathymetry; credit: NASA Earth Observatory (Reto Stöckli, NASA GSFC). NASA imagery is generally not copyrighted in the US and is subject to its media guidelines. Airport data is [OurAirports public-domain data](https://ourairports.com/data/). Geist and Geist Mono fonts by Vercel use OFL-1.1. These content and font terms are separate from the code licence; see [data sources](docs/DATA_SOURCES.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
+- **Earth imagery:** [Blue Marble Next Generation](https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-topography-bathymetry/), July 2004 composite with topography and bathymetry. Credit: NASA Earth Observatory (Reto Stöckli, NASA GSFC). It is a cloud-free composite, not a live view. GlobeHops is not affiliated with or endorsed by NASA.
+- **Airports:** [OurAirports](https://ourairports.com/data/), public domain. The airport list is checked for updates daily.
+- **Country borders:** [Natural Earth](https://www.naturalearthdata.com/) 1:50m Admin 0 boundary lines (land), version 5.1.2, public domain. Natural Earth shows de facto boundaries; their depiction implies no position on any territorial dispute.
+- **Typefaces:** Geist and Geist Mono by Vercel, under the SIL Open Font License 1.1.
+- **Software:** built with [React](https://react.dev/) and [Three.js](https://threejs.org/), both MIT licensed.
 
-## Deployment
+How each source is selected, processed and licensed is documented in [data sources](docs/DATA_SOURCES.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
-GitHub Actions checks and builds the site, runs Chromium E2E tests and publishes `dist/` to GitHub Pages at `/globehops/`. A daily airport refresh validates new data and calls the deployment workflow after a successful direct push; protected branches use a PR fallback. Setup and manual commands are in [deployment](docs/DEPLOYMENT.md).
+## Licence
 
-## Project structure
-
-| Path                                  | Contents                                                          |
-| ------------------------------------- | ----------------------------------------------------------------- |
-| `src/components/`, `src/hooks/`       | Journey interface and browser integration.                        |
-| `src/globe/`                          | Three.js renderer, React wrapper and scene mathematics.           |
-| `src/lib/`, `src/state/`, `src/data/` | Pure calculations, route state, storage, URLs and airport search. |
-| `src/styles/app.css`, `src/assets/`   | Design tokens, responsive CSS and generated textures.             |
-| `scripts/`, `data/`                   | Data/texture tooling, aliases and build provenance.               |
-| `e2e/`                                | Browser tests and shared error auditing.                          |
-| `.github/workflows/`, `docs/`         | Automation and project guides.                                    |
+The GlobeHops code is [MIT licensed](LICENSE). Imagery, data and fonts keep their own terms, listed above.

@@ -27,10 +27,10 @@ import { useVisualViewportVars } from './hooks/useVisualViewport.ts';
 import { formatDuration, sumDurations } from './lib/flightTime.ts';
 import { legColor } from './lib/legColors.ts';
 import { formatDistance } from './lib/units.ts';
-import { computeLegs, createRouteState, routeReducer } from './state/route.ts';
-import { loadLastRoute, loadUnit, saveLastRoute, saveUnit } from './state/storage.ts';
-import { buildShareUrl, parseRouteParam, resolveRouteCodes } from './state/url.ts';
-import type { Airport, DistanceUnit, Leg } from './types.ts';
+import { computeLayovers, computeLegs, createRouteState, routeReducer } from './state/route.ts';
+import { loadBorders, loadLastRoute, loadUnit, saveBorders, saveLastRoute, saveUnit } from './state/storage.ts';
+import { buildShareUrl, parseRouteParam, resolveRouteCodes, routeTokens, type RouteStopSpec } from './state/url.ts';
+import type { Airport, DistanceUnit, Layover, Leg } from './types.ts';
 
 const GlobeView = lazy(() => import('./globe/GlobeView.tsx'));
 
@@ -48,14 +48,18 @@ function defaultUnit(): DistanceUnit {
   return /-(US|LR|MM)$/i.test(lang) ? 'mi' : 'km';
 }
 
-function describeRoute(legs: Leg[], unit: DistanceUnit): string {
+function describeRoute(legs: Leg[], layovers: Layover[], unit: DistanceUnit): string {
   if (!legs.length) return 'No route yet.';
   const names = [legs[0].from, ...legs.map((l) => l.to)].map(displayCity);
   const total = legs.reduce((s, l) => s + l.distanceKm, 0);
   const minutes = sumDurations(legs.map((l) => l.durationMin));
-  return `Route ${names.join(' to ')}. ${legs.length} flight${legs.length > 1 ? 's' : ''}, ${formatDistance(total, unit)}${
-    minutes ? `, estimated flight time ${formatDuration(minutes)}` : ''
-  }.`;
+  const ground = layovers.reduce((s, l) => s + l.minutes, 0);
+  const time = !minutes
+    ? ''
+    : ground
+      ? `, estimated journey time ${formatDuration(minutes + ground)} including ${formatDuration(ground)} of layovers`
+      : `, estimated flight time ${formatDuration(minutes)}`;
+  return `Route ${names.join(' to ')}. ${legs.length} flight${legs.length > 1 ? 's' : ''}, ${formatDistance(total, unit)}${time}.`;
 }
 
 export default function App() {
@@ -69,6 +73,7 @@ export default function App() {
   const [dataError, setDataError] = useState(false);
   const [route, dispatch] = useReducer(routeReducer, undefined, () => createRouteState());
   const [unit, setUnit] = useState<DistanceUnit>(() => loadUnit() ?? defaultUnit());
+  const [showBorders, setShowBorders] = useState(() => loadBorders() ?? true);
   const [isExample, setIsExample] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
@@ -87,11 +92,15 @@ export default function App() {
 
   const lookup = useCallback((id: number) => dataset?.byId.get(id), [dataset]);
 
-  /** Loads codes into the route, reporting unknown codes. */
+  /** Loads route tokens (codes with optional layovers) into the route, reporting unknown codes. */
   const loadCodes = useCallback(
     (codes: string[], idx: SearchIndex, opts: { example?: boolean } = {}) => {
-      const { airports, missing } = resolveRouteCodes(codes, idx);
-      dispatch({ type: 'load', airportIds: airports.map((a) => a.id) });
+      const { stops, missing } = resolveRouteCodes(codes, idx);
+      dispatch({
+        type: 'load',
+        airportIds: stops.map((s) => s.airport.id),
+        layovers: stops.map((s) => s.layoverMin),
+      });
       setIsExample(!!opts.example);
       if (missing.length) {
         showToast(
@@ -162,26 +171,31 @@ export default function App() {
   }, [loadCodes]);
 
   const legs = useMemo(() => (dataset ? computeLegs(route.stops, lookup) : []), [route.stops, dataset, lookup]);
-  const filledAirports = useMemo(
+  const layovers = useMemo(() => computeLayovers(route.stops, legs), [route.stops, legs]);
+  const filledStops = useMemo(
     () =>
-      route.stops.map((s) => (s.airportId !== null ? lookup(s.airportId) : undefined)).filter((a): a is Airport => !!a),
+      route.stops.flatMap<RouteStopSpec>((s) => {
+        const airport = s.airportId !== null ? lookup(s.airportId) : undefined;
+        return airport ? [{ airport, layoverMin: s.layoverMin }] : [];
+      }),
     [route.stops, lookup],
   );
+  const filledAirports = useMemo(() => filledStops.map((s) => s.airport), [filledStops]);
 
   // ---- Persist route to URL + local storage ----
   const shareUrl = useMemo(
-    () => buildShareUrl(window.location.origin + window.location.pathname, filledAirports),
-    [filledAirports],
+    () => buildShareUrl(window.location.origin + window.location.pathname, filledStops),
+    [filledStops],
   );
   useEffect(() => {
     shareUrlRef.current = shareUrl;
     if (!initialized) return;
     if (shareUrl !== window.location.href) window.history.replaceState(window.history.state, '', shareUrl);
-    saveLastRoute(filledAirports.map(airportCode));
-    document.title = filledAirports.length
-      ? `${filledAirports.map(airportCode).join(' → ')} · GlobeHops`
+    saveLastRoute(routeTokens(filledStops));
+    document.title = filledStops.length
+      ? `${filledStops.map((s) => airportCode(s.airport)).join(' → ')} · GlobeHops`
       : 'GlobeHops — your journey on a 3D globe';
-  }, [shareUrl, filledAirports, initialized]);
+  }, [shareUrl, filledStops, initialized]);
 
   // ---- Globe data ----
   const globeRoute = useMemo<GlobeRoute>(() => {
@@ -317,6 +331,13 @@ export default function App() {
     saveUnit(u);
   };
 
+  const toggleBorders = () => {
+    setShowBorders((on) => {
+      saveBorders(!on);
+      return !on;
+    });
+  };
+
   const share = async () => {
     const url = shareUrl;
     const coarse = window.matchMedia('(pointer: coarse)').matches;
@@ -361,7 +382,8 @@ export default function App() {
   });
 
   const totalKm = legs.reduce((s, l) => s + l.distanceKm, 0);
-  const totalMin = sumDurations(legs.map((l) => l.durationMin));
+  const flightMin = sumDurations(legs.map((l) => l.durationMin));
+  const totalMin = flightMin ? flightMin + layovers.reduce((s, l) => s + l.minutes, 0) : 0;
   const sheetCollapsed = !isDesktop && collapsed && editing === null;
 
   return (
@@ -387,6 +409,7 @@ export default function App() {
                 route={globeRoute}
                 selectedLeg={route.selectedLeg}
                 insets={insets}
+                showBorders={showBorders}
                 reducedMotion={reducedMotion}
                 fitNonce={fitNonce}
                 onLegClick={(leg) => selectLeg(route.selectedLeg === leg ? null : leg)}
@@ -424,8 +447,10 @@ export default function App() {
             legs={legs}
             selectedLeg={route.selectedLeg}
             fits={fits}
+            showBorders={showBorders}
             onSelectLeg={selectLeg}
             onFit={() => setFitNonce((n) => n + 1)}
+            onToggleBorders={toggleBorders}
           />
         </div>
       )}
@@ -494,6 +519,7 @@ export default function App() {
                 <StopList
                   stops={route.stops}
                   legs={legs}
+                  layovers={layovers}
                   lookup={lookup}
                   unit={unit}
                   selectedLeg={route.selectedLeg}
@@ -513,6 +539,7 @@ export default function App() {
                   onInsert={(i) => addStop(i)}
                   onAdd={() => addStop()}
                   onMove={(from, to) => dispatch({ type: 'moveStop', from, to })}
+                  onLayoverChange={(index, minutes) => dispatch({ type: 'setLayover', index, minutes })}
                   onSelectLeg={selectLeg}
                 />
               )}
@@ -545,7 +572,7 @@ export default function App() {
               </footer>
             </div>
 
-            {legs.length > 0 && <Summary legs={legs} unit={unit} onUnitChange={changeUnit} />}
+            {legs.length > 0 && <Summary legs={legs} layovers={layovers} unit={unit} onUnitChange={changeUnit} />}
           </>
         )}
       </main>
@@ -564,7 +591,7 @@ export default function App() {
       )}
 
       <p className="sr-only" aria-live="polite">
-        {initialized ? describeRoute(legs, unit) : ''}
+        {initialized ? describeRoute(legs, layovers, unit) : ''}
       </p>
       <Toast toast={toast} />
       <AboutDialog ref={aboutRef} meta={dataset?.meta ?? null} />

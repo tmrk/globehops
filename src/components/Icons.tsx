@@ -60,6 +60,28 @@ export const IconFrame = (p: IconProps) => (
     <circle cx="10" cy="10" r="2.2" />
   </Icon>
 );
+/** Globe outline crossed by a dashed boundary: the country-borders layer. */
+export const IconBorders = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="10" cy="10" r="7" />
+    <path
+      d="M10.6 3.1l-.9 3.4 1.9 2.6-1.4 3.2 1.6 4.6M9.7 9.4l-6.5 1.4M11.6 9.1l5.2-2"
+      strokeWidth={1.3}
+      strokeDasharray="1.7 1.5"
+    />
+  </Icon>
+);
+export const IconClock = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="10" cy="10" r="6.5" />
+    <path d="M10 6.4V10l2.4 1.6" />
+  </Icon>
+);
+export const IconChevronDown = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5.5 8l4.5 4.5L14.5 8" />
+  </Icon>
+);
 export const IconSearch = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="8.8" cy="8.8" r="5.3" />

@@ -4,10 +4,12 @@
  * Design notes
  * - Render on demand: a frame is drawn only while something changes (camera damping, tweens,
  *   reveal animations, texture uploads). An idle globe costs no GPU time.
- * - Routes are true great circles (spherical interpolation of unit vectors). The visual arc is
- *   lifted above the surface with a gentle sine profile; it lies entirely in the great-circle
- *   plane, so its ground projection is exactly the great-circle track (drawn as a faint dashed line).
+ * - Routes are true great circles (spherical interpolation of unit vectors). The visual arc follows
+ *   a simplified flight profile (climb to cruising altitude, cruise, descend; see lib/altitude.ts)
+ *   with the vertical axis exaggerated. It lies entirely in the great-circle plane, so its ground
+ *   projection is exactly the great-circle track (drawn as a faint dashed line).
  * - Airport labels are HTML elements projected from 3D and hidden on the far side of the globe.
+ * - Country borders (Natural Earth) are fetched only when first shown.
  */
 import {
   AdditiveBlending,
@@ -18,7 +20,9 @@ import {
   Group,
   Mesh,
   MeshLambertMaterial,
+  NotEqualStencilFunc,
   PerspectiveCamera,
+  ReplaceStencilOp,
   Scene,
   ShaderMaterial,
   SphereGeometry,
@@ -31,7 +35,18 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
-import { enclosingCap, greatCirclePath } from '../lib/geo.ts';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import {
+  altitudeAt,
+  altitudeProfile,
+  DEFAULT_ALTITUDE_MODEL,
+  exaggeratedLift,
+  locateFraction,
+  profileFractions,
+} from '../lib/altitude.ts';
+import { countSegments, decodeBorders, densifyLine } from '../lib/borders.ts';
+import { enclosingCap, greatCircleDistanceKm, greatCirclePath, slerpVec, toVec3 } from '../lib/geo.ts';
 import type { LatLng } from '../types.ts';
 import { clamp01, easeInOutCubic, ecefToScene, latLngToVector3, sceneToEcef, slerpUnit } from './math3d.ts';
 
@@ -73,6 +88,9 @@ export interface TextureSet {
 
 export interface GlobeRendererOptions {
   textures: TextureSet;
+  /** URL of the generated country-border dataset. */
+  bordersUrl: string;
+  showBorders: boolean;
   reducedMotion: boolean;
   onLegClick?: (leg: number) => void;
   onFitChange?: (fitsInView: boolean) => void;
@@ -83,7 +101,13 @@ const GLOBE_SEGMENTS = 128;
 /** Smaller-dimension field of view (degrees). Narrow FOV keeps the globe photographic. */
 const BASE_FOV = 30;
 const MIN_DISTANCE = 1.32;
+/** Arcs start just above the surface so their ends never sink into the tessellated sphere. */
 const ROUTE_LIFT = 0.0018;
+/** Highest point of any arc: cruising altitude (exaggerated) above the base lift. */
+const ARC_PEAK = ROUTE_LIFT + exaggeratedLift(DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm);
+/** Borders sit above the sphere's flat facets but below the dashed ground tracks. */
+const BORDER_RADIUS = 1.0004;
+const BORDER_STEP_DEG = 0.5;
 const ATMOSPHERE_RADIUS = 1.055;
 const LABEL_LIFT = 1.002;
 
@@ -91,7 +115,11 @@ const ATMOSPHERE_COLOR = new Color('#7fb4ff');
 
 interface LegObject {
   key: string;
+  /** Fractions of the leg distance (0 … 1) at which ground/arc are sampled; denser in climb and descent. */
+  fractions: number[];
   ground: Vector3[]; // unit vectors along the great circle
+  /** Sparse ground samples (≤ 2° apart) for camera framing; the enclosing-cap search is O(points). */
+  frame: Vector3[];
   arc: Vector3[]; // lifted arc points
   line: Line2;
   casing: Line2;
@@ -151,6 +179,8 @@ export class GlobeRenderer {
   private plane: HTMLDivElement;
   private legs: LegObject[] = [];
   private markers: MarkerObject[] = [];
+  private borders: { line: LineSegments2; material: LineMaterial } | null = null;
+  private bordersState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
   private textures: Texture[] = [];
   private width = 1;
   private height = 1;
@@ -172,7 +202,13 @@ export class GlobeRenderer {
     private container: HTMLElement,
     private options: GlobeRendererOptions,
   ) {
-    this.renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    // The stencil buffer lets translucent border segments blend once where they overlap at joints.
+    this.renderer = new WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      stencil: true,
+      powerPreference: 'high-performance',
+    });
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.canvas = this.renderer.domElement;
@@ -277,6 +313,7 @@ export class GlobeRenderer {
     this.resizeObserver.observe(container);
     this.resize();
     this.loadTextures();
+    if (options.showBorders) this.ensureBorders();
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -335,7 +372,7 @@ export class GlobeRenderer {
   frameCurrent(animate = true) {
     const points: Vector3[] = [];
     const legs = this.selectedLeg !== null ? [this.legs[this.selectedLeg]] : this.legs;
-    for (const leg of legs) if (leg) points.push(...leg.ground);
+    for (const leg of legs) if (leg) points.push(...leg.frame);
     if (!points.length) for (const m of this.markers) points.push(m.position.clone().normalize());
     if (!points.length) {
       this.notifyFit(true);
@@ -372,6 +409,13 @@ export class GlobeRenderer {
     this.options.reducedMotion = reduced;
   }
 
+  setBordersVisible(visible: boolean) {
+    this.options.showBorders = visible;
+    if (visible) this.ensureBorders();
+    if (this.borders) this.borders.line.visible = visible;
+    this.requestRender();
+  }
+
   /** Keyboard rotation / zoom for accessibility. */
   nudge(dLng: number, dLat: number, zoom = 1) {
     this.cancelTween();
@@ -397,6 +441,12 @@ export class GlobeRenderer {
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.clearLegs();
     this.clearMarkers();
+    if (this.borders) {
+      this.scene.remove(this.borders.line);
+      this.borders.line.geometry.dispose();
+      this.borders.material.dispose();
+      this.borders = null;
+    }
     this.earth.geometry.dispose();
     this.earthMaterial.dispose();
     this.atmosphere.geometry.dispose();
@@ -523,17 +573,84 @@ export class GlobeRenderer {
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Country borders
+
+  private async ensureBorders() {
+    if (this.bordersState !== 'idle') return;
+    this.bordersState = 'loading';
+    try {
+      const response = await fetch(this.options.bordersUrl);
+      if (!response.ok) throw new Error(`HTTP ${response.status} loading country borders`);
+      const lines = decodeBorders(await response.json());
+      if (this.disposed) return;
+      this.buildBorders(lines.map((line) => densifyLine(line, BORDER_STEP_DEG)));
+      this.bordersState = 'ready';
+    } catch (error) {
+      // Borders are decorative: the globe and routes stay fully usable without them.
+      this.bordersState = 'failed';
+      console.warn('Country borders unavailable', error);
+    }
+  }
+
+  private buildBorders(lines: LatLng[][]) {
+    const positions = new Float32Array(countSegments(lines) * 6);
+    const p = new Vector3();
+    let o = 0;
+    for (const line of lines) {
+      for (let i = 1; i < line.length; i++) {
+        for (const point of [line[i - 1], line[i]]) {
+          latLngToVector3(point.lat, point.lng, BORDER_RADIUS, p);
+          positions[o++] = p.x;
+          positions[o++] = p.y;
+          positions[o++] = p.z;
+        }
+      }
+    }
+    const geometry = new LineSegmentsGeometry();
+    geometry.setPositions(positions);
+    const material = new LineMaterial({
+      color: 0xf4f1ea,
+      linewidth: 0.9,
+      transparent: true,
+      opacity: 0.42,
+      worldUnits: false,
+      depthWrite: false,
+      // Each pixel is drawn at most once, so overlapping segment ends don't form brighter beads.
+      stencilWrite: true,
+      stencilRef: 1,
+      stencilFunc: NotEqualStencilFunc,
+      stencilZPass: ReplaceStencilOp,
+    });
+    material.resolution.set(this.width, this.height);
+    const line = new LineSegments2(geometry, material);
+    line.renderOrder = 0.5;
+    line.frustumCulled = false;
+    line.visible = this.options.showBorders;
+    this.scene.add(line);
+    this.borders = { line, material };
+    this.requestRender();
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // Route objects
 
   private buildLeg(leg: GlobeLeg): LegObject | null {
     const angle = latLngToVector3(leg.from.lat, leg.from.lng).angleTo(latLngToVector3(leg.to.lat, leg.to.lng));
     if (!(angle > 1e-4)) return null; // same airport: nothing to draw
-    const path = greatCirclePath(leg.from, leg.to, Math.max(24, Math.min(256, Math.ceil((angle * 180) / Math.PI) * 2)));
-    const ground = path.map((v) => ecefToScene(v));
-    // Gentle, distance-dependent lift (illustrative only — not an altitude profile).
-    const height = 0.004 + 0.04 * angle;
+    // Climb to cruising altitude, hold it, descend before landing (vertical axis exaggerated).
+    const distanceKm = greatCircleDistanceKm(leg.from, leg.to);
+    const profile = altitudeProfile(distanceKm);
+    const fractions = profileFractions(profile);
+    const u = toVec3(leg.from);
+    const v = toVec3(leg.to);
+    const ground = fractions.map((f) => ecefToScene(slerpVec(u, v, f)));
+    const frame = greatCirclePath(leg.from, leg.to, Math.max(2, Math.ceil((angle * 90) / Math.PI))).map((p) =>
+      ecefToScene(p),
+    );
     const n = ground.length - 1;
-    const arc = ground.map((g, i) => g.clone().multiplyScalar(1 + ROUTE_LIFT + height * Math.sin((Math.PI * i) / n)));
+    const arc = ground.map((g, i) =>
+      g.clone().multiplyScalar(1 + ROUTE_LIFT + exaggeratedLift(altitudeAt(profile, fractions[i] * distanceKm))),
+    );
     const trackPts = ground.map((g) => g.clone().multiplyScalar(1.0008));
 
     const color = new Color(leg.color);
@@ -569,7 +686,9 @@ export class GlobeRenderer {
     this.routeGroup.add(track, casing, line);
     return {
       key: leg.key,
+      fractions,
       ground,
+      frame,
       arc,
       line,
       casing,
@@ -583,7 +702,9 @@ export class GlobeRenderer {
   }
 
   private applyProgress(leg: LegObject) {
-    const count = Math.round(leg.segments * clamp01(leg.progress));
+    // Progress is a fraction of the distance flown; samples are uneven, so map it to a segment count.
+    const { index, t } = locateFraction(leg.fractions, clamp01(leg.progress));
+    const count = leg.progress <= 0 ? 0 : Math.min(leg.segments, index + Math.round(t));
     leg.line.geometry.instanceCount = count;
     leg.casing.geometry.instanceCount = count;
     leg.track.geometry.instanceCount = count;
@@ -704,19 +825,18 @@ export class GlobeRenderer {
 
   private placePlaneOnLeg(leg: LegObject, f: number, visible: boolean) {
     const pts = leg.arc;
-    const x = f * (pts.length - 1);
-    const i = Math.min(pts.length - 2, Math.floor(x));
-    const frac = x - i;
-    const pos = this.tmp.copy(pts[i]).lerp(pts[i + 1], frac);
-    const ahead = this.tmp2.copy(pts[i + 1]);
+    const { index: i, t } = locateFraction(leg.fractions, f);
+    const pos = this.tmp.copy(pts[i]).lerp(pts[i + 1], t);
     const a = this.project(pos);
-    const b = this.project(ahead);
+    // Heading from the current segment's direction on screen.
+    const s0 = this.project(pts[i]);
+    const s1 = this.project(this.tmp2.copy(pts[i + 1]));
     const facing = this.facing(pos);
-    if (!a || !b || facing < 0.02) {
+    if (!a || !s0 || !s1 || facing < 0.02) {
       this.plane.style.opacity = '0';
       return;
     }
-    const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI + 90;
+    const angle = (Math.atan2(s1.y - s0.y, s1.x - s0.x) * 180) / Math.PI + 90;
     const fade = Math.min(1, f * 12, (1 - f) * 12);
     this.plane.style.opacity = visible ? String(Math.min(fade, facing * 6)) : '0';
     this.plane.style.transform = `translate3d(${a.x}px, ${a.y}px, 0) translate(-50%, -50%) rotate(${angle}deg)`;
@@ -822,7 +942,7 @@ export class GlobeRenderer {
     const r = Math.max(radius, 0.02);
     // Camera at distance d along the cap centre sees a rim point at off-axis angle atan(sin r / (d − cos r)).
     let d = Math.cos(r) + Math.sin(r) / Math.tan(alpha);
-    d *= 1 + 0.6 * (0.004 + 0.04 * 2 * r); // account for lifted arcs
+    d *= 1 + 0.8 * ARC_PEAK; // account for lifted arcs
     // Wide routes look best with the whole planet in view rather than a slightly cropped globe.
     if (d > maxDist * 0.7) d = Math.max(d, maxDist * 0.93);
     d = Math.max(MIN_DISTANCE + 0.05, Math.min(maxDist, d));
@@ -875,6 +995,7 @@ export class GlobeRenderer {
       if (!leg) continue;
       for (const m of [leg.material, leg.casingMaterial, leg.trackMaterial]) m.resolution.set(w, h);
     }
+    this.borders?.material.resolution.set(w, h);
     this.updateProjection();
     this.requestRender();
   }

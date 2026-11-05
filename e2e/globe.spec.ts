@@ -106,12 +106,15 @@ test('production assets and every same-origin request respect the Pages base pat
   const fullTexture = page.waitForResponse((response) =>
     /earth-(?:4k|8k)-.*\.webp$/.test(new URL(response.url()).pathname),
   );
+  const borders = page.waitForResponse((response) => /borders-.*\.json$/.test(new URL(response.url()).pathname));
   await page.goto('./');
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
   await (await fullTexture).finished();
+  await (await borders).finished();
   expect(responses.some(({ path, status }) => /earth-.*\.webp$/.test(path) && status === 200)).toBe(true);
   expect(responses.some(({ path, status }) => /airports-.*\.json$/.test(path) && status === 200)).toBe(true);
+  expect(responses.some(({ path, status }) => /borders-.*\.json$/.test(path) && status === 200)).toBe(true);
   expect(paths.filter((path) => !path.startsWith('/globehops/'))).toEqual([]);
   expect(responses.filter(({ status }) => status >= 400)).toEqual([]);
   expect(failures).toEqual([]);

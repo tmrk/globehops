@@ -33,6 +33,14 @@ Validation requires expected columns, consistent CSV row widths and at least 50,
 
 Local aliases belong in `data/aliases.json`, with a reason for each in `data/ALIASES.md`; currently the alias map is empty. Prefer upstream names/keywords and shared accent normalisation. Ranking uses match quality plus scheduled service, size, code presence and the short, commented primary-airport list in `src/data/rankHints.ts`. OurAirports provides no traffic figures; these hints are a maintained ordering aid, not measured traffic data.
 
+## Country borders
+
+Source: [Natural Earth](https://www.naturalearthdata.com/downloads/50m-cultural-vectors/50m-admin-0-boundary-lines/) 1:50m Cultural Vectors, **Admin 0 – Boundary Lines (land)**, version 5.1.2, read as GeoJSON from the pinned [natural-earth-vector v5.1.2 tag](https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_50m_admin_0_boundary_lines_land.geojson).
+
+Natural Earth vector and raster data are in the **public domain** ([terms of use](https://www.naturalearthdata.com/about/terms-of-use/)); no permission is needed and credit is appreciated. Natural Earth depicts de facto boundaries. GlobeHops shows them as a visual reference only and takes no position on territorial disputes. Coastlines come from the Earth imagery, not from this layer.
+
+`scripts/lib/borders.ts` keeps every LineString and MultiLineString part in source order, rounds coordinates to 0.01° (about 1.1 km, finer than the 1:50m source accuracy), drops consecutive duplicate points and delta-encodes each line. Validation rejects out-of-range or non-integer coordinates and requires at least 200 lines and 10,000 points. The committed `src/data/generated/borders.json` holds 392 lines and 19,735 points (about 109 KB, 35 KB gzipped). The browser downloads it only while borders are shown, subdivides steps longer than 0.5° in latitude/longitude (so borders along parallels keep following them) and draws the lines just above the globe surface.
+
 ## Fonts
 
 Geist and Geist Mono by Vercel are bundled through `@fontsource-variable/geist` and `@fontsource-variable/geist-mono`. Both installed package manifests declare **OFL-1.1**. The font licence text is in each package’s `LICENSE`; these terms remain separate from the project code licence. See [third-party notices](../THIRD_PARTY_NOTICES.md).

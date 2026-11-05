@@ -1,17 +1,19 @@
 import { airportCode } from '../data/airports.ts';
 import type { Leg } from '../types.ts';
-import { IconChevronLeft, IconChevronRight, IconClose, IconFrame } from './Icons.tsx';
+import { IconBorders, IconChevronLeft, IconChevronRight, IconClose, IconFrame } from './Icons.tsx';
 
 interface GlobeHudProps {
   legs: Leg[];
   selectedLeg: number | null;
   fits: boolean;
+  showBorders: boolean;
   onSelectLeg: (leg: number | null) => void;
   onFit: () => void;
+  onToggleBorders: () => void;
 }
 
-/** Small floating controls over the globe: leg stepper and "frame route" button. */
-export function GlobeHud({ legs, selectedLeg, fits, onSelectLeg, onFit }: GlobeHudProps) {
+/** Small floating controls over the globe: leg stepper, map layer toggle and "frame route" button. */
+export function GlobeHud({ legs, selectedLeg, fits, showBorders, onSelectLeg, onFit, onToggleBorders }: GlobeHudProps) {
   const showStepper = legs.length > 1 && (selectedLeg !== null || !fits);
   const sel = selectedLeg !== null ? legs[selectedLeg] : null;
   return (
@@ -60,17 +62,29 @@ export function GlobeHud({ legs, selectedLeg, fits, onSelectLeg, onFit }: GlobeH
           )}
         </div>
       )}
-      {legs.length > 0 && (
+      <div className="hud__tools">
         <button
           type="button"
           className="icon-btn icon-btn--floating"
-          aria-label={sel ? 'Re-centre on this flight' : 'Re-centre on the route'}
-          title="Re-centre"
-          onClick={onFit}
+          aria-label="Country borders"
+          aria-pressed={showBorders}
+          title={showBorders ? 'Hide country borders' : 'Show country borders'}
+          onClick={onToggleBorders}
         >
-          <IconFrame />
+          <IconBorders />
         </button>
-      )}
+        {legs.length > 0 && (
+          <button
+            type="button"
+            className="icon-btn icon-btn--floating"
+            aria-label={sel ? 'Re-centre on this flight' : 'Re-centre on the route'}
+            title="Re-centre"
+            onClick={onFit}
+          >
+            <IconFrame />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

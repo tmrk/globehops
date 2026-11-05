@@ -32,9 +32,13 @@ export function estimateFlightMinutes(distanceKm: number, model = DEFAULT_FLIGHT
       model.roundingMinutes,
   );
 }
+/** "45m", "8h 05m"; durations of a day or more (journeys with long layovers) as "1d 4h 05m". */
 export function formatDuration(minutes: number): string {
   const m = Math.max(0, Math.round(minutes));
-  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+  const mm = `${String(m % 60).padStart(2, '0')}m`;
+  if (m < 60) return `${m}m`;
+  if (m < 1440) return `${Math.floor(m / 60)}h ${mm}`;
+  return `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h ${mm}`;
 }
 export function sumDurations(values: (number | null)[]): number {
   return values.reduce<number>((sum, n) => sum + (n ?? 0), 0);

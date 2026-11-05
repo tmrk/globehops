@@ -1,5 +1,17 @@
 # Recent changes
 
+## 2026-11-05 — Borders, layovers, flight profile and design language
+
+- **Country borders:** Natural Earth 1:50m land boundaries (public domain, v5.1.2) drawn on the globe, on by default. A globe button toggles them and the choice is remembered; hidden borders are not downloaded. New `npm run borders:build` pipeline with validation and tests.
+- **Layovers:** every connection gets a layover (default 1h 30m) that can be changed per stop from 30 minutes to three days. Totals show flying time, layover time and the overall journey time. Custom layovers travel in share links and the remembered route as `LHR_180`.
+- **Flight profile:** arcs now climb to a typical cruising altitude (11 km) in about 20 minutes, hold it, and descend over the last ~25 minutes. Every flight shares one cruise height (12× vertical exaggeration); short flights peak lower. Replaces the distance-scaled sine lift.
+- **Design language:** all corners use five role tokens (full, xs, sm, md, lg) with concentric nesting; compact controls share one height and floating globe controls share one surface/shadow.
+- **Fix:** wide multi-leg routes froze WebKit (Safari and every iOS browser) for ~15 s on load, e.g. the suggested London → Dubai → Singapore → Sydney: the camera's enclosing-cap search evaluated `atan2`/`hypot` per point thousands of times over ~350 points. It now compares dot products, frames from samples ≤ 2° apart and frames the first route once (≈ 0.45 s in Playwright WebKit; 12× faster in V8). Regression test added.
+- Durations of a day or more format as `1d 4h 05m`.
+- README now describes only the web app, its use and its sources; setup and commands live in `docs/DEVELOPMENT.md`.
+
+Limitations: the altitude profile is a fixed illustrative model (no aircraft types, step climbs or holding). Border lines follow Natural Earth's de facto depiction at 1:50m and are approximate at close zoom. Layover choices are not validated against minimum connection times.
+
 ## 2026-11-05 — Deployment verification and texture loading
 
 - First GitHub Pages deployment verified: Deploy workflow green (lint, unit, build, Chromium E2E), and the full four-project Playwright suite passes against https://tmrk.github.io/globehops/ (`E2E_BASE_URL`). The live bundle hashes match a local build of the same commit.

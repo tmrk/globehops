@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react';
 import previewUrl from '../assets/textures/earth-1k.webp';
 import mediumUrl from '../assets/textures/earth-4k.webp';
 import largeUrl from '../assets/textures/earth-8k.webp';
+import bordersUrl from '../data/generated/borders.json?url';
 import { GlobeRenderer, type GlobeRoute, type Insets } from './GlobeRenderer.ts';
 
 export interface GlobeViewProps {
   route: GlobeRoute;
   selectedLeg: number | null;
   insets: Insets;
+  showBorders: boolean;
   reducedMotion: boolean;
   /** Increment to re-frame the camera on the current route / leg. */
   fitNonce: number;
@@ -35,6 +37,8 @@ export default function GlobeView(props: GlobeViewProps) {
     try {
       renderer = new GlobeRenderer(el, {
         textures: { preview: previewUrl, medium: mediumUrl, large: largeUrl },
+        bordersUrl,
+        showBorders: latest.current.showBorders,
         reducedMotion: latest.current.reducedMotion,
         onLegClick: (leg) => latest.current.onLegClick(leg),
         onFitChange: (fits) => latest.current.onFitChange(fits),
@@ -66,11 +70,15 @@ export default function GlobeView(props: GlobeViewProps) {
     };
   }, []);
 
-  const { route, selectedLeg, insets, reducedMotion, fitNonce } = props;
+  const { route, selectedLeg, insets, showBorders, reducedMotion, fitNonce } = props;
 
   useEffect(() => {
     rendererRef.current?.setReducedMotion(reducedMotion);
   }, [reducedMotion]);
+
+  useEffect(() => {
+    rendererRef.current?.setBordersVisible(showBorders);
+  }, [showBorders]);
 
   // Insets first, so the initial framing accounts for panels covering the globe.
   useEffect(() => {
@@ -83,7 +91,8 @@ export default function GlobeView(props: GlobeViewProps) {
     // The first non-empty route appears already framed (no fly-in); arcs still draw in.
     const initial = firstRoute.current && route.markers.length > 0;
     if (route.markers.length > 0) firstRoute.current = false;
-    r.setRoute(route, { animate: true, frame: true });
+    // Frame once: animated for edits, instantly for the first route.
+    r.setRoute(route, { animate: true, frame: !initial });
     if (initial) r.frameCurrent(false);
   }, [route]);
 

@@ -124,4 +124,31 @@ describe('spherical geometry', () => {
     const close = enclosingCap([toVec3({ lat: 0, lng: -10 }), toVec3({ lat: 0, lng: 10 }), toVec3({ lat: 5, lng: 0 })]);
     expect(Math.abs(close.radius - 10 * rad)).toBeLessThan(rad);
   });
+  it('encloses long multi-leg routes quickly and accurately', () => {
+    // London → Dubai → Singapore → Sydney, densely sampled: once took seconds in WebKit.
+    const stops = [
+      { lat: 51.47, lng: -0.4614 },
+      { lat: 25.2528, lng: 55.3644 },
+      { lat: 1.35019, lng: 103.994 },
+      { lat: -33.9461, lng: 151.177 },
+    ];
+    const points = stops.slice(1).flatMap((to, i) => greatCirclePath(stops[i], to, 120));
+    const start = performance.now();
+    const cap = enclosingCap(points);
+    expect(performance.now() - start).toBeLessThan(250);
+    const farthest = Math.max(
+      ...points.map((p) =>
+        Math.acos(
+          Math.min(
+            1,
+            p.reduce((s, x, j) => s + x * cap.center[j], 0),
+          ),
+        ),
+      ),
+    );
+    expect(farthest).toBeCloseTo(cap.radius, 6);
+    // Halfway between the most distant pair is a lower bound for any enclosing cap.
+    expect(cap.radius).toBeGreaterThanOrEqual(centralAngle(stops[0], stops[3]) / 2 - 1e-9);
+    expect(cap.radius).toBeLessThan(1.35);
+  });
 });

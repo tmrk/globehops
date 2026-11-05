@@ -38,6 +38,8 @@ export interface Stop {
   /** Stable key for React lists (not persisted). */
   key: string;
   airportId: number | null;
+  /** Connection time when this stop is a transfer; null means the default. */
+  layoverMin: number | null;
 }
 
 export interface RouteState {
@@ -57,4 +59,14 @@ export interface Leg {
   distanceKm: number;
   /** Estimated flight time in minutes, null for a zero-length leg. */
   durationMin: number | null;
+}
+
+/** Time on the ground at a transfer stop, between two consecutive legs. */
+export interface Layover {
+  /** Index into RouteState.stops. */
+  stopIndex: number;
+  airport: Airport;
+  minutes: number;
+  /** True when the user changed it from the default. */
+  custom: boolean;
 }

@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import raw from '../data/generated/airports.json';
 import { decodeDataset } from '../data/airports.ts';
-import { computeLegs, createRouteState, filledAirportIds, MAX_STOPS, routeReducer as reduce } from './route.ts';
+import {
+  computeLayovers,
+  computeLegs,
+  createRouteState,
+  filledAirportIds,
+  MAX_STOPS,
+  routeReducer as reduce,
+} from './route.ts';
+import { DEFAULT_LAYOVER_MIN } from '../lib/layover.ts';
 import type { RouteAction } from './route.ts';
 const data = decodeDataset(raw);
 describe('route reducer', () => {
@@ -85,5 +93,41 @@ describe('route reducer', () => {
     expect(legs[1].distanceKm).toBe(0);
     expect(legs[1].durationMin).toBeNull();
     expect(computeLegs(createRouteState([999999999]).stops, (id) => data.byId.get(id))).toEqual([]);
+  });
+  it('stores custom layovers per stop, keeps them with their stop and keeps the selection', () => {
+    let s = reduce(createRouteState([1, 2, 3]), { type: 'selectLeg', leg: 1 });
+    s = reduce(s, { type: 'setLayover', index: 1, minutes: 180 });
+    expect(s.stops.map((x) => x.layoverMin)).toEqual([null, 180, null]);
+    expect(s.selectedLeg).toBe(1);
+    expect(reduce(s, { type: 'setLayover', index: 1, minutes: 180 })).toBe(s);
+    for (const invalid of [-5, 1.5, 99999])
+      expect(reduce(s, { type: 'setLayover', index: 1, minutes: invalid }).stops[1].layoverMin).toBeNull();
+    expect(reduce(s, { type: 'setLayover', index: 1, minutes: DEFAULT_LAYOVER_MIN }).stops[1].layoverMin).toBeNull();
+    expect(reduce(s, { type: 'setLayover', index: 7, minutes: 60 })).toBe(s);
+    const reversed = reduce(reduce(s, { type: 'addStop' }), { type: 'reverse' });
+    expect(reversed.stops.map((x) => [x.airportId, x.layoverMin])).toEqual([
+      [null, null],
+      [3, null],
+      [2, 180],
+      [1, null],
+    ]);
+    const loaded = reduce(s, { type: 'load', airportIds: [4, 5, 6], layovers: [null, 45, DEFAULT_LAYOVER_MIN] });
+    expect(loaded.stops.map((x) => x.layoverMin)).toEqual([null, 45, null]);
+    expect(reduce(loaded, { type: 'load', airportIds: [4, 5, 6], layovers: [null, 45] })).toBe(loaded);
+    expect(reduce(loaded, { type: 'load', airportIds: [4, 5, 6] }).stops[1].layoverMin).toBeNull();
+  });
+  it('derives layovers at transfers only, skipping empty stops', () => {
+    const [cph, lhr, jfk] = ['CPH', 'LHR', 'JFK'].map((c) => data.airports.find((a) => a.iata === c)!);
+    let state = createRouteState([cph.id, lhr.id, null, jfk.id], [null, 150, 60, null]);
+    const lookup = (id: number) => data.byId.get(id);
+    expect(computeLayovers(state.stops, computeLegs(state.stops, lookup))).toEqual([
+      { stopIndex: 1, airport: lhr, minutes: 150, custom: true },
+    ]);
+    state = reduce(state, { type: 'setLayover', index: 1, minutes: null });
+    expect(computeLayovers(state.stops, computeLegs(state.stops, lookup))[0]).toMatchObject({
+      minutes: DEFAULT_LAYOVER_MIN,
+      custom: false,
+    });
+    expect(computeLayovers(state.stops, [])).toEqual([]);
   });
 });

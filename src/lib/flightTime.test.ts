@@ -16,6 +16,8 @@ describe('flight-time estimate', () => {
       [65, '1h 05m'],
       [45, '45m'],
       [600, '10h 00m'],
+      [1440, '1d 0h 00m'],
+      [1745, '1d 5h 05m'],
     ] as const)
       expect(formatDuration(n)).toBe(text);
   });

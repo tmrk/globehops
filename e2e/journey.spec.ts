@@ -1,4 +1,4 @@
-import { test, expect, expectRoute, chooseAirport, stopButtons } from './fixtures.ts';
+import { test, expect, expectRoute, chooseAirport, stopButtons, airportField } from './fixtures.ts';
 
 test('first visit loads the example, its stops, legs and totals', async ({ page }) => {
   await page.goto('./');
@@ -35,7 +35,7 @@ test('autocomplete searches codes, city, aliases and diacritics and Escape clear
   // Canonicalisation happens only after data loading and route initialisation.
   await expect(page).toHaveURL(/\/globehops\/$/);
   await page.getByRole('button', { name: 'Departure airport: choose an airport' }).click();
-  const input = page.getByRole('combobox');
+  const input = airportField(page);
   const options = page.getByRole('listbox', { name: 'Airport suggestions' }).getByRole('option');
   for (const [query, code] of [
     ['JFK', 'JFK'],
@@ -99,13 +99,13 @@ test('mobile takeover focuses input, keeps results in viewport, selects and canc
   await expect(
     page.getByRole('dialog', { name: 'Destination airport', exact: true }).getByRole('combobox'),
   ).toBeFocused();
-  await page.getByRole('combobox').fill('toronto');
+  await airportField(page).fill('toronto');
   await page.getByRole('option', { name: /^YYZ\b/ }).tap();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expectRoute(page, ['CPH', 'YYZ']);
   await page.screenshot({ path: testInfo.outputPath('edited-mobile-journey.png'), animations: 'disabled' });
   await stopButtons(page).first().tap();
-  await page.getByRole('combobox').fill('JFK');
+  await airportField(page).fill('JFK');
   await page.getByRole('button', { name: 'Back to journey' }).tap();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expectRoute(page, ['CPH', 'YYZ']);
@@ -124,7 +124,7 @@ test('insert and remove a transfer, reverse, clear and choose a suggestion', asy
   await expectRoute(page, ['JFK', 'CPH']);
   await page.getByRole('button', { name: 'Clear route', exact: true }).click();
   // Clearing opens the inline departure picker on desktop; dismiss it before using chips.
-  if (await page.getByRole('combobox').count()) await page.getByRole('combobox').press('Escape');
+  if (await airportField(page).count()) await airportField(page).press('Escape');
   await expect(stopButtons(page)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Departure airport: choose an airport' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Journey totals' })).toHaveCount(0);
@@ -245,6 +245,55 @@ test('About credits open and Escape closes the dialog', async ({ page }) => {
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('NASA');
   await expect(dialog).toContainText('OurAirports');
+  await expect(dialog).toContainText('Natural Earth');
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
+});
+
+test('connections get a default layover that can be changed, totalled, shared and restored', async ({ page }) => {
+  await page.goto('./?route=CPH-LHR-JFK');
+  await expectRoute(page, ['CPH', 'LHR', 'JFK']);
+  const totals = page.getByRole('region', { name: 'Journey totals' });
+  const london = page.getByRole('combobox', { name: 'Layover in London' });
+  await expect(london).toHaveValue('90');
+  await expect(page.getByRole('combobox', { name: /^Layover in/ })).toHaveCount(1);
+  // 1h 40m + 7h 00m flying, plus the default 1h 30m layover.
+  await expect(totals).toContainText('8h 40m flying · 1h 30m layover');
+  await expect(totals).toContainText('≈ 10h 10m');
+  await london.selectOption('180');
+  await expect(page).toHaveURL(/\/globehops\/\?route=CPH-LHR_180-JFK$/);
+  await expect(totals).toContainText('≈ 11h 40m');
+  await expect(totals).toContainText('3h 00m layover');
+  // The layover belongs to its stop: reversing keeps it at London.
+  await page.getByRole('button', { name: 'Reverse', exact: true }).click();
+  await expect(page).toHaveURL(/\/globehops\/\?route=JFK-LHR_180-CPH$/);
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: 'Layover in London' })).toHaveValue('180');
+  await page.getByRole('combobox', { name: 'Layover in London' }).selectOption('90');
+  await expectRoute(page, ['JFK', 'LHR', 'CPH']);
+  // Shared links may carry any whole-minute layover; it appears in the menu as is.
+  await page.goto('./?route=LHR-DXB_100-SIN-SYD');
+  await expect(page.getByRole('combobox', { name: 'Layover in Dubai' })).toHaveValue('100');
+  await expect(page.getByRole('combobox', { name: 'Layover in Singapore' })).toHaveValue('90');
+  await expect(totals).toContainText('3h 10m in layovers');
+});
+
+test('country borders are on by default and the choice is remembered', async ({ page }) => {
+  const bordersLoaded = page.waitForResponse((response) => /borders-.*\.json$/.test(new URL(response.url()).pathname));
+  await page.goto('./?route=CPH-LHR');
+  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  expect((await bordersLoaded).status()).toBe(200);
+  const toggle = page.getByRole('button', { name: 'Country borders' });
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  // Hidden borders are not even downloaded on the next visit.
+  const requested: string[] = [];
+  page.on('request', (request) => requested.push(new URL(request.url()).pathname));
+  await page.reload();
+  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await expect(page.getByRole('button', { name: 'Country borders' })).toHaveAttribute('aria-pressed', 'false');
+  expect(requested.filter((path) => /borders-.*\.json$/.test(path))).toEqual([]);
+  await page.getByRole('button', { name: 'Country borders' }).click();
+  await expect(page.getByRole('button', { name: 'Country borders' })).toHaveAttribute('aria-pressed', 'true');
 });

@@ -1,17 +1,20 @@
 import { useRef, useState } from 'react';
 import { airportCode, displayCity } from '../data/airports.ts';
 import { formatDuration } from '../lib/flightTime.ts';
+import { DEFAULT_LAYOVER_MIN, formatLayover, layoverChoices } from '../lib/layover.ts';
 import { formatDistance } from '../lib/units.ts';
 import { legColor } from '../lib/legColors.ts';
 import { MAX_STOPS } from '../state/route.ts';
 import { stopCaption, stopLabel, stopPlaceholder } from '../lib/stopText.ts';
-import type { Airport, DistanceUnit, Leg, Stop } from '../types.ts';
+import type { Airport, DistanceUnit, Layover, Leg, Stop } from '../types.ts';
 import { CodeBadge } from './CodeBadge.tsx';
-import { IconClose, IconGrip, IconPlus } from './Icons.tsx';
+import { IconChevronDown, IconClock, IconClose, IconGrip, IconPlus } from './Icons.tsx';
 
 export interface StopListProps {
   stops: Stop[];
   legs: Leg[];
+  /** Layovers at transfer stops, keyed by their stop index. */
+  layovers: Layover[];
   lookup: (id: number) => Airport | undefined;
   unit: DistanceUnit;
   selectedLeg: number | null;
@@ -24,6 +27,7 @@ export interface StopListProps {
   onAdd: () => void;
   onMove: (from: number, to: number) => void;
   onSelectLeg: (leg: number | null) => void;
+  onLayoverChange: (stopIndex: number, minutes: number | null) => void;
 }
 
 interface DragState {
@@ -43,6 +47,7 @@ export function StopList(props: StopListProps) {
 
   const legByFromStop = new Map<number, Leg>();
   for (const leg of legs) if (leg.toStop === leg.fromStop + 1) legByFromStop.set(leg.fromStop, leg);
+  const layoverByStop = new Map(props.layovers.map((l) => [l.stopIndex, l]));
 
   // ---- Drag to reorder (pointer events: mouse, touch, pen) ----
   const onGripPointerDown = (e: React.PointerEvent<HTMLButtonElement>, index: number) => {
@@ -97,6 +102,7 @@ export function StopList(props: StopListProps) {
           const showDropAbove = drag && drag.target === i && drag.target < drag.index;
           const showDropBelow = drag && drag.target === i && drag.target > drag.index;
           const nextColor = leg ? legColor(leg.index) : undefined;
+          const layover = layoverByStop.get(i);
 
           return (
             <li
@@ -165,6 +171,34 @@ export function StopList(props: StopListProps) {
                   </>
                 )}
               </div>
+              {layover && (
+                <div className="layover" style={style}>
+                  <span className="layover__line" aria-hidden="true" />
+                  <span className="layover__pick">
+                    <IconClock size={15} className="layover__icon" />
+                    <span className="layover__value" aria-hidden="true">
+                      {formatLayover(layover.minutes)} layover
+                    </span>
+                    <IconChevronDown size={14} className="layover__chev" />
+                    <select
+                      className="layover__select"
+                      aria-label={`Layover in ${displayCity(layover.airport)}`}
+                      value={layover.minutes}
+                      onChange={(e) => {
+                        const minutes = Number(e.target.value);
+                        props.onLayoverChange(i, minutes === DEFAULT_LAYOVER_MIN ? null : minutes);
+                      }}
+                    >
+                      {layoverChoices(layover.minutes).map((m) => (
+                        <option key={m} value={m}>
+                          {formatLayover(m)}
+                          {m === DEFAULT_LAYOVER_MIN ? ' (default)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </div>
+              )}
               {!isLast && (
                 <div
                   className={`connector${leg ? ' connector--leg' : ''}${leg && selectedLeg === leg.index ? ' is-selected' : ''}`}

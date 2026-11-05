@@ -97,7 +97,16 @@ export function enclosingCap(points: Vec3[]): { center: Vec3; radius: number } {
     [0, 0, 1],
     [0, 0, -1],
   ];
-  const radius = (c: Vec3) => points.reduce((r, p) => Math.max(r, angle(c, p)), 0);
+  // Hot loop (thousands of evaluations): the farthest point has the smallest dot product, so compare
+  // dot products and take one acos per evaluation instead of an atan2/hypot per point.
+  const radius = (c: Vec3) => {
+    let minDot = 1;
+    for (const p of points) {
+      const d = c[0] * p[0] + c[1] * p[1] + c[2] * p[2];
+      if (d < minDot) minDot = d;
+    }
+    return Math.acos(Math.max(-1, minDot));
+  };
   let best = { center: starts[0], radius: Infinity };
   for (const start of starts) {
     let center = start,

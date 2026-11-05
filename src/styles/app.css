@@ -19,8 +19,23 @@
   --accent-ink: #1d1404;
   --focus: #9ccbff;
   --danger: #ff8a7a;
-  --radius-lg: 22px;
-  --radius: 14px;
+  /* Shape scale. Every corner uses one of these roles:
+     full — all buttons and controls (icon buttons are circles, the rest capsules), dots and rules;
+     xs — tags (code badges, globe labels, inline code);
+     sm — rows, fields, list options, notes;
+     md — menus and toasts (sm items inset by 4px);
+     lg — panels and dialogs (sm rows inset by 10px). Nested corners stay concentric. */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 999px;
+  /* Compact controls inside the panel share one height; floating globe controls another. */
+  --control-h: 34px;
+  --float-h: 44px;
+  --surface-float: rgba(9, 13, 22, 0.8);
+  --surface-float-hover: rgba(22, 29, 44, 0.9);
+  --shadow-float: 0 6px 20px rgba(0, 0, 0, 0.35);
   --font: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --safe-top: env(safe-area-inset-top, 0px);
@@ -167,7 +182,7 @@ a {
   width: 9px;
   height: 9px;
   margin: -4.5px 0 0 -4.5px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: #fff;
   box-shadow:
     0 0 0 2px rgba(4, 7, 13, 0.75),
@@ -204,7 +219,7 @@ a {
   top: 0;
   transform: translate(9px, -25px);
   padding: 4px 6px 3px;
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   background: rgba(5, 8, 15, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.13);
   color: #fff;
@@ -322,7 +337,7 @@ a {
   flex: none;
   width: 40px;
   height: 40px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--text-2);
   transition:
     background-color 0.15s,
@@ -349,27 +364,33 @@ a {
 }
 
 .icon-btn--floating {
-  width: 44px;
-  height: 44px;
-  background: rgba(9, 13, 22, 0.78);
+  width: var(--float-h);
+  height: var(--float-h);
+  background: var(--surface-float);
   border: 1px solid var(--line);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-float);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   color: var(--text);
 }
 
 .icon-btn--floating:hover {
-  background: rgba(22, 29, 44, 0.9);
+  background: var(--surface-float-hover);
+}
+
+/* Toggles (map layers): on looks like any active control; off is dimmed, like the unselected unit. */
+.icon-btn--floating[aria-pressed='false'] {
+  color: var(--text-3);
+  background: rgba(9, 13, 22, 0.55);
 }
 
 .chip-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 34px;
+  height: var(--control-h);
   padding: 0 12px 0 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.025);
   color: var(--text-2);
@@ -388,8 +409,11 @@ a {
 }
 
 .text-btn {
-  padding: 8px 8px;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-h);
+  padding: 0 10px;
+  border-radius: var(--radius-full);
   color: var(--text-3);
   font-size: 13px;
   font-weight: 500;
@@ -447,7 +471,7 @@ a {
 .sheet-handle span {
   width: 38px;
   height: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-full);
   background: var(--line-strong);
 }
 
@@ -545,10 +569,13 @@ a {
 }
 
 .credits {
-  padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  padding: 0 10px;
   font-size: 11.5px;
   color: var(--text-3);
-  border-radius: 8px;
+  border-radius: var(--radius-full);
   text-align: right;
 }
 
@@ -576,7 +603,7 @@ a {
 .stop-item.is-dragging .stop {
   background: var(--surface-raised);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
 }
 
 .stop-item.drop-above::before,
@@ -586,7 +613,7 @@ a {
   left: 36px;
   right: 8px;
   height: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-full);
   background: var(--accent);
 }
 
@@ -604,7 +631,7 @@ a {
   align-items: center;
   min-height: 56px;
   padding-left: 30px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
 }
 
 .stop__node {
@@ -614,7 +641,7 @@ a {
   width: 12px;
   height: 12px;
   margin-top: -6px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: #fff;
   box-shadow: 0 0 0 3px var(--surface-solid);
   z-index: 1;
@@ -661,7 +688,7 @@ a {
   min-width: 0;
   min-height: 52px;
   padding: 7px 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   text-align: left;
   transition: background-color 0.15s;
 }
@@ -678,7 +705,7 @@ a {
   flex: none;
   min-width: 48px;
   padding: 5px 7px 4px;
-  border-radius: 7px;
+  border-radius: var(--radius-xs);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid var(--line);
   font: 600 13.5px/1 var(--mono);
@@ -722,7 +749,7 @@ a {
   height: 36px;
   padding: 0 12px;
   flex: 1;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1px dashed var(--line-strong);
   color: var(--text-3);
   font-size: 15px;
@@ -779,7 +806,7 @@ a {
   top: -24px;
   bottom: -24px;
   width: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-full);
   background: repeating-linear-gradient(to bottom, var(--line-strong) 0 4px, transparent 4px 8px);
 }
 
@@ -798,9 +825,9 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  min-height: 32px;
+  min-height: var(--control-h);
   padding: 4px 12px 4px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--text-2);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
@@ -824,7 +851,7 @@ a {
   place-items: center;
   width: 19px;
   height: 19px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: var(--next-color, var(--accent));
   color: var(--accent-ink);
   font: 700 11px/1 var(--mono);
@@ -853,13 +880,93 @@ a {
   }
 }
 
+/* Layover at a transfer: ground time between two flights, drawn as a dotted (on-the-ground) timeline. */
+.layover {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h);
+  padding-left: 30px;
+}
+
+.layover__line {
+  position: absolute;
+  left: 16px;
+  top: -24px;
+  bottom: 0;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: repeating-linear-gradient(to bottom, var(--text-3) 0 2px, transparent 2px 6px);
+}
+
+/* The next flight's line starts below the layover instead of reaching up to the stop. */
+.layover + .connector .connector__line {
+  top: 0;
+}
+
+.layover__pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: var(--control-h);
+  padding: 0 10px 0 9px;
+  border-radius: var(--radius-full);
+  color: var(--text-3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.layover__value {
+  white-space: nowrap;
+}
+
+.layover__icon,
+.layover__chev {
+  flex: none;
+}
+
+.layover__pick:hover,
+.layover__pick:focus-within {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.layover__pick:has(.layover__select:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* The native select covers the whole capsule: native pickers on touch, keyboard and screen-reader
+   support everywhere, while the visible capsule matches the other controls. */
+.layover__select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px; /* ≥16px prevents iOS zoom-on-focus */
+  border: 0;
+  border-radius: inherit;
+  appearance: none;
+}
+
+.layover__select option {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
 .add-stop {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 2px 0 4px 18px;
-  padding: 9px 14px 9px 10px;
-  border-radius: 999px;
+  height: var(--control-h);
+  margin: 4px 0 4px 18px;
+  padding: 0 12px 0 10px;
+  border-radius: var(--radius-full);
   color: var(--accent);
   font-size: 14px;
   font-weight: 550;
@@ -890,8 +997,9 @@ a {
 }
 
 .suggestion {
-  padding: 7px 12px;
-  border-radius: 999px;
+  min-height: var(--control-h);
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--line);
   color: var(--text-2);
   font-size: 13px;
@@ -962,7 +1070,7 @@ a {
   width: 26px;
   height: 26px;
   margin: -4px 0;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   color: var(--text-3);
 }
 
@@ -976,16 +1084,16 @@ a {
   display: inline-flex;
   margin-left: auto;
   padding: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.02);
 }
 
 .unit-toggle button {
   min-width: 40px;
-  height: 32px;
+  height: var(--control-h);
   padding: 0 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font: 600 12.5px/1 var(--mono);
   color: var(--text-3);
   transition:
@@ -1007,7 +1115,7 @@ a {
 .summary__info {
   margin-top: 8px;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.045);
   font-size: 12.5px;
   color: var(--text-2);
@@ -1015,6 +1123,10 @@ a {
 
 .summary__info p {
   margin: 0;
+}
+
+.summary__info p + p {
+  margin-top: 6px;
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -1037,7 +1149,7 @@ a {
   flex: 1;
   min-width: 0;
   height: 46px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
@@ -1071,7 +1183,7 @@ a {
   padding: 4px;
   max-height: 340px;
   overflow-y: auto;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--surface-raised);
   border: 1px solid var(--line);
 }
@@ -1086,7 +1198,7 @@ a {
   gap: 12px;
   min-height: 52px;
   padding: 7px 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -1160,7 +1272,6 @@ a {
 
 .picker--takeover .picker__field {
   height: 50px;
-  border-radius: 14px;
 }
 
 .picker__caption {
@@ -1234,25 +1345,28 @@ a {
   pointer-events: auto;
 }
 
-.hud > .icon-btn--floating {
+.hud__tools {
   position: absolute;
   right: 0;
   bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .leg-stepper {
   display: flex;
   align-items: center;
   gap: 2px;
-  height: 44px;
+  height: var(--float-h);
   padding: 0 2px;
-  border-radius: 999px;
-  background: rgba(9, 13, 22, 0.82);
+  border-radius: var(--radius-full);
+  background: var(--surface-float);
   border: 1px solid var(--line);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-float);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-  max-width: calc(100% - 60px);
+  max-width: calc(100% - 2 * (var(--float-h) + 12px));
 }
 
 .leg-stepper__label {
@@ -1301,7 +1415,7 @@ a {
   gap: 8px;
   max-width: calc(100% - 32px);
   padding: 10px 18px;
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: #f5f1e8;
   color: #16130d;
   font-size: 14px;
@@ -1314,7 +1428,7 @@ a {
 .toast__detail {
   width: min(520px, 80vw);
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-xs);
   border: 1px solid rgba(0, 0, 0, 0.15);
   background: #fff;
   color: #16130d;
@@ -1417,6 +1531,10 @@ a {
   .icon-btn--small {
     width: 36px;
     height: 36px;
+  }
+  .icon-btn--floating {
+    width: var(--float-h);
+    height: var(--float-h);
   }
 }
 

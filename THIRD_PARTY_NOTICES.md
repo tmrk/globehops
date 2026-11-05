@@ -13,4 +13,6 @@ The GlobeHops code is MIT licensed; bundled libraries, fonts and source content 
 
 Earth textures derive from NASA Blue Marble Next Generation, July 2004, with topography and bathymetry. Credit: **NASA Earth Observatory (Reto Stöckli, NASA GSFC)**. NASA imagery is generally not subject to US copyright; acknowledgement is requested and no NASA endorsement is implied. See the [NASA source](https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-topography-bathymetry/) and [media guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media/).
 
+Country borders derive from [Natural Earth](https://www.naturalearthdata.com/) 1:50m Admin 0 boundary lines (land), v5.1.2, which is in the public domain ([terms of use](https://www.naturalearthdata.com/about/terms-of-use/)). Made with Natural Earth.
+
 Airport content derives from [OurAirports](https://ourairports.com/data/), released to the public domain without an accuracy guarantee. Source provenance, cleaning rules and texture modifications are documented in [DATA_SOURCES.md](docs/DATA_SOURCES.md). Local UI icons and logo are drawn in the project’s SVG components.

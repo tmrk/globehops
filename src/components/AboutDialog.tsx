@@ -1,6 +1,8 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import type { DatasetMeta } from '../data/airports.ts';
+import { ALTITUDE_EXAGGERATION, DEFAULT_ALTITUDE_MODEL } from '../lib/altitude.ts';
 import { DEFAULT_FLIGHT_TIME_MODEL } from '../lib/flightTime.ts';
+import { DEFAULT_LAYOVER_MIN, formatLayover } from '../lib/layover.ts';
 import { LogoMark } from './Brand.tsx';
 import { IconClose } from './Icons.tsx';
 
@@ -20,6 +22,7 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
     ? new Date(meta.generatedAt).toLocaleDateString('en-GB', { dateStyle: 'medium' })
     : null;
   const m = DEFAULT_FLIGHT_TIME_MODEL;
+  const a = DEFAULT_ALTITUDE_MODEL;
 
   return (
     <dialog
@@ -55,12 +58,15 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
             km). Real flights often deviate because of winds, air-traffic control, weather and restricted airspace.
           </li>
           <li>
-            The raised arcs are illustrative only — they are not an altitude profile. The dashed line beneath shows the
-            ground track.
+            Each arc follows a <strong>simplified flight profile</strong>: a climb of about {a.climbMinutes} min to a
+            typical cruising altitude of {a.cruiseAltitudeKm} km, level cruise, and a descent over the last{' '}
+            {a.descentMinutes} min. Short flights peak lower. Height is exaggerated {ALTITUDE_EXAGGERATION}× so it shows
+            at globe scale; the dashed line beneath is the ground track.
           </li>
           <li>
             Flight times are <strong>estimates</strong>: distance at an average {m.cruiseSpeedKmh} km/h plus{' '}
-            {m.overheadMinutes} min for take-off, climb, approach and landing. Layovers are not included.
+            {m.overheadMinutes} min for take-off, climb, approach and landing. Total time adds a layover at each
+            connection ({formatLayover(DEFAULT_LAYOVER_MIN)} unless you change it).
           </li>
         </ul>
         <h3>Sources &amp; credits</h3>
@@ -77,6 +83,14 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
             </a>{' '}
             (public domain)
             {updated ? `, updated ${updated}` : ''}.
+          </li>
+          <li>
+            Country borders:{' '}
+            <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">
+              Natural Earth
+            </a>{' '}
+            1:50m boundary lines (public domain). They show de facto boundaries and imply no position on territorial
+            disputes.
           </li>
           <li>
             Built with React, Three.js and the Geist typefaces. Open source under the MIT licence —{' '}

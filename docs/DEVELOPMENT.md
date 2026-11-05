@@ -2,9 +2,25 @@
 
 ## Setup and commands
 
-Use Node 22.18+ (CI: Node 24). Run `npm install`, then `npm run dev` and open the printed URL under `/globehops/`. `npm run build` produces `dist/`; `npm run preview -- --port 4173 --strictPort` serves it at `http://localhost:4173/globehops/`.
+Use Node 22.18+ (CI: Node 24). Run `npm install`, then `npm run dev` and open the printed URL under `/globehops/`. `npm run build` produces `dist/`; `npm run preview -- --port 4173 --strictPort` serves it at `http://localhost:4173/globehops/`. The stack is React 19, TypeScript, Three.js and Vite, with Vitest, Playwright, ESLint, Prettier and sharp for development.
 
-The [README command table](../README.md#development) lists every task. Useful focused commands:
+| Command                  | Purpose                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `npm install`            | Install dependencies; use `npm ci` for the lockfile in CI.                       |
+| `npm run dev`            | Start the Vite development server.                                               |
+| `npm run build`          | Type-check and build `dist/`.                                                    |
+| `npm run preview`        | Serve the production build.                                                      |
+| `npm test`               | Run unit tests.                                                                  |
+| `npm run test:e2e`       | Build and test the Pages path in all four browser projects.                      |
+| `npm run lint`           | ESLint and TypeScript checks.                                                    |
+| `npm run format`         | Apply Prettier formatting.                                                       |
+| `npm run data:update`    | Download, validate and regenerate airport data if content changes.               |
+| `npm run data:check`     | Validate a fresh download without writing files; report whether it would change. |
+| `npm run borders:build`  | Build the country-border dataset from the pinned Natural Earth GeoJSON.          |
+| `npm run textures:build` | Build WebP textures from a separately downloaded NASA source image.              |
+| `npm run icons:build`    | Generate PNG app icons from the SVG sources in `public/`.                        |
+
+Useful focused commands:
 
 ```sh
 npm test -- src/data/search.test.ts
@@ -46,6 +62,8 @@ npm run data:check -- --offline
 ```
 
 The last command needs `.cache/ourairports/{airports,countries,regions}.csv`. `data:check` reports differences without writing and does not fail simply because data changed. Review changed counts, aliases and the build record, then run tests/build. Generated JSON and its build record belong together. Selection, validation and licence details are in [data sources](DATA_SOURCES.md).
+
+Country borders: `npm run borders:build` reads `.cache/naturalearth/ne_50m_admin_0_boundary_lines_land.geojson`, downloading the pinned Natural Earth v5.1.2 file first if the cache is missing. `-- --refresh` always downloads, `-- --offline` requires the cache, and a positional path reads another GeoJSON file. The build quantises coordinates to 0.01°, delta-encodes each line, validates ranges and minimum line/point counts, then atomically writes `src/data/generated/borders.json`. To move to a newer Natural Earth release, change the pinned URL in `scripts/lib/borders.ts`, rebuild and review the line/point counts it prints.
 
 Textures: download the [NASA source JPEG](https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x21600x10800.jpg) to `.cache/bmng/world.topo.bathy.200407.3x21600x10800.jpg` (create the directory first), then run `npm run textures:build`. An explicit input works with `npm run textures:build -- /path/to/source.jpg`. The source must be a 2:1 image; commit generated WebP outputs, never the source/cache.
 

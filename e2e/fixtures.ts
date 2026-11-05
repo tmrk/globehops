@@ -57,8 +57,11 @@ export async function expectRoute(page: Page, codes: string[]) {
   await expect(page).toHaveURL(new RegExp(`/globehops/\\?route=${codes.join('-')}$`));
 }
 
+/** The airport search field (layover menus are comboboxes too). */
+export const airportField = (page: Page) => page.getByRole('combobox', { name: /airport$|^Stop \d+$/ });
+
 export async function chooseAirport(page: Page, query: string, code: string) {
-  await page.getByRole('combobox').fill(query);
+  await airportField(page).fill(query);
   await page
     .getByRole('listbox', { name: 'Airport suggestions' })
     .getByRole('option', { name: new RegExp(`^${code}\\b`) })
