@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="gh-globe" cx="38%" cy="32%" r="78%">
+      <stop offset="0" stop-color="#3a7fc4"/>
+      <stop offset="0.55" stop-color="#16406f"/>
+      <stop offset="1" stop-color="#0a1c35"/>
+    </radialGradient>
+  </defs>
+  <circle cx="31" cy="34" r="22" fill="url(#gh-globe)"/>
+  <path d="M31 12.6c-5.2 5.6-8 13-8 21.4s2.8 15.8 8 21.4M9.4 31.5c6.6 2.1 14 3.2 21.6 3.2s15-1.1 21.6-3.2" fill="none" stroke="#a9cfff" stroke-opacity=".28" stroke-width="1.6"/>
+  <circle cx="31" cy="34" r="22" fill="none" stroke="#a9cfff" stroke-opacity=".45" stroke-width="1.6"/>
+  <path d="M12.5 46.5C17.5 27.5 33 15 53 15.5" fill="none" stroke="#ffc24b" stroke-width="4.6" stroke-linecap="round"/>
+  <circle cx="12.5" cy="46.5" r="5.4" fill="#ffc24b"/>
+  <circle cx="53" cy="15.5" r="5" fill="#fff" stroke="#ffc24b" stroke-width="2.8"/>
+</svg>

@@ -1,0 +1,98 @@
+# Daily refresh of the OurAirports dataset.
+#
+# 1. Download the latest CSVs, validate them (schema, row-count thresholds, sentinel
+#    airports) and rebuild the compact dataset deterministically. The script refuses to
+#    write anything if validation fails, so a broken upstream never replaces good data.
+# 2. Only when the content hash changed: run the unit tests and a production build.
+# 3. Commit the dataset to main with the workflow's GITHUB_TOKEN. If branch protection
+#    rejects the push, open a pull request instead (requires "Allow GitHub Actions to
+#    create and approve pull requests" in the repository settings).
+# 4. Redeploy by calling the Deploy workflow directly (pushes made with GITHUB_TOKEN do
+#    not trigger other workflows).
+name: Update airport data
+
+on:
+  schedule:
+    - cron: '23 4 * * *' # daily, 04:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: airport-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      changed: ${{ steps.update.outputs.CHANGED }}
+      pushed: ${{ steps.commit.outputs.pushed }}
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download, validate and rebuild dataset
+        id: update
+        run: npm run data:update
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Unit tests
+        if: steps.update.outputs.CHANGED == 'true'
+        run: npm test
+
+      - name: Build check
+        if: steps.update.outputs.CHANGED == 'true'
+        run: npm run build
+
+      - name: Commit dataset
+        id: commit
+        if: steps.update.outputs.CHANGED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data/generated/airports.json data/airports-build.json
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          day="$(date -u +%Y-%m-%d)"
+          git commit -m "data: refresh OurAirports dataset ($day)"
+          if git push origin HEAD:main; then
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Direct push to main was rejected (branch protection?). Opening a pull request instead."
+            branch="data/ourairports-$day"
+            git push --force origin "HEAD:refs/heads/$branch"
+            gh pr create --base main --head "$branch" \
+              --title "data: refresh OurAirports dataset ($day)" \
+              --body "Automated, validated refresh of the OurAirports dataset. Merging deploys the site." \
+              || echo "::warning::Could not open a pull request; enable 'Allow GitHub Actions to create and approve pull requests'."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: update
+    if: needs.update.outputs.pushed == 'true'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ref: ${{ needs.update.outputs.sha }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write

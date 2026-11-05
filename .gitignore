@@ -1,0 +1,27 @@
+# Dependencies & build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# Local caches (downloaded source data/imagery, scratch)
+.cache/
+*.local
+.env
+.env.*
+
+# Editors & OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Logs
+*.log
+npm-debug.log*

@@ -1,0 +1,9 @@
+dist
+node_modules
+coverage
+playwright-report
+test-results
+.cache
+src/data/generated
+data/airports-build.json
+package-lock.json
