@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Airport } from '../types.ts';
 import { computeJourney } from '../lib/schedule.ts';
 import { buildTimeline } from '../lib/timeline.ts';
@@ -250,4 +250,37 @@ describe('simulation frames', () => {
     off();
     clock.dispose();
   });
+});
+
+it('shares the clock subscription and releases it after the last listener leaves', () => {
+  const clock = new SimulationClock({ now: () => timeline.start });
+  const context = { journey, timeline, open: true, dayNight: false, follow: false };
+  const getContext = vi.fn(() => context);
+  const feed = createSimulationFeed(clock, getContext);
+  const subscribe = vi.spyOn(clock, 'subscribe');
+  const first = vi.fn();
+  const second = vi.fn();
+  const offFirst = feed.subscribe(first);
+  const offSecond = feed.subscribe(second);
+  expect(subscribe).toHaveBeenCalledTimes(1);
+  feed.getFrame();
+  getContext.mockClear();
+  clock.seek(timeline.start + 1000);
+  expect(getContext).toHaveBeenCalledTimes(1);
+  expect(first).toHaveBeenCalledTimes(1);
+  expect(second).toHaveBeenCalledTimes(1);
+  offFirst();
+  clock.seek(timeline.start + 2000);
+  expect(first).toHaveBeenCalledTimes(1);
+  expect(second).toHaveBeenCalledTimes(2);
+  offSecond();
+  getContext.mockClear();
+  clock.seek(timeline.start + 3000);
+  expect(getContext).not.toHaveBeenCalled();
+  const offAgain = feed.subscribe(first);
+  expect(subscribe).toHaveBeenCalledTimes(2);
+  clock.seek(timeline.start + 4000);
+  expect(first).toHaveBeenCalledTimes(2);
+  offAgain();
+  clock.dispose();
 });

@@ -4,7 +4,7 @@ import { buildTimeline, type Timeline } from './timeline.ts';
 export const JOURNEY_IDS = ['A', 'B', 'C', 'D'] as const;
 export type JourneyId = (typeof JOURNEY_IDS)[number];
 export const JOURNEY_COLORS = ['#ffc24b', '#5ea8f2', '#f0607e', '#56d3a6'] as const;
-export const MAX_JOURNEYS = 4;
+export const MAX_JOURNEYS = JOURNEY_IDS.length;
 export function journeyColor(index: number): string {
   return JOURNEY_COLORS[index % MAX_JOURNEYS];
 }
@@ -97,12 +97,11 @@ export function compareMetrics(list: ComparedJourney[]): ComparisonMetrics {
   const minimum = valid.length ? Math.min(...valid.map((journey) => journey.journeyMin)) : 0;
   const deltaMin: Record<JourneyId, number> = { A: 0, B: 0, C: 0, D: 0 };
   for (const journey of valid) deltaMin[journey.id] = journey.journeyMin - minimum;
+  const arrivals = valid.flatMap((journey) => (journey.end === null ? [] : [{ id: journey.id, value: journey.end }]));
   return {
     journeys,
     fastest: winner(valid.map((journey) => ({ id: journey.id, value: journey.journeyMin }))),
-    firstArrival: valid.every((journey) => journey.end !== null)
-      ? winner(valid.map((journey) => ({ id: journey.id, value: journey.end! })))
-      : null,
+    firstArrival: arrivals.length === valid.length ? winner(arrivals) : null,
     deltaMin,
   };
 }

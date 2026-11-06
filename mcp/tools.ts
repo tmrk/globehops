@@ -11,7 +11,8 @@ import {
 } from '../src/agent/plan.ts';
 import { linkStateToDocument, type ItineraryDocument } from '../src/agent/itinerary.ts';
 import { parseLink } from '../src/state/link.ts';
-import { MAX_JOURNEYS } from '../src/agent/contract.ts';
+import { MAX_LABEL_LENGTH } from '../src/lib/journeyLabel.ts';
+import { MAX_JOURNEYS, MAX_URL_LENGTH, MAX_TIMELINE_SAMPLES } from '../src/agent/contract.ts';
 import { ITINERARY_SCHEMA } from '../src/agent/schema.ts';
 
 // Derive the MCP document description and validation directly from the published schema.
@@ -26,7 +27,7 @@ const itinerary = z
   .describe('ItineraryDocument v1; airport-local wall times, optional explicit offsets.');
 const route = z
   .string()
-  .max(8000)
+  .max(MAX_URL_LENGTH)
   .describe('Airport codes separated by hyphens; custom transfer minutes follow _, e.g. CPH-LHR_180-JFK.');
 const journeyFields = { itinerary: itinerary.optional(), route: route.optional() };
 const journeyInput = z
@@ -52,7 +53,7 @@ const comparisonJourney = z
     label: z
       .string()
       .min(1)
-      .max(40)
+      .max(MAX_LABEL_LENGTH)
       .regex(new RegExp(ITINERARY_SCHEMA.properties.journeys.items.properties.label.pattern))
       .optional(),
     route: route.optional(),
@@ -83,12 +84,15 @@ export const INPUT_SCHEMAS = {
   get_journey_timeline: z
     .strictObject({
       ...journeyFields,
-      at: z.array(z.string().max(50).describe('ISO instant with Z or an explicit offset.')).max(1000).optional(),
+      at: z
+        .array(z.string().max(50).describe('ISO instant with Z or an explicit offset.'))
+        .max(MAX_TIMELINE_SAMPLES)
+        .optional(),
       samples: z
         .number()
         .int()
         .min(2)
-        .max(1000)
+        .max(MAX_TIMELINE_SAMPLES)
         .optional()
         .describe('Evenly spaced samples including journey boundaries; default 10.'),
       assumeDeparture: z
@@ -101,7 +105,7 @@ export const INPUT_SCHEMAS = {
     .refine((v) => !(v.at !== undefined && v.samples !== undefined), 'Supply at or samples, not both.'),
 };
 export type ToolName = keyof typeof INPUT_SCHEMAS;
-export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
+const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   compare_journeys:
     'Compare 2–4 alternative journeys (e.g. different airlines/connections between the same cities) and return a single GlobeHops link that plays them simultaneously on one clock, with per-journey totals and which is fastest/arrives first. Use airport-local wall times from the timetable; undated journeys align to the earliest dated departure or assumeDeparture.',
   search_airports: 'Find airports using GlobeHops ranking, with coordinates and IANA time zones.',
@@ -154,19 +158,17 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
     if (name === 'visualize_route') {
       const visual = INPUT_SCHEMAS.visualize_route.parse(raw);
       if (visual.view !== undefined) {
+        const parsedRoute = args.route !== undefined ? parseLink(`?route=${encodeURIComponent(args.route)}`) : null;
         const initial =
           args.itinerary !== undefined
             ? (args.itinerary as ItineraryDocument)
-            : linkStateToDocument(parseLink(`?route=${encodeURIComponent(args.route ?? '')}`));
+            : linkStateToDocument(parsedRoute ?? parseLink(''));
         input = {
           ...initial,
           view: { ...(args.itinerary !== undefined ? initial.view : {}), ...(visual.view as object) },
         };
         // Keep tolerant route diagnostics when converting to a strict document.
-        if (args.route !== undefined) {
-          const parsed = parseLink(`?route=${encodeURIComponent(args.route)}`);
-          if (parsed.issues.length) return result({ error: 'Invalid route', issues: parsed.issues }, true);
-        }
+        if (parsedRoute?.issues.length) return result({ error: 'Invalid route', issues: parsedRoute.issues }, true);
       }
       if (input && typeof input === 'object' && 'journeys' in input) {
         const plan = planComparison(ctx, input);

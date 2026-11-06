@@ -7,11 +7,11 @@
  */
 
 /** Share of the blue channel subtracted from red. */
-export const LIGHT_BLUE_WEIGHT = 0.55;
+const LIGHT_BLUE_WEIGHT = 0.55;
 /** Residual subtracted after removing blue, to drop sensor noise over dark land. */
-export const LIGHT_FLOOR = 2;
+const LIGHT_FLOOR = 2;
 /** Red − blue difference that maps to full brightness; near-white city cores reach it. */
-export const LIGHT_FULL = 110;
+const LIGHT_FULL = 110;
 
 /** One light value (0…255) from an RGB pixel. */
 export function lightValue(r: number, b: number): number {

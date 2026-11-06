@@ -1,4 +1,5 @@
 import type { LocalTimeInput, RouteState } from '../types.ts';
+import { MAX_LABEL_LENGTH } from '../lib/journeyLabel.ts';
 import { MAX_JOURNEYS } from '../lib/compare.ts';
 import { createRouteState, routeReducer, type RouteAction } from './route.ts';
 
@@ -30,7 +31,7 @@ const sameTime = (a: LocalTimeInput | null, b: LocalTimeInput | null) =>
   a === b || (a?.local === b?.local && a?.offsetMin === b?.offsetMin);
 const normalizeLabel = (label: string | null | undefined) =>
   Array.from(label?.trim() ?? '')
-    .slice(0, 40)
+    .slice(0, MAX_LABEL_LENGTH)
     .join('') || null;
 function draft(source?: LoadedJourney): JourneyDraft {
   return {

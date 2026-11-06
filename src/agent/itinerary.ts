@@ -1,10 +1,18 @@
 import { isLocale, type Locale } from '../i18n/locales.ts';
 import type { LinkState, LinkStop, LinkView } from '../state/link.ts';
 import type { LocalTimeInput } from '../types.ts';
-import { MAX_STOPS, MAX_JOURNEYS, MAX_LAYOVER_MIN, MAX_ITINERARY_PARAM_LENGTH, PLAYBACK_SPEEDS } from './contract.ts';
+import {
+  MAX_STOPS,
+  MAX_JOURNEYS,
+  MAX_LAYOVER_MIN,
+  MAX_ITINERARY_PARAM_LENGTH,
+  PLAYBACK_SPEEDS,
+  isNamedClock,
+} from './contract.ts';
+import { normalizeJourneyLabel, MAX_LABEL_LENGTH } from '../lib/journeyLabel.ts';
 import { formatIsoInstant, formatIsoOffset, parseIsoInstant } from '../lib/timezone.ts';
 
-export const ITINERARY_VERSION = 1;
+const ITINERARY_VERSION = 1;
 export interface StopDoc {
   airport: string;
   arrival?: string;
@@ -99,7 +107,7 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
               'range',
               `Layover minutes must be an integer from 0 to ${MAX_LAYOVER_MIN}.`,
             );
-          if (i === 0 || i === (stops as unknown[]).length - 1)
+          if (i === 0 || i === stops.length - 1)
             issue(`${path}/layoverMinutes`, 'position', 'Layover minutes apply only to transfer stops.');
         }
       });
@@ -123,11 +131,15 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
         if (
           journey.label !== undefined &&
           (typeof journey.label !== 'string' ||
-            Array.from(journey.label).length < 1 ||
-            Array.from(journey.label).length > 40 ||
-            !new RegExp(LABEL_PATTERN).test(journey.label))
+            normalizeJourneyLabel(journey.label) === null ||
+            // JSON Schema counts the untrimmed string; readable links allow padding.
+            Array.from(journey.label).length > MAX_LABEL_LENGTH)
         )
-          issue(`${path}/label`, 'pattern', 'Use a label of 1–40 characters without control characters.');
+          issue(
+            `${path}/label`,
+            'pattern',
+            `Use a label of 1–${MAX_LABEL_LENGTH} characters without control characters.`,
+          );
         validateStops(journey.stops, `${path}/stops`);
       });
     }
@@ -236,7 +248,7 @@ export function documentToLinkState(doc: ItineraryDocument): LinkState {
     time,
     play: source?.play ?? false,
     speed: source?.speed ?? 'auto',
-    clock: /^(local|utc)$/i.test(clock) ? clock.toLowerCase() : clock.toUpperCase(),
+    clock: isNamedClock(clock.toLowerCase()) ? clock.toLowerCase() : clock.toUpperCase(),
     units: source?.units ?? null,
     dayNight: source?.dayNight ?? true,
     follow: source?.follow ?? false,

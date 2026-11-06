@@ -1,4 +1,5 @@
-import { MAX_STOPS, MAX_JOURNEYS, MAX_LAYOVER_MIN } from './contract.ts';
+import { MAX_LABEL_LENGTH } from '../lib/journeyLabel.ts';
+import { MAX_STOPS, MAX_JOURNEYS, MAX_LAYOVER_MIN, MAX_URL_LENGTH } from './contract.ts';
 import { AIRPORT_PATTERN, LOCAL_TIME_PATTERN, INSTANT_PATTERN, LABEL_PATTERN } from './itinerary.ts';
 
 const stopProperties = {
@@ -40,7 +41,7 @@ export const ITINERARY_SCHEMA = {
         additionalProperties: false,
         required: ['stops'],
         properties: {
-          label: { type: 'string', minLength: 1, maxLength: 40, pattern: LABEL_PATTERN },
+          label: { type: 'string', minLength: 1, maxLength: MAX_LABEL_LENGTH, pattern: LABEL_PATTERN },
           stops: { $ref: '#/$defs/stops' },
         },
       },
@@ -118,7 +119,7 @@ export const COMPARISON_INPUT_SCHEMA = {
         ],
         properties: {
           label: ITINERARY_SCHEMA.properties.journeys.items.properties.label,
-          route: { type: 'string', maxLength: 8000 },
+          route: { type: 'string', maxLength: MAX_URL_LENGTH },
           stops: { $ref: '#/$defs/stops' },
         },
       },

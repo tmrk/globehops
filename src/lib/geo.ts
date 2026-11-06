@@ -7,7 +7,7 @@ const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const length = (a: Vec3) => Math.hypot(...a);
 const unit = (a: Vec3): Vec3 => {
   const n = length(a);
-  return n ? (a.map((x) => x / n) as Vec3) : [1, 0, 0];
+  return n ? [a[0] / n, a[1] / n, a[2] / n] : [1, 0, 0];
 };
 const angle = (a: Vec3, b: Vec3) =>
   Math.atan2(Math.hypot(a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]), dot(a, b));

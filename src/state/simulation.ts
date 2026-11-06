@@ -1,7 +1,7 @@
 import type { Journey } from '../lib/schedule.ts';
 import { subsolarPoint } from '../lib/sun.ts';
 import { journeyStateAt, type Timeline } from '../lib/timeline.ts';
-import type { FleetAircraft, SimFrame, SimulationFeed } from '../globe/simFeed.ts';
+import type { AircraftView, FleetAircraft, SimFrame, SimulationFeed } from '../globe/simFeed.ts';
 import { playbackRate, type SimulationClock } from './clock.ts';
 
 export function simFrameAt(
@@ -67,12 +67,44 @@ export interface SimulationContext {
   primary?: number;
 }
 const EMPTY_FLEET: NonNullable<SimulationContext['fleet']> = [];
+function sameAircraft(a: AircraftView | null, b: AircraftView | null): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.leg !== b.leg) return false;
+  if (a.kind === 'ground') return b.kind === 'ground' && a.at === b.at;
+  return b.kind === 'air' && a.fraction === b.fraction && a.fractionPerSecond === b.fractionPerSecond;
+}
+
+function sameFrame(a: SimFrame, b: SimFrame): boolean {
+  if (
+    a.follow !== b.follow ||
+    a.highlightLeg !== b.highlightLeg ||
+    !sameAircraft(a.aircraft, b.aircraft) ||
+    (a.subsolar !== b.subsolar &&
+      (!a.subsolar || !b.subsolar || a.subsolar.lat !== b.subsolar.lat || a.subsolar.lng !== b.subsolar.lng))
+  )
+    return false;
+  if (a.fleet === b.fleet) return true;
+  if (!a.fleet || !b.fleet || a.fleet.length !== b.fleet.length) return false;
+  for (let i = 0; i < a.fleet.length; i++) {
+    const first = a.fleet[i];
+    const second = b.fleet[i];
+    if (
+      first.color !== second.color ||
+      first.tag !== second.tag ||
+      first.highlightLeg !== second.highlightLeg ||
+      !sameAircraft(first.view, second.view)
+    )
+      return false;
+  }
+  return true;
+}
+
 export function createSimulationFeed(
   clock: SimulationClock,
   getContext: () => SimulationContext,
 ): SimulationFeed & { refresh(): void } {
   let cached: SimFrame | null = null;
-  let signature = '';
+  let unsubscribeClock: (() => void) | null = null;
   const listeners = new Set<() => void>();
   const getFrame = () => {
     const ctx = getContext();
@@ -99,11 +131,7 @@ export function createSimulationFeed(
           ? Math.max(0, (next.distanceFraction - frame.aircraft.fraction) / 0.1)
           : 0;
     }
-    const next = JSON.stringify(frame);
-    if (next !== signature || !cached) {
-      signature = next;
-      cached = frame;
-    }
+    if (!cached || !sameFrame(frame, cached)) cached = frame;
     return cached;
   };
   const refresh = () => {
@@ -115,10 +143,13 @@ export function createSimulationFeed(
     refresh,
     subscribe(listener) {
       listeners.add(listener);
-      const unsubscribe = clock.subscribe(refresh);
+      unsubscribeClock ??= clock.subscribe(refresh);
       return () => {
         listeners.delete(listener);
-        unsubscribe();
+        if (listeners.size === 0) {
+          unsubscribeClock?.();
+          unsubscribeClock = null;
+        }
       };
     },
   };

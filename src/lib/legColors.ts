@@ -3,7 +3,7 @@
  * Consecutive legs differ subtly; the selected leg is emphasised by width/opacity, not hue.
  * All colours keep ≥ 3:1 contrast against the dark panel and read well over satellite imagery.
  */
-export const LEG_PALETTE = [
+const LEG_PALETTE = [
   '#ffc24b',
   '#ff9b45',
   '#ff7559',

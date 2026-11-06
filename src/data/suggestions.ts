@@ -56,7 +56,7 @@ function normalizeZone(zone: string): string {
   return Object.hasOwn(ZONE_ALIASES, zone) ? ZONE_ALIASES[zone] : zone;
 }
 
-function isGateway(airport: Airport): boolean {
+function isGateway(airport: Airport): airport is Airport & { iata: string } {
   return airport.type === 'large' && airport.scheduled && !!airport.iata;
 }
 
@@ -81,11 +81,14 @@ export function homeAirport(
   if (cityMatch) return cityMatch;
   if (!ctx.zones) return null;
 
-  const gateways = ctx.index.entries.map(({ airport }) => airport).filter((a) => isGateway(a) && matchesZone(a));
+  const gateways = ctx.index.entries
+    .map(({ airport }) => airport)
+    .filter(isGateway)
+    .filter(matchesZone);
   gateways.sort(
     (a, b) =>
-      Number(PRIMARY_AIRPORTS.has(b.iata!)) - Number(PRIMARY_AIRPORTS.has(a.iata!)) ||
-      a.iata!.localeCompare(b.iata!, 'en') ||
+      Number(PRIMARY_AIRPORTS.has(b.iata)) - Number(PRIMARY_AIRPORTS.has(a.iata)) ||
+      a.iata.localeCompare(b.iata, 'en') ||
       a.id - b.id,
   );
   return gateways[0] ?? null;

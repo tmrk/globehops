@@ -1,4 +1,4 @@
-import { MAX_JOURNEYS } from './contract.ts';
+import { MAX_JOURNEYS, MAX_URL_LENGTH } from './contract.ts';
 import { linkStateToDocument, validateItineraryDocument, type DocIssue, type DocumentResult } from './itinerary.ts';
 import { parseLink } from '../state/link.ts';
 
@@ -32,11 +32,11 @@ export function comparisonDocument(raw: unknown): DocumentResult {
         if ((journey.route !== undefined) === (journey.stops !== undefined))
           issues.push({ path, code: 'oneOf', message: 'Supply exactly one of route or stops.' });
         if (journey.route === undefined) return journey;
-        if (typeof journey.route !== 'string' || journey.route.length > 8000) {
+        if (typeof journey.route !== 'string' || journey.route.length > MAX_URL_LENGTH) {
           issues.push({
             path: `${path}/route`,
             code: 'type',
-            message: 'route must be a string of at most 8000 characters.',
+            message: `route must be a string of at most ${MAX_URL_LENGTH} characters.`,
           });
           return { stops: [] };
         }
