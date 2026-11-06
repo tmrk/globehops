@@ -3,25 +3,29 @@ import raw from '../data/generated/airports.json';
 import { decodeDataset } from '../data/airports.ts';
 import { buildSearchIndex, findAirportByCode } from '../data/search.ts';
 import { DEFAULT_LAYOVER_MIN } from '../lib/layover.ts';
-import { buildShareUrl, parseRouteParam, parseRouteToken, resolveRouteCodes, serializeRoute } from './url.ts';
+import { parseRouteParam, parseRouteToken, resolveRouteCodes } from './url.ts';
+import { buildLinkUrl, serializeLink } from './link.ts';
 import type { RouteStopSpec } from './url.ts';
 const index = buildSearchIndex(decodeDataset(raw).airports);
 const route = ['CPH', 'LHR', 'JFK'].map((c) => findAirportByCode(index, c)!);
 const specs = (layovers: (number | null)[] = []): RouteStopSpec[] =>
   route.map((airport, i) => ({ airport, layoverMin: layovers[i] ?? null }));
+const shareable = (stops: RouteStopSpec[]) => stops.map((stop) => ({ ...stop, arrival: null, departure: null }));
+const shareUrl = (stops: RouteStopSpec[]) => buildLinkUrl('https://example.com/globehops/', shareable(stops));
+const routeQuery = (stops: RouteStopSpec[]) => new URLSearchParams(serializeLink(shareable(stops))).get('route');
 describe('route URLs', () => {
   it('round trips route codes and builds URLs with an optional route', () => {
-    expect(serializeRoute(specs())).toBe('CPH-LHR-JFK');
-    const url = buildShareUrl('https://example.com/globehops/', specs());
+    expect(routeQuery(specs())).toBe('CPH-LHR-JFK');
+    const url = shareUrl(specs());
     expect(url).toBe('https://example.com/globehops/?route=CPH-LHR-JFK');
     const codes = parseRouteParam(new URL(url).search)!;
     expect(resolveRouteCodes(codes, index)).toEqual({ stops: specs(), missing: [] });
-    expect(buildShareUrl('https://example.com/globehops/', [])).toBe('https://example.com/globehops/');
+    expect(shareUrl([])).toBe('https://example.com/globehops/');
   });
   it('round trips custom layovers at transfers only', () => {
-    expect(serializeRoute(specs([45, 180, 30]))).toBe('CPH-LHR_180-JFK');
-    expect(serializeRoute(specs([null, DEFAULT_LAYOVER_MIN]))).toBe('CPH-LHR-JFK');
-    const url = buildShareUrl('https://example.com/globehops/', specs([null, 180]));
+    expect(routeQuery(specs([45, 180, 30]))).toBe('CPH-LHR_180-JFK');
+    expect(routeQuery(specs([null, DEFAULT_LAYOVER_MIN]))).toBe('CPH-LHR-JFK');
+    const url = shareUrl(specs([null, 180]));
     expect(url).toBe('https://example.com/globehops/?route=CPH-LHR_180-JFK');
     expect(resolveRouteCodes(parseRouteParam(new URL(url).search)!, index)).toEqual({
       stops: specs([null, 180]),
@@ -56,10 +60,9 @@ describe('route URLs', () => {
       missing: ['OBSOLETE', 'ZZZZ'],
     });
     const local = { ...route[0], iata: null, icao: null, ident: 'DK-1234' };
-    expect(serializeRoute([{ airport: local, layoverMin: null }])).toBe(String(local.id));
+    expect(routeQuery([{ airport: local, layoverMin: null }])).toBe(String(local.id));
     expect(
-      resolveRouteCodes(parseRouteParam('?route=' + serializeRoute([{ airport: local, layoverMin: null }]))!, index)
-        .stops,
+      resolveRouteCodes(parseRouteParam('?route=' + routeQuery([{ airport: local, layoverMin: null }]))!, index).stops,
     ).toEqual([{ airport: route[0], layoverMin: null }]);
   });
 });

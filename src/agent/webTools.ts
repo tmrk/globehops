@@ -1,4 +1,4 @@
-import { MAX_JOURNEYS } from './contract.ts';
+import { MAX_JOURNEYS, MAX_URL_LENGTH } from './contract.ts';
 import { comparisonDocument } from './comparisonInput.ts';
 import { ITINERARY_SCHEMA, COMPARISON_INPUT_SCHEMA } from './schema.ts';
 import { documentToLinkState, validateItineraryDocument, encodeItineraryParam } from './itinerary.ts';
@@ -35,7 +35,7 @@ export const WEB_TOOL_DEFINITIONS = [
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      properties: { route: { type: 'string', maxLength: 8000 }, itinerary: ITINERARY_SCHEMA },
+      properties: { route: { type: 'string', maxLength: MAX_URL_LENGTH }, itinerary: ITINERARY_SCHEMA },
       oneOf: [{ required: ['route'] }, { required: ['itinerary'] }],
     },
   },
@@ -112,8 +112,8 @@ export function parseWebCommand(name: WebToolName, raw: unknown, flights: number
     let link: LinkState;
     let search: string;
     if (raw.route !== undefined) {
-      if (typeof raw.route !== 'string' || raw.route.length > 8000)
-        throw new TypeError('route must be a string of at most 8000 characters.');
+      if (typeof raw.route !== 'string' || raw.route.length > MAX_URL_LENGTH)
+        throw new TypeError(`route must be a string of at most ${MAX_URL_LENGTH} characters.`);
       search = `?route=${encodeURIComponent(raw.route)}`;
       link = parseLink(search);
     } else {

@@ -18,7 +18,14 @@ import { computeComparison, compareMetrics } from '../lib/compare.ts';
 import { comparisonDocument } from './comparisonInput.ts';
 import { formatDuration } from '../lib/flightTime.ts';
 import { KM_PER_MILE } from '../lib/units.ts';
-import { buildLinkUrl, parseLink, type LinkState, type LinkView, type SerializableJourney } from '../state/link.ts';
+import {
+  buildLinkUrl,
+  parseLink,
+  type LinkState,
+  type LinkView,
+  type SerializableJourney,
+  type LinkDefaultKey,
+} from '../state/link.ts';
 import {
   documentToLinkState,
   encodeItineraryParam,
@@ -26,8 +33,15 @@ import {
   validateItineraryDocument,
   type ItineraryDocument,
 } from './itinerary.ts';
-import { CONTRACT_VERSION, DEFAULT_BASE_URL, MAX_URL_LENGTH } from './contract.ts';
-import type { Airport } from '../types.ts';
+import {
+  CONTRACT_VERSION,
+  DEFAULT_BASE_URL,
+  MAX_URL_LENGTH,
+  MAX_TIMELINE_SAMPLES,
+  LINK_PARAMS,
+  isNamedClock,
+} from './contract.ts';
+import type { Airport, LatLng } from '../types.ts';
 
 export interface AgentIssue {
   code: string;
@@ -137,22 +151,17 @@ export function resolveItinerary(ctx: AgentContext, raw: unknown) {
     issues.push({ code: 'no_airports', severity: 'error', message: 'Supply at least one known airport.' });
   // The link parser only accepts a clock that names an airport of this route; report it rather than emit a dead link.
   const clock = normalized.document?.view?.clock;
-  const clockAirport = clock ? findAirportByCode(ctx.index, clock.toUpperCase()) : undefined;
-  if (
-    clock !== undefined &&
-    !['local', 'utc'].includes(clock.toLowerCase()) &&
-    (!clockAirport ||
-      ![
-        ...(normalized.state?.stops ?? []),
-        ...(normalized.state?.compare ?? []).flatMap((journey) => journey.stops),
-      ].some((s) => findAirportByCode(ctx.index, s.code)?.id === clockAirport.id))
-  )
-    issues.push({
-      code: 'invalid_clock',
-      severity: 'error',
-      message: `Clock "${clock}" must be "local", "utc" or an airport code from this route.`,
-      path: '/view/clock',
-    });
+  validateClock(
+    ctx,
+    clock,
+    (airport) =>
+      input.stops.some((stop) => stop.airport.id === airport.id) ||
+      (normalized.state?.compare ?? []).some((journey) =>
+        journey.stops.some((stop) => findAirportByCode(ctx.index, stop.code)?.id === airport.id),
+      ),
+    'this route',
+    issues,
+  );
   if (normalized.state?.view.leg !== undefined && normalized.state.view.leg >= input.stops.length)
     issues.push({
       code: 'invalid_leg',
@@ -193,15 +202,39 @@ function scheduleIssues(journey: Journey, stopPaths: number[], prefix = ''): Age
     return { code: issue.code, severity: issue.severity, message: issue.message, ...(path ? { path } : {}) };
   });
 }
-function computed(ctx: AgentContext, raw: unknown, opts: PlanOptions = {}) {
-  const resolved = resolveItinerary(ctx, raw);
+function parseAssumedDeparture(opts: PlanOptions, issues: AgentIssue[]): number | null {
   const assumedStart = opts.assumeDeparture === undefined ? null : parseIsoInstant(opts.assumeDeparture);
   if (opts.assumeDeparture !== undefined && assumedStart === null)
-    resolved.issues.push({
+    issues.push({
       code: 'invalid_assumption',
       severity: 'error',
       message: 'assumeDeparture must be an ISO instant with Z or an explicit offset.',
     });
+  return assumedStart;
+}
+
+function validateClock(
+  ctx: AgentContext,
+  clock: string | undefined,
+  includesAirport: (airport: Airport) => boolean,
+  scope: 'this route' | 'a compared journey',
+  issues: AgentIssue[],
+): Airport | null {
+  if (clock === undefined || isNamedClock(clock.toLowerCase())) return null;
+  const airport = findAirportByCode(ctx.index, clock.toUpperCase());
+  if (!airport || !includesAirport(airport))
+    issues.push({
+      code: 'invalid_clock',
+      severity: 'error',
+      message: `Clock "${clock}" must be "local", "utc" or an airport code from ${scope}.`,
+      path: '/view/clock',
+    });
+  return airport;
+}
+
+function computed(ctx: AgentContext, raw: unknown, opts: PlanOptions = {}) {
+  const resolved = resolveItinerary(ctx, raw);
+  const assumedStart = parseAssumedDeparture(opts, resolved.issues);
   const journey = computeJourney(resolved.input, { now: ctx.now(), assumedStart });
   const issues = [...resolved.issues, ...scheduleIssues(journey, resolved.stopPaths)];
   return { ...resolved, journey, issues };
@@ -215,48 +248,23 @@ const transferProvenance = (transfer: JourneyTransfer) =>
 
 export function planItinerary(ctx: AgentContext, raw: unknown, opts: PlanOptions = {}) {
   const { input, document, view, journey, issues } = computed(ctx, raw, opts);
-  let url: string | null = null,
-    itineraryParamUrl: string | null = null;
-  try {
-    const canonicalClock =
-      view?.clock && !['local', 'utc'].includes(view.clock)
-        ? input.stops.find(
-            (s) =>
-              s.airport.ident === view.clock ||
-              s.airport.icao === view.clock ||
-              s.airport.iata === view.clock ||
-              String(s.airport.id) === view.clock,
-          )?.airport
-        : undefined;
-    url = buildLinkUrl(
-      ctx.baseUrl,
-      input.stops,
-      canonicalClock ? { ...view, clock: airportCode(canonicalClock) } : view,
-      (['follow', 'dayNight', 'clock'] as const).filter((key) => document?.view?.[key] !== undefined),
-      { label: document?.journeys?.[0].label },
-    );
-    if (document || input.stops.length) {
-      try {
-        const alternative = new URL(url);
-        alternative.search = `?itinerary=${encodeItineraryParam(document ?? linkStateToDocument(parseLink(new URL(url).search)))}`;
-        if (alternative.href.length > MAX_URL_LENGTH)
-          throw new RangeError('The itinerary-document link is too large to share.');
-        itineraryParamUrl = alternative.href;
-      } catch (error) {
-        issues.push({
-          code: 'document_link_too_large',
-          severity: 'warning',
-          message: `${error instanceof Error ? error.message : 'Cannot encode itinerary document.'} Use the readable url instead.`,
-        });
-      }
-    }
-  } catch (error) {
-    issues.push({
-      code: 'link_too_large',
-      severity: 'error',
-      message: error instanceof Error ? error.message : 'Cannot encode link.',
-    });
-  }
+  const canonicalClock =
+    view?.clock && !isNamedClock(view.clock)
+      ? input.stops.find(
+          (s) =>
+            s.airport.ident === view.clock ||
+            s.airport.icao === view.clock ||
+            s.airport.iata === view.clock ||
+            String(s.airport.id) === view.clock,
+        )?.airport
+      : undefined;
+  const { url, itineraryParamUrl } = planLinks(
+    ctx,
+    document,
+    { label: document?.journeys?.[0].label ?? null, stops: input.stops },
+    canonicalClock ? { ...view, clock: airportCode(canonicalClock) } : view,
+    issues,
+  );
   return {
     contractVersion: CONTRACT_VERSION,
     input: raw,
@@ -322,38 +330,40 @@ function comparisonRequired(): AgentIssue {
   };
 }
 
-function comparisonLinks(
+const EXPLICIT_DEFAULT_KEYS = ['follow', 'dayNight', 'clock'] as const satisfies readonly LinkDefaultKey[];
+
+function planLinks(
   ctx: AgentContext,
   document: ItineraryDocument | null,
   primary: SerializableJourney,
-  alternatives: SerializableJourney[],
   view: Partial<LinkView> | undefined,
   issues: AgentIssue[],
+  alternatives?: SerializableJourney[],
 ) {
   let url: string | null = null;
   let itineraryParamUrl: string | null = null;
-  if (document) {
-    try {
-      url = buildLinkUrl(
-        ctx.baseUrl,
-        primary.stops,
-        view,
-        (['follow', 'dayNight', 'clock'] as const).filter((key) => document.view?.[key] !== undefined),
-        {
-          label: primary.label,
-          compare: alternatives,
-        },
-      );
-    } catch (error) {
-      issues.push({
-        code: 'link_too_large',
-        severity: 'error',
-        message: error instanceof Error ? error.message : 'Cannot encode link.',
-      });
-    }
+  if (alternatives !== undefined && !document) return { url, itineraryParamUrl };
+  try {
+    url = buildLinkUrl(
+      ctx.baseUrl,
+      primary.stops,
+      view,
+      EXPLICIT_DEFAULT_KEYS.filter((key) => document?.view?.[key] !== undefined),
+      { label: primary.label, ...(alternatives !== undefined ? { compare: alternatives } : {}) },
+    );
+  } catch (error) {
+    issues.push({
+      code: 'link_too_large',
+      severity: 'error',
+      message: error instanceof Error ? error.message : 'Cannot encode link.',
+    });
+  }
+  // Comparisons retain a document link even when their readable link exceeds the limit.
+  if ((url && (document || primary.stops.length)) || (document && alternatives !== undefined)) {
     try {
       const alternative = new URL(url ?? ctx.baseUrl);
-      alternative.search = `?itinerary=${encodeItineraryParam(document)}`;
+      const linkDocument = document ?? linkStateToDocument(parseLink(alternative.search));
+      alternative.search = `?${LINK_PARAMS.itinerary}=${encodeItineraryParam(linkDocument)}`;
       if (alternative.href.length > MAX_URL_LENGTH)
         throw new RangeError('The itinerary-document link is too large to share.');
       itineraryParamUrl = alternative.href;
@@ -377,13 +387,7 @@ export function planComparison(ctx: AgentContext, raw: unknown, opts: PlanOption
     issues.push(...result.issues.map((issue) => ({ ...issue, path: `/journeys/${index}${issue.path ?? ''}` })));
     return result;
   });
-  const assumedStart = opts.assumeDeparture === undefined ? null : parseIsoInstant(opts.assumeDeparture);
-  if (opts.assumeDeparture !== undefined && assumedStart === null)
-    issues.push({
-      code: 'invalid_assumption',
-      severity: 'error',
-      message: 'assumeDeparture must be an ISO instant with Z or an explicit offset.',
-    });
+  const assumedStart = parseAssumedDeparture(opts, issues);
   const compared = computeComparison(
     resolved.map((result, index) => ({
       label: document?.journeys?.[index].label?.trim() ?? null,
@@ -398,19 +402,13 @@ export function planComparison(ctx: AgentContext, raw: unknown, opts: PlanOption
     issues.push(...link.issues.map((message): AgentIssue => ({ code: 'invalid_time', severity: 'error', message })));
   const view = link?.view;
   const clock = view?.clock;
-  const clockAirport = clock && !['local', 'utc'].includes(clock) ? findAirportByCode(ctx.index, clock) : undefined;
-  if (
-    clock &&
-    !['local', 'utc'].includes(clock) &&
-    (!clockAirport ||
-      !resolved.some((result) => result.input.stops.some((stop) => stop.airport.id === clockAirport.id)))
-  )
-    issues.push({
-      code: 'invalid_clock',
-      severity: 'error',
-      message: `Clock "${clock}" must be "local", "utc" or an airport code from a compared journey.`,
-      path: '/view/clock',
-    });
+  const clockAirport = validateClock(
+    ctx,
+    clock,
+    (airport) => resolved.some((result) => result.input.stops.some((stop) => stop.airport.id === airport.id)),
+    'a compared journey',
+    issues,
+  );
   if (view?.leg !== undefined && view.leg >= (resolved[0]?.input.stops.length ?? 0))
     issues.push({
       code: 'invalid_leg',
@@ -418,13 +416,13 @@ export function planComparison(ctx: AgentContext, raw: unknown, opts: PlanOption
       message: 'leg must be a one-based flight number within journey A.',
       path: '/view/leg',
     });
-  const { url, itineraryParamUrl } = comparisonLinks(
+  const { url, itineraryParamUrl } = planLinks(
     ctx,
     document,
     { label: compared[0]?.label ?? null, stops: resolved[0]?.input.stops ?? [] },
-    compared.slice(1).map((entry) => ({ label: entry.label, stops: entry.journey.stops })),
     clockAirport ? { ...view, clock: airportCode(clockAirport) } : view,
     issues,
+    compared.slice(1).map((entry) => ({ label: entry.label, stops: entry.journey.stops })),
   );
   const validJourneys = compared.filter(
     (entry) =>
@@ -505,8 +503,12 @@ export function timelineAt(
     });
   let times: number[] = [];
   if (Array.isArray(instants)) {
-    if (instants.length > 1000)
-      issues.push({ code: 'invalid_samples', severity: 'error', message: 'Use at most 1000 instants.' });
+    if (instants.length > MAX_TIMELINE_SAMPLES)
+      issues.push({
+        code: 'invalid_samples',
+        severity: 'error',
+        message: `Use at most ${MAX_TIMELINE_SAMPLES} instants.`,
+      });
     else
       for (const instant of instants) {
         const time = parseIsoInstant(instant);
@@ -514,8 +516,12 @@ export function timelineAt(
           issues.push({ code: 'invalid_instant', severity: 'error', message: `Invalid ISO instant: ${instant}.` });
         else times.push(time);
       }
-  } else if (!Number.isInteger(instants.samples) || instants.samples < 2 || instants.samples > 1000)
-    issues.push({ code: 'invalid_samples', severity: 'error', message: 'samples must be an integer from 2 to 1000.' });
+  } else if (!Number.isInteger(instants.samples) || instants.samples < 2 || instants.samples > MAX_TIMELINE_SAMPLES)
+    issues.push({
+      code: 'invalid_samples',
+      severity: 'error',
+      message: `samples must be an integer from 2 to ${MAX_TIMELINE_SAMPLES}.`,
+    });
   else if (timeline)
     times = Array.from({ length: instants.samples }, (_, i) =>
       Math.round(timeline.start + ((timeline.end - timeline.start) * i) / (instants.samples - 1)),
@@ -527,8 +533,13 @@ export function timelineAt(
     timeline: timeline
       ? times.map((time) => {
           const state = journeyStateAt(journey, timeline, time);
-          const airport = state.phase === 'flight' ? null : journey.stops[state.stop].airport;
-          const position = state.phase === 'flight' ? state.position : { lat: airport!.lat, lng: airport!.lng };
+          let airport: Airport | null = null;
+          let position: LatLng;
+          if (state.phase === 'flight') position = state.position;
+          else {
+            airport = journey.stops[state.stop].airport;
+            position = { lat: airport.lat, lng: airport.lng };
+          }
           return {
             time: formatIsoInstant(time),
             phase: state.phase,

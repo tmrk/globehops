@@ -9,6 +9,7 @@ import {
   MAX_STOPS,
   MAX_JOURNEYS,
   MAX_URL_LENGTH,
+  MAX_TIMELINE_SAMPLES,
   MAX_ITINERARY_PARAM_LENGTH,
   MAX_LAYOVER_MIN,
 } from '../src/agent/contract.ts';
@@ -18,6 +19,7 @@ import { decodeTimeZones } from '../src/data/timezones.ts';
 import { DEFAULT_FLIGHT_TIME_MODEL } from '../src/lib/flightTime.ts';
 import { EARTH_RADIUS_KM } from '../src/lib/geo.ts';
 import { DEFAULT_LAYOVER_MIN } from '../src/lib/layover.ts';
+import { MAX_LABEL_LENGTH } from '../src/lib/journeyLabel.ts';
 import { MIN_YEAR, MAX_YEAR } from '../src/lib/timezone.ts';
 
 const root = new URL('../', import.meta.url);
@@ -147,7 +149,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       label: parameter(
         'string',
         false,
-        '1–40 characters without controls',
+        `1–${MAX_LABEL_LENGTH} characters without controls`,
         ['Via London'],
         'Trimmed journey A label; URL-encode Unicode and reserved characters.',
       ),
@@ -255,7 +257,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       itineraryParamCharacters: MAX_ITINERARY_PARAM_LENGTH,
       maximumLayoverMinutes: MAX_LAYOVER_MIN,
       years: [MIN_YEAR, MAX_YEAR],
-      timelineSamples: [2, 1000],
+      timelineSamples: [2, MAX_TIMELINE_SAMPLES],
       searchLimit: [1, 100],
     },
     airportIdentifiers: {
