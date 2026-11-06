@@ -204,33 +204,36 @@ test('city exonyms load after the UI and update suggestions, search and live des
   }
 });
 
-test('English skips city data and selector updates cities and globe labels together', async ({ page }) => {
-  const requests: string[] = [];
-  page.on('request', (request) => {
-    if (/city-names-.*\.json/.test(request.url())) requests.push(request.url());
+test.describe('welcome suggestion translations', () => {
+  test.use({ timezoneId: 'Europe/Copenhagen' });
+  test('English skips city data and selector updates cities and globe labels together', async ({ page }) => {
+    const requests: string[] = [];
+    page.on('request', (request) => {
+      if (/city-names-.*\.json/.test(request.url())) requests.push(request.url());
+    });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('./en/?route=CPH-JFK');
+    await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+    await expect(page.locator('.stop__city').first()).toHaveText('Copenhagen');
+    expect(requests).toHaveLength(0);
+    await page.getByRole('button', { name: 'Display options', exact: true }).click();
+    await page.getByRole('button', { name: 'Oceans and seas', exact: true }).click();
+    await expect(page.locator('.country-label--ocean:visible').filter({ hasText: 'North Atlantic' })).toBeVisible();
+    await page.getByRole('button', { name: 'Language: English', exact: true }).click();
+    await page.getByRole('radio', { name: 'Magyar', exact: true }).click();
+    await expect(page.locator('.stop__city').first()).toHaveText('Koppenhága');
+    await expect(
+      page.locator('.country-label--ocean:visible').filter({ hasText: 'Atlanti-óceán' }).first(),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Nyelv: Magyar', exact: true }).click();
+    await page.getByRole('radio', { name: 'Svenska', exact: true }).click();
+    await expect(page.locator('.stop__city').first()).toHaveText('Köpenhamn');
+    await expect(page.locator('.country-label--ocean:visible').filter({ hasText: 'Atlanten' }).first()).toBeVisible();
+    expect(requests).toHaveLength(1);
+    await page.keyboard.press('Escape');
+    await page.goto('./hu/?route=');
+    await expect(page.locator('.suggestions')).toContainText('Koppenhága → Sydney');
   });
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('./en/?route=CPH-JFK');
-  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
-  await expect(page.locator('.stop__city').first()).toHaveText('Copenhagen');
-  expect(requests).toHaveLength(0);
-  await page.getByRole('button', { name: 'Display options', exact: true }).click();
-  await page.getByRole('button', { name: 'Oceans and seas', exact: true }).click();
-  await expect(page.locator('.country-label--ocean:visible').filter({ hasText: 'North Atlantic' })).toBeVisible();
-  await page.getByRole('button', { name: 'Language: English', exact: true }).click();
-  await page.getByRole('radio', { name: 'Magyar', exact: true }).click();
-  await expect(page.locator('.stop__city').first()).toHaveText('Koppenhága');
-  await expect(
-    page.locator('.country-label--ocean:visible').filter({ hasText: 'Atlanti-óceán' }).first(),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Nyelv: Magyar', exact: true }).click();
-  await page.getByRole('radio', { name: 'Svenska', exact: true }).click();
-  await expect(page.locator('.stop__city').first()).toHaveText('Köpenhamn');
-  await expect(page.locator('.country-label--ocean:visible').filter({ hasText: 'Atlanten' }).first()).toBeVisible();
-  expect(requests).toHaveLength(1);
-  await page.keyboard.press('Escape');
-  await page.goto('./hu/?route=');
-  await expect(page.locator('.suggestions')).toContainText('Koppenhága → Toronto');
 });
 
 for (const [locale, messages, cities, query] of [

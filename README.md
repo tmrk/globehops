@@ -12,6 +12,8 @@ It runs in any modern browser on phones, tablets and desktops. There is nothing 
 
 ## What you can do
 
+On your first visit, try one of three long-haul journeys from a likely home airport. GlobeHops uses your browser’s time zone as a country hint, entirely on your device, and falls back to London when no gateway can be found. Each preview is a single flight to a major international airport; durations are estimates, not airline schedules. Tap another suggestion or choose any airport to make the journey your own.
+
 - **Find airports** by city, airport name, IATA or ICAO code, or alternative names. Accents are optional: “malmo” finds Malmö. Hungarian and Swedish city names work too when using those languages, alongside the original names; airport names stay untranslated.
 - **Plan up to ten stops.** Choose any airport to change it and use “Add stop” to continue the journey. Tap **Edit** to insert, remove or reorder stops (drag or use the keyboard), reverse the whole journey or clear it.
 - **Explore the globe.** Drag to rotate and scroll or pinch to zoom; arrow keys and +/− work too. Select a flight in the list or on the globe to fly to it. Routes too wide for one view can be stepped through flight by flight. **Country names** and **Oceans and seas** in the display menu (the layers button at the top right) add labels in your chosen language, each on its own; more appear as you zoom in. **My location** shows where you are as a blue dot (your browser asks first). The language button beside it switches language, and the button below them re-centres the globe on your route. On phones, drag the journey sheet down to see the whole globe.

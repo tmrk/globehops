@@ -1375,7 +1375,24 @@ button.map-menu__item:hover {
 }
 
 .suggestions {
-  padding: 8px 0 4px calc(var(--col-rail) + var(--col-gap));
+  padding: 8px 0 4px;
+}
+
+/* Keep the three choices above the fold on the welcome sheet. Edit reveals Add stop. */
+.layout-mobile .suggestions--welcome .itinerary__actions {
+  display: none;
+}
+
+.layout-mobile .suggestions--welcome .suggestions {
+  padding: 4px 0 0;
+}
+
+.layout-mobile .suggestions--welcome .suggestions__title {
+  margin: 2px 0 6px;
+}
+
+.layout-mobile .suggestions--welcome .suggestions ul {
+  gap: 2px;
 }
 
 .suggestions__title {
@@ -1391,9 +1408,8 @@ button.map-menu__item:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  gap: 4px;
 }
 
 .suggestion {
@@ -1409,6 +1425,55 @@ button.map-menu__item:hover {
 .suggestion:hover {
   background: var(--hover);
   color: var(--text);
+}
+
+.suggestions .suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border-color: transparent;
+  border-left: 2px solid transparent;
+}
+
+.layout-desktop .suggestions .suggestion {
+  min-height: 40px;
+}
+
+.suggestions .suggestion[aria-pressed='true'] {
+  border-left-color: var(--accent);
+  background: var(--hover);
+  color: var(--text);
+}
+
+.suggestions .suggestion svg {
+  flex: none;
+  color: var(--text-3);
+}
+
+.suggestions .suggestion[aria-pressed='true'] svg {
+  color: var(--accent);
+}
+
+.suggestion__route {
+  min-width: 0;
+  flex: 1;
+}
+
+.suggestion__duration {
+  flex: none;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-stretch: var(--mono-stretch);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.suggestions .suggestion[aria-pressed='true'] .suggestion__duration {
+  color: var(--text-2);
 }
 
 /* ------------------------------------------------------------------------------------------ */

@@ -30,6 +30,7 @@ export const hu: Messages = {
   'panel.share': 'Megosztás',
   'errors.airportsUnavailable':
     'A repülőtéradatok nem tölthetők be. Ellenőrizd az internetkapcsolatod, és töltsd újra az oldalt.',
+  'panel.tryOneOfThese': 'Próbáld ki valamelyiket',
   'panel.orTryOneOfThese': 'Vagy válassz egyet ezek közül',
   'panel.credits': 'Képek: NASA · Repülőterek: OurAirports',
   'picker.loadingAirports': 'Repülőterek betöltése…',

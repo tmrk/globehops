@@ -9,16 +9,132 @@ import {
   startEditing,
 } from './fixtures.ts';
 
-test('first visit loads the example, its stops, legs and totals', { tag: '@smoke' }, async ({ page }) => {
+test.use({ timezoneId: 'Europe/Copenhagen' });
+
+test('first visit loads three long-haul examples from the home country', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('./');
-  await expectRoute(page, ['CPH', 'LHR', 'JFK']);
+  await expectRoute(page, ['CPH', 'SYD']);
   await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Flight \d,/ })).toHaveCount(2);
+  const suggestions = page.getByRole('list', { name: 'Try one of these', exact: true }).getByRole('button');
+  await expect(suggestions).toHaveCount(3);
+  await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: /^Flight \d,/ })).toHaveCount(1);
   const totals = page.getByRole('region', { name: 'Journey totals' });
-  await expect(totals).toContainText('2 flights');
+  await expect(totals).toContainText('Great-circle route');
   await expect(totals).toContainText(/\d[\d,]*km/);
-  await expect(totals).toContainText(/≈ \d+h \d+m/);
+  await expect(totals).toContainText(/≈ (?:1[2-9]|2\d)h \d+m/);
   await expect(totals.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+  await suggestions.nth(1).click();
+  await expectRoute(page, ['CPH', 'SIN']);
+  await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'false');
+  await expect(suggestions.nth(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
+  await startEditing(page);
+  await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
+  await expectRoute(page, ['SIN', 'CPH']);
+  await expect(page.locator('.suggestions')).toHaveCount(0);
+});
+
+test.describe('western US welcome', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' });
+  test('first visit starts at LAX', async ({ page }) => {
+    await page.goto('./');
+    await expectRoute(page, ['LAX', 'SYD']);
+    await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
+    const suggestions = page.getByRole('list', { name: 'Try one of these', exact: true }).getByRole('button');
+    await expect(suggestions).toHaveCount(3);
+    await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'true');
+    for (const button of await suggestions.all()) await expect(button).toContainText('Los Angeles →');
+  });
+});
+
+test.describe('Budapest welcome layout', () => {
+  test.use({ timezoneId: 'Europe/Budapest' });
+  test('welcome keeps all three choices and Play visible beside the globe', async ({ page, isMobile }, testInfo) => {
+    // Review the owner's reference phone size; desktop keeps the project's 1440 × 900 viewport.
+    if (isMobile) await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('./');
+    await expectRoute(page, ['BUD', 'SYD']);
+    await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+    await page.evaluate(() => document.fonts.ready);
+    const suggestions = page.getByRole('list', { name: 'Try one of these', exact: true }).getByRole('button');
+    await expect(suggestions).toHaveCount(3);
+    for (const button of await suggestions.all()) {
+      await expect(button).toBeInViewport({ ratio: 1 });
+      const bounds = await button.boundingBox();
+      expect(bounds!.height).toBeGreaterThanOrEqual(isMobile ? 44 : 40);
+    }
+    await expect(
+      page.getByRole('region', { name: 'Journey totals' }).getByRole('button', { name: 'Play', exact: true }),
+    ).toBeInViewport();
+    if (isMobile) {
+      const panel = await page.locator('.panel').boundingBox();
+      expect(panel!.y).toBeGreaterThan(page.viewportSize()!.height * 0.4);
+    }
+    await page.screenshot({ path: `test-results/welcome-${testInfo.project.name}.png`, animations: 'disabled' });
+  });
+});
+
+test('first visit waits for the zone table before choosing its example', async ({ page }) => {
+  let release = () => {};
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let requested = () => {};
+  const zoneRequested = new Promise<void>((resolve) => {
+    requested = resolve;
+  });
+  await page.route('**/timezones-*.json', async (route) => {
+    requested();
+    await ready;
+    await route.continue();
+  });
+  await page.goto('./');
+  await zoneRequested;
+  await expect(page.getByRole('button', { name: 'Departure airport: choose an airport' })).toBeEnabled();
+  await expect(stopButtons(page)).toHaveCount(0);
+  expect(new URL(page.url()).search).toBe('');
+  release();
+  await expectRoute(page, ['CPH', 'SYD']);
+});
+
+for (const source of ['URL', 'invalid itinerary', 'remembered journey', 'legacy route'] as const) {
+  test(`${source} loads without waiting for the zone table`, async ({ page }) => {
+    let release = () => {};
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/timezones-*.json', async (route) => {
+      await ready;
+      await route.continue();
+    });
+    if (source === 'remembered journey' || source === 'legacy route') {
+      await page.addInitScript((kind) => {
+        localStorage.setItem(
+          kind === 'legacy route' ? 'globehops:lastRoute' : 'globehops:lastJourney',
+          kind === 'legacy route' ? JSON.stringify(['CPH', 'JFK']) : '?route=CPH-JFK',
+        );
+      }, source);
+    }
+    const url = source === 'URL' ? './?route=CPH-JFK' : source === 'invalid itinerary' ? './?itinerary=invalid' : './';
+    await page.goto(url);
+    if (source === 'invalid itinerary') {
+      await expectRoute(page, ['CPH', 'SYD']);
+      await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
+    } else {
+      await expectRoute(page, ['CPH', 'JFK']);
+      await expect(page.getByRole('heading', { name: 'Your journey', exact: true })).toBeVisible();
+    }
+    release();
+  });
+}
+
+test('failed zone loading still shows usable welcome suggestions', async ({ page }) => {
+  await page.route('**/timezones-*.json', (route) => route.fulfill({ status: 200, body: '{}' }));
+  await page.goto('./');
+  await expectRoute(page, ['CPH', 'SYD']);
+  await expect(page.getByRole('list', { name: 'Try one of these', exact: true }).getByRole('button')).toHaveCount(3);
 });
 
 test('desktop entry uses keyboard selection and advances to destination', async ({ page, isMobile }) => {
@@ -135,13 +251,16 @@ test('insert and remove a transfer, reverse, clear and choose a suggestion', asy
   await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
   await expectRoute(page, ['JFK', 'CPH']);
   await page.getByRole('button', { name: 'Clear route', exact: true }).click();
-  // Clearing opens the inline departure picker on desktop; dismiss it before using chips.
+  // Clearing opens the inline departure picker on desktop; dismiss it before using suggestions.
   if (await airportField(page).count()) await airportField(page).press('Escape');
   await expect(stopButtons(page)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Departure airport: choose an airport' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Journey totals' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Copenhagen → Toronto', exact: true }).click();
-  await expectRoute(page, ['CPH', 'YYZ']);
+  const suggestions = page.getByRole('list', { name: 'Or try one of these', exact: true }).getByRole('button');
+  await expect(suggestions).toHaveCount(3);
+  await suggestions.first().click();
+  await expectRoute(page, ['CPH', 'SYD']);
+  await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
 });
 
 test('keyboard grips reorder in both directions', async ({ page }) => {

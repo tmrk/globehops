@@ -29,6 +29,7 @@ export const sv: Messages = {
   'panel.edit': 'Ändra',
   'panel.share': 'Dela',
   'errors.airportsUnavailable': 'Flygplatsdata kunde inte laddas. Kontrollera din anslutning och ladda om sidan.',
+  'panel.tryOneOfThese': 'Prova någon av dessa',
   'panel.orTryOneOfThese': 'Eller prova någon av dessa',
   'panel.credits': 'Bilder NASA · Flygplatser OurAirports',
   'picker.loadingAirports': 'Laddar flygplatser…',

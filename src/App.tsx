@@ -22,7 +22,7 @@ import { AirportPicker, type AirportPickerHandle } from './components/AirportPic
 import { Brand, VersionTag } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { GlobeHud } from './components/GlobeHud.tsx';
-import { IconCheck, IconChevronUp, IconInfo, IconPencil, IconShare, IconPlay } from './components/Icons.tsx';
+import { IconCheck, IconChevronUp, IconInfo, IconPencil, IconShare, IconPlay, IconPlane } from './components/Icons.tsx';
 import { MapTools } from './components/MapTools.tsx';
 import { StopList } from './components/StopList.tsx';
 import { Summary } from './components/Summary.tsx';
@@ -51,6 +51,8 @@ import {
 } from './state/link.ts';
 import airportsUrl from './data/generated/airports.json?url';
 import { airportCode, displayCode, loadAirports, type AirportDataset } from './data/airports.ts';
+import { homeAirport, welcomeSuggestions, FALLBACK_HOME } from './data/suggestions.ts';
+import { browserTimeZone } from './lib/timezone.ts';
 import { localizedCity } from './data/placeNames.ts';
 import { buildSearchIndex, type SearchIndex } from './data/search.ts';
 import type { GlobeRoute, Insets } from './globe/GlobeRenderer.ts';
@@ -91,14 +93,13 @@ import type { Airport, DistanceUnit, LocalTimeInput } from './types.ts';
 
 const GlobeView = lazy(() => import('./globe/GlobeView.tsx'));
 
-const EXAMPLE_ROUTE = ['CPH', 'LHR', 'JFK'];
-const SUGGESTED_ROUTES = [
-  ['CPH', 'YYZ'],
-  ['SYD', 'LAX'],
-  ['LHR', 'DXB', 'SIN', 'SYD'],
-  ['MMX', 'ARN', 'HEL', 'NRT'],
-];
 const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/** Shared by the memoized welcome rows and asynchronous first-visit initialization. */
+function suggestionsFor(index: SearchIndex, zones: TimeZoneTable | null) {
+  const home = homeAirport(browserTimeZone(), { index, zones }) ?? index.iata.get(FALLBACK_HOME);
+  return home ? welcomeSuggestions(home, index) : [];
+}
 
 /** Miles only for an English interface in a miles-using region; Hungarian and Swedish use kilometres. */
 function defaultUnit(): DistanceUnit {
@@ -167,6 +168,7 @@ export default function App() {
       },
     );
   }, [baseIndex, cityNames, locale]);
+  const suggestions = useMemo(() => (index ? suggestionsFor(index, zones) : []), [index, zones]);
   const [dataError, setDataError] = useState(false);
   const [route, dispatch] = useReducer(routeReducer, undefined, () => createRouteState());
   const routeStopCount = useRef(0);
@@ -326,21 +328,11 @@ export default function App() {
   );
 
   const zoneLoadError = useEffectEvent(() => showToast(t('toasts.zonesUnavailable')));
-  useEffect(() => {
-    const ctrl = new AbortController();
-    loadTimeZones(timezonesUrl, ctrl.signal)
-      .then(setZones)
-      .catch(() => {
-        if (!ctrl.signal.aborted) zoneLoadError();
-      })
-      .finally(() => {
-        if (!ctrl.signal.aborted) setZonesLoaded(true);
-      });
-    return () => ctrl.abort();
-  }, [showToast]);
-
-  const initializeRoute = useEffectEvent((idx: SearchIndex) => {
+  const initializeRoute = useEffectEvent((idx: SearchIndex, loadedZones?: TimeZoneTable | null): boolean => {
     const fromUrl = parseLink(window.location.search);
+    const hasRouteInput = [...new URLSearchParams(window.location.search).keys()].some((key) =>
+      /^(route|itinerary)$/i.test(key),
+    );
     if (fromUrl.stops !== null) applyLink(fromUrl, idx, window.location.search);
     else {
       const saved = loadLastJourney();
@@ -350,24 +342,45 @@ export default function App() {
         applyLink(remembered, idx, saved);
       } else {
         const legacy = loadLastRoute();
-        loadCodes(legacy ?? EXAMPLE_ROUTE, idx, { example: legacy === null });
+        // Only a first-time example waits for the zone lookup, including a failed request.
+        if (legacy === null && !hasRouteInput && loadedZones === undefined) return false;
+        const first = legacy === null ? suggestionsFor(idx, loadedZones ?? zones)[0] : undefined;
+        loadCodes(legacy ?? (first ? [airportCode(first.from), airportCode(first.to)] : []), idx, {
+          example: legacy === null,
+        });
       }
       // A view-only link still overrides the remembered/default view.
       if (window.location.search) applyLink(fromUrl, idx, window.location.search);
     }
     setInitialized(true);
+    return true;
   });
 
   // ---- Load the airport dataset, then initialise the route (URL > remembered > example) ----
   useEffect(() => {
     const ctrl = new AbortController();
+    const zonesReady = loadTimeZones(timezonesUrl, ctrl.signal)
+      .then((table) => {
+        setZones(table);
+        return table;
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) zoneLoadError();
+        return null;
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setZonesLoaded(true);
+      });
     loadAirports(airportsUrl, ctrl.signal)
-      .then((data) => {
+      .then(async (data) => {
         const idx = buildSearchIndex(data.airports);
         indexRef.current = idx;
         setDataset(data);
         setBaseIndex(idx);
-        initializeRoute(idx);
+        if (!initializeRoute(idx)) {
+          const table = await zonesReady;
+          if (!ctrl.signal.aborted) initializeRoute(idx, table);
+        }
       })
       .catch((err) => {
         if (ctrl.signal.aborted) return;
@@ -375,7 +388,7 @@ export default function App() {
         setDataError(true);
       });
     return () => ctrl.abort();
-  }, []);
+  }, [showToast]);
 
   // The mobile search takeover gets its own history entry so the Android/browser back
   // button closes it instead of leaving the site.
@@ -786,6 +799,7 @@ export default function App() {
     const target = at ?? route.stops.length;
     flushSync(() => {
       dispatch(at === undefined ? { type: 'addStop' } : { type: 'insertStop', index: at });
+      setIsExample(false);
       setEditing(target);
     });
     focusTakeover();
@@ -937,6 +951,7 @@ export default function App() {
   const reverse = () => {
     if (hasEnteredTimes(route.stops)) showToast(t('toasts.reversedTimes'));
     dispatch({ type: 'reverse' });
+    setIsExample(false);
   };
   const clear = () => {
     dispatch({ type: 'clear' });
@@ -1219,7 +1234,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="panel__scroll">
+            <div className={`panel__scroll${isExample && !arranging ? ' suggestions--welcome' : ''}`}>
               {dataError ? (
                 <p className="panel__error" role="alert">
                   {t('errors.airportsUnavailable')}
@@ -1249,29 +1264,51 @@ export default function App() {
                     />
                   )}
                   onEdit={openEditor}
-                  onRemove={(i) => dispatch({ type: 'removeStop', index: i })}
+                  onRemove={(i) => {
+                    dispatch({ type: 'removeStop', index: i });
+                    setIsExample(false);
+                  }}
                   onInsert={(i) => addStop(i)}
                   onAdd={() => addStop()}
-                  onMove={(from, to) => dispatch({ type: 'moveStop', from, to })}
-                  onLayoverChange={(index, minutes) => dispatch({ type: 'setLayover', index, minutes })}
+                  onMove={(from, to) => {
+                    dispatch({ type: 'moveStop', from, to });
+                    setIsExample(false);
+                  }}
+                  onLayoverChange={(index, minutes) => {
+                    dispatch({ type: 'setLayover', index, minutes });
+                    setIsExample(false);
+                  }}
                   onSelectLeg={selectLeg}
                   onReverse={reverse}
                   onClear={clear}
                 />
               )}
-              {initialized && legs.length === 0 && filledAirports.length === 0 && (
+              {initialized && (isExample || filledAirports.length === 0) && (
                 <div className="suggestions">
-                  <p className="suggestions__title">{t('panel.orTryOneOfThese')}</p>
-                  <ul>
-                    {SUGGESTED_ROUTES.map((s) => (
-                      <li key={s.join('-')}>
-                        <button type="button" className="suggestion" onClick={() => index && loadCodes(s, index)}>
-                          {s
-                            .map((code) => {
-                              const airport = dataset?.airports.find((a) => a.iata === code);
-                              return airport ? fmt.city(airport) : code;
-                            })
-                            .join(' → ')}
+                  <p className="suggestions__title" id="welcome-suggestions-title">
+                    {t(isExample ? 'panel.tryOneOfThese' : 'panel.orTryOneOfThese')}
+                  </p>
+                  <ul role="list" aria-labelledby="welcome-suggestions-title">
+                    {suggestions.map(({ from, to, minutes }) => (
+                      <li key={to.id}>
+                        <button
+                          type="button"
+                          className="suggestion"
+                          aria-pressed={
+                            isExample &&
+                            filledAirports.length === 2 &&
+                            filledAirports[0].id === from.id &&
+                            filledAirports[1].id === to.id
+                          }
+                          onClick={() =>
+                            index && loadCodes([airportCode(from), airportCode(to)], index, { example: true })
+                          }
+                        >
+                          <IconPlane size={14} />
+                          <span className="suggestion__route">
+                            {fmt.city(from)} → {fmt.city(to)}
+                          </span>
+                          <span className="suggestion__duration">≈ {fmt.duration(minutes)}</span>
                         </button>
                       </li>
                     ))}
