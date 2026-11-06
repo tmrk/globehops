@@ -21,7 +21,7 @@
 | `src/components/AboutDialog.tsx`                                      | Method, credits, source links and the privacy/usage-statistics switch.                                |
 | `src/components/CodeBadge.tsx`                                        | IATA/ICAO badges and the no-code plane glyph.                                                         |
 | `src/components/ErrorBoundary.tsx`                                    | Lazy globe failure boundary.                                                                          |
-| `src/components/Brand.tsx`                                            | Wordmark, SVG logo and the faint release version beside it.                                           |
+| `src/components/Brand.tsx`                                            | Wordmark, SVG logo and the faint bottom-left release version tag.                                     |
 | `src/components/Icons.tsx`                                            | Small inline SVG icon set.                                                                            |
 | `src/components/Toast.tsx`                                            | Live status messages and share fallback.                                                              |
 | `src/components/ConsentNotice.tsx`                                    | One-time, non-blocking Google Analytics consent question.                                             |

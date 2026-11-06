@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { flushSync } from 'react-dom';
 import { AboutDialog, type AboutDialogHandle } from './components/AboutDialog.tsx';
 import { AirportPicker, type AirportPickerHandle } from './components/AirportPicker.tsx';
-import { Brand } from './components/Brand.tsx';
+import { Brand, VersionTag } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { GlobeHud } from './components/GlobeHud.tsx';
 import { IconCheck, IconChevronUp, IconInfo, IconPencil, IconShare, IconPlay } from './components/Icons.tsx';
@@ -985,6 +985,7 @@ export default function App() {
       <p className="sr-only" aria-live="polite">
         {activeState ? describeState(journey, activeState).title : ''}
       </p>
+      <VersionTag />
       <Toast toast={toast} />
       <AboutDialog ref={aboutRef} meta={dataset?.meta ?? null} analytics={analytics} />
     </div>

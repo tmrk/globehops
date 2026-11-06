@@ -68,6 +68,9 @@
   --track-code: 0.04em;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Bottom-left version tag: its baseline offset, and the clear strip the phone sheet keeps for it. */
+  --version-bottom: max(3px, calc(var(--safe-bottom) - 14px));
+  --corner-room: 17px;
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --shadow: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
@@ -366,16 +369,26 @@ a {
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 
-/* The running release, deliberately faint: there when you look for it, otherwise unnoticed. */
-.brand__version {
-  align-self: flex-start;
-  margin: 3px 0 0 -3px;
+/* The running release in the bottom-left corner, deliberately faint: there when you look for it.
+   On phones it sits in the strip below the sheet's content (the home-indicator area on iPhones);
+   whatever ends the sheet keeps at least --corner-room below its content. */
+
+.app-version {
+  position: fixed;
+  z-index: 26;
+  left: calc(var(--edge) + var(--safe-left));
+  bottom: var(--version-bottom);
+  margin: 0;
   font: 500 var(--text-2xs) / 1 var(--mono);
   font-stretch: var(--mono-stretch);
   letter-spacing: 0.02em;
   color: var(--text-3);
-  opacity: 0.75;
-  user-select: text;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.layout-desktop .app-version {
+  pointer-events: auto;
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -703,7 +716,7 @@ button.map-menu__item:hover {
   align-items: center;
   gap: 12px;
   min-height: 52px;
-  padding: 0 var(--pad) calc(12px + var(--safe-bottom));
+  padding: 0 var(--pad) max(var(--corner-room), calc(12px + var(--safe-bottom)));
   text-align: left;
 }
 
@@ -1404,7 +1417,7 @@ button.map-menu__item:hover {
 .summary {
   position: relative;
   flex: none;
-  padding: 12px var(--pad) calc(12px + var(--safe-bottom));
+  padding: 12px var(--pad) max(var(--corner-room), calc(12px + var(--safe-bottom)));
   border-top: 1px dashed var(--line-strong);
 }
 
@@ -1414,7 +1427,7 @@ button.map-menu__item:hover {
 }
 
 .layout-mobile .panel.has-timeline .panel__scroll {
-  padding-bottom: calc(8px + var(--safe-bottom));
+  padding-bottom: max(var(--corner-room), calc(8px + var(--safe-bottom)));
 }
 
 .layout-desktop .summary {
@@ -1919,7 +1932,7 @@ button.map-menu__item:hover {
   flex: none;
   width: auto;
   margin: 0;
-  padding: 0 var(--pad) calc(10px + var(--safe-bottom));
+  padding: 0 var(--pad) max(var(--corner-room), calc(10px + var(--safe-bottom)));
   border: 0;
   border-radius: 0;
   background: none;

@@ -23,7 +23,7 @@ src/agent/{contract,itinerary,schema,plan}
   → build-agent-files → public/agent/{capabilities,itinerary.schema,examples}.json
   → mcp/ local stdio tools (same calculations; no hosted endpoint)
 Vite → agent/dataset.json (current dataset provenance and app release)
-package.json version + git commit → Vite define → src/version.ts → brand label, About
+package.json version + git commit → Vite define → src/version.ts → bottom-left version tag, About
 public/llms.txt → external-agent discovery
 
 NASA JPEGs (Blue Marble day, Black Marble night) → build-textures → WebP assets → GlobeRenderer

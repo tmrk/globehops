@@ -60,7 +60,7 @@ Never hand-edit generated `public/agent/*.json`: run `npm run agent:build` after
 
 ## Versioning
 
-GlobeHops uses [semantic versioning](https://semver.org/). `package.json` is the source of truth; Vite injects it with the build commit and date (`src/version.ts`), shown faintly beside the brand, in About and in `agent/dataset.json`.
+GlobeHops uses [semantic versioning](https://semver.org/). `package.json` is the source of truth; Vite injects it with the build commit and date (`src/version.ts`), shown faintly in the bottom-left corner, in About and in `agent/dataset.json`.
 
 - Every change deployed to users is a release: bump with `npm version <patch|minor|major> --no-git-tag-version` (updates `package-lock.json` too) and add `## <version> — <YYYY-MM-DD> — <title>` at the top of `RECENT_CHANGES.md`. `scripts/version.test.ts` fails if they disagree or headings are out of order.
 - **patch**: fixes, copy, data/asset corrections without new behaviour; **minor**: new or changed user-visible features; **major**: breaking changes to share links, the agent contract or other public interfaces (avoid; links stay backwards compatible).

@@ -4,7 +4,7 @@
 
 **[Open GlobeHops → tmrk.github.io/globehops](https://tmrk.github.io/globehops/)**
 
-It runs in any modern browser on phones, tablets and desktops. There is nothing to install and no account to create. The version you are using is shown faintly beside the GlobeHops name; [what’s new](RECENT_CHANGES.md) lists every release.
+It runs in any modern browser on phones, tablets and desktops. There is nothing to install and no account to create. The version you are using is shown faintly in the bottom-left corner; [what’s new](RECENT_CHANGES.md) lists every release.
 
 ![GlobeHops on a desktop: a Copenhagen–London–New York journey on the globe, with the journey panel on the left](docs/screenshot.png)
 

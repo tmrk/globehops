@@ -44,14 +44,20 @@ export function LogoMark({ size = 30 }: { size?: number }) {
 }
 
 export function Brand() {
-  const build = describeBuild(APP_COMMIT, APP_DATE);
   return (
     <div className="brand">
       <LogoMark />
       <span className="brand__name">GlobeHops</span>
-      <span className="brand__version" title={build || undefined} aria-label={`Version ${APP_VERSION}`}>
-        v{APP_VERSION}
-      </span>
     </div>
+  );
+}
+
+/** The running release, faint in the bottom-left corner; hover shows the build. */
+export function VersionTag() {
+  const build = describeBuild(APP_COMMIT, APP_DATE);
+  return (
+    <p className="app-version" title={build || undefined}>
+      <span className="sr-only">GlobeHops version </span>v{APP_VERSION}
+    </p>
   );
 }

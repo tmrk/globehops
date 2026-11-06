@@ -1,6 +1,10 @@
 # Recent changes
 
-Every release has a [semantic version](https://semver.org/) (shown faintly beside the GlobeHops name and in About) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
+Every release has a [semantic version](https://semver.org/) (shown faintly in the bottom-left corner and in About) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
+
+## 1.6.1 — 2026-11-06 — Version in the bottom-left corner
+
+- The faint version moved from beside the GlobeHops name to the bottom-left corner of the screen. On desktop it sits below the journey panel (hover shows the build commit and date). On phones it sits in a thin strip below the journey sheet's content (inside the home-indicator area on iPhones); the sheet keeps at least 17 px clear at its bottom edge, so the version never overlaps the totals, the collapsed bar or the docked timeline.
 
 ## 1.6.0 — 2026-11-06 — Version number
 
