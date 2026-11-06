@@ -50,7 +50,7 @@ async function reviewPlaceNames(page: Page, info: TestInfo) {
     const response = await route.fetch();
     const original = await response.text();
     const body = original.replace(
-      /(this\.countryLabels\.setVisible\(\w+\.showCountryLabels\))/,
+      /(this\.countryLabels\.setVisible\(\w+\.showCountryLabels,\w+\.showWaterLabels\))/,
       '$1,globalThis.__placeLabelReview=this',
     );
     expect(body, 'Capture the renderer only in this test response').not.toBe(original);
@@ -61,7 +61,21 @@ async function reviewPlaceNames(page: Page, info: TestInfo) {
   await expectRoute(page, ['CPH', 'JFK']);
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
   await openDisplay(page);
-  await page.getByRole('button', { name: 'Place names', exact: true }).click();
+  await page.getByRole('button', { name: 'Country names', exact: true }).click();
+  await expect.poll(() => page.locator('.country-label--country:visible').count()).toBeGreaterThan(0);
+  await expect(page.locator('.country-label--ocean:visible, .country-label--sea:visible')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Oceans and seas', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await openDisplay(page);
+  await expect(page.getByRole('button', { name: 'Country names', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('button', { name: 'Oceans and seas', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await page.keyboard.press('Escape');
   const atlantic = page.locator('.country-label--ocean:visible').filter({ hasText: /North Atlantic/ });
   await expect(atlantic).toBeVisible();
@@ -96,4 +110,33 @@ test.describe('Pixel 7', () => {
   test('country and ocean names at default, Europe and Pacific phone views', async ({ page }, info) => {
     await reviewPlaceNames(page, info);
   });
+});
+
+test('legacy names preference initializes water, and link overrides preserve both saved choices', async ({ page }) => {
+  await page.goto('./?route=CPH-JFK');
+  await page.evaluate(() => {
+    localStorage.setItem('globehops:countryNames', 'on');
+    localStorage.removeItem('globehops:waterNames');
+  });
+  await page.reload();
+  await openDisplay(page);
+  const places = page.getByRole('button', { name: 'Country names', exact: true });
+  const water = page.getByRole('button', { name: 'Oceans and seas', exact: true });
+  await expect(places).toHaveAttribute('aria-pressed', 'true');
+  await expect(water).toHaveAttribute('aria-pressed', 'true');
+  await water.click();
+  await page.goto('./?route=CPH-JFK&names=1');
+  await openDisplay(page);
+  await expect(places).toHaveAttribute('aria-pressed', 'true');
+  await expect(water).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => localStorage.getItem('globehops:waterNames'))).toBe('off');
+  await page.goto('./?route=CPH-JFK&names=0');
+  await openDisplay(page);
+  await expect(places).toHaveAttribute('aria-pressed', 'false');
+  await expect(water).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(() => localStorage.getItem('globehops:countryNames'))).toBe('on');
+  await page.goto('./?route=CPH-JFK');
+  await openDisplay(page);
+  await expect(places).toHaveAttribute('aria-pressed', 'true');
+  await expect(water).toHaveAttribute('aria-pressed', 'false');
 });

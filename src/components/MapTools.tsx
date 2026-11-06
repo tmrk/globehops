@@ -1,10 +1,16 @@
-import { LanguageSelector } from '../i18n/LanguageSelector.tsx';
+import { LOCALES, localeInfo } from '../i18n/locales.ts';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import type { SimulationClock } from '../state/clock.ts';
 import { browserTimeZone, zoneAbbreviation } from '../lib/timezone.ts';
 import type { DistanceUnit } from '../types.ts';
 import {
+  IconLanguage,
+  IconWaves,
+  IconMotion,
+  IconLocate,
+  IconCheck,
   IconBorders,
   IconChevronRight,
   IconClock,
@@ -21,6 +27,13 @@ interface MapToolsProps {
   globe: boolean;
   showBorders: boolean;
   showCountryNames: boolean;
+  showWaterNames: boolean;
+  reducedMotion: boolean;
+  myLocation: boolean;
+  locationAvailable: boolean;
+  onToggleWaterNames: () => void;
+  onToggleReduceMotion: () => void;
+  onToggleMyLocation: () => void;
   dayNight: boolean;
   unit: DistanceUnit;
   timeOpen: boolean;
@@ -69,7 +82,7 @@ function Toggle({
   onClick: () => void;
 }) {
   return (
-    <button type="button" className="map-menu__item" aria-pressed={on} onClick={onClick}>
+    <button type="button" className="map-menu__item" title={label} aria-pressed={on} onClick={onClick}>
       <span className="map-menu__icon">{icon}</span>
       <span className="map-menu__label">{label}</span>
       <span className="switch" aria-hidden="true" />
@@ -79,25 +92,43 @@ function Toggle({
 
 /**
  * One grouped control at the globe's top-right corner: display options (map layers, units and the
- * globe clock) in a small menu, and re-centring on the route.
+ * globe clock) in a small menu, a language menu, and re-centring on the route.
  */
 export function MapTools(props: MapToolsProps) {
-  const { t } = useI18n();
+  const { t, locale, setLocale } = useI18n();
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<'display' | 'language' | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const languageButtonRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+  const languageMenuId = useId();
+  const closeLanguage = () => {
+    setOpen(null);
+    languageButtonRef.current?.focus();
+  };
+  const onLanguageKey = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const target =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? LOCALES.length - 1
+          : (index + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1) + LOCALES.length) % LOCALES.length;
+    (event.currentTarget.parentElement?.children[target] as HTMLButtonElement | undefined)?.focus();
+    void setLocale(LOCALES[target]);
+  };
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(null);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      setOpen(false);
-      buttonRef.current?.focus();
+      setOpen(null);
+      (open === 'language' ? languageButtonRef : buttonRef).current?.focus();
     };
     document.addEventListener('pointerdown', onDown, true);
     document.addEventListener('keydown', onKey);
@@ -115,11 +146,23 @@ export function MapTools(props: MapToolsProps) {
           type="button"
           className="float-group__btn"
           aria-label={t('maptools.displayOptions')}
-          aria-expanded={open}
+          aria-expanded={open === 'display'}
           aria-controls={menuId}
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen((v) => (v === 'display' ? null : 'display'))}
         >
           <IconLayers />
+        </button>
+        <button
+          ref={languageButtonRef}
+          type="button"
+          className="float-group__btn"
+          aria-label={t('maptools.languageButton', localeInfo[locale].name)}
+          aria-expanded={open === 'language'}
+          aria-controls={languageMenuId}
+          title={t('common.language')}
+          onClick={() => setOpen((v) => (v === 'language' ? null : 'language'))}
+        >
+          <IconLanguage />
         </button>
         {props.frameLabel && props.globe && (
           <button
@@ -133,7 +176,7 @@ export function MapTools(props: MapToolsProps) {
           </button>
         )}
       </div>
-      {open && (
+      {open === 'display' && (
         <div id={menuId} className="map-menu" role="group" aria-label={t('maptools.displayOptions')}>
           {props.globe && (
             <>
@@ -150,6 +193,12 @@ export function MapTools(props: MapToolsProps) {
                 onClick={props.onToggleCountryNames}
               />
               <Toggle
+                label={t('maptools.waterNames')}
+                icon={<IconWaves size={18} />}
+                on={props.showWaterNames}
+                onClick={props.onToggleWaterNames}
+              />
+              <Toggle
                 label={t('maptools.dayAndNight')}
                 icon={<IconSunMoon size={18} />}
                 on={props.dayNight}
@@ -157,6 +206,15 @@ export function MapTools(props: MapToolsProps) {
               />
             </>
           )}
+          {props.globe && props.locationAvailable && (
+            <Toggle
+              label={t('maptools.myLocation')}
+              icon={<IconLocate size={18} />}
+              on={props.myLocation}
+              onClick={props.onToggleMyLocation}
+            />
+          )}
+          <hr className="map-menu__rule" />
           <div className="map-menu__item map-menu__item--static">
             <span className="map-menu__icon">
               <IconRuler size={18} />
@@ -176,20 +234,52 @@ export function MapTools(props: MapToolsProps) {
               ))}
             </span>
           </div>
-          <hr className="map-menu__rule" />
-          <LanguageSelector />
+          <Toggle
+            label={t('maptools.reduceMotion')}
+            icon={<IconMotion size={18} />}
+            on={props.reducedMotion}
+            onClick={props.onToggleReduceMotion}
+          />
           {!props.timeOpen && (
             <>
               <hr className="map-menu__rule" />
               <GlobeTime
                 clock={props.clock}
                 onOpen={() => {
-                  setOpen(false);
+                  setOpen(null);
                   props.onOpenTime();
                 }}
               />
             </>
           )}
+        </div>
+      )}
+      {open === 'language' && (
+        <div
+          id={languageMenuId}
+          className="map-menu map-menu--language"
+          role="radiogroup"
+          aria-label={t('common.language')}
+        >
+          {LOCALES.map((value, index) => (
+            <button
+              key={value}
+              type="button"
+              className="map-menu__item"
+              role="radio"
+              lang={value}
+              aria-checked={locale === value}
+              tabIndex={locale === value ? 0 : -1}
+              onKeyDown={(event) => onLanguageKey(event, index)}
+              onClick={() => {
+                void setLocale(value);
+                closeLanguage();
+              }}
+            >
+              <span className="map-menu__label">{localeInfo[value].name}</span>
+              {locale === value && <IconCheck size={18} />}
+            </button>
+          ))}
         </div>
       )}
     </div>

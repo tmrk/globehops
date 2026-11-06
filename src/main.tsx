@@ -12,6 +12,15 @@ import '@fontsource/barlow/700.css';
 import '@fontsource-variable/martian-mono/standard.css';
 import './styles/app.css';
 import App from './App.tsx';
+import { loadReduceMotion } from './state/storage.ts';
+import { effectiveReducedMotion } from './lib/motion.ts';
+
+document.documentElement.dataset.motion = effectiveReducedMotion(
+  loadReduceMotion(),
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+)
+  ? 'reduce'
+  : 'full';
 
 async function start() {
   const resolved = resolveLocale({

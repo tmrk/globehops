@@ -2,6 +2,16 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.9.0 — 2026-11-06 — Brighter oceans, crisper twilight, language button, separate water names, motion choice, my location
+
+- **Brighter oceans by day.** The deep ocean in the NASA imagery was almost black, so it looked much the same by day as by night. The day texture now lifts the darkest water to a clear navy (most in the deep basins, least on the shelves, keeping every depth gradation in order); land, ice and lakes are unchanged. The texture files also got 7–9% smaller.
+- **Crisper day and night.** The shading changes from night to full day within about ±3° of the Sun's elevation around sunset (previously a gradual fade through astronomical twilight at −18°). The terminator stays exactly where the Sun sets and rises; only its softness changed. City lights still come on through dusk.
+- **Language button.** The language choice moved out of the display menu into its own button beside it; it is still in About too.
+- **Country names and Oceans and seas.** The old “Place names” toggle is now two: **Country names** and **Oceans and seas**, each remembered separately. If you had place names on, both start on. `names` links still switch both.
+- **Reduce motion, your choice.** A **Reduce motion** switch in the display menu starts from your system setting and can override it either way, so you can enjoy every animation even when your device asks for less motion (or calm things down when it doesn't). The choice is remembered.
+- **My location.** An optional **My location** switch shows where you are as a blue dot, using your browser's location permission. Your position stays in the browser: it is never stored, put in links or sent anywhere.
+- **Translation review.** Hungarian and Swedish wording was reviewed for idiom: for example Swedish “Följ flygplanet” (not the ambiguous “Följ planet”), “Vänd på rutten”, “Spela upp resan” and a proper compound in “GlobeHops-version”; Hungarian method and accessibility texts, “Lépkedés a járatok között” and natural word order in several hints.
+
 ## 1.8.1 — 2026-11-06 — Kilometres in Hungarian and Swedish
 
 - **Kilometres by default in Hungarian and Swedish.** Without a saved choice, the distance unit followed only the browser's region tag, so a Hungarian or Swedish interface in an `en-US` browser (common when the language is picked from the time zone) showed miles. Hungarian and Swedish now default to kilometres; English keeps miles for US, Liberian and Myanmar browsers. A saved choice or a `units` link parameter still wins.

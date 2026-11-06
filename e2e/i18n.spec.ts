@@ -16,7 +16,7 @@ test('Hungarian path loads translated chrome and switches to Swedish without rel
   // Paused schedules debounce their initial instant into the URL; compare the settled query.
   await expect(page).toHaveURL(/t=2026-11-20T07:15Z/);
   const query = new URL(page.url()).search;
-  await page.getByRole('button', { name: 'Megjelenítés', exact: true }).click();
+  await page.getByRole('button', { name: 'Nyelv: Magyar', exact: true }).click();
   await page.getByRole('radio', { name: 'Svenska', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'sv');
   await expect(page).toHaveTitle('CPH → LHR · GlobeHops');
@@ -75,7 +75,7 @@ test('Swedish country proxy selects Swedish', async ({ browser, auditPage, baseU
 test('selector supports keyboard arrows and About language selection', async ({ page }) => {
   await page.goto('./hu/?route=');
   await expect(page).toHaveTitle('GlobeHops — az utad egy 3D-s földgömbön');
-  await page.getByRole('button', { name: 'Megjelenítés', exact: true }).click();
+  await page.getByRole('button', { name: 'Nyelv: Magyar', exact: true }).click();
   const magyar = page.getByRole('radio', { name: 'Magyar', exact: true });
   await magyar.focus();
   await magyar.press('ArrowRight');
@@ -128,7 +128,7 @@ for (const [locale, messages] of [
     };
     await capture('route');
     await page.getByRole('button', { name: messages['maptools.displayOptions'], exact: true }).click();
-    await expect(page.getByRole('radio', { name: 'Magyar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: messages['maptools.reduceMotion'], exact: true })).toBeVisible();
     await capture('display');
     await page.keyboard.press('Escape');
     await page.locator('[data-leg="0"]').click();
@@ -215,13 +215,15 @@ test('English skips city data and selector updates cities and globe labels toget
   await expect(page.locator('.stop__city').first()).toHaveText('Copenhagen');
   expect(requests).toHaveLength(0);
   await page.getByRole('button', { name: 'Display options', exact: true }).click();
-  await page.getByRole('button', { name: 'Place names', exact: true }).click();
+  await page.getByRole('button', { name: 'Oceans and seas', exact: true }).click();
   await expect(page.locator('.country-label--ocean:visible').filter({ hasText: 'North Atlantic' })).toBeVisible();
+  await page.getByRole('button', { name: 'Language: English', exact: true }).click();
   await page.getByRole('radio', { name: 'Magyar', exact: true }).click();
   await expect(page.locator('.stop__city').first()).toHaveText('Koppenhága');
   await expect(
     page.locator('.country-label--ocean:visible').filter({ hasText: 'Atlanti-óceán' }).first(),
   ).toBeVisible();
+  await page.getByRole('button', { name: 'Nyelv: Magyar', exact: true }).click();
   await page.getByRole('radio', { name: 'Svenska', exact: true }).click();
   await expect(page.locator('.stop__city').first()).toHaveText('Köpenhamn');
   await expect(page.locator('.country-label--ocean:visible').filter({ hasText: 'Atlanten' }).first()).toBeVisible();
@@ -247,7 +249,7 @@ for (const [locale, messages, cities, query] of [
     await capture('route');
     await page.getByRole('button', { name: messages['maptools.displayOptions'], exact: true }).click();
     await page.getByRole('button', { name: messages['maptools.countryNames'], exact: true }).click();
-    await expect(page.getByRole('radio', { name: 'Svenska', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: messages['maptools.waterNames'], exact: true })).toBeVisible();
     await capture('display');
     await page.keyboard.press('Escape');
     await page.locator('.stop__main').first().click();

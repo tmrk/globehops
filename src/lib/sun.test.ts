@@ -13,6 +13,7 @@ import {
 import { normalizeLng } from './geo.ts';
 import {
   DAYLIGHT_STOPS,
+  SOLAR_ELEVATION_DEG,
   dayLightLevel,
   daylightAt,
   solarDeclinationDeg,
@@ -176,26 +177,32 @@ describe('solar elevation display curve', () => {
     expect(dayLightLevel(elevation)).toBeCloseTo(level, 12);
   });
 
-  it('saturates at full astronomical night and full day', () => {
-    for (const elevation of [-1000, -90, -30, -18]) expect(dayLightLevel(elevation)).toBe(0);
-    for (const elevation of [3, 10, 45, 90, 1000]) expect(dayLightLevel(elevation)).toBe(1);
+  it('is centred on sunset and narrow: night by −4°, full day by +2.5°', () => {
+    expect(DAYLIGHT_STOPS[0][0]).toBeCloseTo(-3.833, 2);
+    expect(DAYLIGHT_STOPS[2][0]).toBeCloseTo(2.167, 2);
+    for (const elevation of [-1000, -90, -18, -12, -6, -4]) expect(dayLightLevel(elevation)).toBe(0);
+    for (const elevation of [2.5, 10, 45, 90, 1000]) expect(dayLightLevel(elevation)).toBe(1);
+    // Most of the change happens within about ±1.8° of sunset.
+    expect(dayLightLevel(SOLAR_ELEVATION_DEG.sunset - 1.8)).toBeLessThan(0.12);
+    expect(dayLightLevel(SOLAR_ELEVATION_DEG.sunset + 1.8)).toBeGreaterThan(0.88);
   });
 
-  it('darkens continuously and monotonically through every twilight stage', () => {
+  it('brightens continuously and monotonically, steepest at sunset', () => {
     let previous = 0;
+    let steepest = { slope: 0, elevation: Number.NaN };
     for (let step = -9000; step <= 9000; step++) {
       const level = dayLightLevel(step / 100);
       expect(level).toBeGreaterThanOrEqual(previous);
       expect(level).toBeLessThanOrEqual(1);
+      if (level - previous > steepest.slope) steepest = { slope: level - previous, elevation: step / 100 };
       previous = level;
     }
-    for (const [elevation, level] of DAYLIGHT_STOPS) {
-      expect(Math.abs(dayLightLevel(elevation - 0.00001) - level)).toBeLessThan(1e-9);
-      expect(Math.abs(dayLightLevel(elevation + 0.00001) - level)).toBeLessThan(1e-9);
+    expect(Math.abs(steepest.elevation - SOLAR_ELEVATION_DEG.sunset)).toBeLessThan(0.02);
+    // Symmetric about sunset: what darkens on one side brightens on the other.
+    for (const offset of [0.5, 1, 2, 2.9]) {
+      const sum =
+        dayLightLevel(SOLAR_ELEVATION_DEG.sunset - offset) + dayLightLevel(SOLAR_ELEVATION_DEG.sunset + offset);
+      expect(sum).toBeCloseTo(1, 3);
     }
-    // No prematurely black plateau within nautical or astronomical twilight.
-    expect(dayLightLevel(-15)).toBeGreaterThan(0);
-    expect(dayLightLevel(-9)).toBeGreaterThan(dayLightLevel(-15));
-    expect(dayLightLevel(-3)).toBeGreaterThan(dayLightLevel(-9));
   });
 });

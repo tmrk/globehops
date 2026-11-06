@@ -14,8 +14,9 @@
  *
  * NASA imagery is generally not subject to copyright in the United States; see docs/DATA_SOURCES.md.
  *
- * Day modifications: Lanczos resampling to power-of-two equirectangular sizes and WebP encoding.
- * No colour, geometry or content changes.
+ * Day modifications: Lanczos resampling to power-of-two equirectangular sizes, a lift of the darkest
+ * water (see liftOceans) so deep oceans read differently by day and by night, and WebP encoding.
+ * No geometry or content changes.
  * Night modifications: Lanczos resampling, then a single-channel light mask that removes the
  * bluish moonlit land and ocean (see lightMask) so the shader can tint and fade lights by sun angle.
  *
@@ -30,6 +31,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
 import { lightMask } from './lib/lights.ts';
+import { liftOceans } from './lib/ocean.ts';
 
 export const SOURCE_URL =
   'https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x21600x10800.jpg';
@@ -82,9 +84,15 @@ async function buildDay(source: string) {
       console.warn(`Skipping ${o.file}: source is only ${width}px wide`);
       continue;
     }
+    const height = o.width / 2;
+    const { data, info } = await sharp(source, { limitInputPixels: false })
+      .resize(o.width, height, { kernel: 'lanczos3', fit: 'fill' })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    if (info.channels !== 3) throw new Error(`Expected an RGB day source, got ${info.channels} channels`);
     const target = path.join(outDir, o.file);
-    await sharp(source, { limitInputPixels: false })
-      .resize(o.width, o.width / 2, { kernel: 'lanczos3', fit: 'fill' })
+    await sharp(liftOceans(data), { raw: { width: o.width, height, channels: 3 } })
       .webp({ quality: o.quality, effort: 6, smartSubsample: true })
       .toFile(target);
     await report(target, o.file, o.width);

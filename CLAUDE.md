@@ -1,6 +1,6 @@
 See [AGENTS.md](AGENTS.md).
 
-- Preserve the mobile-first interface, accessibility, reduced motion and the globe’s prominence.
+- Preserve the mobile-first interface, accessibility, reduced motion (saved `globehops:reduceMotion` overrides the system) and the globe’s prominence.
 - Use strict TypeScript and the existing Prettier/CSS token conventions.
 - Use `useI18n()` for UI text/formatting and `fmt.city()` for cities; every key belongs in all three typed EN/HU/SV catalogues (missing keys are compile errors). Keep airport proper names untranslated and shared agent/MCP output English.
 - Keep pure logic tested in `src/lib/`, `src/state/`, `src/data/` and `src/agent/`; imperative Three.js stays in `src/globe/`.
@@ -18,6 +18,6 @@ See [AGENTS.md](AGENTS.md).
 - Agent link/tool view overrides are visit-only; preserve saved preferences. Feature-detect optional WebMCP and abort/unregister tools on cleanup.
 - Airport zones come from build-time TBB lookup; offsets and DST come from runtime `Intl`, whose rules can differ and change. Keep links backwards compatible.
 - Run `npm run labels:build` (country/marine sources), `npm run places:build` (city exonyms), `npm run timezones:build`, `npm run agent:build` and `npm run mcp` as needed. Never hand-edit generated labels, `city-names.json`, `timezones.json` or `public/agent/*.json`; document place overrides in `data/PLACE_NAMES.md`.
-- City exonyms load lazily for hu/sv; locale-aware search reuses the English index until ready. Keep the compatible `globehops:countryNames` key for “Place names”.
+- City exonyms load lazily for hu/sv; locale-aware search reuses the English index until ready. Keep the compatible `globehops:countryNames` key for “Country names” (`globehops:waterNames` inherits it).
 - Keep the ODbL time-zone database and its notices separate from public-domain airports; commit generated time zones with their build record.
 - `docs/AGENT_INTEGRATION.md` is for external agents using GlobeHops, not contributors; follow `AGENTS.md` for codebase work.

@@ -40,7 +40,8 @@ export class CountryLabelLayer {
   private projected = new Vector3();
   private toCamera = new Vector3();
   private abort = new AbortController();
-  private visible = false;
+  private placesVisible = false;
+  private waterVisible = false;
   private locale: LabelLocale = 'en';
   private disposed = false;
   private started = false;
@@ -66,11 +67,14 @@ export class CountryLabelLayer {
     });
   }
 
-  setVisible(visible: boolean): void {
-    if (this.disposed || visible === this.visible) return;
-    this.visible = visible;
+  setVisible(places: boolean, water: boolean): void {
+    if (this.disposed || (places === this.placesVisible && water === this.waterVisible)) return;
+    this.placesVisible = places;
+    this.waterVisible = water;
+    const visible = places || water;
     this.container.style.display = visible ? '' : 'none';
     if (visible && !this.started) void this.load();
+    this.requestRender();
   }
 
   setLocale(locale: string): void {
@@ -128,12 +132,16 @@ export class CountryLabelLayer {
   }
 
   update({ camera, width, height, reserved }: LabelContext): void {
-    if (!this.visible || this.disposed) return;
+    if ((!this.placesVisible && !this.waterVisible) || this.disposed) return;
     const pxPerRadian = height / 2 / Math.tan((camera.fov * Math.PI) / 360) / (camera.position.length() - 1);
     const zoom = mapZoom(pxPerRadian);
     this.candidates.length = 0;
     this.rectangles.length = 0;
     for (const entry of this.labels) {
+      if (!(entry.label.kind === 'country' ? this.placesVisible : this.waterVisible)) {
+        this.hide(entry);
+        continue;
+      }
       const style = labelStyle(entry.label, zoom);
       const facing =
         this.toCamera.copy(camera.position).sub(entry.position).normalize().dot(entry.position) /

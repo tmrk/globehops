@@ -123,19 +123,17 @@ Independent [astronomy-engine](https://github.com/cosinekitty/astronomy/tree/mas
 
 `daylightAt` retains its categorical labels: day above −0.833°, civil twilight down to and including −6°, night below. The −0.833° solar-centre elevation is the standard sea-level sunset approximation combining atmospheric refraction and the Sun's semi-diameter; actual refraction varies with weather and observer height. It is also the display blend's exact midpoint.
 
-The pure `dayLightLevel(elevationDeg)` curve and **both** shader curves are generated from the same sine-converted threshold segments in `sun.ts`. Positive weighted `smoothstep` segments make the blend continuous and monotonic, with zero slope at each knot:
+The pure `dayLightLevel(elevationDeg)` curve and **both** shader curves are generated from the same limits in `sun.ts`: one `smoothstep` in sin(elevation), symmetric around sunset (`TERMINATOR_HALF_WIDTH_DEG` = 3°). The blend is therefore continuous, monotonic and steepest exactly at sunset, so day and night read clearly with only a narrow twilight band between them. The band's position is exact; its brightness profile is a legibility choice, not civil/nautical/astronomical sky brightness (1.9.0 replaced a gradual curve that dimmed through −18°):
 
-| Geometric elevation | Display blend | Meaning                  |
-| ------------------- | ------------- | ------------------------ |
-| ≤ −18°              | 0             | Full astronomical night  |
-| −12°                | 0.025         | End of nautical twilight |
-| −6°                 | 0.15          | End of civil twilight    |
-| −0.833°             | 0.5           | Standard sunset/sunrise  |
-| ≥ +3°               | 1             | Full day blend           |
+| Geometric elevation | Display blend | Meaning                 |
+| ------------------- | ------------- | ----------------------- |
+| ≤ about −3.83°      | 0             | Night                   |
+| −0.833°             | 0.5           | Standard sunset/sunrise |
+| ≥ about +2.17°      | 1             | Full day blend          |
 
-A full day **blend** does not mean constant day brightness: the directional Lambert term still follows `max(mu, 0)`, reducing irradiance toward the horizon. The timed surface uses 1.2× the existing direct diffuse term and 0.65× its ambient diffuse term, preserving the overall overhead brightness while reducing ambient flattening. It blends into a cool floor of about 6% of daylight texture brightness for night-side legibility, plus a restrained warm twilight tint. NASA Black Marble city lights fade in between −3° and −6°. The surface rim and outer atmosphere use the same twilight curve, retaining a dim night rim. Null illumination restores camera-relative lighting; toggling fades over 360 ms unless reduced motion is requested.
+A full day **blend** does not mean constant day brightness: the directional Lambert term still follows `max(mu, 0)`, reducing irradiance toward the horizon. The timed surface uses 1.2× the existing direct diffuse term and 0.65× its ambient diffuse term, preserving the overall overhead brightness while reducing ambient flattening. It blends into a cool floor of about 6% of daylight texture brightness for night-side legibility, plus a restrained warm twilight tint. NASA Black Marble city lights fade in between −3° and civil dusk (−6°), just after the band. The surface rim and outer atmosphere use the same twilight curve, retaining a dim night rim. Null illumination restores camera-relative lighting; toggling fades over 360 ms unless reduced motion is requested.
 
-These elevations are astronomically grounded; the chosen blend weights, ambient fill, rim and tints are display choices, not a radiative-transfer model or predictions of sky luminance. Weather, terrain, eclipses and observer height are not simulated. City lights are a static texture. At 2026-12-21 15:00 UTC, the subsolar point is about 23.44°S, 45.4°W: the North Pole is in polar night and the South Pole in polar day; the eastern Americas and most of the Atlantic are daylit, with the evening terminator toward Europe/Africa.
+The sunset elevation is astronomically grounded; the band width, blend shape, ambient fill, rim and tints are display choices, not a radiative-transfer model or predictions of sky luminance. Weather, terrain, eclipses and observer height are not simulated. City lights are a static texture. At 2026-12-21 15:00 UTC, the subsolar point is about 23.44°S, 45.4°W: the North Pole is in polar night and the South Pole in polar day; the eastern Americas and most of the Atlantic are daylit, with the evening terminator toward Europe/Africa.
 
 ### Spherical Earth approximation
 

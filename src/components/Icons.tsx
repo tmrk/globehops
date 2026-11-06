@@ -182,3 +182,27 @@ export const IconFollow = (p: IconProps) => (
     <path d="M10 2v3M10 15v3M2 10h3M15 10h3" />
   </Icon>
 );
+
+export const IconLanguage = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2.5 16l3.7-10 3.7 10M3.8 12.5h4.8M10 5h7.5M13.5 3v2M16 5c-.5 4-2.4 6.4-5.5 8M11 7.5c1.1 2.4 3 4.3 6.5 5.5" />
+  </Icon>
+);
+export const IconWaves = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2 6c3-3 5 3 8 0s5 3 8 0M2 10c3-3 5 3 8 0s5 3 8 0M2 14c3-3 5 3 8 0s5 3 8 0" />
+  </Icon>
+);
+export const IconMotion = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2 6h5M2 10h3M2 14h5M10 6l5 4-5 4M7 10h8" />
+    <circle cx="17" cy="10" r="1" />
+  </Icon>
+);
+export const IconLocate = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="10" cy="10" r="5.5" />
+    <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+    <path d="M10 2v2M10 16v2M2 10h2M16 10h2" />
+  </Icon>
+);

@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
+  loadWaterNames,
+  saveWaterNames,
+  loadReduceMotion,
+  saveReduceMotion,
+  loadMyLocation,
+  saveMyLocation,
   loadFollowAircraft,
   saveFollowAircraft,
   loadBorders,
@@ -176,6 +182,49 @@ describe('journey preferences', () => {
       } finally {
         vi.unstubAllGlobals();
       }
+    }
+  });
+});
+
+describe.each([
+  ['waterNames', loadWaterNames, saveWaterNames],
+  ['reduceMotion', loadReduceMotion, saveReduceMotion],
+  ['myLocation', loadMyLocation, saveMyLocation],
+] as const)('%s preference', (key, load, save) => {
+  it('round trips explicit choices and ignores malformed data', () => {
+    const data = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => data.set(key, value),
+    });
+    try {
+      expect(load()).toBeNull();
+      save(true);
+      expect(data.get(`globehops:${key}`)).toBe('on');
+      expect(load()).toBe(true);
+      save(false);
+      expect(data.get(`globehops:${key}`)).toBe('off');
+      expect(load()).toBe(false);
+      data.set(`globehops:${key}`, 'maybe');
+      expect(load()).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it('tolerates unavailable storage', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('blocked');
+      },
+      setItem: () => {
+        throw new Error('blocked');
+      },
+    });
+    try {
+      expect(load()).toBeNull();
+      expect(() => save(true)).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });

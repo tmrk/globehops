@@ -122,3 +122,30 @@ export function loadFollowAircraft(): boolean | null {
 export function saveFollowAircraft(enabled: boolean): void {
   write('globehops:followAircraft', enabled ? 'on' : 'off');
 }
+
+/** Water-name visibility; null inherits the saved place-name preference. */
+export function loadWaterNames(): boolean | null {
+  const value = read('globehops:waterNames');
+  return value === 'on' ? true : value === 'off' ? false : null;
+}
+export function saveWaterNames(on: boolean): void {
+  write('globehops:waterNames', on ? 'on' : 'off');
+}
+
+/** Motion override; null follows the system preference. */
+export function loadReduceMotion(): boolean | null {
+  const value = read('globehops:reduceMotion');
+  return value === 'on' ? true : value === 'off' ? false : null;
+}
+export function saveReduceMotion(on: boolean): void {
+  write('globehops:reduceMotion', on ? 'on' : 'off');
+}
+
+/** Explicit permission to request a browser-local position; no coordinates are stored. */
+export function loadMyLocation(): boolean | null {
+  const value = read('globehops:myLocation');
+  return value === 'on' ? true : value === 'off' ? false : null;
+}
+export function saveMyLocation(on: boolean): void {
+  write('globehops:myLocation', on ? 'on' : 'off');
+}

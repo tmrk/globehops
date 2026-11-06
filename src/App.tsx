@@ -28,6 +28,8 @@ import { StopList } from './components/StopList.tsx';
 import { Summary } from './components/Summary.tsx';
 import { TimeBar } from './components/TimeBar.tsx';
 import { Toast } from './components/Toast.tsx';
+import { useGeolocation } from './hooks/useGeolocation.ts';
+import { effectiveReducedMotion } from './lib/motion.ts';
 import { useToast } from './hooks/useToast.ts';
 import { useBottomSheet } from './hooks/useBottomSheet.ts';
 
@@ -62,6 +64,12 @@ import { legColor } from './lib/legColors.ts';
 
 import { computeLayovers, computeLegs, createRouteState, routeReducer, hasEnteredTimes } from './state/route.ts';
 import {
+  loadWaterNames,
+  saveWaterNames,
+  loadReduceMotion,
+  saveReduceMotion,
+  loadMyLocation,
+  saveMyLocation,
   loadFollowAircraft,
   saveFollowAircraft,
   loadBorders,
@@ -105,7 +113,12 @@ export default function App() {
 
   // Side panel on wide screens and landscape tablets; bottom sheet on phones and portrait tablets.
   const isDesktop = useMediaQuery('(min-width: 1000px), (min-width: 760px) and (orientation: landscape)');
-  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const systemReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const [reduceMotionPref, setReduceMotionPref] = useState(loadReduceMotion);
+  const reducedMotion = effectiveReducedMotion(reduceMotionPref, systemReducedMotion);
+  useLayoutEffect(() => {
+    document.documentElement.dataset.motion = reducedMotion ? 'reduce' : 'full';
+  }, [reducedMotion]);
   useVisualViewportVars();
 
   const [clock] = useState(() => new SimulationClock());
@@ -162,6 +175,8 @@ export default function App() {
   }, [route.stops]);
   const [unit, setUnit] = useState<DistanceUnit>(() => loadUnit() ?? defaultUnit());
   const [showCountryNames, setShowCountryNames] = useState(() => loadCountryNames() ?? false);
+  const [showWaterNames, setShowWaterNames] = useState(() => loadWaterNames() ?? loadCountryNames() ?? false);
+  const [myLocation, setMyLocation] = useState(() => loadMyLocation() ?? false);
   const [showBorders, setShowBorders] = useState(() => loadBorders() ?? true);
   const [isExample, setIsExample] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -179,6 +194,12 @@ export default function App() {
   /** Set when a layout change (collapsing the sheet for playback) should re-frame the globe once insets settle. */
   const refitAfterLayout = useRef(false);
   const { toast, showToast } = useToast();
+  const locationAvailable = !globeFailed && 'geolocation' in navigator;
+  const location = useGeolocation(myLocation && locationAvailable, (status: 'denied' | 'unavailable') => {
+    setMyLocation(false);
+    if (status === 'denied') saveMyLocation(false);
+    showToast(t(status === 'denied' ? 'toasts.locationDenied' : 'toasts.locationUnavailable'));
+  });
 
   const panelRef = useRef<HTMLElement>(null);
   const takeoverRef = useRef<AirportPickerHandle>(null);
@@ -270,6 +291,7 @@ export default function App() {
         params.has(key.toLowerCase()) || documentView?.[key] !== undefined;
       setExplicitDefaults((['follow', 'dayNight', 'clock'] as const).filter(hasView));
       setShowCountryNames(link.view.names ?? loadCountryNames() ?? false);
+      setShowWaterNames(link.view.names ?? loadWaterNames() ?? loadCountryNames() ?? false);
       setShowBorders(link.view.borders ?? loadBorders() ?? true);
       setLinkLayers({ names: link.view.names, borders: link.view.borders });
       setFollowAircraft(hasView('follow') ? link.view.follow : (loadFollowAircraft() ?? false));
@@ -612,6 +634,7 @@ export default function App() {
       if (patch.dayNight !== undefined) setDayNight(patch.dayNight);
       if (patch.names !== undefined) {
         setShowCountryNames(patch.names);
+        setShowWaterNames(patch.names);
         setLinkLayers((previous) => ({ ...previous, names: patch.names }));
       }
       if (patch.borders !== undefined) {
@@ -1023,6 +1046,8 @@ export default function App() {
                 insets={insets}
                 showBorders={showBorders}
                 showCountryNames={showCountryNames}
+                showWaterNames={showWaterNames}
+                userLocation={location.position}
                 locale={locale}
                 reducedMotion={reducedMotion}
                 fitNonce={fitNonce}
@@ -1060,6 +1085,22 @@ export default function App() {
         <MapTools
           clock={clock}
           globe={!globeFailed}
+          showWaterNames={showWaterNames}
+          reducedMotion={reducedMotion}
+          myLocation={myLocation}
+          locationAvailable={locationAvailable}
+          onToggleWaterNames={() => {
+            saveWaterNames(!showWaterNames);
+            setShowWaterNames(!showWaterNames);
+          }}
+          onToggleReduceMotion={() => {
+            saveReduceMotion(!reducedMotion);
+            setReduceMotionPref(!reducedMotion);
+          }}
+          onToggleMyLocation={() => {
+            saveMyLocation(!myLocation);
+            setMyLocation(!myLocation);
+          }}
           showBorders={showBorders}
           showCountryNames={showCountryNames}
           dayNight={dayNight}

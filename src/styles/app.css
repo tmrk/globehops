@@ -32,6 +32,7 @@
   --radius-full: 999px;
   /* Compact controls inside the panel share one height; floating globe controls another. */
   --control-h: 34px;
+  --location-blue: #3b8cff;
   --float-h: 44px;
   /* Distance from the screen edges to floating controls (16px on larger screens). */
   --edge: 12px;
@@ -520,6 +521,9 @@ a {
   top: 0;
   right: calc(100% + 8px);
   width: 268px;
+  max-height: calc(100dvh - var(--safe-top) - 3 * var(--edge) - var(--float-h) - var(--safe-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   max-width: calc(100vw - var(--float-h) - 2 * var(--edge) - 8px - var(--edge));
   padding: 4px;
   border-radius: var(--radius-md);
@@ -2809,17 +2813,18 @@ button.map-menu__item:hover {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after,
-  ::backdrop {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-  .layout-mobile .hud-wrap {
-    transition: none;
-  }
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after,
+:root[data-motion='reduce'] ::backdrop {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+:root[data-motion='reduce'] .layout-mobile .hud-wrap {
+  transition: none;
+}
+:root[data-motion='reduce'] .globe-user-location::before {
+  animation: none !important;
 }
 
 /* Optional atlas place names, beneath the airport labels. */
@@ -2848,7 +2853,7 @@ button.map-menu__item:hover {
     0 0 10px rgba(3, 10, 19, 0.5);
 }
 
-/* Native language names stay readable even in the narrow phone display menu. */
+/* Native language names stay readable in About on narrow phones. */
 .language-choice {
   display: flex;
   flex-wrap: wrap;
@@ -2950,4 +2955,46 @@ button.map-menu__item:hover {
 }
 .time-bar--docked .time-bar__title {
   white-space: normal;
+}
+
+.map-menu--language {
+  width: 180px;
+}
+.map-menu--language .map-menu__item {
+  grid-template-columns: minmax(0, 1fr) 18px;
+}
+
+/* Local browser position, below airport labels and independent of their collision layout. */
+.globe-user-location {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: var(--radius-full);
+  background: var(--location-blue);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+  transition-property: none;
+  pointer-events: none;
+}
+.globe-user-location::before {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: var(--radius-full);
+  background: var(--location-blue);
+  opacity: 0.2;
+  animation: location-pulse 2.4s ease-in-out infinite;
+}
+@keyframes location-pulse {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.15;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.28;
+  }
 }

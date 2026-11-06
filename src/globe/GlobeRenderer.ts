@@ -116,6 +116,7 @@ export interface GlobeRendererOptions {
   showBorders: boolean;
   countryLabelsUrl: string;
   showCountryLabels: boolean;
+  showWaterLabels: boolean;
   labelLocale?: string;
   reducedMotion: boolean;
   onLegClick?: (leg: number) => void;
@@ -213,6 +214,8 @@ export class GlobeRenderer {
   private labelLayer: HTMLDivElement;
   private countryLabels: CountryLabelLayer;
   private plane: HTMLDivElement;
+  private userLocationDot: HTMLDivElement;
+  private userLocation: Vector3 | null = null;
   private legs: LegObject[] = [];
   private markers: MarkerObject[] = [];
   private borderLayers: { line: LineSegments2; material: LineMaterial }[] = [];
@@ -276,7 +279,12 @@ export class GlobeRenderer {
     container.appendChild(this.labelLayer);
     this.countryLabels = new CountryLabelLayer(this.labelLayer, options.countryLabelsUrl, this.requestRender);
     this.countryLabels.setLocale(options.labelLocale ?? 'en');
-    this.countryLabels.setVisible(options.showCountryLabels);
+    this.countryLabels.setVisible(options.showCountryLabels, options.showWaterLabels);
+    this.userLocationDot = document.createElement('div');
+    this.userLocationDot.className = 'globe-user-location';
+    this.userLocationDot.setAttribute('aria-hidden', 'true');
+    this.userLocationDot.style.display = 'none';
+    this.labelLayer.append(this.userLocationDot);
 
     this.plane = document.createElement('div');
     this.plane.className = 'globe-plane';
@@ -609,7 +617,19 @@ export class GlobeRenderer {
   }
 
   setCountryLabelsVisible(visible: boolean) {
-    this.countryLabels.setVisible(visible);
+    this.options.showCountryLabels = visible;
+    this.countryLabels.setVisible(visible, this.options.showWaterLabels);
+    this.requestRender();
+  }
+
+  setWaterLabelsVisible(visible: boolean) {
+    this.options.showWaterLabels = visible;
+    this.countryLabels.setVisible(this.options.showCountryLabels, visible);
+    this.requestRender();
+  }
+
+  setUserLocation(position: LatLng | null) {
+    this.userLocation = position ? latLngToVector3(position.lat, position.lng, LABEL_LIFT) : null;
     this.requestRender();
   }
 
@@ -642,6 +662,7 @@ export class GlobeRenderer {
     this.clearLegs();
     this.clearMarkers();
     this.countryLabels.dispose();
+    this.userLocationDot.remove();
     for (const layer of this.borderLayers) {
       this.scene.remove(layer.line);
       layer.line.geometry.dispose();
@@ -709,6 +730,7 @@ export class GlobeRenderer {
     // Recompute even for paused sunlight: orbit/damping changes the normals' view space every frame.
     this.sunView.value.copy(this.sunScene).transformDirection(this.camera.matrixWorldInverse);
     this.renderer.render(this.scene, this.camera);
+    this.updateUserLocation();
     const reserved = this.updateLabels();
     this.countryLabels.update({ camera: this.camera, width: this.width, height: this.height, reserved });
     if (this.aircraft) {
@@ -1444,6 +1466,17 @@ export class GlobeRenderer {
   private facing(p: Vector3): number {
     const toCam = new Vector3().copy(this.camera.position).sub(p).normalize();
     return new Vector3().copy(p).normalize().dot(toCam);
+  }
+
+  private updateUserLocation() {
+    const position = this.userLocation;
+    const projected = position ? this.project(position) : null;
+    if (!position || !projected || this.facing(position) <= 0.02) {
+      this.userLocationDot.style.display = 'none';
+      return;
+    }
+    this.userLocationDot.style.display = '';
+    this.userLocationDot.style.transform = `translate3d(${projected.x}px, ${projected.y}px, 0) translate(-50%, -50%)`;
   }
 
   private updateLabels() {

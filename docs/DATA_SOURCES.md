@@ -8,7 +8,7 @@ Credit: **NASA Earth Observatory (Reto Stöckli, NASA GSFC)**.
 
 NASA-produced imagery is generally not subject to copyright in the United States; acknowledgement is requested under the [NASA media guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media/). NASA logos and identifiers have separate restrictions. GlobeHops uses no NASA logo and implies no NASA endorsement. These imagery terms are separate from the code’s MIT licence.
 
-`scripts/build-textures.ts` resamples with Lanczos3 to 8192 × 4096, 4096 × 2048 and 1024 × 512 and encodes WebP (quality 80, 82 and 72 respectively). There are no colour edits or content changes. Only the generated WebP files are committed. The imagery is a historical, cloud-free composite, not current satellite coverage.
+`scripts/build-textures.ts` resamples with Lanczos3 to 8192 × 4096, 4096 × 2048 and 1024 × 512 and encodes WebP (quality 80, 82 and 72 respectively). One colour edit, `scripts/lib/ocean.ts`, lightens the water: the source shows the deep ocean almost black (about RGB 2, 5, 20), which looked the same by day as by night. Pixels whose blue exceeds max(red, green) by 4–14 or more blend into water; each gains up to RGB (14, 38, 80), scaled by (1 − blue/255)^1.5 so the darkest basins lift most and shelves least while every bathymetry gradation keeps its order (deep Pacific ≈ RGB 14, 38, 91). Land, ice and the near-black inland lakes are not blue-dominant and stay unchanged. There are no geometry or content changes. Only the generated WebP files are committed. The imagery is a historical, cloud-free composite, not current satellite coverage.
 
 ## City lights
 
@@ -82,7 +82,7 @@ Sources: Natural Earth v5.1.2 1:50m **Admin 0 – Countries** ([pinned GeoJSON](
 
 Countries use `NAME`/`NAME_HU`/`NAME_SV`, Natural Earth's label points, `MIN_LABEL` and `LABELRANK`. Seas use the largest polygon with longitude unwrapping, holes and cos(latitude)-scaled equirectangular projection; best-first subdivision finds a pole of inaccessibility. Seven ocean points and the Mediterranean point are hand-placed in open water for composition. All rounded marine points must remain inside their source polygons. Marine selection, zoom calibration, language review and every correction/abbreviation/point override are documented in [data/PLACE_NAMES.md](../data/PLACE_NAMES.md); the editable source is `data/place-names.json`.
 
-The entire layer defaults off and downloads on first use of the “Place names” toggle. Oceans use larger blue italic caps, seas smaller blue italics. Visibility fades at minimum zoom and near the limb; labels yield to airport labels/dots, with countries ahead of equal-rank seas. Locale changes reuse the download and clear cached text metrics. The preference retains `globehops:countryNames` in local storage for compatibility; links may temporarily override it with `names=1` or `names=0` without changing the saved choice.
+The layer defaults off and downloads on first use of the “Country names” or “Oceans and seas” toggle (each shows its own kinds). Oceans use larger blue italic caps, seas smaller blue italics. Visibility fades at minimum zoom and near the limb; labels yield to airport labels/dots, with countries ahead of equal-rank seas. Locale changes reuse the download and clear cached text metrics. The country preference retains `globehops:countryNames` in local storage for compatibility, and `globehops:waterNames` inherits it until set; links may temporarily override both with `names=1` or `names=0` without changing the saved choice.
 
 ## Airport city exonyms
 

@@ -56,49 +56,47 @@ export function solarElevationDeg(epochMs: number, p: LatLng): number {
 
 /** Geometric solar-centre elevations; sunset includes standard refraction and solar radius. */
 export const SOLAR_ELEVATION_DEG = {
-  astronomical: -18,
-  nautical: -12,
   civil: -6,
   cityLightsStart: -3,
   sunset: -0.833,
-  fullDay: 3,
 } as const;
 
 /**
- * Display blend, not measured sky luminance. Smooth, monotonic twilight stages in sin(elevation)
- * keep sunset at exactly 0.5 while preserving civil/nautical/astronomical dusk on the globe.
+ * Half-width of the displayed terminator, in degrees of solar elevation either side of sunset.
+ * A display choice for legibility, not sky luminance: day and night read clearly, with a narrow
+ * twilight band between them. Position stays exact, since the blend is centred on sunset.
+ */
+export const TERMINATOR_HALF_WIDTH_DEG = 3;
+
+const sunsetMu = sin(SOLAR_ELEVATION_DEG.sunset);
+const halfWidthMu = sin(TERMINATOR_HALF_WIDTH_DEG);
+/** Blend limits in sin(elevation), symmetric around sunset so the steepest point is exactly there. */
+const nightMu = sunsetMu - halfWidthMu;
+const dayMu = sunsetMu + halfWidthMu;
+
+/**
+ * Display blend, not measured sky luminance: one smoothstep in sin(elevation), fully dark from
+ * about −3.8°, exactly 0.5 at sunset and fully lit from about +2.2°.
  * The renderer adds Lambertian direct irradiance and a legibility floor separately.
  */
 export const DAYLIGHT_STOPS = [
-  [SOLAR_ELEVATION_DEG.astronomical, 0],
-  [SOLAR_ELEVATION_DEG.nautical, 0.025],
-  [SOLAR_ELEVATION_DEG.civil, 0.15],
+  [Math.asin(nightMu) / RAD, 0],
   [SOLAR_ELEVATION_DEG.sunset, 0.5],
-  [SOLAR_ELEVATION_DEG.fullDay, 1],
+  [Math.asin(dayMu) / RAD, 1],
 ] as const;
-
-const daylightSegments = DAYLIGHT_STOPS.slice(1).map(([elevation, level], i) => ({
-  low: sin(DAYLIGHT_STOPS[i][0]),
-  high: sin(elevation),
-  rise: level - DAYLIGHT_STOPS[i][1],
-}));
 
 export function dayLightLevel(elevationDeg: number): number {
   // Clamp before sin: elevations beyond the physical ±90° range still saturate correctly.
   const mu = sin(Math.max(-90, Math.min(90, elevationDeg)));
-  return daylightSegments.reduce((level, { low, high, rise }) => {
-    const t = Math.max(0, Math.min(1, (mu - low) / (high - low)));
-    return level + rise * t * t * (3 - 2 * t);
-  }, 0);
+  const t = Math.max(0, Math.min(1, (mu - nightMu) / (dayMu - nightMu)));
+  return t * t * (3 - 2 * t);
 }
 
 const glslFloat = (value: number) => value.toFixed(12);
-/** Both surface and atmosphere compile this exact curve, generated from the CPU curve's segments. */
+/** Both surface and atmosphere compile this exact curve, generated from the CPU curve's limits. */
 export const SOLAR_SHADING_GLSL = /* glsl */ `
   float solarDayLightLevel(float mu) {
-    return ${daylightSegments
-      .map(({ low, high, rise }) => `${glslFloat(rise)} * smoothstep(${glslFloat(low)}, ${glslFloat(high)}, mu)`)
-      .join(' + ')};
+    return smoothstep(${glslFloat(nightMu)}, ${glslFloat(dayMu)}, mu);
   }
   float solarCityDusk(float mu) {
     return 1.0 - smoothstep(${glslFloat(sin(SOLAR_ELEVATION_DEG.civil))}, ${glslFloat(sin(SOLAR_ELEVATION_DEG.cityLightsStart))}, mu);

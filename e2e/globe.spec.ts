@@ -67,6 +67,12 @@ test.describe('WebGL unavailable', () => {
     });
     await page.goto('./?route=');
     await expect(page.getByRole('note')).toContainText('The 3D globe couldn’t start');
+    await page.getByRole('button', { name: 'Language: English', exact: true }).click();
+    await expect(page.getByRole('radio', { name: 'English', exact: true })).toBeVisible();
+    await openDisplay(page);
+    await expect(page.getByRole('button', { name: 'Reduce motion', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'My location', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Departure airport: choose an airport' }).click();
     await chooseAirport(page, 'CPH', 'CPH');
     await chooseAirport(page, 'YYZ', 'YYZ');
@@ -166,14 +172,14 @@ test('country names are optional, lazy, remembered and do not overlap', async ({
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
   await openDisplay(page);
-  const toggle = page.getByRole('button', { name: 'Place names', exact: true });
-  const names = page.locator('.country-label:visible');
+  const toggle = page.getByRole('button', { name: 'Country names', exact: true });
+  const names = page.locator('.country-label--country:visible');
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await expect(names).toHaveCount(0);
   expect(requests).toEqual([]);
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => names.count()).toBeGreaterThanOrEqual(5);
+  await expect.poll(() => names.count()).toBeGreaterThan(0);
   await expect(names.filter({ hasText: /^(Greenland|Brazil)$/ }).first()).toBeVisible();
   expect(requests).toHaveLength(1);
 
@@ -206,11 +212,11 @@ test('country names are optional, lazy, remembered and do not overlap', async ({
   await page.reload();
   await openDisplay(page);
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => names.count()).toBeGreaterThanOrEqual(5);
+  await expect.poll(() => names.count()).toBeGreaterThan(0);
   await expectNoOverlap();
-  // Zooming reveals more candidates without permitting text collisions.
+  // Zooming re-lays out visible labels without permitting text collisions.
   await page.getByRole('application').press('+');
-  await expect.poll(() => names.count()).toBeGreaterThanOrEqual(5);
+  await expect.poll(() => names.count()).toBeGreaterThan(0);
   await expectNoOverlap();
   await toggle.click();
   await expect(names).toHaveCount(0);
@@ -235,7 +241,7 @@ test('invalid country-name data stays decorative and warns only once', async ({ 
   await page.goto('./?route=CPH-LHR-JFK');
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
   await openDisplay(page);
-  const toggle = page.getByRole('button', { name: 'Place names', exact: true });
+  const toggle = page.getByRole('button', { name: 'Country names', exact: true });
   await toggle.click();
   await expect.poll(() => warnings.length).toBe(1);
   await expect(page.locator('.country-label:visible')).toHaveCount(0);

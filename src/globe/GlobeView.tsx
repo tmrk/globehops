@@ -9,6 +9,7 @@ import countryLabelsUrl from '../data/generated/country-labels.json?url';
 import bordersUrl from '../data/generated/borders.json?url';
 import coastlinesUrl from '../data/generated/coastlines.json?url';
 import { GlobeRenderer, type GlobeRoute, type Insets } from './GlobeRenderer.ts';
+import type { LatLng } from '../types.ts';
 import type { SimulationFeed } from './simFeed.ts';
 
 export interface GlobeViewProps {
@@ -17,6 +18,8 @@ export interface GlobeViewProps {
   insets: Insets;
   showBorders: boolean;
   showCountryNames: boolean;
+  showWaterNames: boolean;
+  userLocation: LatLng | null;
   locale?: string;
   reducedMotion: boolean;
   sim?: SimulationFeed | null;
@@ -60,6 +63,7 @@ export default function GlobeView(props: GlobeViewProps) {
         coastlinesUrl,
         countryLabelsUrl,
         showCountryLabels: latest.current.showCountryNames,
+        showWaterLabels: latest.current.showWaterNames,
         labelLocale: latest.current.locale ?? 'en',
         showBorders: latest.current.showBorders,
         reducedMotion: latest.current.reducedMotion,
@@ -107,6 +111,14 @@ export default function GlobeView(props: GlobeViewProps) {
   useEffect(() => {
     rendererRef.current?.setCountryLabelsVisible(showCountryNames);
   }, [showCountryNames]);
+
+  useEffect(() => {
+    rendererRef.current?.setWaterLabelsVisible(props.showWaterNames);
+  }, [props.showWaterNames]);
+
+  useEffect(() => {
+    rendererRef.current?.setUserLocation(props.userLocation);
+  }, [props.userLocation]);
 
   useEffect(() => {
     rendererRef.current?.setLabelLocale(props.locale ?? 'en');
