@@ -70,7 +70,7 @@ npm version minor --no-git-tag-version   # or patch / major; updates package.jso
 npm test -- scripts/version.test.ts      # version, lockfile and changelog agree
 ```
 
-Commit and push to `main`. After Deploy succeeds, the Tag release workflow creates `v<version>` on that commit if it does not exist yet. The running build shows its version in the bottom-left corner (hover for commit and date on desktop), in About, and in `agent/dataset.json` (`app.version`, `app.commit`, `app.date`).
+Commit and push to `main`. After Deploy succeeds, the Tag release workflow creates `v<version>` on that commit if it does not exist yet. The running build shows its version in the bottom-left corner on desktop (hover for commit and date), in About (the only place on phones), and in `agent/dataset.json` (`app.version`, `app.commit`, `app.date`).
 
 ## Regeneration
 

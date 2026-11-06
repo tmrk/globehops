@@ -985,7 +985,7 @@ export default function App() {
       <p className="sr-only" aria-live="polite">
         {activeState ? describeState(journey, activeState).title : ''}
       </p>
-      <VersionTag />
+      {isDesktop && <VersionTag />}
       <Toast toast={toast} />
       <AboutDialog ref={aboutRef} meta={dataset?.meta ?? null} analytics={analytics} />
     </div>

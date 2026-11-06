@@ -1,6 +1,11 @@
 # Recent changes
 
-Every release has a [semantic version](https://semver.org/) (shown faintly in the bottom-left corner and in About) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
+Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
+
+## 1.7.0 — 2026-11-06 — Clearer analytics question; version in About on phones
+
+- **Analytics question at the bottom.** The one-time Google Analytics question no longer floats over the globe near the top. It is now a sheet at the bottom of the screen on phones (a card at the bottom centre on desktop), and the rest of the page is dimmed until you answer. **Allow** is a large amber button; **Deny** (formerly “No thanks”) is a quieter text button beneath it, or beside it on desktop. Escape does not dismiss the question; Details still opens About → Privacy on top of it. Both answers are remembered and can be changed in About.
+- **No version tag on phones.** The faint version in the bottom-left corner now appears only on desktop; on phones the version is in About (“Version 1.7.0 · Build …”), and the journey sheet no longer reserves a 17 px strip for the tag.
 
 ## 1.6.1 — 2026-11-06 — Version in the bottom-left corner
 

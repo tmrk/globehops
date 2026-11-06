@@ -52,7 +52,7 @@ export function Brand() {
   );
 }
 
-/** The running release, faint in the bottom-left corner; hover shows the build. */
+/** Desktop only: the running release, faint in the bottom-left corner; hover shows the build. Phones show it in About. */
 export function VersionTag() {
   const build = describeBuild(APP_COMMIT, APP_DATE);
   return (

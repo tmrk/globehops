@@ -21,10 +21,10 @@
 | `src/components/AboutDialog.tsx`                                      | Method, credits, source links and the privacy/usage-statistics switch.                                |
 | `src/components/CodeBadge.tsx`                                        | IATA/ICAO badges and the no-code plane glyph.                                                         |
 | `src/components/ErrorBoundary.tsx`                                    | Lazy globe failure boundary.                                                                          |
-| `src/components/Brand.tsx`                                            | Wordmark, SVG logo and the faint bottom-left release version tag.                                     |
+| `src/components/Brand.tsx`                                            | Wordmark, SVG logo and the faint bottom-left release version tag (desktop).                           |
 | `src/components/Icons.tsx`                                            | Small inline SVG icon set.                                                                            |
 | `src/components/Toast.tsx`                                            | Live status messages and share fallback.                                                              |
-| `src/components/ConsentNotice.tsx`                                    | One-time, non-blocking Google Analytics consent question.                                             |
+| `src/components/ConsentNotice.tsx`                                    | One-time modal Google Analytics consent sheet (Allow / Deny).                                         |
 | `src/hooks/`                                                          | Media-query, visual-viewport and toast hooks.                                                         |
 | `src/state/route.ts`                                                  | Ten-stop reducer, stop-based local times/layovers and legacy derived geometry.                        |
 | `src/state/clock.ts`                                                  | UTC simulation clock, live time and playback rates.                                                   |

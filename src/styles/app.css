@@ -68,9 +68,6 @@
   --track-code: 0.04em;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  /* Bottom-left version tag: its baseline offset, and the clear strip the phone sheet keeps for it. */
-  --version-bottom: max(3px, calc(var(--safe-bottom) - 14px));
-  --corner-room: 17px;
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --shadow: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
@@ -369,26 +366,20 @@ a {
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 
-/* The running release in the bottom-left corner, deliberately faint: there when you look for it.
-   On phones it sits in the strip below the sheet's content (the home-indicator area on iPhones);
-   whatever ends the sheet keeps at least --corner-room below its content. */
+/* Desktop only: the running release below the journey panel, deliberately faint — there when you
+   look for it. Phones show it only in About. */
 
 .app-version {
   position: fixed;
   z-index: 26;
   left: calc(var(--edge) + var(--safe-left));
-  bottom: var(--version-bottom);
+  bottom: max(3px, calc(var(--safe-bottom) - 14px));
   margin: 0;
   font: 500 var(--text-2xs) / 1 var(--mono);
   font-stretch: var(--mono-stretch);
   letter-spacing: 0.02em;
   color: var(--text-3);
   opacity: 0.6;
-  pointer-events: none;
-}
-
-.layout-desktop .app-version {
-  pointer-events: auto;
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -716,7 +707,7 @@ button.map-menu__item:hover {
   align-items: center;
   gap: 12px;
   min-height: 52px;
-  padding: 0 var(--pad) max(var(--corner-room), calc(12px + var(--safe-bottom)));
+  padding: 0 var(--pad) calc(12px + var(--safe-bottom));
   text-align: left;
 }
 
@@ -1417,7 +1408,7 @@ button.map-menu__item:hover {
 .summary {
   position: relative;
   flex: none;
-  padding: 12px var(--pad) max(var(--corner-room), calc(12px + var(--safe-bottom)));
+  padding: 12px var(--pad) calc(12px + var(--safe-bottom));
   border-top: 1px dashed var(--line-strong);
 }
 
@@ -1427,7 +1418,7 @@ button.map-menu__item:hover {
 }
 
 .layout-mobile .panel.has-timeline .panel__scroll {
-  padding-bottom: max(var(--corner-room), calc(8px + var(--safe-bottom)));
+  padding-bottom: calc(8px + var(--safe-bottom));
 }
 
 .layout-desktop .summary {
@@ -1932,7 +1923,7 @@ button.map-menu__item:hover {
   flex: none;
   width: auto;
   margin: 0;
-  padding: 0 var(--pad) max(var(--corner-room), calc(10px + var(--safe-bottom)));
+  padding: 0 var(--pad) calc(10px + var(--safe-bottom));
   border: 0;
   border-radius: 0;
   background: none;
@@ -2591,105 +2582,129 @@ button.map-menu__item:hover {
 }
 
 /* ------------------------------------------------------------------------------------------ */
-/* Analytics consent: a calm, non-blocking question asked once                                */
+/* Analytics consent: asked once, in a modal sheet that dims the page until answered          */
 
 .consent {
-  position: absolute;
-  z-index: 30;
-  top: calc(var(--safe-top) + 2 * var(--edge) + var(--float-h));
-  left: calc(var(--edge) + var(--safe-left));
-  right: calc(2 * var(--edge) + var(--float-h) + var(--safe-right));
-  max-width: 460px;
-  padding: 12px 12px 10px 14px;
+  position: fixed;
+  inset: auto 0 0;
+  width: 100%;
+  max-width: none;
+  max-height: calc(100dvh - var(--safe-top) - 24px);
+  margin: 0;
+  padding: 22px calc(var(--pad) + 4px + var(--safe-right)) calc(14px + var(--safe-bottom))
+    calc(var(--pad) + 4px + var(--safe-left));
+  overflow-y: auto;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-float);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  backdrop-filter: blur(18px) saturate(140%);
-  animation: toast-in 0.28s var(--ease);
+  border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface-raised);
+  color: var(--text-2);
+  box-shadow: var(--shadow);
+  animation: consent-in 0.32s var(--ease);
+}
+
+.consent:focus {
+  outline: none;
+}
+
+.consent::backdrop {
+  background: rgba(2, 4, 8, 0.62);
+  animation: consent-backdrop-in 0.32s var(--ease);
+}
+
+@keyframes consent-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+@keyframes consent-backdrop-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .consent__title {
-  margin: 0 0 2px;
-  font-size: var(--text-md);
+  margin: 0 0 6px;
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text);
 }
 
 .consent__text {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   color: var(--text-2);
 }
 
 .consent__more {
-  height: var(--control-h);
-  margin-right: auto;
-  padding: 0 4px;
-  color: var(--text-2);
-  font-size: var(--text-sm);
+  color: var(--text);
+  font-size: inherit;
   text-decoration: underline;
   text-decoration-color: var(--line-strong);
   text-underline-offset: 2px;
 }
 
 .consent__more:hover {
-  color: var(--text);
   text-decoration-color: currentColor;
 }
 
+/* Allow is the obvious, filled answer; Deny is a quiet text button beneath it. */
 .consent__actions {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 18px;
 }
 
-.consent__btn {
-  height: var(--control-h);
-  padding: 0 14px;
+.consent__allow {
+  height: 48px;
+  padding: 0 28px;
   border-radius: var(--radius-full);
-  background: var(--hover);
-  color: var(--text);
-  font-size: var(--text-md);
-  font-weight: 600;
-}
-
-.consent__btn:hover {
-  background: var(--press);
-}
-
-.consent__btn--allow {
   background: var(--accent);
   color: var(--accent-ink);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(255, 194, 75, 0.22);
 }
 
-.consent__btn--allow:hover {
+.consent__allow:hover {
   background: #ffcd69;
 }
 
-/* Desktop: one line at the top centre, clear of the panel and the globe controls. */
+.consent__deny {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-full);
+  color: var(--text-3);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.consent__deny:hover {
+  background: var(--hover);
+  color: var(--text-2);
+}
+
+/* Desktop: a card at the bottom centre; the two answers side by side. */
 .layout-desktop .consent {
-  top: calc(var(--safe-top) + var(--edge));
-  left: 50%;
-  right: auto;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  width: min(640px, calc(100vw - 2 * (var(--edge) + var(--float-h) + 16px)));
-  max-width: none;
-  padding: 10px 10px 10px 16px;
-  translate: -50% 0;
+  inset: auto 0 calc(24px + var(--safe-bottom));
+  width: min(540px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 22px 24px 20px;
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius-lg);
 }
 
 .layout-desktop .consent__actions {
-  flex: none;
-  margin-top: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 }
 
-.layout-desktop .consent__more {
-  margin-right: 4px;
+.layout-desktop .consent__allow {
+  min-width: 160px;
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -2802,7 +2817,8 @@ button.map-menu__item:hover {
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
-  *::after {
+  *::after,
+  ::backdrop {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }

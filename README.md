@@ -4,7 +4,7 @@
 
 **[Open GlobeHops → tmrk.github.io/globehops](https://tmrk.github.io/globehops/)**
 
-It runs in any modern browser on phones, tablets and desktops. There is nothing to install and no account to create. The version you are using is shown faintly in the bottom-left corner; [what’s new](RECENT_CHANGES.md) lists every release.
+It runs in any modern browser on phones, tablets and desktops. There is nothing to install and no account to create. The version you are using is shown in About (ⓘ) and, on larger screens, faintly in the bottom-left corner; [what’s new](RECENT_CHANGES.md) lists every release.
 
 ![GlobeHops on a desktop: a Copenhagen–London–New York journey on the globe, with the journey panel on the left](docs/screenshot.png)
 
@@ -45,7 +45,7 @@ GlobeHops publishes a documented, versioned link contract so assistants can buil
 
 GlobeHops has no accounts or backend. Your route and flight times live only in the page address and in your browser’s local storage, together with your unit, border and day/night preferences. All maps, data and fonts are served with the site.
 
-**Usage statistics are optional.** On your first visit GlobeHops asks whether it may use Google Analytics. Nothing is loaded from Google unless you choose Allow; you can change your mind at any time under About → Privacy, which also removes the analytics cookies. With your permission, Google Analytics counts visits and a few actions (sharing a link, playing a journey) using first-party cookies. It receives the bare site address and a fixed page title, never your airports, dates or times; advertising features and Google signals are off. Browsers that send Global Privacy Control or Do Not Track are never asked and never measured.
+**Usage statistics are optional.** On your first visit GlobeHops asks whether it may use Google Analytics, in a panel at the bottom of the screen that waits for your answer. Nothing is loaded from Google unless you choose Allow; Deny is remembered too, and you can change your mind at any time under About → Privacy, which also removes the analytics cookies. With your permission, Google Analytics counts visits and a few actions (sharing a link, playing a journey) using first-party cookies. It receives the bare site address and a fixed page title, never your airports, dates or times; advertising features and Google signals are off. Browsers that send Global Privacy Control or Do Not Track are never asked and never measured.
 
 ## Sources and credits
 
