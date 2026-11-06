@@ -3,9 +3,10 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
 const USAGE = `Search city names first with search_airports; plan with airport codes (1–10 stops).
-Use calculate_route or validate_itinerary before visualize_route. Transfer suffix _180 means minutes.
+Use calculate_route or validate_itinerary before visualize_route. Use compare_journeys for 2–4 alternatives on one clock. Transfer suffix _180 means minutes.
 Departure and arrival strings are local to each airport, optionally with a matching offset.
 DST gaps error; repeated hours warn and choose the earlier instant unless offset-selected.
+Comparison documents use version 1 and journeys instead of stops. Entered times remain absolute; undated alternatives align to the earliest dated departure or assumeDeparture.
 view.time is an absolute ISO instant. Undated timeline queries require assumeDeparture.
 view supports play, speed (auto|1800|3600|7200 simulation seconds per second), clock (local|utc|route airport), units (km|mi), dayNight, follow, names, borders, lang (en|hu|sv), leg (one-based flight).
 visualize_route returns url, itineraryParamUrl, humanSummary and summary. Show the user a clickable URL.

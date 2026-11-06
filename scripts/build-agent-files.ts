@@ -1,12 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { format } from 'prettier';
-import { createAgentContext, planItinerary, SCHEDULE_ISSUES } from '../src/agent/plan.ts';
+import { createAgentContext, planComparison, planItinerary, SCHEDULE_ISSUES } from '../src/agent/plan.ts';
 import { ITINERARY_SCHEMA } from '../src/agent/schema.ts';
 import {
   CONTRACT_VERSION,
   DEFAULT_BASE_URL,
   MAX_STOPS,
+  MAX_JOURNEYS,
   MAX_URL_LENGTH,
   MAX_ITINERARY_PARAM_LENGTH,
   MAX_LAYOVER_MIN,
@@ -28,6 +29,21 @@ const ctx = () =>
     now: () => Date.UTC(2026, 0, 1),
   });
 const exampleSpecs: { title: string; description: string; itinerary: ItineraryDocument }[] = [
+  {
+    title: 'Compare direct and connecting journeys',
+    description: 'Entered local times stay absolute; the undated alternative aligns to the earliest dated departure.',
+    itinerary: {
+      version: 1,
+      journeys: [
+        {
+          label: 'Via London',
+          stops: [{ airport: 'BUD', departure: '2026-12-01T07:10' }, { airport: 'LHR' }, { airport: 'JFK' }],
+        },
+        { label: 'Direct', stops: [{ airport: 'BUD' }, { airport: 'JFK' }] },
+      ],
+      view: { play: true },
+    },
+  },
   {
     title: 'Copenhagen to New York',
     description: 'Undated route with flight estimates.',
@@ -122,11 +138,26 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
     homepage: DEFAULT_BASE_URL,
     urlTemplates: {
       simple: `${DEFAULT_BASE_URL}?route={route}`,
+      comparison: `${DEFAULT_BASE_URL}?route={routeA}&label={labelA}&b.route={routeB}&b.label={labelB}`,
       localized: `${DEFAULT_BASE_URL}{lang}/?route={route}`,
       scheduled: `${DEFAULT_BASE_URL}?route={route}&dep1={localDeparture}`,
       document: `${DEFAULT_BASE_URL}?itinerary={base64urlJson}`,
     },
     parameters: {
+      label: parameter(
+        'string',
+        false,
+        '1–40 characters without controls',
+        ['Via London'],
+        'Trimmed journey A label; URL-encode Unicode and reserved characters.',
+      ),
+      'b./c./d.': parameter(
+        'journey group',
+        false,
+        'prefix + route|depN|arrN|label',
+        ['b.route=BUD-JFK', 'c.dep1=2026-12-01T08:00'],
+        'Journeys B–D in order; gaps compact. Each group requires route. Parameter keys are case-insensitive. Other view parameters remain unprefixed; leg refers to A, clock may name any compared airport.',
+      ),
       route: parameter(
         'string',
         false,
@@ -161,7 +192,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         false,
         'local|utc|airport code',
         ['local', 'utc', 'JFK'],
-        'Timeline display zone; airport code must belong to the route.',
+        'Timeline display zone; airport code must belong to any compared journey.',
       ),
       units: parameter('string', false, 'km|mi', ['km', 'mi'], 'Distance display only.'),
       follow: parameter(
@@ -208,9 +239,17 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         'ItineraryDocument v1 overrides readable parameters; structural schema linked below.',
       ),
     },
+    comparison: {
+      document: 'Version 1; exactly one of stops or journeys (1–4 labelled stop arrays).',
+      alignment:
+        'Entered schedules remain absolute. Undated journeys align to the earliest dated departure, else assumeDeparture; without either they have no timeline.',
+      metrics:
+        'Fastest is shortest total journey duration; arrives first is earliest final UTC arrival. Exact ties have no winner. Invalid or fewer-than-two-stop journeys are excluded; arrival comparison requires every valid journey to have an end.',
+    },
     schema: ITINERARY_SCHEMA.$id,
     limits: {
       stops: MAX_STOPS,
+      journeys: MAX_JOURNEYS,
       minimumDocumentStops: 1,
       urlCharacters: MAX_URL_LENGTH,
       itineraryParamCharacters: MAX_ITINERARY_PARAM_LENGTH,
@@ -257,6 +296,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         'No error issues; warnings and info preserve validity. Structural validation precedes semantic resolution. Tolerant readable links keep usable values.',
       issues: Object.entries(SCHEDULE_ISSUES).map(([code, [severity, meaning]]) => ({ code, severity, meaning })),
       agentIssues: [
+        ['use_compare_journeys', 'Multi-journey documents require compare_journeys for calculations and timelines.'],
         ['unknown_airport', 'Unrecognised airport skipped.'],
         ['no_airports', 'No known airport supplied.'],
         ['invalid_link', 'Readable route syntax or limits invalid.'],
@@ -276,7 +316,18 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
           meaning: 'The complete document URL exceeds limits; use the available readable URL.',
         },
       ],
-      structuralCodes: ['type', 'const', 'items', 'pattern', 'range', 'position', 'enum', 'additionalProperties'],
+      structuralCodes: [
+        'type',
+        'const',
+        'oneOf',
+        'required',
+        'items',
+        'pattern',
+        'range',
+        'position',
+        'enum',
+        'additionalProperties',
+      ],
     },
     versioning:
       'Additive compatible changes retain v1. Breaking changes require document version 2 and a v2 link parameter/version contract; existing v1 links remain readable.',
@@ -292,7 +343,14 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       run: 'node /absolute/path/to/globehops/mcp/server.ts',
       prerequisites: 'Node >=22.18; npm ci in the checkout.',
       baseUrlEnvironment: 'GLOBEHOPS_BASE_URL',
-      tools: ['search_airports', 'calculate_route', 'validate_itinerary', 'visualize_route', 'get_journey_timeline'],
+      tools: [
+        'search_airports',
+        'compare_journeys',
+        'calculate_route',
+        'validate_itinerary',
+        'visualize_route',
+        'get_journey_timeline',
+      ],
       resources: [
         'globehops://agent/capabilities.json',
         'globehops://agent/itinerary.schema.json',
@@ -306,7 +364,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
     webMcp: {
       experimental: true,
       api: 'document.modelContext (AbortSignal cleanup), legacy navigator.modelContext registerTool/unregisterTool or provideContext',
-      tools: ['get_journey', 'set_route', 'set_view', 'select_flight', 'get_share_link'],
+      tools: ['get_journey', 'set_route', 'compare_journeys', 'set_view', 'select_flight', 'get_share_link'],
       network: false,
     },
     locales: ['en', 'hu', 'sv'],
@@ -320,6 +378,20 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
     },
   };
   const examples = exampleSpecs.map((spec) => {
+    if (spec.itinerary.journeys) {
+      const plan = planComparison(context, spec.itinerary);
+      return {
+        ...spec,
+        url: plan.url,
+        itineraryParamUrl: plan.itineraryParamUrl,
+        expected: {
+          totals: plan.journeys[0].totals,
+          comparison: plan.comparison,
+          issues: plan.issues,
+          valid: plan.valid,
+        },
+      };
+    }
     const plan = planItinerary(context, spec.itinerary);
     return {
       ...spec,

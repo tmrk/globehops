@@ -1,14 +1,28 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { searchAirports, planItinerary, timelineAt, validateItinerary, type AgentContext } from '../src/agent/plan.ts';
+import {
+  searchAirports,
+  planComparison,
+  planItinerary,
+  timelineAt,
+  validateItinerary,
+  type AgentContext,
+} from '../src/agent/plan.ts';
 import { linkStateToDocument, type ItineraryDocument } from '../src/agent/itinerary.ts';
 import { parseLink } from '../src/state/link.ts';
+import { MAX_JOURNEYS } from '../src/agent/contract.ts';
 import { ITINERARY_SCHEMA } from '../src/agent/schema.ts';
 
 // Derive the MCP document description and validation directly from the published schema.
+// Zod's JSON Schema importer treats oneOf as the whole schema, ignoring sibling constraints.
+// Import each complete form, then retain the document's exclusive choice with z.xor.
+function documentForm(field: 'stops' | 'journeys') {
+  const schema = { ...ITINERARY_SCHEMA, $id: undefined, oneOf: undefined, required: ['version', field] };
+  return z.fromJSONSchema(JSON.parse(JSON.stringify(schema)));
+}
 const itinerary = z
-  .fromJSONSchema(JSON.parse(JSON.stringify(ITINERARY_SCHEMA)))
+  .xor([documentForm('stops'), documentForm('journeys')])
   .describe('ItineraryDocument v1; airport-local wall times, optional explicit offsets.');
 const route = z
   .string()
@@ -24,10 +38,39 @@ const view = z
     JSON.parse(JSON.stringify({ ...ITINERARY_SCHEMA.properties.view, $schema: ITINERARY_SCHEMA.$schema })),
   )
   .describe('Optional visualisation options; overrides itinerary.view.');
+const comparisonStops = z.fromJSONSchema(
+  JSON.parse(
+    JSON.stringify({
+      ...ITINERARY_SCHEMA.$defs.stops,
+      $schema: ITINERARY_SCHEMA.$schema,
+      $defs: ITINERARY_SCHEMA.$defs,
+    }),
+  ),
+);
+const comparisonJourney = z
+  .strictObject({
+    label: z
+      .string()
+      .min(1)
+      .max(40)
+      .regex(new RegExp(ITINERARY_SCHEMA.properties.journeys.items.properties.label.pattern))
+      .optional(),
+    route: route.optional(),
+    stops: comparisonStops.optional(),
+  })
+  .refine(
+    (journey) => (journey.route !== undefined) !== (journey.stops !== undefined),
+    'Supply exactly one of route or stops.',
+  );
 export const INPUT_SCHEMAS = {
   search_airports: z.strictObject({
     query: z.string().max(500).describe('City, airport name, code or alternative name; accents optional.'),
     limit: z.number().int().min(1).max(100).optional().describe('Maximum matches (default 8).'),
+  }),
+  compare_journeys: z.strictObject({
+    journeys: z.array(comparisonJourney).min(2).max(MAX_JOURNEYS),
+    view: view.optional(),
+    assumeDeparture: z.string().max(50).optional(),
   }),
   calculate_route: journeyInput,
   validate_itinerary: journeyInput,
@@ -59,6 +102,8 @@ export const INPUT_SCHEMAS = {
 };
 export type ToolName = keyof typeof INPUT_SCHEMAS;
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
+  compare_journeys:
+    'Compare 2–4 alternative journeys (e.g. different airlines/connections between the same cities) and return a single GlobeHops link that plays them simultaneously on one clock, with per-journey totals and which is fastest/arrives first. Use airport-local wall times from the timetable; undated journeys align to the earliest dated departure or assumeDeparture.',
   search_airports: 'Find airports using GlobeHops ranking, with coordinates and IANA time zones.',
   calculate_route:
     'Calculate 1–10 airport stops, great-circle distances in km/mi, durations in minutes, airport-local and UTC times, canonical links and issues. Flight estimates (850 km/h + 30 min) are not airline schedules.',
@@ -92,6 +137,12 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
       const args = INPUT_SCHEMAS.search_airports.parse(raw);
       return result({ airports: searchAirports(ctx, args.query, args.limit) });
     }
+    if (name === 'compare_journeys') {
+      const args = INPUT_SCHEMAS.compare_journeys.parse(raw);
+      const { assumeDeparture, ...input } = args;
+      const plan = planComparison(ctx, input, { assumeDeparture });
+      return result(plan, !plan.valid);
+    }
     const args = checked.data as {
       itinerary?: unknown;
       route?: string;
@@ -116,6 +167,19 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
           const parsed = parseLink(`?route=${encodeURIComponent(args.route)}`);
           if (parsed.issues.length) return result({ error: 'Invalid route', issues: parsed.issues }, true);
         }
+      }
+      if (input && typeof input === 'object' && 'journeys' in input) {
+        const plan = planComparison(ctx, input);
+        return result(
+          {
+            url: plan.url,
+            itineraryParamUrl: plan.itineraryParamUrl,
+            humanSummary: plan.humanSummary,
+            summary: { valid: plan.valid, issues: plan.issues, totals: plan.journeys[0]?.totals },
+            comparison: plan.comparison,
+          },
+          !plan.valid,
+        );
       }
       const plan = planItinerary(ctx, input);
       return result(
@@ -187,7 +251,14 @@ const timeOutput = z
     provenance: z.enum(['entered', 'estimated', 'assumed']),
   })
   .nullable();
-const OUTPUT_SCHEMAS = {
+const comparisonOutput = z.object({
+  fastest: z.enum(['A', 'B', 'C', 'D']).nullable(),
+  firstArrival: z.enum(['A', 'B', 'C', 'D']).nullable(),
+  ranking: z.array(
+    z.object({ id: z.enum(['A', 'B', 'C', 'D']), journeyMinutes: z.number(), deltaMinutes: z.number() }),
+  ),
+});
+const singleOutputs = {
   search_airports: z.object({ airports: z.array(airportOutput) }),
   calculate_route: z.object({
     contractVersion: z.literal(1),
@@ -229,6 +300,7 @@ const OUTPUT_SCHEMAS = {
     itineraryParamUrl: z.string().nullable(),
     humanSummary: z.string(),
     summary: z.object({ valid: z.boolean(), issues: issuesOutput, totals: totalsOutput }),
+    comparison: comparisonOutput.optional(),
   }),
   get_journey_timeline: z.object({
     contractVersion: z.literal(1),
@@ -255,6 +327,33 @@ const OUTPUT_SCHEMAS = {
         anchorProvenance: z.enum(['entered', 'assumed']),
       }),
     ),
+  }),
+};
+export const OUTPUT_SCHEMAS = {
+  ...singleOutputs,
+  compare_journeys: z.object({
+    contractVersion: z.literal(1),
+    valid: z.boolean(),
+    issues: issuesOutput,
+    notes: z.array(z.string()),
+    url: z.string().nullable(),
+    itineraryParamUrl: z.string().nullable(),
+    humanSummary: z.string(),
+    journeys: z.array(
+      z.object({
+        id: z.enum(['A', 'B', 'C', 'D']),
+        label: z.string().nullable(),
+        color: z.string(),
+        stops: z.array(airportOutput),
+        legs: singleOutputs.calculate_route.shape.legs,
+        transfers: singleOutputs.calculate_route.shape.transfers,
+        totals: totalsOutput,
+        departure: timeOutput,
+        arrival: timeOutput,
+        anchor: z.enum(['entered', 'assumed', 'none']),
+      }),
+    ),
+    comparison: comparisonOutput,
   }),
 };
 export function registerTools(server: McpServer, ctx: AgentContext) {

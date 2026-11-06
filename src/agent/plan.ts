@@ -4,6 +4,7 @@ import { zoneForAirport, type TimeZoneTable } from '../data/timezones.ts';
 import {
   computeJourney,
   type JourneyInput,
+  type Journey,
   type TimePoint,
   type IssueCode,
   type IssueSeverity,
@@ -13,8 +14,11 @@ import { buildTimeline, journeyStateAt } from '../lib/timeline.ts';
 import { describeState } from '../lib/journeyText.ts';
 import { daylightAt, subsolarPoint } from '../lib/sun.ts';
 import { formatIsoInstant, formatIsoOffset, parseIsoInstant } from '../lib/timezone.ts';
+import { computeComparison, compareMetrics } from '../lib/compare.ts';
+import { comparisonDocument } from './comparisonInput.ts';
+import { formatDuration } from '../lib/flightTime.ts';
 import { KM_PER_MILE } from '../lib/units.ts';
-import { buildLinkUrl, parseLink, type LinkState } from '../state/link.ts';
+import { buildLinkUrl, parseLink, type LinkState, type LinkView, type SerializableJourney } from '../state/link.ts';
 import {
   documentToLinkState,
   encodeItineraryParam,
@@ -97,7 +101,10 @@ function normalize(raw: unknown): {
   return {
     state,
     document: checked.doc,
-    issues: state.issues.map((message) => ({ code: 'invalid_time', severity: 'error', message })),
+    issues: [
+      ...state.issues.map((message): AgentIssue => ({ code: 'invalid_time', severity: 'error', message })),
+      ...(checked.doc.journeys && checked.doc.journeys.length > 1 ? [comparisonRequired()] : []),
+    ],
   };
 }
 /** Resolve once, retaining diagnostics for unknown airports even though usable stops survive. */
@@ -130,10 +137,15 @@ export function resolveItinerary(ctx: AgentContext, raw: unknown) {
     issues.push({ code: 'no_airports', severity: 'error', message: 'Supply at least one known airport.' });
   // The link parser only accepts a clock that names an airport of this route; report it rather than emit a dead link.
   const clock = normalized.document?.view?.clock;
+  const clockAirport = clock ? findAirportByCode(ctx.index, clock.toUpperCase()) : undefined;
   if (
     clock !== undefined &&
     !['local', 'utc'].includes(clock.toLowerCase()) &&
-    !input.stops.some((s) => s.airport.id === findAirportByCode(ctx.index, clock.toUpperCase())?.id)
+    (!clockAirport ||
+      ![
+        ...(normalized.state?.stops ?? []),
+        ...(normalized.state?.compare ?? []).flatMap((journey) => journey.stops),
+      ].some((s) => findAirportByCode(ctx.index, s.code)?.id === clockAirport.id))
   )
     issues.push({
       code: 'invalid_clock',
@@ -169,6 +181,18 @@ export const ESTIMATE_NOTES = [
   'Entered departure and arrival times are local to each airport; UTC offsets resolve repeated hours.',
   'Time-zone rules may change, especially for future dates; runtime Intl rules are used.',
 ] as const;
+function scheduleIssues(journey: Journey, stopPaths: number[], prefix = ''): AgentIssue[] {
+  return journey.issues.map((issue) => {
+    const path =
+      prefix +
+      (issue.stop !== undefined
+        ? `/stops/${stopPaths[issue.stop]}${issue.field ? `/${issue.field}` : ''}`
+        : issue.leg !== undefined
+          ? `/legs/${issue.leg}`
+          : '');
+    return { code: issue.code, severity: issue.severity, message: issue.message, ...(path ? { path } : {}) };
+  });
+}
 function computed(ctx: AgentContext, raw: unknown, opts: PlanOptions = {}) {
   const resolved = resolveItinerary(ctx, raw);
   const assumedStart = opts.assumeDeparture === undefined ? null : parseIsoInstant(opts.assumeDeparture);
@@ -179,19 +203,7 @@ function computed(ctx: AgentContext, raw: unknown, opts: PlanOptions = {}) {
       message: 'assumeDeparture must be an ISO instant with Z or an explicit offset.',
     });
   const journey = computeJourney(resolved.input, { now: ctx.now(), assumedStart });
-  const issues = [
-    ...resolved.issues,
-    ...journey.issues.map((i): AgentIssue => ({
-      code: i.code,
-      severity: i.severity,
-      message: i.message,
-      ...(i.stop !== undefined
-        ? { path: `/stops/${resolved.stopPaths[i.stop]}${i.field ? `/${i.field}` : ''}` }
-        : i.leg !== undefined
-          ? { path: `/legs/${i.leg}` }
-          : {}),
-    })),
-  ];
+  const issues = [...resolved.issues, ...scheduleIssues(journey, resolved.stopPaths)];
   return { ...resolved, journey, issues };
 }
 const transferProvenance = (transfer: JourneyTransfer) =>
@@ -221,6 +233,7 @@ export function planItinerary(ctx: AgentContext, raw: unknown, opts: PlanOptions
       input.stops,
       canonicalClock ? { ...view, clock: airportCode(canonicalClock) } : view,
       (['follow', 'dayNight', 'clock'] as const).filter((key) => document?.view?.[key] !== undefined),
+      { label: document?.journeys?.[0].label },
     );
     if (document || input.stops.length) {
       try {
@@ -244,6 +257,19 @@ export function planItinerary(ctx: AgentContext, raw: unknown, opts: PlanOptions
       message: error instanceof Error ? error.message : 'Cannot encode link.',
     });
   }
+  return {
+    contractVersion: CONTRACT_VERSION,
+    input: raw,
+    url,
+    itineraryParamUrl,
+    ...journeyDetails(ctx, journey),
+    issues,
+    valid: !issues.some((issue) => issue.severity === 'error'),
+    notes: ESTIMATE_NOTES,
+  };
+}
+
+function journeyDetails(ctx: AgentContext, journey: Journey) {
   const sources = [
     ...journey.legs.map((l) => l.durationSource ?? 'estimated'),
     ...journey.transfers.map(transferProvenance),
@@ -255,11 +281,7 @@ export function planItinerary(ctx: AgentContext, raw: unknown, opts: PlanOptions
         ? 'estimated'
         : 'mixed';
   return {
-    contractVersion: CONTRACT_VERSION,
-    input: raw,
-    url,
-    itineraryParamUrl,
-    stops: input.stops.map((s) => airportInfo(ctx, s.airport)),
+    stops: journey.stops.map((s) => airportInfo(ctx, s.airport)),
     legs: journey.legs.map((l) => ({
       id: l.id,
       from: airportCode(l.from),
@@ -289,14 +311,174 @@ export function planItinerary(ctx: AgentContext, raw: unknown, opts: PlanOptions
       transfers: journey.totals.transfers,
       provenance,
     },
+  };
+}
+
+function comparisonRequired(): AgentIssue {
+  return {
+    code: 'use_compare_journeys',
+    severity: 'error',
+    message: 'This document compares journeys; use compare_journeys.',
+  };
+}
+
+function comparisonLinks(
+  ctx: AgentContext,
+  document: ItineraryDocument | null,
+  primary: SerializableJourney,
+  alternatives: SerializableJourney[],
+  view: Partial<LinkView> | undefined,
+  issues: AgentIssue[],
+) {
+  let url: string | null = null;
+  let itineraryParamUrl: string | null = null;
+  if (document) {
+    try {
+      url = buildLinkUrl(
+        ctx.baseUrl,
+        primary.stops,
+        view,
+        (['follow', 'dayNight', 'clock'] as const).filter((key) => document.view?.[key] !== undefined),
+        {
+          label: primary.label,
+          compare: alternatives,
+        },
+      );
+    } catch (error) {
+      issues.push({
+        code: 'link_too_large',
+        severity: 'error',
+        message: error instanceof Error ? error.message : 'Cannot encode link.',
+      });
+    }
+    try {
+      const alternative = new URL(url ?? ctx.baseUrl);
+      alternative.search = `?itinerary=${encodeItineraryParam(document)}`;
+      if (alternative.href.length > MAX_URL_LENGTH)
+        throw new RangeError('The itinerary-document link is too large to share.');
+      itineraryParamUrl = alternative.href;
+    } catch (error) {
+      issues.push({
+        code: 'document_link_too_large',
+        severity: 'warning',
+        message: `${error instanceof Error ? error.message : 'Cannot encode itinerary document.'} Use the readable url instead.`,
+      });
+    }
+  }
+  return { url, itineraryParamUrl };
+}
+
+export function planComparison(ctx: AgentContext, raw: unknown, opts: PlanOptions = {}) {
+  const checked = comparisonDocument(raw);
+  const issues: AgentIssue[] = checked.ok ? [] : checked.issues.map((issue) => ({ ...issue, severity: 'error' }));
+  const document = checked.ok ? checked.doc : null;
+  const resolved = (document?.journeys ?? []).map((journey, index) => {
+    const result = resolveItinerary(ctx, { version: 1, stops: journey.stops });
+    issues.push(...result.issues.map((issue) => ({ ...issue, path: `/journeys/${index}${issue.path ?? ''}` })));
+    return result;
+  });
+  const assumedStart = opts.assumeDeparture === undefined ? null : parseIsoInstant(opts.assumeDeparture);
+  if (opts.assumeDeparture !== undefined && assumedStart === null)
+    issues.push({
+      code: 'invalid_assumption',
+      severity: 'error',
+      message: 'assumeDeparture must be an ISO instant with Z or an explicit offset.',
+    });
+  const compared = computeComparison(
+    resolved.map((result, index) => ({
+      label: document?.journeys?.[index].label?.trim() ?? null,
+      input: result.input,
+    })),
+    { assumedStart, now: ctx.now() },
+  );
+  for (const entry of compared)
+    issues.push(...scheduleIssues(entry.journey, resolved[entry.index].stopPaths, `/journeys/${entry.index}`));
+  const link = document ? documentToLinkState(document) : null;
+  if (link)
+    issues.push(...link.issues.map((message): AgentIssue => ({ code: 'invalid_time', severity: 'error', message })));
+  const view = link?.view;
+  const clock = view?.clock;
+  const clockAirport = clock && !['local', 'utc'].includes(clock) ? findAirportByCode(ctx.index, clock) : undefined;
+  if (
+    clock &&
+    !['local', 'utc'].includes(clock) &&
+    (!clockAirport ||
+      !resolved.some((result) => result.input.stops.some((stop) => stop.airport.id === clockAirport.id)))
+  )
+    issues.push({
+      code: 'invalid_clock',
+      severity: 'error',
+      message: `Clock "${clock}" must be "local", "utc" or an airport code from a compared journey.`,
+      path: '/view/clock',
+    });
+  if (view?.leg !== undefined && view.leg >= (resolved[0]?.input.stops.length ?? 0))
+    issues.push({
+      code: 'invalid_leg',
+      severity: 'error',
+      message: 'leg must be a one-based flight number within journey A.',
+      path: '/view/leg',
+    });
+  const { url, itineraryParamUrl } = comparisonLinks(
+    ctx,
+    document,
+    { label: compared[0]?.label ?? null, stops: resolved[0]?.input.stops ?? [] },
+    compared.slice(1).map((entry) => ({ label: entry.label, stops: entry.journey.stops })),
+    clockAirport ? { ...view, clock: airportCode(clockAirport) } : view,
     issues,
-    valid: !issues.some((i) => i.severity === 'error'),
+  );
+  const validJourneys = compared.filter(
+    (entry) =>
+      entry.journey.stops.length >= 2 &&
+      !resolved[entry.index].issues.some((issue) => issue.severity === 'error') &&
+      !entry.journey.issues.some((issue) => issue.severity === 'error'),
+  );
+  const metrics = compareMetrics(validJourneys);
+  const journeys = compared.map((entry) => ({
+    id: entry.id,
+    label: entry.label,
+    color: entry.color,
+    ...journeyDetails(ctx, entry.journey),
+    departure: timeInfo(entry.journey.start),
+    arrival: timeInfo(entry.journey.end),
+    anchor: entry.anchor,
+  }));
+  const comparison = {
+    fastest: metrics.fastest,
+    firstArrival: metrics.firstArrival,
+    ranking: metrics.journeys
+      .map((journey) => ({
+        id: journey.id,
+        journeyMinutes: journey.journeyMin,
+        deltaMinutes: metrics.deltaMin[journey.id],
+      }))
+      .sort((a, b) => a.journeyMinutes - b.journeyMinutes),
+  };
+  const humanSummary = journeys
+    .map((journey) => {
+      const awards = [
+        comparison.fastest === journey.id ? 'fastest' : '',
+        comparison.firstArrival === journey.id ? 'arrives first' : '',
+      ].filter(Boolean);
+      return `${journey.id} ${journey.stops.map((stop) => stop.code).join(' → ')} ${formatDuration(journey.totals.journeyMinutes)}${awards.length ? ` (${awards.join(', ')})` : ''}`;
+    })
+    .join(' · ');
+  return {
+    contractVersion: CONTRACT_VERSION,
+    valid: !issues.some((issue) => issue.severity === 'error'),
+    issues,
     notes: ESTIMATE_NOTES,
+    url,
+    itineraryParamUrl,
+    humanSummary,
+    journeys,
+    comparison,
   };
 }
 
 export function validateItinerary(ctx: AgentContext, raw: unknown) {
-  return planItinerary(ctx, raw).issues;
+  return raw && typeof raw === 'object' && 'journeys' in raw
+    ? planComparison(ctx, raw).issues
+    : planItinerary(ctx, raw).issues;
 }
 export function timelineAt(
   ctx: AgentContext,

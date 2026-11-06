@@ -11,14 +11,26 @@ This guide lives at the project path `/globehops/llms.txt`, not the site-root `/
 - [Scheduled departure](https://tmrk.github.io/globehops/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15): depN/arrN are airport-local times at 1-based stop N. Omitted times are estimated when anchored by an entered time.
 - [Worked examples](https://tmrk.github.io/globehops/agent/examples.json): complete readable and alternative `?itinerary=<base64url UTF-8 JSON>` URLs. The itinerary parameter overrides readable parameters.
 
-View parameters: `t` is an ISO instant, `play=1` starts playback (respecting reduced motion), `speed=auto|1800|3600|7200`, `clock=local|utc|<route airport code>`, `units=km|mi`, `daynight=0` disables shading, `follow=1` enables the aircraft camera (off by default; user camera input exits).
+View parameters: `t` is an ISO instant, `play=1` starts playback (respecting reduced motion), `speed=auto|1800|3600|7200`, `clock=local|utc|<airport code in any journey>`, `units=km|mi`, `daynight=0` disables shading, `follow=1` enables the aircraft camera (off by default; user camera input exits).
 
 Language: use `/globehops/en/`, `/globehops/hu/` or `/globehops/sv/`; `?lang=en|hu|sv` is an alias on the unprefixed path. An explicit locale path wins. Document `view.lang` and MCP `view.lang` generate locale paths. `names=1` enables place-name labels, `borders=0` hides country borders; either accepts 0/1. `leg=N` selects and frames a one-based flight without seeking time. When combined, follow camera takes priority over flight framing. Link view overrides apply to this visit and do not change stored user preferences.
+
+## Compare journeys
+
+Compare 2–4 alternatives on one UTC clock. Journey A keeps ordinary keys; B–D use `b.route`/`b.depN`/`b.arrN`/`b.label`, then `c.*` and `d.*`. Optional labels are 1–40 characters without controls. Encode spaces, Unicode, `&` and `=`; keys are case-insensitive. `leg` refers to A. Older clients show A.
+
+Readable example: `https://tmrk.github.io/globehops/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct`.
+
+Document example: `{"version":1,"journeys":[{"label":"Direct","stops":[{"airport":"BUD"},{"airport":"JFK"}]},{"stops":[{"airport":"BUD"},{"airport":"LHR"},{"airport":"JFK"}]}]}`. Encode as the existing `?itinerary=` parameter. Exactly one of stops/journeys is allowed; document journeys accept 1–4 items.
+
+MCP `compare_journeys` example: `{"journeys":[{"label":"Direct","route":"BUD-JFK"},{"route":"BUD-LHR-JFK"}],"assumeDeparture":"2026-12-01T07:00Z","view":{"play":true}}`. Each alternative supplies exactly one of route/stops. The result includes both URLs, humanSummary, journey details and comparison (fastest, firstArrival, duration ranking/deltas). Entered airport-local times remain absolute; undated journeys align to the earliest dated departure or assumeDeparture. Ties have no winner; invalid journeys are excluded.
+
+`visualize_route` and `validate_itinerary` accept journeys documents; visualization adds comparison and A's summary totals. Multi-journey calculation/timeline requests direct agents to compare_journeys. Browser parsing accepts compare_journeys without assumeDeparture and set_route with journeys documents; App/rendering integration is tracked in [the comparison model](https://github.com/tmrk/globehops/blob/main/docs/ROUTE_COMPARISON.md).
 
 ## Contract and limits
 
 - [Capabilities](https://tmrk.github.io/globehops/agent/capabilities.json): parameters, limits, issue vocabulary and estimation model.
-- [Itinerary v1 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json): 1–10 stops; transfer-only integer layovers 0–10080 minutes. No unknown properties except a top-level string `$schema`.
+- [Itinerary v1 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json): exactly one of stops (1–10) or journeys (1–4 labelled stop arrays); transfer-only integer layovers 0–10080 minutes. No unknown properties except a top-level string `$schema`.
 - [External agent integration](https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md): link construction, validation and local MCP setup.
 
 Use IATA, ICAO, alphanumeric OurAirports ident or numeric airport id strings; unknown codes are reported and skipped. Hyphenated idents require numeric IDs in readable links. Maximum URL: 8000 characters; itinerary parameter: 6000 characters. Supported calendar years: 1900–2100.
@@ -27,7 +39,7 @@ Local times: `YYYY-MM-DDTHH:MM`, optional `:00` seconds and `±HH:MM` or `Z`. Of
 
 ## Estimates and provenance
 
-Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distances use great circles on a sphere of radius 6371.0088 km. Winds, actual routing, airline timetables and aircraft types are not modelled. Aircraft positions and altitudes are illustrative, not live tracking. Entered and estimated times are labelled. Undated timelines require an explicit assumed departure. Time-zone rules come from runtime Intl and may change for future dates.
+Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distances use great circles on a sphere of radius 6371.0088 km. Winds, actual routing, airline timetables and aircraft types are not modelled. Aircraft positions and altitudes are illustrative, not live tracking. Entered and estimated times are labelled. Undated comparisons align to the earliest dated departure, else an explicit assumed departure; without either they have totals but no timeline. Time-zone rules come from runtime Intl and may change for future dates.
 
 - [Dataset freshness](https://tmrk.github.io/globehops/agent/dataset.json): build date, upstream airport commit, counts and time-zone release metadata.
 - [Data sources](https://github.com/tmrk/globehops/blob/main/docs/DATA_SOURCES.md): OurAirports public domain, timezone-boundary-builder/OSM ODbL-1.0, NASA imagery and Natural Earth borders.
@@ -36,7 +48,7 @@ Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distance
 ## Local MCP server
 
 - [Server source](https://github.com/tmrk/globehops/blob/main/mcp/server.ts): local stdio; clone the repository, run `npm ci` with Node 22.18+, then `node /absolute/path/to/globehops/mcp/server.ts` (or `npm run mcp` in the checkout).
-- [MCP configuration and tool examples](https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md): search_airports, calculate_route, validate_itinerary, visualize_route, get_journey_timeline.
+- [MCP configuration and tool examples](https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md): search_airports, compare_journeys, calculate_route, validate_itinerary, visualize_route, get_journey_timeline.
 
 Set `GLOBEHOPS_BASE_URL` to override generated links. There is no remote MCP endpoint: GitHub Pages hosts static files. Tools reuse the same calculations as the browser and require no network services.
 

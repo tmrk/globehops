@@ -23,7 +23,9 @@ describe('committed agent discovery', () => {
   it('has all eight complete examples including a previous-local-day arrival', () => {
     expect(examples.length).toBeGreaterThanOrEqual(8);
     const line = examples.find((e) => e.title === 'Crossing the date line')!;
-    expect(line.itinerary.stops[1].arrival!.slice(0, 10) < line.itinerary.stops[0].departure!.slice(0, 10)).toBe(true);
+    expect(line.itinerary.stops![1].arrival!.slice(0, 10) < line.itinerary.stops![0].departure!.slice(0, 10)).toBe(
+      true,
+    );
   });
   it.each(examples)('$title validates and both links round-trip to the same itinerary state', (example) => {
     expect(validate(example.itinerary), JSON.stringify(validate.errors)).toBe(true);

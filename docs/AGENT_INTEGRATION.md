@@ -17,29 +17,31 @@ The last example uses airport-local wall times, so 08:15 in Copenhagen and 09:05
 - [Agent guide (llms.txt)](https://tmrk.github.io/globehops/llms.txt)
 - [Capabilities and limits](https://tmrk.github.io/globehops/agent/capabilities.json)
 - [Itinerary document JSON Schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json)
-- [Eight complete worked examples](https://tmrk.github.io/globehops/agent/examples.json)
+- [Worked examples](https://tmrk.github.io/globehops/agent/examples.json)
 - [Dataset freshness](https://tmrk.github.io/globehops/agent/dataset.json)
 
 The guide is at the project path `/globehops/llms.txt`, not the domain-root `/llms.txt`. HTML discovery links and WebApplication JSON-LD point to the same contract. These are project discovery conventions, with no claim of conformance to a formal agent standard.
 
 ## Link reference (v1)
 
-| Parameter      | Meaning                                                                | Example                        |
-| -------------- | ---------------------------------------------------------------------- | ------------------------------ |
-| `route`        | Airport tokens separated by hyphens; custom transfer minutes after `_` | `CPH-LHR_180-JFK`              |
-| `depN`, `arrN` | Local departure/arrival at 1-based stop N                              | `dep1=2026-11-20T08:15`        |
-| `t`            | Simulation instant, with Z or explicit offset                          | `2026-11-20T09:30Z`            |
-| `play`         | Start playback on open; reduced motion prevents autoplay               | `1`                            |
-| `speed`        | Auto or simulation seconds per real second                             | `auto`, `1800`, `3600`, `7200` |
-| `clock`        | Timeline display zone; airport code must be on the route               | `local`, `utc`, `JFK`          |
-| `units`        | Distance display override                                              | `km`, `mi`                     |
-| `follow`       | Aircraft camera; off by default, user camera input exits               | `1` to enable                  |
-| `daynight`     | Day/night shading, enabled by default                                  | `0` to disable                 |
-| `lang`         | `en`, `hu`, `sv`; generated links use `/en/`, `/hu/`, `/sv/` paths     | `lang=hu` alias on root path   |
-| `names`        | Place-name labels for this visit                                       | `1` on, `0` off                |
-| `borders`      | Country borders for this visit                                         | `0` off, `1` on                |
-| `leg`          | One-based selected flight; frames that flight without seeking time     | `2`                            |
-| `itinerary`    | Alternative complete base64url UTF-8 JSON document                     | See examples file              |
+| Parameter           | Meaning                                                                | Example                        |
+| ------------------- | ---------------------------------------------------------------------- | ------------------------------ |
+| `route`             | Airport tokens separated by hyphens; custom transfer minutes after `_` | `CPH-LHR_180-JFK`              |
+| `label`             | Journey A label, trimmed, 1–40 characters without controls             | `Via%20London`                 |
+| `b.*`, `c.*`, `d.*` | Additional journeys: route, depN, arrN and label                       | `b.route=BUD-JFK`              |
+| `depN`, `arrN`      | Local departure/arrival at 1-based stop N                              | `dep1=2026-11-20T08:15`        |
+| `t`                 | Simulation instant, with Z or explicit offset                          | `2026-11-20T09:30Z`            |
+| `play`              | Start playback on open; reduced motion prevents autoplay               | `1`                            |
+| `speed`             | Auto or simulation seconds per real second                             | `auto`, `1800`, `3600`, `7200` |
+| `clock`             | Timeline display zone; airport code may be on any compared journey     | `local`, `utc`, `JFK`          |
+| `units`             | Distance display override                                              | `km`, `mi`                     |
+| `follow`            | Aircraft camera; off by default, user camera input exits               | `1` to enable                  |
+| `daynight`          | Day/night shading, enabled by default                                  | `0` to disable                 |
+| `lang`              | `en`, `hu`, `sv`; generated links use `/en/`, `/hu/`, `/sv/` paths     | `lang=hu` alias on root path   |
+| `names`             | Place-name labels for this visit                                       | `1` on, `0` off                |
+| `borders`           | Country borders for this visit                                         | `0` off, `1` on                |
+| `leg`               | One-based selected flight; frames that flight without seeking time     | `2`                            |
+| `itinerary`         | Alternative complete base64url UTF-8 JSON document                     | See examples file              |
 
 The itinerary parameter takes precedence over readable parameters. An explicit locale path takes precedence over `lang`; otherwise document `view.lang` or the `?lang=` alias selects the language. `buildLinkUrl` and MCP generate locale paths, for example `/globehops/hu/?route=CPH-JFK&names=1&borders=0&leg=1`. Link and browser-tool view overrides do not save user preferences; later manual control changes may save them. When `follow` and `leg` are both supplied, the flight is selected while the aircraft camera takes priority; `select_flight` exits follow to frame its flight. URL input takes precedence over remembered browser state; absent both, the app opens an example. Explicit `?route=` clears the route. Canonical empty links omit `route`.
 
@@ -65,9 +67,9 @@ Instants (`t`, timeline `at`, `assumeDeparture`) use ISO date/time with `Z` or `
 }
 ```
 
-Validate with the [draft 2020-12 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json). `version` and `stops` are required. Each stop requires `airport`; optional fields are `arrival`, `departure`, `layoverMinutes`. Layovers are integers 0–10080 and apply only to transfer stops. All view fields are optional: `time`, `play` (boolean), `speed` (`"auto"` or numeric 1800/3600/7200), `clock`, `units`, `dayNight` (boolean), `follow` (boolean, default false), `lang` (`en`/`hu`/`sv`), `names` and `borders` (booleans), `leg` (integer 1–9, must identify a flight in this route). Unknown properties are rejected at every level; a top-level string `$schema` is allowed.
+Validate with the [draft 2020-12 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json). `version: 1` and exactly one of `stops` or `journeys` are required. Each stop requires `airport`; optional fields are `arrival`, `departure`, `layoverMinutes`. Layovers are integers 0–10080 and apply only to transfer stops. All view fields are optional: `time`, `play` (boolean), `speed` (`"auto"` or numeric 1800/3600/7200), `clock`, `units`, `dayNight` (boolean), `follow` (boolean, default false), `lang` (`en`/`hu`/`sv`), `names` and `borders` (booleans), `leg` (integer 1–9, must identify a flight in this route). Unknown properties are rejected at every level; a top-level string `$schema` is allowed.
 
-Encode compact JSON as base64url UTF-8 without padding, then append `?itinerary=<encoded>`. JSON documents must contain 1–10 stops; one stop shows a single airport. Do not encode private information into links you share.
+Encode compact JSON as base64url UTF-8 without padding, then append `?itinerary=<encoded>`. Each journey must contain 1–10 stops; one stop shows a single airport. Do not encode private information into links you share.
 
 JavaScript (Node 22.18+, with a document in `doc`):
 
@@ -93,13 +95,58 @@ encoded = __import__('base64').urlsafe_b64encode(__import__('json').dumps(doc, s
 
 In a checkout, prefer `encodeItineraryParam`, `parseLink`, `serializeLink` and `buildLinkUrl`. They are the same utilities used by the app, generator and local server. Defaults, code case, optional seconds and omitted endpoint fields may be normalised when round-tripping a readable link; compare resolved itinerary state rather than byte-identical JSON.
 
+## Compare alternative journeys
+
+Journey IDs A–D follow array order. Readable links keep A unprefixed and use `b.`, `c.`, `d.` for the other routes, times and labels:
+
+```text
+https://tmrk.github.io/globehops/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct
+```
+
+Keys are case-insensitive; gaps compact in letter order. Every prefixed group needs `route`. URL-encode label spaces, Unicode, `&` and `=`. Shared view parameters stay unprefixed; `leg` selects a flight in A, and `clock` may identify an airport in any journey. Older clients display A.
+
+The same comparison fits the existing v1 document and `?itinerary=` encoding:
+
+```json
+{
+  "version": 1,
+  "journeys": [
+    {
+      "label": "Via London",
+      "stops": [{ "airport": "BUD", "departure": "2026-12-01T07:10" }, { "airport": "LHR" }, { "airport": "JFK" }]
+    },
+    { "label": "Direct", "stops": [{ "airport": "BUD" }, { "airport": "JFK" }] }
+  ],
+  "view": { "play": true }
+}
+```
+
+Documents accept 1–4 journeys, each with optional `label` (1–40 characters, no controls) and the usual stop array. Entered schedules stay at their absolute UTC instants. Undated alternatives align to the earliest dated departure; with no dated journey, MCP `assumeDeparture` supplies the shared anchor. Without either, totals are still available but times are null. All timelines use one clock.
+
+Call local MCP `compare_journeys` with 2–4 alternatives, each containing exactly one of `route` or `stops`:
+
+```json
+{
+  "journeys": [
+    { "label": "Direct", "route": "BUD-JFK" },
+    { "label": "Via London", "route": "BUD-LHR_180-JFK" }
+  ],
+  "assumeDeparture": "2026-12-01T07:00Z",
+  "view": { "play": true }
+}
+```
+
+It returns both URLs, `humanSummary`, per-journey airports/legs/transfers/totals, start/end times, colours and anchors, plus `comparison.fastest`, `firstArrival` and duration-sorted `ranking` with deltas in minutes. Fastest measures total elapsed journey time; first arrival measures final UTC arrival. Exact ties have no winner. Invalid/empty journeys are excluded, and arrival comparison requires an end for every valid journey. Estimates remain illustrative.
+
+`visualize_route` and `validate_itinerary` also accept journeys documents. Visualization adds `comparison` and uses A for `summary.totals`. `calculate_route` and `get_journey_timeline` direct multi-journey documents to `compare_journeys`; a one-journey document works with either single-journey tool. See [comparison model and policy](ROUTE_COMPARISON.md).
+
 ## Validation, limits and estimates
 
 Structural checks enforce types, patterns, required fields, additional-property rules, stop counts and transfer-only layovers. They intentionally do not validate calendar dates, zone offsets, airport existence or chronology. `validateItinerary` adds shared semantic issues to structural issues. MCP argument validation also rejects malformed tool envelopes and documents; these failures are returned as `isError` results with clear messages.
 
-Semantic issue codes, severities and meanings are published in `capabilities.json`. Calendar errors, unsupported/missing zones, DST gaps, invalid offsets, negative flight durations and overlapping connections are errors. Ambiguous repeated hours warn and choose the earlier instant unless an offset is supplied. Short connections (<20 minutes), unusual flight durations, ignored endpoint times and layovers over seven days warn; future-rule uncertainty is informational. Issue paths refer to document stops/fields or legs. `valid` means there are no errors, not that an airline operates the route or a connection is feasible.
+Semantic issue codes, severities and meanings are published in `capabilities.json`. Calendar errors, unsupported/missing zones, DST gaps, invalid offsets, negative flight durations and overlapping connections are errors. Ambiguous repeated hours warn and choose the earlier instant unless an offset is supplied. Short connections (<20 minutes), unusual flight durations, ignored endpoint times and layovers over seven days warn; future-rule uncertainty is informational. Issue paths refer to document stops/fields or legs, prefixed with `/journeys/i` for comparisons. `valid` means there are no errors, not that an airline operates the route or a connection is feasible.
 
-Limits are 10 stops, 8000 URL characters, 6000 itinerary-parameter characters, layover settings up to 10080 minutes and calendar years 1900–2100. Search returns 8 matches by default, at most 100. Timelines accept up to 1000 explicit instants or 2–1000 evenly spaced samples (default 10). A single airport has no flight timeline.
+Limits are 1–4 document journeys, 10 stops per journey, 8000 URL characters, 6000 itinerary-parameter characters, layover settings up to 10080 minutes and calendar years 1900–2100. Search returns 8 matches by default, at most 100. Timelines accept up to 1000 explicit instants or 2–1000 evenly spaced samples (default 10). A single airport has no flight timeline.
 
 Distances use great circles on a spherical Earth, radius 6371.0088 km. Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distance results round to 0.1 km/mi; durations round to integer minutes. Totals are rounded from unrounded shared calculations, so rounded leg distances may differ from totals by 0.1.
 
@@ -168,6 +215,7 @@ Use `tools/list` for the full machine-readable schemas. `JourneyArgs` below mean
 | Tool                   | Input schema                                                                                                                                               |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `search_airports`      | `{query: string (≤500 chars), limit?: integer (1–100, default 8)}`                                                                                         |
+| `compare_journeys`     | `{journeys: [{label?, route? OR stops?}] (2–4), view?, assumeDeparture?: ISO instant}`                                                                     |
 | `calculate_route`      | `JourneyArgs`                                                                                                                                              |
 | `validate_itinerary`   | `JourneyArgs`                                                                                                                                              |
 | `visualize_route`      | `JourneyArgs & {view?: ItineraryDocument["view"]}`; view overrides document view fields                                                                    |
@@ -311,6 +359,8 @@ When supported, the live app registers `get_journey`, `set_route`, `set_view`, `
 | `set_view`       | A partial object: `t` (absolute ISO instant), `play`, `speed`, `clock`, `units`, `dayNight`, `follow`, `names`, `borders`, `lang`, `leg`. Uses `t` here, versus `view.time` in documents. Only supplied fields change. Explicit `play: true` may start playback with reduced motion enabled, like the Play button; link autoplay still respects reduced motion. |
 | `select_flight`  | `{leg: 1}` uses a one-based flight number; `{leg: null}` restores the overview. Frames without seeking the clock and exits follow.                                                                                                                                                                                                                              |
 | `get_share_link` | `{}` → `{url}` with the open timeline’s instant and play state, locale path and view; a live globe remains live. Does not write playback frames to browser history. Explicit empty route is retained.                                                                                                                                                           |
+
+The browser comparison parser accepts `compare_journeys` with the same `journeys`/`view` input as MCP, excluding `assumeDeparture`, and produces the existing `set_route` command with a journeys-document search string. `set_route.itinerary` also accepts journeys documents. `get_journey` describes an additional `comparison` result in compare mode. Comparison rendering and App integration use these shared APIs; see [implementation scope](ROUTE_COMPARISON.md).
 
 Registration supports the current draft's `document.modelContext.registerTool(tool, {signal})` and the requested legacy `navigator.modelContext.registerTool`/`unregisterTool` or `provideContext` shape. Cleanup aborts modern registrations or unregisters legacy tools when the app unmounts, including partial-registration failures. The `provideContext` fallback owns and replaces the page's tool context. This API is experimental and may change; see the [WebMCP specification](https://webmachinelearning.github.io/webmcp/) and [original proposal](https://webmachinelearning.github.io/webmcp/docs/proposal.html).
 

@@ -5,11 +5,26 @@
   "homepage": "https://tmrk.github.io/globehops/",
   "urlTemplates": {
     "simple": "https://tmrk.github.io/globehops/?route={route}",
+    "comparison": "https://tmrk.github.io/globehops/?route={routeA}&label={labelA}&b.route={routeB}&b.label={labelB}",
     "localized": "https://tmrk.github.io/globehops/{lang}/?route={route}",
     "scheduled": "https://tmrk.github.io/globehops/?route={route}&dep1={localDeparture}",
     "document": "https://tmrk.github.io/globehops/?itinerary={base64urlJson}"
   },
   "parameters": {
+    "label": {
+      "type": "string",
+      "required": false,
+      "format": "1–40 characters without controls",
+      "examples": ["Via London"],
+      "semantics": "Trimmed journey A label; URL-encode Unicode and reserved characters."
+    },
+    "b./c./d.": {
+      "type": "journey group",
+      "required": false,
+      "format": "prefix + route|depN|arrN|label",
+      "examples": ["b.route=BUD-JFK", "c.dep1=2026-12-01T08:00"],
+      "semantics": "Journeys B–D in order; gaps compact. Each group requires route. Parameter keys are case-insensitive. Other view parameters remain unprefixed; leg refers to A, clock may name any compared airport."
+    },
     "route": {
       "type": "string",
       "required": false,
@@ -50,7 +65,7 @@
       "required": false,
       "format": "local|utc|airport code",
       "examples": ["local", "utc", "JFK"],
-      "semantics": "Timeline display zone; airport code must belong to the route."
+      "semantics": "Timeline display zone; airport code must belong to any compared journey."
     },
     "units": {
       "type": "string",
@@ -109,9 +124,15 @@
       "semantics": "ItineraryDocument v1 overrides readable parameters; structural schema linked below."
     }
   },
+  "comparison": {
+    "document": "Version 1; exactly one of stops or journeys (1–4 labelled stop arrays).",
+    "alignment": "Entered schedules remain absolute. Undated journeys align to the earliest dated departure, else assumeDeparture; without either they have no timeline.",
+    "metrics": "Fastest is shortest total journey duration; arrives first is earliest final UTC arrival. Exact ties have no winner. Invalid or fewer-than-two-stop journeys are excluded; arrival comparison requires every valid journey to have an end."
+  },
   "schema": "https://tmrk.github.io/globehops/agent/itinerary.schema.json",
   "limits": {
     "stops": 10,
+    "journeys": 4,
     "minimumDocumentStops": 1,
     "urlCharacters": 8000,
     "itineraryParamCharacters": 6000,
@@ -200,6 +221,11 @@
       { "code": "future_rules", "severity": "info", "meaning": "Future times use current runtime time-zone rules." }
     ],
     "agentIssues": [
+      {
+        "code": "use_compare_journeys",
+        "severity": "error",
+        "meaning": "Multi-journey documents require compare_journeys for calculations and timelines."
+      },
       { "code": "unknown_airport", "severity": "error", "meaning": "Unrecognised airport skipped." },
       { "code": "no_airports", "severity": "error", "meaning": "No known airport supplied." },
       { "code": "invalid_link", "severity": "error", "meaning": "Readable route syntax or limits invalid." },
@@ -227,7 +253,18 @@
         "meaning": "The complete document URL exceeds limits; use the available readable URL."
       }
     ],
-    "structuralCodes": ["type", "const", "items", "pattern", "range", "position", "enum", "additionalProperties"]
+    "structuralCodes": [
+      "type",
+      "const",
+      "oneOf",
+      "required",
+      "items",
+      "pattern",
+      "range",
+      "position",
+      "enum",
+      "additionalProperties"
+    ]
   },
   "versioning": "Additive compatible changes retain v1. Breaking changes require document version 2 and a v2 link parameter/version contract; existing v1 links remain readable.",
   "dataset": {
@@ -241,7 +278,14 @@
     "run": "node /absolute/path/to/globehops/mcp/server.ts",
     "prerequisites": "Node >=22.18; npm ci in the checkout.",
     "baseUrlEnvironment": "GLOBEHOPS_BASE_URL",
-    "tools": ["search_airports", "calculate_route", "validate_itinerary", "visualize_route", "get_journey_timeline"],
+    "tools": [
+      "search_airports",
+      "compare_journeys",
+      "calculate_route",
+      "validate_itinerary",
+      "visualize_route",
+      "get_journey_timeline"
+    ],
     "resources": [
       "globehops://agent/capabilities.json",
       "globehops://agent/itinerary.schema.json",
@@ -255,7 +299,7 @@
   "webMcp": {
     "experimental": true,
     "api": "document.modelContext (AbortSignal cleanup), legacy navigator.modelContext registerTool/unregisterTool or provideContext",
-    "tools": ["get_journey", "set_route", "set_view", "select_flight", "get_share_link"],
+    "tools": ["get_journey", "set_route", "compare_journeys", "set_view", "select_flight", "get_share_link"],
     "network": false
   },
   "locales": ["en", "hu", "sv"],

@@ -191,3 +191,76 @@ it('round trips language, layers and flight selection in readable and document l
     'clock=local&daynight=1&follow=0',
   );
 });
+
+describe('comparison links', () => {
+  it('preserves an explicitly empty primary journey when sharing alternatives', () => {
+    const query = serializeLink([], {}, false, { compare: [{ label: null, stops }] });
+    expect(query).toMatch(/^\?route=&b.route=/);
+    expect(parseLink(query).stops).toEqual([]);
+    expect(parseLink(query).compare?.[0].stops).toHaveLength(3);
+  });
+  it('round-trips labels, schedules and all three prefixed groups before view parameters', () => {
+    const dated = stops.map((stop, index) => ({
+      ...stop,
+      departure: index === 0 ? { local: '2026-12-01T07:10', offsetMin: 60 } : null,
+      arrival: index === 2 ? { local: '2026-12-01T14:35', offsetMin: -300 } : null,
+    }));
+    const extra = {
+      label: ' BA via London ',
+      compare: [
+        { label: 'Árvíz & x=y', stops: dated },
+        { label: null, stops },
+        { label: 'D', stops },
+      ],
+    };
+    const query = serializeLink(dated, { clock: 'JFK', play: true }, false, extra);
+    expect(query).toContain('&label=BA%20via%20London&b.route=');
+    expect(query).toContain('&b.label=%C3%81rv%C3%ADz%20%26%20x%3Dy&c.route=');
+    expect(query.indexOf('&d.label=D')).toBeLessThan(query.indexOf('&play=1'));
+    const parsed = parseLink(query);
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.label).toBe('BA via London');
+    expect(parsed.compare).toHaveLength(3);
+    expect(parsed.compare?.[0]).toEqual({ label: 'Árvíz & x=y', stops: parsed.stops });
+    expect(buildLinkUrl('https://example.com/', dated, { lang: 'hu' }, false, extra)).toContain('/hu/?route=');
+    const second = serializeLink(dated, parsed.view, false, {
+      label: parsed.label,
+      compare: parsed.compare!.map((journey) => ({
+        label: journey.label,
+        stops: journey.stops.map((stop, index) => ({ ...stop, airport: airports[index] })),
+      })),
+    });
+    expect(parseLink(second)).toEqual(parsed);
+  });
+  it('parses case-insensitive keys, compacts gaps and accepts a clock airport from another journey', () => {
+    const parsed = parseLink(
+      '?ROUTE=CPH-JFK&C.ROUTE=CPH-LHR-JFK&C.DEP1=2026-12-01T08:00&C.LABEL=Via%20London&Clock=LHR',
+    );
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.compare).toHaveLength(1);
+    expect(parsed.compare?.[0].label).toBe('Via London');
+    expect(parsed.compare?.[0].stops[0].departure?.local).toBe('2026-12-01T08:00');
+    expect(parsed.view.clock).toBe('LHR');
+  });
+  it('reports missing routes, excess journeys, invalid labels and prefixed time errors', () => {
+    expect(parseLink('?route=CPH-JFK&b.label=Missing').issues.join(' ')).toContain('no route');
+    expect(
+      parseLink('?route=CPH-JFK&b.route=CPH-JFK&c.route=CPH-JFK&d.route=CPH-JFK&e.route=CPH-JFK').issues,
+    ).toContain('Only 4 journeys can be compared.');
+    for (const label of ['', ' ', 'a\nb', 'a\u007fb', 'x'.repeat(41)]) {
+      expect(parseLink(`?route=CPH-JFK&label=${encodeURIComponent(label)}`).issues).toHaveLength(1);
+      expect(() => serializeLink(stops, {}, false, { label })).toThrow(TypeError);
+    }
+    expect(parseLink('?route=CPH-JFK&b.route=CPH-JFK&b.dep5=no').issues[0]).toContain('b.');
+    expect(() => serializeLink(stops, {}, false, { compare: Array(4).fill({ label: null, stops }) })).toThrow('Only 4');
+  });
+  it('enforces the existing sharing limit including comparison groups', () => {
+    expect(parseLink(`?route=CPH-JFK&b.label=${'x'.repeat(8000)}`).issues).toEqual(['This link is too long.']);
+    expect(() =>
+      buildLinkUrl(`https://example.com/${'x'.repeat(7900)}`, stops, {}, false, {
+        label: 'a'.repeat(40),
+        compare: [{ label: 'b'.repeat(40), stops }],
+      }),
+    ).toThrow(RangeError);
+  });
+});

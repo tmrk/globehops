@@ -10,6 +10,24 @@ const scheduled = {
 /** JSON-serialisable corpus is shared by runtime, published schema and MCP schema tests. */
 export const DOCUMENT_CORPUS: unknown[] = [
   minimal,
+  {
+    version: 1,
+    journeys: [{ label: 'Direct', stops: scheduled.stops }, { stops: minimal.stops }],
+    view: { clock: 'LHR' },
+  },
+  { version: 1, journeys: [{ stops: minimal.stops }] },
+  ...[0, 5].map((count) => ({ version: 1, journeys: Array(count).fill({ stops: minimal.stops }) })),
+  { version: 1, stops: minimal.stops, journeys: [{ stops: minimal.stops }] },
+  ...['✈️ via London', '🌍'.repeat(40), '🌍'.repeat(41), '', ' ', 'a\nb', 'a\u007fb', 'x'.repeat(41)].map((label) => ({
+    version: 1,
+    journeys: [{ label, stops: minimal.stops }],
+  })),
+  { version: 1, journeys: [{ stops: [{ airport: '!' }] }] },
+  { version: 1, journeys: [{ stops: [{ airport: 'CPH', layoverMinutes: 90 }] }] },
+  { version: 1, journeys: [{ stops: minimal.stops, extra: 1 }] },
+  { version: 1, journeys: [null] },
+  { version: 1, journeys: null },
+
   { ...scheduled, view: { lang: 'hu', names: true, borders: false, follow: true, leg: 2 } },
   ...[{ lang: 'de' }, { names: 1 }, { borders: null }, { leg: 0 }, { leg: 10 }, { leg: 1.5 }].map((view) => ({
     ...scheduled,

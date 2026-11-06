@@ -2,7 +2,7 @@ import { isLocale, type Locale } from '../i18n/locales.ts';
 import { localizedPath, localeFromPath } from '../i18n/detect.ts';
 import type { Airport, DistanceUnit, LocalTimeInput } from '../types.ts';
 import type { PlaybackSpeed } from './clock.ts';
-import { PLAYBACK_SPEEDS, MAX_URL_LENGTH, MAX_STOPS, LINK_PARAMS as P } from '../agent/contract.ts';
+import { PLAYBACK_SPEEDS, MAX_URL_LENGTH, MAX_STOPS, MAX_JOURNEYS, LINK_PARAMS as P } from '../agent/contract.ts';
 import {
   decodeItineraryParam,
   documentToLinkState,
@@ -32,10 +32,16 @@ export interface LinkView {
   /** One-based flight number. */
   leg?: number;
 }
+export interface LinkJourney {
+  label: string | null;
+  stops: LinkStop[];
+}
 export interface LinkState {
   stops: LinkStop[] | null;
   view: LinkView;
   issues: string[];
+  label?: string | null;
+  compare?: LinkJourney[];
 }
 export function parseLink(search: string, pathname?: string, base = '/globehops/'): LinkState {
   const pathLocale = pathname ? localeFromPath(pathname, base) : null;
@@ -60,6 +66,34 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
       return parsed;
     }
     state.issues.push(...result.issues.map((i) => `${i.path || 'Itinerary'}: ${i.message}`));
+  }
+  const groups = new Map<string, URLSearchParams>();
+  for (const [key, value] of params) {
+    const match = /^([b-z])\.(.+)$/.exec(key);
+    if (!match) continue;
+
+    const group = groups.get(match[1]) ?? new URLSearchParams();
+    group.set(match[2], value);
+    groups.set(match[1], group);
+  }
+  for (const [prefix, group] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
+    if (!group.has(P.route)) {
+      state.issues.push(`Journey ${prefix.toUpperCase()} has parameters but no route.`);
+      continue;
+    }
+    if (!['b', 'c', 'd'].includes(prefix) || (state.compare?.length ?? 0) >= MAX_JOURNEYS - 1) {
+      if (!state.issues.includes('Only 4 journeys can be compared.'))
+        state.issues.push('Only 4 journeys can be compared.');
+      continue;
+    }
+    const journeyParams = new URLSearchParams();
+    for (const [key, value] of group) {
+      if (['route', 'label'].includes(key) || /^(dep|arr)\d+$/.test(key)) journeyParams.set(key, value);
+      else state.issues.push(`Invalid ${prefix}.${key} parameter in this link.`);
+    }
+    const parsed = parseLink(`?${journeyParams}`);
+    state.issues.push(...parsed.issues.map((message) => `${prefix}. ${message}`));
+    (state.compare ??= []).push({ label: parsed.label ?? null, stops: parsed.stops ?? [] });
   }
   const tokens = parseRouteParam(search);
   if (tokens !== null) {
@@ -94,6 +128,10 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
         continue;
       }
       state.stops[index][field[1] === P.departure ? 'departure' : 'arrival'] = parsed;
+    } else if (key === P.label) {
+      const label = value.trim();
+      if (!validJourneyLabel(value) || !label || Array.from(label).length > 40) invalid(key);
+      else state.label = label;
     } else if (key === P.time) {
       const time = parseIsoInstant(value.replace(/ (\d{2}:\d{2})$/, '+$1'));
       if (time === null) invalid(key);
@@ -108,7 +146,12 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
     } else if (key === P.clock) {
       const normalized = value.toLowerCase();
       if (normalized === 'local' || normalized === 'utc') state.view.clock = normalized;
-      else if (state.stops?.some((s) => s.code === value.toUpperCase())) state.view.clock = value.toUpperCase();
+      else if (
+        [...(state.stops ?? []), ...(state.compare ?? []).flatMap((journey) => journey.stops)].some(
+          (s) => s.code === value.toUpperCase(),
+        )
+      )
+        state.view.clock = value.toUpperCase();
       else invalid(key);
     } else if (key === P.units) {
       if (value.toLowerCase() === 'km' || value.toLowerCase() === 'mi')
@@ -140,23 +183,45 @@ export interface SerializableLinkStop {
   arrival: LocalTimeInput | null;
   departure: LocalTimeInput | null;
 }
+export interface SerializableJourney {
+  label: string | null;
+  stops: SerializableLinkStop[];
+}
+export function validJourneyLabel(value: string): boolean {
+  return !/\p{Cc}/u.test(value);
+}
 export type LinkDefaultKey = 'follow' | 'dayNight' | 'clock';
 
 export function serializeLink(
   stops: SerializableLinkStop[],
   view: Partial<LinkView> = {},
   explicitDefaults: boolean | readonly LinkDefaultKey[] = false,
+  extra?: { label?: string | null; compare?: SerializableJourney[] },
 ): string {
   const includeDefault = (key: LinkDefaultKey) =>
     explicitDefaults === true || (Array.isArray(explicitDefaults) && explicitDefaults.includes(key));
-  const list = stops.slice(0, MAX_STOPS);
   const params: [string, string][] = [];
-  const route = routeTokens(list).join('-');
-  if (route) params.push([P.route, route]);
-  list.forEach((s, i) => {
-    if (i > 0 && s.arrival) params.push([`${P.arrival}${i + 1}`, formatDocumentTime(s.arrival)]);
-    if (i < list.length - 1 && s.departure) params.push([`${P.departure}${i + 1}`, formatDocumentTime(s.departure)]);
-  });
+  const appendJourney = (stops: SerializableLinkStop[], label: string | null | undefined, prefix: string) => {
+    const list = stops.slice(0, MAX_STOPS);
+    const route = routeTokens(list).join('-');
+    if (route || prefix || extra?.compare?.length) params.push([`${prefix}${P.route}`, route]);
+    list.forEach((s, i) => {
+      if (i > 0 && s.arrival) params.push([`${prefix}${P.arrival}${i + 1}`, formatDocumentTime(s.arrival)]);
+      if (i < list.length - 1 && s.departure)
+        params.push([`${prefix}${P.departure}${i + 1}`, formatDocumentTime(s.departure)]);
+    });
+    if (label != null) {
+      const trimmed = label.trim();
+      if (!validJourneyLabel(label) || !trimmed || Array.from(trimmed).length > 40)
+        throw new TypeError('Use a label of 1–40 characters without control characters.');
+      params.push([`${prefix}${P.label}`, trimmed]);
+    }
+  };
+  if ((extra?.compare?.length ?? 0) >= MAX_JOURNEYS) throw new RangeError('Only 4 journeys can be compared.');
+  appendJourney(stops, extra?.label, '');
+  extra?.compare?.forEach((journey, index) =>
+    appendJourney(journey.stops, journey.label, `${String.fromCharCode(98 + index)}.`),
+  );
   if (view.time != null) params.push([P.time, formatIsoInstant(view.time)]);
   if (view.play) params.push([P.play, '1']);
   if (view.speed !== undefined && view.speed !== 'auto') params.push([P.speed, String(view.speed)]);
@@ -181,9 +246,10 @@ export function buildLinkUrl(
   stops: SerializableLinkStop[],
   view: Partial<LinkView> = {},
   explicitDefaults: boolean | readonly LinkDefaultKey[] = false,
+  extra?: { label?: string | null; compare?: SerializableJourney[] },
 ): string {
   const url = new URL(base);
-  url.search = serializeLink(stops, { ...view, lang: undefined }, explicitDefaults);
+  url.search = serializeLink(stops, { ...view, lang: undefined }, explicitDefaults, extra);
   if (view.lang) {
     const basePath = url.pathname.replace(/\/(?:en|hu|sv)\/?$/, '/');
     url.pathname = localizedPath(basePath, view.lang);
