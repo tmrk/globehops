@@ -1,7 +1,29 @@
 import { mkdir } from 'node:fs/promises';
 import { test, expect, openDisplay } from './fixtures.ts';
 
-const reviewDir = '/Users/tamasmarki/Dev/globehops-ui/test-results/review';
+const reviewDir = 'test-results/review';
+
+test('distance radios support a single tab stop and arrow, Home and End keys', async ({ page }) => {
+  await page.goto('./?route=CPH-LHR');
+  const display = await openDisplay(page);
+  const km = display.getByRole('radio', { name: 'km', exact: true });
+  const mi = display.getByRole('radio', { name: 'mi', exact: true });
+  await expect(km).toHaveAttribute('tabindex', '0');
+  await expect(mi).toHaveAttribute('tabindex', '-1');
+  await km.focus();
+  await km.press('ArrowRight');
+  await expect(mi).toBeFocused();
+  await expect(mi).toHaveAttribute('aria-checked', 'true');
+  await expect(km).toHaveAttribute('tabindex', '-1');
+  await mi.press('Home');
+  await expect(km).toBeFocused();
+  await expect(km).toHaveAttribute('aria-checked', 'true');
+  await km.press('End');
+  await expect(mi).toBeFocused();
+  await mi.press('ArrowDown');
+  await expect(km).toBeFocused();
+  await expect(km).toHaveAttribute('aria-checked', 'true');
+});
 
 test('motion choice overrides the system in either direction and survives reload', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });

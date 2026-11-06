@@ -164,7 +164,7 @@ a {
   inset: 0;
   background:
     radial-gradient(ellipse 60% 55% at 50% 42%, rgba(38, 74, 128, 0.22), transparent 70%),
-    radial-gradient(ellipse at 50% 120%, #0a1220 0%, #04060c 70%);
+    radial-gradient(ellipse at 50% 120%, #0a1220 0%, var(--bg) 70%);
 }
 
 .globe-view {
@@ -347,10 +347,10 @@ a {
   margin: 0;
 }
 
-.globe-fallback__title {
+.globe-fallback .globe-fallback__title {
   color: var(--text);
   font-weight: 600;
-  margin-bottom: 6px !important;
+  margin-bottom: 6px;
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -409,7 +409,6 @@ a {
   font-stretch: var(--mono-stretch);
   letter-spacing: 0.02em;
   color: var(--text-3);
-  opacity: 0.6;
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -440,11 +439,6 @@ a {
 
 .icon-btn--quiet {
   color: var(--text-3);
-}
-
-.icon-btn--small {
-  width: 30px;
-  height: 30px;
 }
 
 .text-btn {
@@ -667,7 +661,7 @@ button.map-menu__item:hover {
   border-radius: var(--radius-xs);
   font: 600 var(--text-xs) / 1 var(--mono);
   font-stretch: var(--mono-stretch);
-  color: var(--text-3);
+  color: var(--text-2);
   transition:
     background-color 0.15s,
     color 0.15s;
@@ -719,6 +713,7 @@ button.map-menu__item:hover {
 }
 
 .sheet-handle {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1786,7 +1781,11 @@ button.map-menu__item:hover {
 }
 
 .picker__option.is-active {
-  background: rgba(255, 255, 255, 0.085);
+  background: var(--line);
+}
+
+.picker__option.is-active .picker__place {
+  color: var(--text-2);
 }
 
 .picker__text {
@@ -1861,7 +1860,7 @@ button.map-menu__item:hover {
   max-height: none;
   margin: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
 }
 
@@ -1933,7 +1932,7 @@ button.map-menu__item:hover {
   margin: 0;
   padding: 6px 8px calc(8px + var(--safe-bottom));
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
   overscroll-behavior: contain;
 }
@@ -2045,7 +2044,7 @@ button.map-menu__item:hover {
   margin: 0;
   padding: 0 var(--pad) calc(10px + var(--safe-bottom));
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   background: none;
   box-shadow: none;
   backdrop-filter: none;
@@ -2820,46 +2819,59 @@ button.map-menu__item:hover {
 /* Responsive refinements                                                                     */
 
 @media (pointer: coarse) {
-  .icon-btn {
+  .icon-btn,
+  .float-group__btn,
+  .when__clear {
     width: 44px;
     height: 44px;
   }
-  .icon-btn--small {
-    width: 36px;
-    height: 36px;
-  }
   .when__clear {
-    width: 36px;
-    height: 36px;
     margin-block: -10px;
   }
   .head-btn,
+  .text-btn,
+  .credits,
   .dt-field,
-  .schedule-issue .suggestion,
-  .suggestion {
-    min-height: 44px;
-  }
-  .leg__body {
-    min-height: 44px;
-  }
-  .layover__pick {
-    height: 40px;
-  }
-  .segmented button {
-    height: 34px;
-  }
+  .suggestion,
+  .layout-desktop .suggestions .suggestion,
+  .leg__body,
+  .journey-tab,
+  .comparison-lane,
   .time-bar__menu,
   .time-bar__steps,
   .time-bar__foot .dt-field {
-    height: 40px;
-    min-height: 40px;
+    min-height: 44px;
+  }
+  .layover__pick,
+  .segmented button {
+    min-width: 44px;
+    height: 44px;
+  }
+  .consent__more {
+    min-width: 44px;
+    min-height: 44px;
   }
   .time-bar__steps button {
-    width: 44px;
+    min-width: 44px;
   }
   .time-bar input[type='range'],
   .time-bar__scrubber {
     height: 44px;
+  }
+  /* Expand the information target without moving the totals' label/value grid. */
+  .info-btn {
+    position: relative;
+  }
+  .info-btn::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+    border-radius: inherit;
+  }
+  .sheet-handle::before {
+    content: '';
+    position: absolute;
+    inset: -22px 0 0;
   }
 }
 
@@ -2927,14 +2939,9 @@ button.map-menu__item:hover {
 :root[data-motion='reduce'] *::before,
 :root[data-motion='reduce'] *::after,
 :root[data-motion='reduce'] ::backdrop {
-  animation-duration: 0.01ms !important;
-  transition-duration: 0.01ms !important;
-}
-:root[data-motion='reduce'] .layout-mobile .hud-wrap {
-  transition: none;
-}
-:root[data-motion='reduce'] .globe-user-location::before {
+  /* Override component animations and imperative sheet transitions, including infinite pulses. */
   animation: none !important;
+  transition-duration: 0.01ms !important;
 }
 
 /* Optional atlas place names, beneath the airport labels. */
@@ -3188,6 +3195,11 @@ button.map-menu__item:hover {
   box-shadow: inset 0 -2px 0 var(--text);
   color: var(--text);
 }
+.journey-tab:focus-visible,
+.compare-summary__row:focus-visible {
+  /* The tab scroller and summary paint containment clip outlines outside their children. */
+  outline-offset: -2px;
+}
 .journey-tab__route {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3361,13 +3373,4 @@ button.map-menu__item:hover {
 .layout-mobile .compare-summary__row {
   padding-block: 6px;
   row-gap: 4px;
-}
-
-@media (pointer: coarse) {
-  .comparison-lane {
-    min-height: 44px;
-  }
-  .journey-tab {
-    min-height: 44px;
-  }
 }

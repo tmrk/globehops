@@ -57,7 +57,7 @@ let state: 'off' | 'loading' | 'on' = 'off';
 function gtag(..._args: unknown[]): void {
   // gtag.js expects the Arguments object itself, not an array.
   // eslint-disable-next-line prefer-rest-params
-  window.dataLayer!.push(arguments);
+  (window.dataLayer ??= []).push(arguments);
 }
 
 /** Starts (or resumes) measurement after consent. Safe to call repeatedly. */

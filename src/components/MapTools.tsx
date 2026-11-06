@@ -1,5 +1,5 @@
-import { LOCALES, localeInfo } from '../i18n/locales.ts';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { localeInfo } from '../i18n/locales.ts';
+import { LanguageOptions } from '../i18n/LanguageSelector.tsx';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import type { SimulationClock } from '../state/clock.ts';
@@ -10,7 +10,6 @@ import {
   IconWaves,
   IconMotion,
   IconLocate,
-  IconCheck,
   IconBorders,
   IconChevronRight,
   IconClock,
@@ -95,7 +94,7 @@ function Toggle({
  * globe clock) in a small menu, a language menu, and re-centring on the route.
  */
 export function MapTools(props: MapToolsProps) {
-  const { t, locale, setLocale } = useI18n();
+  const { t, locale } = useI18n();
 
   const [open, setOpen] = useState<'display' | 'language' | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -106,18 +105,6 @@ export function MapTools(props: MapToolsProps) {
   const closeLanguage = () => {
     setOpen(null);
     languageButtonRef.current?.focus();
-  };
-  const onLanguageKey = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    const target =
-      event.key === 'Home'
-        ? 0
-        : event.key === 'End'
-          ? LOCALES.length - 1
-          : (index + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1) + LOCALES.length) % LOCALES.length;
-    (event.currentTarget.parentElement?.children[target] as HTMLButtonElement | undefined)?.focus();
-    void setLocale(LOCALES[target]);
   };
 
   useEffect(() => {
@@ -227,6 +214,31 @@ export function MapTools(props: MapToolsProps) {
                   type="button"
                   role="radio"
                   aria-checked={props.unit === u}
+                  tabIndex={props.unit === u ? 0 : -1}
+                  onKeyDown={(event) => {
+                    let next: DistanceUnit;
+                    switch (event.key) {
+                      case 'Home':
+                        next = 'km';
+                        break;
+                      case 'End':
+                        next = 'mi';
+                        break;
+                      case 'ArrowLeft':
+                      case 'ArrowRight':
+                      case 'ArrowUp':
+                      case 'ArrowDown':
+                        next = u === 'km' ? 'mi' : 'km';
+                        break;
+                      default:
+                        return;
+                    }
+                    event.preventDefault();
+                    props.onUnitChange(next);
+                    const radios =
+                      event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role=radio]');
+                    radios?.[next === 'km' ? 0 : 1]?.focus();
+                  }}
                   onClick={() => props.onUnitChange(u)}
                 >
                   {u}
@@ -261,25 +273,7 @@ export function MapTools(props: MapToolsProps) {
           role="radiogroup"
           aria-label={t('common.language')}
         >
-          {LOCALES.map((value, index) => (
-            <button
-              key={value}
-              type="button"
-              className="map-menu__item"
-              role="radio"
-              lang={value}
-              aria-checked={locale === value}
-              tabIndex={locale === value ? 0 : -1}
-              onKeyDown={(event) => onLanguageKey(event, index)}
-              onClick={() => {
-                void setLocale(value);
-                closeLanguage();
-              }}
-            >
-              <span className="map-menu__label">{localeInfo[value].name}</span>
-              {locale === value && <IconCheck size={18} />}
-            </button>
-          ))}
+          <LanguageOptions menu onSelect={closeLanguage} />
         </div>
       )}
     </div>

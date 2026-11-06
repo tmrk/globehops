@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { compareMetrics, comparisonRange, type ComparedJourney } from '../lib/compare.ts';
 import { ComparisonLanes } from './ComparisonLanes.tsx';
 import { useI18n } from '../i18n/I18nProvider.tsx';
@@ -18,15 +19,7 @@ import {
 import { legColor } from '../lib/legColors.ts';
 import { PLAYBACK_SPEEDS, type PlaybackSpeed, type SimulationClock } from '../state/clock.ts';
 import { DateTimeField } from './DateTimeField.tsx';
-import {
-  IconChevronDown,
-  IconChevronLeft,
-  IconChevronRight,
-  IconClose,
-  IconFollow,
-  IconPause,
-  IconPlay,
-} from './Icons.tsx';
+import { IconChevronDown, IconBack, IconChevronRight, IconClose, IconFollow, IconPause, IconPlay } from './Icons.tsx';
 interface Props {
   comparison?: ComparedJourney[];
   active?: number;
@@ -66,9 +59,9 @@ export function TimeBar({
 
   const snapshot = useClock(clock);
   const browserZone = browserTimeZone();
-  const allJourneys = comparison?.map((entry) => entry.journey) ?? [journey];
-  const sharedRange = comparison ? comparisonRange(comparison) : timeline;
-  const metrics = comparison ? compareMetrics(comparison) : null;
+  const allJourneys = useMemo(() => comparison?.map((entry) => entry.journey) ?? [journey], [comparison, journey]);
+  const sharedRange = useMemo(() => (comparison ? comparisonRange(comparison) : timeline), [comparison, timeline]);
+  const metrics = useMemo(() => (comparison ? compareMetrics(comparison) : null), [comparison]);
   const requestedZone =
     clockZone === 'local'
       ? browserZone
@@ -91,18 +84,17 @@ export function TimeBar({
       : fastest
         ? t('compare.fastestTitle', fastest)
         : t('compare.comparing', comparison.length);
-    text.detail = arrival
-      ? comparison
-          .filter((entry) => entry.id !== arrival.id && entry.journey.end)
-          .map((entry) =>
-            t(
-              'compare.before',
-              fmt.duration((entry.journey.end!.epochMs - arrival.journey.end!.epochMs) / 60000),
-              entry.id,
-            ),
-          )
-          .join(' · ')
-      : t('compare.sharedClock');
+    const arrivalTime = arrival?.journey.end?.epochMs;
+    text.detail =
+      arrivalTime !== undefined
+        ? comparison
+            .flatMap((entry) =>
+              entry.id !== arrival?.id && entry.journey.end
+                ? [t('compare.before', fmt.duration((entry.journey.end.epochMs - arrivalTime) / 60000), entry.id)]
+                : [],
+            )
+            .join(' · ')
+        : t('compare.sharedClock');
   }
   const errorJourney = allJourneys.findIndex((entry) => entry.issues.some((issue) => issue.severity === 'error'));
   const error = allJourneys[errorJourney]?.issues.find((i) => i.severity === 'error');
@@ -112,15 +104,16 @@ export function TimeBar({
     text.title = t('timebar.fixTimes', errorLeg + 1);
     text.detail = `${comparison ? `${comparison[errorJourney].id} · ` : ''}${t('timebar.checkTheLocalDatesAndTimes')}`;
   }
-  const date = formatLocalDateTime(utcToLocal(zone, snapshot.time)).slice(0, 10);
-  const midnight = parseLocalDateTime(`${date}T00:00`)!;
-  const resolution = resolveLocal(zone, midnight);
-  const dayStart =
-    resolution.kind === 'exact'
-      ? resolution.time.epochMs
-      : resolution.kind === 'ambiguous'
-        ? resolution.options[0].epochMs
-        : resolution.after.epochMs;
+  const local = utcToLocal(zone, snapshot.time);
+  const date = formatLocalDateTime(local).slice(0, 10);
+  const dayStart = useMemo(() => {
+    const midnight = parseLocalDateTime(`${date}T00:00`);
+    if (!midnight) throw new RangeError('Invalid local date');
+    const resolution = resolveLocal(zone, midnight);
+    if (resolution.kind === 'exact') return resolution.time.epochMs;
+    if (resolution.kind === 'ambiguous') return resolution.options[0].epochMs;
+    return resolution.after.epochMs;
+  }, [zone, date]);
   const start = sharedRange ? (snapshot.start ?? sharedRange.start - 30 * 60000) : dayStart;
   const end = sharedRange ? (snapshot.end ?? sharedRange.end) : dayStart + 24 * 3600000;
   const readout = `${fmt.clock(snapshot.time, zone, { weekday: true, date: true })} ${zoneAbbreviation(zone, snapshot.time)}`;
@@ -140,28 +133,35 @@ export function TimeBar({
         : departures.findLast((t) => t < snapshot.time - 1000);
     seek(target ?? (direction > 0 ? departures.at(-1) : departures[0]) ?? snapshot.time);
   };
-  const options = [
-    ...new Map(
-      allJourneys.flatMap((entry) => fmt.clockZoneOptions(entry, browserZone)).map((option) => [option.value, option]),
-    ).values(),
-  ];
-  if (!options.some((o) => o.value === clockZone))
-    options.push({ value: clockZone, label: t('timebar.placeTime', clockZone) });
+  const options = useMemo(() => {
+    const choices = [
+      ...new Map(
+        allJourneys
+          .flatMap((entry) => fmt.clockZoneOptions(entry, browserZone))
+          .map((option) => [option.value, option]),
+      ).values(),
+    ];
+    if (!choices.some((option) => option.value === clockZone))
+      choices.push({ value: clockZone, label: t('timebar.placeTime', clockZone) });
+    return choices;
+  }, [allJourneys, fmt, browserZone, clockZone, t]);
+  const laneRange = useMemo(() => ({ start, end }), [start, end]);
   return (
     <section
       className={`time-bar${docked ? ' time-bar--docked' : ''}`}
       aria-label={t('timebar.timeline')}
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
-        if (
-          e.key.toLowerCase() === 'k' ||
-          (e.key === ' ' &&
-            !(e.target instanceof HTMLSelectElement) &&
-            !(e.target instanceof HTMLInputElement && e.target.type !== 'range'))
-        ) {
-          e.preventDefault();
-          if (sharedRange && !error) onToggle();
-        }
+        if (e.nativeEvent.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (target.closest('select, textarea, [contenteditable="true"]')) return;
+        if (target instanceof HTMLInputElement && target.type !== 'range') return;
+        // Space belongs to focused buttons; only the scrubber uses it as a playback shortcut.
+        if (e.key === ' ' && target.closest('button')) return;
+        if (e.key.toLowerCase() !== 'k' && e.key !== ' ') return;
+        e.preventDefault();
+        if (sharedRange && !error) onToggle();
       }}
     >
       <div className="time-bar__head">
@@ -215,7 +215,7 @@ export function TimeBar({
           onActivate={onActivate}
           time={snapshot.time}
           zone={zone}
-          range={{ start, end }}
+          range={laneRange}
         />
       )}
       <div className="time-bar__scrubber">
@@ -269,9 +269,6 @@ export function TimeBar({
                 aria-label={t('timebar.followAircraft')}
                 title={t('timebar.followAircraft')}
                 aria-pressed={followAircraft}
-                onKeyDown={(e) => {
-                  if (e.key === ' ') e.stopPropagation();
-                }}
                 onClick={() => onFollowAircraft(!followAircraft)}
               >
                 <IconFollow size={18} />
@@ -279,7 +276,7 @@ export function TimeBar({
             )}
             <span className="time-bar__steps" role="group" aria-label={t('timebar.jumpBetweenFlights')}>
               <button type="button" aria-label={t('timebar.previousFlight')} onClick={() => step(-1)}>
-                <IconChevronLeft size={16} />
+                <IconBack size={16} />
               </button>
               <button type="button" aria-label={t('timebar.nextFlight')} onClick={() => step(1)}>
                 <IconChevronRight size={16} />

@@ -32,11 +32,13 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
     latest.current = options;
   });
   const busy = useRef(false);
+  const cancelSlide = useRef<(() => void) | null>(null);
   /** Height and drag offset just before the sheet changes state, for a continuous expand animation. */
   const before = useRef<{ height: number; offset: number } | null>(null);
 
   const slide = useCallback(
     (from: number, to: number, done?: () => void) => {
+      cancelSlide.current?.();
       const panel = panelRef.current;
       if (!panel) return done?.();
       if (latest.current.reducedMotion) {
@@ -50,17 +52,24 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
       void panel.offsetHeight; // commit the start position before transitioning
       panel.style.transition = `transform ${DURATION}ms ${EASE}`;
       panel.style.transform = to ? `translateY(${to}px)` : '';
-      let finished = false;
-      const end = () => {
-        if (finished) return;
-        finished = true;
-        panel.removeEventListener('transitionend', end);
+      const cleanup = () => {
+        panel.removeEventListener('transitionend', onTransitionEnd);
+        window.clearTimeout(timer);
+        cancelSlide.current = null;
         busy.current = false;
         panel.style.transition = '';
+        panel.style.transform = '';
+      };
+      const end = () => {
+        cleanup();
         done?.();
       };
-      panel.addEventListener('transitionend', end);
-      window.setTimeout(end, DURATION + 100);
+      const onTransitionEnd = (event: TransitionEvent) => {
+        if (event.target === panel && event.propertyName === 'transform') end();
+      };
+      const timer = window.setTimeout(end, DURATION + 100);
+      panel.addEventListener('transitionend', onTransitionEnd);
+      cancelSlide.current = cleanup;
     },
     [panelRef],
   );
@@ -88,6 +97,11 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
     },
     [panelRef],
   );
+
+  useLayoutEffect(() => {
+    if (!options.enabled || options.reducedMotion) cancelSlide.current?.();
+    return () => cancelSlide.current?.();
+  }, [options.enabled, options.reducedMotion]);
 
   // Expanding swaps the peek bar for the full sheet; start it where the peek bar was and slide up.
   useLayoutEffect(() => {
@@ -130,6 +144,12 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
 
     const onMove = (e: TouchEvent) => {
       if (!drag) return;
+      if (e.touches.length !== 1) {
+        drag = null;
+        panel.style.transform = '';
+        panel.style.transition = '';
+        return;
+      }
       const y = e.touches[0].clientY;
       const collapsed = latest.current.collapsed;
       if (!drag.active) {
@@ -181,6 +201,7 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
       panel.removeEventListener('touchmove', onMove);
       panel.removeEventListener('touchend', onEnd);
       panel.removeEventListener('touchcancel', onEnd);
+      cancelSlide.current?.();
       panel.style.transform = '';
       panel.style.transition = '';
     };

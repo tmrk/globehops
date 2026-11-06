@@ -11,6 +11,29 @@ test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
 });
 
+test('timeline shortcuts preserve native button and select keyboard actions', async ({ page }) => {
+  await page.goto(`./${scheduled}&t=2026-11-20T07:15Z&clock=utc`);
+  const bar = timeline(page);
+  const next = bar.getByRole('button', { name: 'Next flight', exact: true });
+  await next.focus();
+  await next.press('Space');
+  await expect(bar).toContainText('En route to New York JFK');
+  await expect(bar.getByRole('button', { name: 'Play journey', exact: true })).toBeVisible();
+  const previous = bar.getByRole('button', { name: 'Previous flight', exact: true });
+  await previous.focus();
+  await previous.press('Space');
+  await expect(bar).toContainText('En route to London Heathrow');
+  await bar.getByRole('combobox', { name: 'Clock time zone', exact: true }).press('k');
+  await expect(bar.getByRole('button', { name: 'Play journey', exact: true })).toBeVisible();
+  const slider = bar.getByRole('slider', { name: 'Journey time', exact: true });
+  await slider.press('k');
+  await expect(bar.getByRole('button', { name: 'Pause playback', exact: true })).toBeVisible();
+  await slider.press('Space');
+  await expect(bar.getByRole('button', { name: 'Play journey', exact: true })).toBeVisible();
+  await bar.getByRole('button', { name: 'Close timeline', exact: true }).press('Space');
+  await expect(bar).toHaveCount(0);
+});
+
 test('undated route keeps exact estimates and progressively discloses local schedule inputs', async ({
   page,
 }, testInfo) => {
@@ -204,6 +227,8 @@ test('day and night aligns with airport positions at opposite UTC instants and a
   page,
   isMobile,
 }) => {
+  // Four WebGL loads and composited captures can exceed a minute with software rendering.
+  test.setTimeout(120_000);
   async function sample(time: string, orbit = false) {
     await page.goto(`./?route=JFK-DXB&t=${time}`);
     await expect(page.locator('.stage')).toHaveClass(/is-ready/);
@@ -256,8 +281,8 @@ test('day and night aligns with airport positions at opposite UTC instants and a
       await expect.poll(() => marker.evaluate((el) => getComputedStyle(el).transform)).not.toBe(before);
       await expect(timeline(page).getByRole('slider')).toHaveValue(String(Date.parse(time)));
     }
-    // WebKit can expose texture-ready before its composited WebGL frame is visible.
-    let result = await measure();
+    // Poll the composited frame directly; a separate first capture doubles screenshot work.
+    let result = { jfk: 0, dxb: 0 };
     await expect
       .poll(
         async () => {

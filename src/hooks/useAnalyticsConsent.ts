@@ -18,10 +18,12 @@ export function useAnalyticsConsent(): AnalyticsConsentState {
   useEffect(() => {
     if (!available || consent !== 'granted') return;
     // Let the globe and its textures load first; the tag is not needed for the first paint.
-    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 1200));
-    const cancel = window.cancelIdleCallback ?? window.clearTimeout;
-    const handle = idle(() => enableAnalytics(), { timeout: 4000 });
-    return () => cancel(handle);
+    if (window.requestIdleCallback && window.cancelIdleCallback) {
+      const handle = window.requestIdleCallback(() => enableAnalytics(), { timeout: 4000 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const handle = window.setTimeout(() => enableAnalytics(), 1200);
+    return () => window.clearTimeout(handle);
   }, [available, consent]);
 
   const choose = useCallback(

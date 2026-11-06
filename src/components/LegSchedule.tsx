@@ -151,26 +151,30 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
           {t('schedule.done')}
         </button>
       </div>
-      {issues.map((issue, index) => (
-        <div key={index} className={`schedule-issue schedule-issue--${issue.severity}`}>
-          <p>{fmt.issue(issue, journey)}</p>
-          {issue.code === 'ambiguous_local_time' &&
-            issue.options?.map((option) => (
-              <button
-                type="button"
-                className="suggestion"
-                key={option.offsetMin}
-                aria-pressed={journey.stops[issue.stop!][issue.field!]?.offsetMin === option.offsetMin}
-                onClick={() => {
-                  const value = journey.stops[issue.stop!][issue.field!];
-                  if (value) onChange(issue.stop!, issue.field!, { ...value, offsetMin: option.offsetMin });
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-        </div>
-      ))}
+      {issues.map((issue, index) => {
+        const { stop, field } = issue;
+        const input = stop !== undefined && field ? journey.stops[stop][field] : null;
+        return (
+          <div key={index} className={`schedule-issue schedule-issue--${issue.severity}`}>
+            <p>{fmt.issue(issue, journey)}</p>
+            {issue.code === 'ambiguous_local_time' &&
+              input &&
+              stop !== undefined &&
+              field &&
+              issue.options?.map((option) => (
+                <button
+                  type="button"
+                  className="suggestion"
+                  key={option.offsetMin}
+                  aria-pressed={input.offsetMin === option.offsetMin}
+                  onClick={() => onChange(stop, field, { ...input, offsetMin: option.offsetMin })}
+                >
+                  {option.label}
+                </button>
+              ))}
+          </div>
+        );
+      })}
     </section>
   );
 }

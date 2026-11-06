@@ -387,6 +387,29 @@ test('About credits open and Escape closes the dialog', async ({ page }) => {
   await expect(dialog).toContainText('Natural Earth');
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
+  await expect(page.getByRole('button', { name: 'About GlobeHops' })).toBeFocused();
+});
+
+test('narrow airport dialog contains keyboard focus while editing', async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('./?route=CPH-LHR');
+  await stopButtons(page).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Departure airport', exact: true });
+  const input = dialog.getByRole('combobox');
+  const back = dialog.getByRole('button', { name: 'Back to journey', exact: true });
+  await expect(input).toBeFocused();
+  await input.press('Tab');
+  await expect(back).toBeFocused();
+  await back.press('Shift+Tab');
+  await expect(input).toBeFocused();
+  await input.fill('Stockholm');
+  await expect(dialog.getByRole('option').first()).toContainText('ARN');
+  await page.screenshot({ path: info.outputPath('narrow-keyboard-picker.png'), animations: 'disabled' });
+  await input.press('Enter');
+  await expect(stopButtons(page).first()).toHaveAccessibleName(/\(ARN\)/);
+  await expect(dialog).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('narrow-edited-route.png'), animations: 'disabled' });
 });
 
 test('connections get a default layover that can be changed, totalled, shared and restored', async ({ page }) => {
