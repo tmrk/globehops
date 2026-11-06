@@ -2,7 +2,7 @@
 
 ## Architecture and entry points
 
-Read `src/App.tsx` first: it loads airports and time zones, builds search, initialises the route and orchestrates journey, timeline, clock, persistence and components. `src/main.tsx` loads fonts/CSS and mounts React. `src/components/` owns accessible UI; `src/hooks/` handles browser media, viewport, toast and narrow clock subscriptions.
+Read `src/App.tsx` first: it loads airports and time zones, builds search, initialises the route and orchestrates journey, timeline, clock, persistence and components. `src/main.tsx` resolves the locale, loads its catalogue, loads fonts/CSS and mounts React inside `I18nProvider`. `src/components/` owns accessible UI; `src/hooks/` handles browser media, viewport, toast and narrow clock subscriptions.
 
 Pure logic lives in `src/lib/` (geography, time-zone conversion, solar position, schedule propagation, flight progress, timeline and journey text), `src/state/` (route transitions, simulation clock/feed, links and safe storage), `src/data/` (dataset decoding, airport-to-zone lookup and search) and `src/agent/` (shared contract, itinerary schema/validation and planning). `mcp/` is the local stdio adapter over those same modules, not another calculation engine.
 
@@ -13,6 +13,7 @@ Pure logic lives in `src/lib/` (geography, time-zone conversion, solar position,
 ## Conventions and priorities
 
 - TypeScript strict mode; avoid `any`. Prettier: 120 columns, single quotes, trailing commas.
+- All UI text goes through `useI18n()` (`t`/`fmt`) and the typed `src/i18n/messages/{en,hu,sv}.ts` catalogues; add every key in all three locales (missing keys are compile errors). Format cities with `fmt.city()`; keep airport proper names untranslated and shared agent/MCP output in English.
 - Keep pure logic in `src/lib/`, `src/state/`, `src/data/` and `src/agent/`, with meaningful unit tests next to it.
 - Put CSS in `src/styles/app.css`; use its existing tokens and responsive layout conventions. Corners use only the `--radius-*` role tokens (see [CODE.md](CODE.md) “Design language”); never add literal radii.
 - Prioritise simplicity, mobile usability, a prominent globe, restrained motion and accessibility. Use semantic roles, labels and keyboard controls.
@@ -22,11 +23,11 @@ Pure logic lives in `src/lib/` (geography, time-zone conversion, solar position,
 
 ## Commands and verification
 
-Use Node 22.18+; CI uses Node 24. Run `npm install` locally or `npm ci` for a clean lockfile install. `npm run dev` serves development; `npm run build` type-checks and builds; `npm run preview` serves `dist/`. `npm run timezones:build` regenerates airport time zones, `npm run agent:build` regenerates agent discovery JSON, and `npm run mcp` starts the local stdio server.
+Use Node 22.18+; CI uses Node 24. Run `npm install` locally or `npm ci` for a clean lockfile install. `npm run dev` serves development; `npm run build` type-checks and builds; `npm run preview` serves `dist/`. `npm run places:build` regenerates city exonyms, `npm run labels:build` regenerates country/marine labels, `npm run timezones:build` regenerates airport time zones, `npm run agent:build` regenerates agent discovery JSON, and `npm run mcp` starts the local stdio server.
 
-Run `npm run lint`, `npm test`, `npm run build`, then `npm run test:e2e`. Install browsers with `npx playwright install chromium webkit`. The suite has desktop/mobile Chromium and WebKit projects; CI deploys after only the three `@smoke` E2E tests (desktop Chromium). Firefox is not configured. Use `npm run format` for formatting. See [development](docs/DEVELOPMENT.md) for focused test commands and screenshot review.
+Run `npm run lint`, `npm test`, `npm run build`, then `npm run test:e2e`. Install browsers with `npx playwright install chromium webkit`. The suite has desktop/mobile Chromium and WebKit projects; CI deploys after only the three `@smoke` E2E tests (desktop Chromium). Firefox is not configured. When worktrees run concurrently, set a unique `E2E_PORT` (e.g. `E2E_PORT=4180 npx playwright test --project=desktop-chromium -g @smoke`). Use `npm run format` for formatting. See [development](docs/DEVELOPMENT.md) for focused test commands and screenshot review.
 
-Review screenshots at mobile and desktop sizes, including a picker and an edited route. The E2E rendering/layout checks save captures under `test-results/`; inspect them as well as assertions. Prefer accessible selectors and web-first assertions; avoid sleeps. Every E2E test uses the shared console/page error audit.
+Review screenshots at mobile and desktop sizes, including a picker and an edited route. The E2E rendering/layout checks save captures under `test-results/`; inspect them as well as assertions. Prefer accessible selectors and web-first assertions; avoid sleeps. Every E2E test uses the shared console/page error audit. The shared fixture seeds `globehops:locale=en` before navigation, and Playwright uses `en-GB`, so English assertions do not depend on the host time zone. Detection tests opt out with `test.use({ localeChoice: null })`; explicit locale paths still take precedence.
 
 ## Assets, data and deployment
 
@@ -34,7 +35,9 @@ Review screenshots at mobile and desktop sizes, including a picker and an edited
 
 `npm run borders:build` regenerates `src/data/generated/borders.json` from the pinned Natural Earth v5.1.2 GeoJSON (cached in `.cache/naturalearth/`; `--offline` and `--refresh` available). Never hand-edit it.
 
-`npm run labels:build` regenerates `src/data/generated/country-labels.json` from pinned Natural Earth v5.1.2 Admin 0 countries (cached at `.cache/naturalearth/ne_50m_admin_0_countries.geojson`; `--offline`, `--refresh` and an optional source path are available). Never hand-edit the generated labels.
+`npm run labels:build` regenerates multilingual country/ocean/sea labels in `src/data/generated/country-labels.json` from pinned Natural Earth v5.1.2 Admin 0 countries and marine polygons. Cache: `.cache/naturalearth/{ne_50m_admin_0_countries,ne_50m_geography_marine_polys}.geojson`; `--offline`, `--refresh` and optional country then marine source paths are available. Never hand-edit the generated labels.
+
+`npm run places:build` regenerates `src/data/generated/city-names.json` from pinned Natural Earth v5.1.2 populated places (cache: `.cache/naturalearth/ne_10m_populated_places.geojson`; `--offline`, `--refresh` or an optional source path). Never hand-edit the generated city dictionaries. Maintain justified city/label overrides in `data/place-names.json` and document them in `data/PLACE_NAMES.md`. `I18nProvider` lazily loads the city table on first hu/sv use; English needs no request. App rebuilds locale-aware search only when dataset, locale or exonyms change. “Place names” retains the `globehops:countryNames` preference key for compatibility.
 
 `npm run timezones:build` uses the SHA-256-pinned TBB 2026f ZIP in `.cache/timezones/2026f/` (downloads if absent; `--offline` and `--refresh` available). Never hand-edit `src/data/generated/timezones.json`; commit it with `data/timezones-build.json`. Keep this ODbL derivative database separate from public-domain `airports.json`. Source updates and justified overrides are documented in `data/TIMEZONES.md`.
 
@@ -48,7 +51,11 @@ Never hand-edit generated `public/agent/*.json`: run `npm run agent:build` after
 
 - Production base is `/globehops/`; use imported asset URLs and test the production build at that path. `BASE_PATH` can override the Vite base for another host.
 - Node runs `.ts` scripts and `mcp/` natively. All modules they import must use erasable TypeScript (no enums, namespaces or parameter properties), explicit `.ts` import extensions, no Vite `?url` imports and no DOM-only globals at module scope.
+- Locale precedence is path → `?lang=` → saved `globehops:locale` → browser time zone (Budapest/Stockholm as country proxies, not physical location) → browser languages → English. Explicit selectors persist; link/tool language changes are visit-only. Keep `/en/`, `/hu/`, `/sv/` static pages under the configured base and ordinary share links language-neutral.
+- Agent link/tool view options are temporary overrides; preserve saved follow, layers, units, clock, shading and locale preferences. Optional experimental WebMCP must feature-detect APIs, validate inputs and abort/unregister on cleanup; missing/broken support must not break editing.
 - One UTC `SimulationClock` drives illumination, aircraft, timeline and status. App must not re-render per playback frame; use the imperative simulation feed and narrow clock subscriptions.
+- Aircraft follow is separate from automatic active-leg framing. Keep its camera north-up (`up = +Y`) and OrbitControls target at the origin for seamless manual handoff; drag/wheel/touch/keyboard input exits follow. Use feed velocity, bounded predictive lead and frame-rate-independent smoothing. Reduced motion uses occasional immediate re-centering instead of continuous pursuit. Remember explicit user choices in `globehops:followAircraft`; `follow=1` / `view.follow` can override for a visit.
+- Surface and atmosphere shading thresholds/GLSL must come from `src/lib/sun.ts` (−0.833° midpoint, −6°/−12°/−18° twilight); do not duplicate curves in the renderer.
 - Never write `t` to the URL during playback: Safari throttles `history.replaceState`. Debounce paused scrubs (at least 400 ms); keep existing route/layover links backwards compatible.
 - IANA offset/history/DST data comes from runtime `Intl`, not the boundary table. Browser/Node tzdb versions can differ; future rules can change. Missing or unsupported zones must leave route editing usable.
 - The renderer runs on demand: call `requestRender()` after scene changes. Dispose Three.js geometries, materials, textures, controls and listeners when replacing or unmounting objects.

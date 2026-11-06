@@ -4,25 +4,26 @@
 
 Use Node 22.18+ (CI: Node 24). Run `npm install`, then `npm run dev` and open the printed URL under `/globehops/`. `npm run build` produces `dist/`; `npm run preview -- --port 4173 --strictPort` serves it at `http://localhost:4173/globehops/`. The stack is React 19, TypeScript, Three.js and Vite, with Vitest, Playwright, ESLint, Prettier and sharp for development.
 
-| Command                   | Purpose                                                                          |
-| ------------------------- | -------------------------------------------------------------------------------- |
-| `npm install`             | Install dependencies; use `npm ci` for the lockfile in CI.                       |
-| `npm run dev`             | Start the Vite development server.                                               |
-| `npm run build`           | Type-check and build `dist/`.                                                    |
-| `npm run preview`         | Serve the production build.                                                      |
-| `npm test`                | Run unit tests.                                                                  |
-| `npm run test:e2e`        | Build and test the Pages path in all four browser projects.                      |
-| `npm run lint`            | ESLint and TypeScript checks.                                                    |
-| `npm run format`          | Apply Prettier formatting.                                                       |
-| `npm run data:update`     | Download, validate and regenerate airport data if content changes.               |
-| `npm run data:check`      | Validate a fresh download without writing files; report whether it would change. |
-| `npm run labels:build`    | Build country names/label points from pinned Natural Earth countries.            |
-| `npm run borders:build`   | Build country borders and coastlines from the pinned Natural Earth GeoJSON.      |
-| `npm run timezones:build` | Build the separate airport-to-zone table from pinned TBB boundaries.             |
-| `npm run agent:build`     | Regenerate static agent capabilities, schema and worked examples.                |
-| `npm run mcp`             | Run the local MCP stdio server (not an HTTP listener).                           |
-| `npm run textures:build`  | Build day and night-light WebP textures from downloaded NASA source images.      |
-| `npm run icons:build`     | Generate PNG app icons from the SVG sources in `public/`.                        |
+| Command                   | Purpose                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| `npm install`             | Install dependencies; use `npm ci` for the lockfile in CI.                              |
+| `npm run dev`             | Start the Vite development server.                                                      |
+| `npm run build`           | Type-check and build `dist/`.                                                           |
+| `npm run preview`         | Serve the production build.                                                             |
+| `npm test`                | Run unit tests.                                                                         |
+| `npm run test:e2e`        | Build and test the Pages path in all four browser projects.                             |
+| `npm run lint`            | ESLint and TypeScript checks.                                                           |
+| `npm run format`          | Apply Prettier formatting.                                                              |
+| `npm run data:update`     | Download, validate and regenerate airport data if content changes.                      |
+| `npm run data:check`      | Validate a fresh download without writing files; report whether it would change.        |
+| `npm run labels:build`    | Build EN/HU/SV country/ocean/sea labels from pinned Natural Earth sources.              |
+| `npm run places:build`    | Build optional Hungarian/Swedish airport-city exonyms from pinned Natural Earth places. |
+| `npm run borders:build`   | Build country borders and coastlines from the pinned Natural Earth GeoJSON.             |
+| `npm run timezones:build` | Build the separate airport-to-zone table from pinned TBB boundaries.                    |
+| `npm run agent:build`     | Regenerate static agent capabilities, schema and worked examples.                       |
+| `npm run mcp`             | Run the local MCP stdio server (not an HTTP listener).                                  |
+| `npm run textures:build`  | Build day and night-light WebP textures from downloaded NASA source images.             |
+| `npm run icons:build`     | Generate PNG app icons from the SVG sources in `public/`.                               |
 
 Useful focused commands:
 
@@ -31,6 +32,8 @@ npm test -- src/data/search.test.ts
 npm test -- src/lib/timezone.test.ts src/data/timezones.test.ts src/state/clock.test.ts
 npm test -- src/lib/sun.test.ts src/globe/sunAlignment.test.ts
 npm test -- src/lib/schedule.test.ts src/lib/flightProgress.test.ts src/lib/timeline.test.ts src/lib/journeyText.test.ts
+npm test -- src/i18n src/data/placeNames.test.ts scripts/lib/placeNames.test.ts
+npm test -- src/globe/followCamera.test.ts src/agent/webTools.test.ts
 npm test -- mcp/tools.test.ts mcp/server.test.ts
 npm test -- scripts/timezones.test.ts scripts/agent-files.test.ts
 npm run test:watch
@@ -38,20 +41,22 @@ npm run lint
 npm run format:check
 npx playwright install chromium webkit
 npm run test:e2e -- --project=mobile-webkit
-npm run test:e2e -- --grep 'autocomplete'
+E2E_PORT=4180 npx playwright test --project=desktop-chromium -g 'autocomplete'
+E2E_PORT=4180 npx playwright test --project=desktop-chromium -g @smoke
+E2E_PORT=4180 npx playwright test e2e/i18n.spec.ts e2e/follow.spec.ts e2e/place-labels.spec.ts e2e/agent.spec.ts --project=desktop-chromium
 ```
 
 ## Testing strategy
 
-Unit tests cover pure geography, flight-time/units, route reducer, URL/storage, search/decoding and the CSV/data pipeline, time-zone conversion/coverage, solar accuracy/alignment, schedule propagation, provenance, progress, timeline and clock. MCP tests exercise schema parity, handlers and a real stdio child process. Tests use the checked-in airport dataset; ordinary builds/tests do not download source data.
+Unit tests cover pure geography, flight-time/units, route reducer, URL/storage, search/decoding and the CSV/data pipeline, time-zone conversion/coverage, solar accuracy/alignment, schedule propagation, provenance, progress, timeline and clock. Catalogue/detection/formatter tests check all three locales and metadata; place-name tests cover decoding, conservative matching and overrides. Follow tests cover camera composition, predictive lead and smoothing across frame rates. MCP tests exercise schema parity, handlers, resources/prompts and a real stdio child process; browser command tests validate live-tool inputs. Tests use the checked-in airport dataset; ordinary builds/tests do not download source data.
 
-Playwright builds with Vite and previews the production `/globehops/` path on port 4173. After an explicit `npm run build`, use `E2E_SKIP_BUILD=1 npm run test:e2e` to reuse build output. A running preview can be reused locally; stop stale servers when validating changed assets. CI always starts a fresh server and runs only the `@smoke` tests (`--grep @smoke`) on desktop Chromium; local `npm run test:e2e` also runs desktop/mobile WebKit. Firefox is not installed/configured here.
+Playwright builds with Vite and previews the production `/globehops/` path on port 4173 by default. Use a unique `E2E_PORT` for each concurrent worktree (this release uses 4180); the config passes it to the preview and base URL. After an explicit `npm run build`, use `E2E_SKIP_BUILD=1 npm run test:e2e` to reuse build output. A running preview can be reused locally; stop stale servers when validating changed assets. CI always starts a fresh server and runs only the `@smoke` tests (`--grep @smoke`) on desktop Chromium; local `npm run test:e2e` also runs desktop/mobile WebKit. Firefox is not installed/configured here.
 
-Fresh browser contexts isolate storage. Tests use roles/labels, auto-waiting assertions and a shared console/page-error audit. Only the test deliberately disabling WebGL allows its expected creation diagnostics. Clipboard testing is desktop Chromium only because WebKit lacks the required permission support and mobile can invoke native sharing. Chromium launches with SwiftShader flags for headless WebGL.
+Fresh browser contexts isolate storage. Playwright sets `locale: en-GB`; the shared `e2e/fixtures.ts` auto-fixture seeds `globehops:locale=en` before navigation so host time zones cannot change English assertions. Locale-detection tests use `test.use({ localeChoice: null })` to disable that seed; explicit `/hu/` or `/sv/` paths override it. Tests use roles/labels, auto-waiting assertions and a shared console/page-error audit. Only the test deliberately disabling WebGL allows its expected creation diagnostics. Clipboard testing is desktop Chromium only because WebKit lacks the required permission support and mobile can invoke native sharing. Chromium launches with SwiftShader flags for headless WebGL.
 
 Rendering checks wait for `.stage.is-ready`, capture the canvas with Playwright and decode the PNG with the existing sharp dev dependency. Pixel variance plus comparison with an empty canvas reference detect missing globe output. Reading a WebGL canvas through a 2D canvas is unreliable without `preserveDrawingBuffer`.
 
-Inspect saved `test-results/**/journey.png` and `layout-*.png` at mobile and desktop sizes; also review the picker and an edited route after UI changes. Review focus, clipping, scroll, label visibility and space left for the globe. Captures are review artifacts, not cross-platform golden snapshots. Failures retain screenshots/traces and an HTML report:
+Inspect saved `test-results/**/journey.png` and `layout-*.png` at mobile and desktop sizes; also review the picker and an edited route after UI changes. Review focus, clipping, scroll, label visibility and space left for the globe. Captures are review artifacts, not cross-platform golden snapshots. The existing Ireland/LHR label-overlap assertion after keyboard zoom is intermittently flaky on desktop Chromium and was reproduced before 1.8.0; record that specific failure rather than treating unrelated failures as expected. Failures retain screenshots/traces and an HTML report:
 
 ```sh
 npx playwright show-report
@@ -60,13 +65,51 @@ npx playwright show-trace test-results/<test-directory>/trace.zip
 
 Before finishing: lint, unit tests, build, the E2E specs the change affects (e.g. `npx playwright test e2e/time.spec.ts -g "flight times" --project=desktop-chromium --project=mobile-chromium`), screenshot review and relevant docs/`RECENT_CHANGES.md` updates. Run all four projects only for broad UI changes or on request; CI runs only the smoke tests before deploying.
 
+## README screenshots
+
+Use Playwright compositor screenshots from a production preview, as for the rendering checks above; do not extract the WebGL drawing buffer or alter the UI with screenshot-only CSS. The 1.8.0 captures keep the previous Copenhagen–London–New York route and paused moment, with place names off for a clear route. Desktop is 1440×900; phone uses the Pixel 7 device preset (including its device scale). After `npm run build`, start `npm run preview -- --port 4180 --strictPort` in a separate terminal, then run from the checkout:
+
+```sh
+node --input-type=module <<'JS'
+import { chromium, devices, expect } from '@playwright/test';
+const browser = await chromium.launch({
+  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+});
+const route = '?route=CPH-LHR-JFK&dep1=2026-11-20T08:15&arr2=2026-11-20T09:05'
+  + '&dep2=2026-11-20T11:00&arr3=2026-11-20T13:50&t=2026-11-20T16:10Z'
+  + '&clock=utc&names=0&follow=0';
+for (const [path, device] of [
+  ['docs/screenshot.png', { viewport: { width: 1440, height: 900 } }],
+  ['docs/screenshot-mobile.png', devices['Pixel 7']],
+]) {
+  const context = await browser.newContext({
+    ...device, locale: 'en-GB', timezoneId: 'UTC', reducedMotion: 'reduce',
+  });
+  await context.addInitScript(() => localStorage.setItem('globehops:locale', 'en'));
+  const page = await context.newPage();
+  await page.goto('http://localhost:4180/globehops/' + route);
+  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await expect(page.getByRole('application')).toHaveAttribute('data-camera-motion', 'settled');
+  await expect(page.getByRole('region', { name: 'Timeline', exact: true }).getByRole('slider'))
+    .toHaveValue(String(Date.parse('2026-11-20T16:10Z')));
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForLoadState('networkidle');
+  await page.screenshot({ path, fullPage: true, animations: 'disabled' });
+  await context.close();
+}
+await browser.close();
+JS
+```
+
+Inspect both PNGs before committing them. Keep additional picker, edited-route and optional place-name captures under `test-results/`, never in the commit. Local previews do not show the production-only analytics question.
+
 ## Releases and versions
 
 Each change that reaches users is a release (see “Versioning” in [AGENTS.md](../AGENTS.md)):
 
 ```sh
 npm version minor --no-git-tag-version   # or patch / major; updates package.json and package-lock.json
-# add “## 1.7.0 — 2026-11-07 — Title” at the top of RECENT_CHANGES.md
+# add “## 1.8.0 — 2026-11-06 — Title” at the top of RECENT_CHANGES.md
 npm test -- scripts/version.test.ts      # version, lockfile and changelog agree
 ```
 
@@ -98,7 +141,11 @@ Agent files: `npm run agent:build` writes `public/agent/capabilities.json`, `iti
 
 Country borders and coastlines: `npm run borders:build` reads `.cache/naturalearth/ne_50m_admin_0_boundary_lines_land.geojson` and `.cache/naturalearth/ne_50m_coastline.geojson`, downloading the pinned Natural Earth v5.1.2 files first if the cache is missing. `-- --refresh` always downloads, `-- --offline` requires the cache, and a positional path replaces the border source only. The build simplifies coastlines to 0.02°, quantises coordinates to 0.01°, delta-encodes each line, validates ranges and minimum line/point counts for both layers, then atomically writes `src/data/generated/borders.json` and `coastlines.json`. Never hand-edit either. To move to a newer Natural Earth release, change the pinned URL in `scripts/lib/borders.ts`, rebuild and review the line/point counts it prints.
 
-Country names: `npm run labels:build` reads `.cache/naturalearth/ne_50m_admin_0_countries.geojson`, downloading the pinned Natural Earth v5.1.2 source if absent. `-- --offline` requires the cache, `-- --refresh` downloads again, and an optional positional path reads a local source. Extraction keeps short names, label points, minimum zooms and ranks, validates the complete dataset, then atomically writes `src/data/generated/country-labels.json`. Never hand-edit that generated file. Change the pinned URL/version in `scripts/lib/countryLabels.ts` and rebuild to update the source. Focused tests: `npm test -- scripts/countryLabels.test.ts src/lib/countryLabels.test.ts`.
+Place labels: `npm run labels:build` reads `.cache/naturalearth/ne_50m_admin_0_countries.geojson` and `ne_50m_geography_marine_polys.geojson`, downloading pinned Natural Earth v5.1.2 sources if absent. `-- --offline` requires caches, `-- --refresh` downloads again, and optional positional paths replace country then marine inputs. Extraction applies `data/place-names.json` overrides, computes polygon-interior marine points, validates the complete EN/HU/SV table and atomically writes `src/data/generated/country-labels.json`. Never hand-edit it. Focused tests: `npm test -- scripts/countryLabels.test.ts src/lib/countryLabels.test.ts`.
+
+City names: `npm run places:build` reads `.cache/naturalearth/ne_10m_populated_places.geojson` (same pinned version, cache/`--offline`/`--refresh` conventions; one optional source path). It matches the current airport dataset and applies justified `data/place-names.json` overrides before writing `src/data/generated/city-names.json`. Never hand-edit either generated place table; maintain reasons and matching/coverage notes in [PLACE_NAMES.md](../data/PLACE_NAMES.md). Rebuild city names after airport changes that affect matching. Focused tests: `npm test -- scripts/lib/placeNames.test.ts src/data/placeNames.test.ts`.
+
+UI catalogues: add every UI key to `src/i18n/messages/{en,hu,sv}.ts`; missing keys fail compilation. Use `useI18n()` and `fmt.city()`, preserving the English shared agent outputs. Locale pages are generated by `scripts/localized-pages.ts` during build; never edit `dist/{en,hu,sv}/index.html`. Test them under `/globehops/` (or an explicit `BASE_PATH` override), including a direct reload. No translation service is contacted at runtime.
 
 Textures: download the [NASA Blue Marble JPEG](https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x21600x10800.jpg) to `.cache/bmng/world.topo.bathy.200407.3x21600x10800.jpg` and the [Black Marble 2016 3 km JPEG](https://assets.science.nasa.gov/content/dam/science/esd/eo/images/imagerecords/144000/144898/BlackMarble_2016_3km.jpg) to `.cache/blackmarble/BlackMarble_2016_3km.jpg` (create the directories first), then run `npm run textures:build`. `-- --day-only` or `-- --night-only` builds one set; explicit inputs work with `npm run textures:build -- /path/to/day.jpg /path/to/night.jpg`. Sources must be 2:1 images; a missing source is reported and the other set still builds. The night build writes single-channel light masks (`lights-2k.webp`, `lights-4k.webp`; rules in `scripts/lib/lights.ts`). Commit generated WebP outputs, never the sources/cache.
 
@@ -114,7 +161,7 @@ Analytics: Google Analytics runs only on `tmrk.github.io` production builds afte
 
 After `npm ci` with Node 22.18+, run `npm run mcp` from the checkout, or `node /absolute/path/to/globehops/mcp/server.ts` from any directory. It reads checked-in datasets and exchanges newline-delimited JSON-RPC on stdin/stdout. Use the direct `node` command in client configuration so npm's banner cannot contaminate protocol output. Diagnostics belong on stderr. `GLOBEHOPS_BASE_URL=http://localhost:4173/globehops/` overrides generated links; it does not start a web server.
 
-`npm test -- mcp/server.test.ts` launches a real child process from another working directory, negotiates, lists tools and calls all five. `mcp/tools.test.ts` tests validation/handlers without transport. For a manual handshake, run `node mcp/server.ts` and send these lines in order, waiting for the initialise response before the notification and requests:
+`npm test -- mcp/server.test.ts` launches a real child process from another working directory, negotiates, lists/calls all five tools, reads four resources and retrieves the planning prompt. `mcp/tools.test.ts` tests validation/handlers without transport. For a manual handshake, run `node mcp/server.ts` and send these lines in order, waiting for the initialise response before the notification and requests:
 
 ```jsonl
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"manual-check","version":"1.0.0"}}}
@@ -123,7 +170,9 @@ After `npm ci` with Node 22.18+, run `npm run mcp` from the checkout, or `node /
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"visualize_route","arguments":{"route":"CPH-LHR_180-JFK"}}}
 ```
 
-Expect server name `globehops`, five tools, and a canonical URL plus summary from the call; successful results include matching JSON text and `structuredContent`. Close stdin to stop. There is no remote MCP endpoint. [AGENT_INTEGRATION.md](AGENT_INTEGRATION.md) covers external-client configuration, tool contracts and examples.
+Expect server name `globehops`, five tools, four resources, the `plan_and_visualize` prompt, and readable/document URLs plus a human summary from the visualisation call; successful results include matching JSON text and `structuredContent`. Close stdin to stop. There is no remote MCP endpoint. [AGENT_INTEGRATION.md](AGENT_INTEGRATION.md) covers external-client configuration, tool contracts and examples.
+
+`e2e/agent.spec.ts` mocks modern and legacy experimental WebMCP APIs in a production browser, checking registration, cleanup, validation and live commands. These mocks do not establish compatibility with every browser implementation. No WebMCP polyfill or hosted endpoint is installed. Link/tool overrides must stay temporary; explicit UI choices may persist.
 
 ## Debugging
 
@@ -133,4 +182,7 @@ Expect server name `globehops`, five tools, and a canonical URL plus summary fro
 - Stale route/unit: inspect `globehops:lastJourney`, legacy `globehops:lastRoute` and `globehops:unit`. An explicit URL route overrides storage; `?route=` starts empty.
 - Native Node scripts/MCP: keep `.ts` import extensions and erasable syntax throughout their import graph; avoid Vite asset imports and module-scope DOM globals. TypeScript compilation does not execute them for you.
 - Time conversion: inspect the airport zone and runtime `Intl` support. Node and browsers may ship different tzdb releases; the TBB mapping does not contain offset rules.
+- Language: inspect the explicit locale path and `globehops:locale` before browser settings; the Budapest/Stockholm time-zone proxy precedes browser languages. English should not request city-names; failed optional exonym loading must retain usable original names.
+- Aircraft follow: keep camera north-up and the OrbitControls target at the origin; inspect feed velocity and manual-input exits separately from automatic leg framing. Reduced motion should re-centre only as needed.
+- Solar shading: change CPU stops and generated GLSL together in `sun.ts`, shared by Earth and atmosphere; do not duplicate thresholds in renderer code.
 - Playback: App must not subscribe to every frame. Derive renderer state from the single UTC clock, keep geometry precomputed and never write `t` to history during playback (Safari throttling).

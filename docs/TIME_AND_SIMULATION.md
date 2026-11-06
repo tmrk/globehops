@@ -97,11 +97,17 @@ One `SimulationClock` supplies the UTC instant for aircraft, active leg, dayligh
 
 Fixed rates are capped so a full range normally takes at least about five seconds. Rates never fall below real time, so extremely short ranges are an exception. Auto uses `span / 15000`; fixed rates use `min(selectedRate, span / 5000)`, both with a minimum multiplier of 1.
 
-Playback advances on animation frames, capping each real-time delta at 100 ms so a backgrounded tab resumes smoothly. Live mode follows `Date.now()` every 30 seconds with no animation-frame loop. The imperative simulation feed keeps App from re-rendering per frame; App observes phase/leg changes, the live clock chip observes whole minutes, and TimeBar consumes full snapshots. Reduced motion prevents link autoplay and automatic follow; explicit playback remains available.
+Playback advances on animation frames, capping each real-time delta at 100 ms so a backgrounded tab resumes smoothly. Live mode follows `Date.now()` every 30 seconds with no animation-frame loop. The imperative simulation feed keeps App from re-rendering per frame; App observes phase/leg changes, the live clock chip observes whole minutes, and TimeBar consumes full snapshots. Reduced motion prevents link autoplay and automatic active-leg framing; explicit playback and the separate aircraft-follow toggle remain available.
 
-The timeline provides a native range slider, previous/next flight controls, clock-zone and speed menus, and Space/K playback shortcuts within the bar. Without a playable route it offers a date/daylight explorer with playback disabled.
+The timeline provides a native range slider, previous/next flight controls, clock-zone and speed menus, a Follow aircraft toggle, and Space/K playback shortcuts within the bar. Without a playable route it offers a date/daylight explorer with playback disabled.
 
 Paused scrubs are debounced into `t` after 450 ms in App. Playback never writes `t` per frame: Safari throttles `history.replaceState`. Remembered journeys omit `t`, `play` and link-specific units. Legacy route/layover links remain readable; see [external agent integration](AGENT_INTEGRATION.md) for the complete v1 link/document contract.
+
+## Aircraft follow
+
+The explicit timeline toggle is independent of automatic leg framing for routes too wide to fit. The renderer follows air/ground frames and velocity from the same UTC simulation feed; `followCamera.ts` supplies predictive lead, phase-based zoom and frame-rate-independent exponential smoothing. The camera remains north-up with the OrbitControls target at the origin, allowing seamless handoff on drag, wheel, touch or keyboard camera input. With reduced motion, it makes occasional immediate page turns when the aircraft leaves the safe centre area instead of continuously moving. A paused follow view settles and stops requesting frames.
+
+Explicit user choices are remembered in `globehops:followAircraft`. `follow=1` or document `view.follow` applies for the visit without replacing that preference. If a link also selects a flight, the aircraft camera takes priority; live `select_flight` exits follow to frame the requested flight. No camera tracking writes playback time to the URL or adds an App render per frame.
 
 ## Day/night and future rules
 

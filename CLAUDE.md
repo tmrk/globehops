@@ -2,15 +2,22 @@ See [AGENTS.md](AGENTS.md).
 
 - Preserve the mobile-first interface, accessibility, reduced motion and the globe’s prominence.
 - Use strict TypeScript and the existing Prettier/CSS token conventions.
+- Use `useI18n()` for UI text/formatting and `fmt.city()` for cities; every key belongs in all three typed EN/HU/SV catalogues (missing keys are compile errors). Keep airport proper names untranslated and shared agent/MCP output English.
 - Keep pure logic tested in `src/lib/`, `src/state/`, `src/data/` and `src/agent/`; imperative Three.js stays in `src/globe/`.
 - Use only openly licensed, documented assets; no proprietary services, keys or backend. The only exception is consent-gated GA4 (`src/analytics.ts`): never send route data; write the URL via `replaceUrl`/`pushUrl`.
 - Preserve `/globehops/` asset paths and URL > remembered > example route precedence.
+- Locale precedence: path > `?lang=` > `globehops:locale` > browser time zone (Budapest/Stockholm country proxy) > browser languages > English. Keep static `/en/`, `/hu/`, `/sv/` pages under the base; ordinary Share links are language-neutral.
+- E2E fixtures seed `globehops:locale=en` and Playwright uses `en-GB`; detection specs opt out with `localeChoice: null`. Use a unique `E2E_PORT` for concurrent worktrees.
 - Request a render after scene changes; dispose Three.js resources. Preserve synchronous iOS tap-to-focus.
 - Run lint, unit tests and build; run only the E2E specs affected by the change (`-g`/file filter), in Chromium unless the change is WebKit-sensitive. Keep the full four-project E2E run for broad UI changes or when asked; the deploy workflow only runs lint, unit tests, build and three `@smoke` E2E tests (desktop Chromium). Review mobile/desktop screenshots and update docs. Every release bumps the SemVer version (`npm version <level> --no-git-tag-version`) with a matching `## <version> — <date> — <title>` entry at the top of `RECENT_CHANGES.md`; CI tags `v<version>` after deploy.
 - Never commit `.cache/`; Node scripts, `mcp/` and their imports require erasable TypeScript and `.ts` imports. `GITHUB_TOKEN` pushes need an explicit deployment workflow call.
 - Read `App.tsx` for journey/timeline orchestration; `lib/{timezone,sun,schedule,flightProgress,timeline,journeyText}.ts` holds time logic; `mcp/` adapts the shared agent modules to local stdio only.
 - One UTC `SimulationClock` drives everything through the simulation feed; App must not re-render per frame. Never write `t` during playback (Safari throttling); debounce paused scrubs ≥400 ms.
+- Aircraft follow is separate from leg framing: keep north-up and OrbitControls target at the origin, exit on manual camera input, use feed velocity/smoothing and reduced-motion page turns; preference: `globehops:followAircraft`.
+- Surface/atmosphere twilight thresholds and generated GLSL come from `lib/sun.ts`; never duplicate the curve.
+- Agent link/tool view overrides are visit-only; preserve saved preferences. Feature-detect optional WebMCP and abort/unregister tools on cleanup.
 - Airport zones come from build-time TBB lookup; offsets and DST come from runtime `Intl`, whose rules can differ and change. Keep links backwards compatible.
-- Run `npm run timezones:build`, `npm run agent:build` and `npm run mcp` as needed. Never hand-edit generated `timezones.json` or `public/agent/*.json`; the agent-files test rejects drift.
+- Run `npm run labels:build` (country/marine sources), `npm run places:build` (city exonyms), `npm run timezones:build`, `npm run agent:build` and `npm run mcp` as needed. Never hand-edit generated labels, `city-names.json`, `timezones.json` or `public/agent/*.json`; document place overrides in `data/PLACE_NAMES.md`.
+- City exonyms load lazily for hu/sv; locale-aware search reuses the English index until ready. Keep the compatible `globehops:countryNames` key for “Place names”.
 - Keep the ODbL time-zone database and its notices separate from public-domain airports; commit generated time zones with their build record.
 - `docs/AGENT_INTEGRATION.md` is for external agents using GlobeHops, not contributors; follow `AGENTS.md` for codebase work.

@@ -39,10 +39,12 @@ Check that both build and deploy jobs succeeded and inspect the `github-pages` d
 
 Also verify:
 
-- About (and, on desktop, the bottom-left corner) shows the expected version (e.g. `v1.7.0`), and `/globehops/agent/dataset.json` reports the same `app.version` with the deployed commit.
+- About (and, on desktop, the bottom-left corner) shows the expected version (e.g. `v1.8.0`), and `/globehops/agent/dataset.json` reports the same `app.version` with the deployed commit.
 - `/globehops/llms.txt` responds with 200 and readable discovery text. `/globehops/agent/capabilities.json`, `itinerary.schema.json`, `examples.json` and build-emitted `dataset.json` each respond with 200 and a JSON content type; check the freshness metadata against the committed records.
 - A scheduled link such as `/globehops/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15&arr2=2026-11-20T09:05&dep2=2026-11-20T11:00&arr3=2026-11-20T13:50` loads local endpoint times and journey totals.
 - Day/night shading changes when scrubbing UTC time, the toggle restores the unshaded appearance, and playback moves through flights and transfers. Check reduced-motion behaviour and keyboard controls at desktop/mobile sizes.
+- Direct reloads of `/globehops/en/`, `/globehops/hu/` and `/globehops/sv/` work, with translated HTML metadata and selectors. Ordinary Share links use the neutral root; Hungarian/Swedish UI loads city exonyms and localized place names.
+- Follow aircraft tracks the plane, manual camera input exits it, and reduced motion re-centres only as needed. A combined `follow=1&leg=2` link preserves the aircraft camera without overwriting saved preferences.
 - The hashed time-zone JSON loads under `/globehops/`, and visible credits retain TBB/OSM attribution and the ODbL link.
 
 MCP is **not deployed**. `mcp/server.ts` is a local stdio process using a checkout and installed dependencies; Pages has no MCP endpoint. Its integration test is part of the unit suite.
