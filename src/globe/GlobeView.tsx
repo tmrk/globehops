@@ -87,6 +87,7 @@ export default function GlobeView(props: GlobeViewProps) {
     // only fall back to the "no 3D" message if restoration doesn't happen.
     let lostTimer: number | undefined;
     const lost = () => {
+      window.clearTimeout(lostTimer);
       lostTimer = window.setTimeout(() => latest.current.onError(new Error('WebGL context lost')), 4000);
     };
     const restored = () => window.clearTimeout(lostTimer);

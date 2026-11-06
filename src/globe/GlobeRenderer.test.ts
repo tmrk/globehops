@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Group, PerspectiveCamera, Vector3 } from 'three';
+import type { Group, PerspectiveCamera, Vector3, DirectionalLight, Scene, MeshLambertMaterial } from 'three';
 import type { Line2 } from 'three/addons/lines/Line2.js';
 import { GlobeRenderer, type GlobeRoute } from './GlobeRenderer.ts';
 import { routeGeometrySignature } from './routeGeometry.ts';
@@ -26,6 +26,10 @@ vi.mock('three', async (importOriginal) => {
 
 interface RenderState {
   camera: PerspectiveCamera;
+  keyLight: DirectionalLight;
+  scene: Scene;
+  earthMaterial: MeshLambertMaterial;
+  renderer: { render: ReturnType<typeof vi.fn> };
   routeGroup: Group;
   legs: {
     arc: Vector3[];
@@ -265,4 +269,56 @@ it('keys framing by marker keys, leg keys and lifts, with a default lift of one'
   );
   expect(routeGeometrySignature({ ...route, markers: route.markers.slice(1) })).not.toBe(signature);
   expect(routeGeometrySignature({ ...route, legs: route.legs.slice(1) })).not.toBe(signature);
+});
+
+it('preserves global leg indices when a zero-length leg leaves a gap', () => {
+  const sparse = {
+    ...route,
+    legs: [{ ...route.legs[0], key: 'same-airport', to: route.legs[0].from }, ...route.legs.slice(1)],
+  };
+  renderer.setRoute(sparse, { animate: false, frame: false });
+  expect(state().legs[0]).toBeUndefined();
+  renderer.setSelectedLeg(0, { frame: false });
+  renderer.setAircraft({ kind: 'air', leg: 1, fraction: 0.5 });
+  renderer.setHighlightLeg(1);
+  renderer.flush();
+  expect(planes()[0].style.opacity).toBe('1');
+  expect(state().legs[1].remaining.visible).toBe(true);
+  renderer.frameCurrent(false);
+  renderer.setRoute(route, { animate: false, frame: false });
+  expect(state().legs[0]).toBeDefined();
+});
+
+it('suspends frame scheduling until a lost WebGL context is restored', async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  renderer.flush();
+  state().renderer.render.mockClear();
+  vi.mocked(requestAnimationFrame).mockClear();
+  const lost = new Event('webglcontextlost', { cancelable: true });
+  renderer.canvas.dispatchEvent(lost);
+  expect(lost.defaultPrevented).toBe(true);
+  renderer.setAircraft(fleet[0].view);
+  renderer.flush();
+  renderer.requestRender();
+  expect(requestAnimationFrame).not.toHaveBeenCalled();
+  expect(state().renderer.render).not.toHaveBeenCalled();
+  renderer.canvas.dispatchEvent(new Event('webglcontextrestored'));
+  renderer.flush();
+  expect(state().renderer.render).toHaveBeenCalledOnce();
+});
+
+it('removes all owned DOM and detaches the reparented light on repeat-safe disposal', () => {
+  renderer.setFleet(fleet);
+  renderer.setIllumination({ lat: 15, lng: 30 });
+  expect(state().keyLight.parent).toBe(state().scene);
+  const owned = [...container.querySelectorAll('*')];
+  const material = state().earthMaterial;
+  const shaderHook = material.onBeforeCompile;
+  renderer.dispose();
+  renderer.dispose();
+  expect(owned.every((element) => !element.isConnected)).toBe(true);
+  expect(container.children).toHaveLength(0);
+  expect(state().keyLight.parent).toBeNull();
+  expect(material.onBeforeCompile).not.toBe(shaderHook);
 });

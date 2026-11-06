@@ -1,8 +1,11 @@
-import { Vector3 } from 'three';
+import { Vector3, type PerspectiveCamera } from 'three';
 import type { Vec3 } from '../lib/geo.ts';
 import type { LatLng } from '../types.ts';
 
 const DEG = Math.PI / 180;
+export const LABEL_RADIUS = 1.002;
+export const LABEL_FADE_START = 0.02;
+const LABEL_FADE_RANGE = 0.12;
 
 /**
  * Scene convention (Three.js, y-up): lat/lng (0,0) → +X, north pole → +Y, lng 90°W → +Z.
@@ -36,20 +39,57 @@ export function slerpUnit(a: Vector3, b: Vector3, t: number, target = new Vector
   const dot = Math.min(1, Math.max(-1, a.dot(b)));
   const theta = Math.acos(dot);
   if (theta < 1e-6) return target.copy(a);
-  // Perpendicular component of b relative to a.
-  const w = new Vector3().copy(b).addScaledVector(a, -dot);
-  if (w.lengthSq() < 1e-12) {
-    // Antipodal: rotate through any perpendicular, preferring one through the vertical axis.
-    w.set(0, 1, 0).addScaledVector(a, -a.y);
-    if (w.lengthSq() < 1e-12) w.set(1, 0, 0);
+  // Scalars keep this safe when target aliases either input, without allocating a scratch vector.
+  const ax = a.x;
+  const ay = a.y;
+  const az = a.z;
+  let wx = b.x - ax * dot;
+  let wy = b.y - ay * dot;
+  let wz = b.z - az * dot;
+  if (wx * wx + wy * wy + wz * wz < 1e-12) {
+    // Antipodal: prefer a perpendicular through the vertical axis.
+    wx = -ax * ay;
+    wy = 1 - ay * ay;
+    wz = -az * ay;
+    if (wx * wx + wy * wy + wz * wz < 1e-12) {
+      wx = 1;
+      wy = 0;
+      wz = 0;
+    }
   }
-  w.normalize();
-  return target
-    .copy(a)
-    .multiplyScalar(Math.cos(theta * t))
-    .addScaledVector(w, Math.sin(theta * t));
+  const length = Math.sqrt(wx * wx + wy * wy + wz * wz);
+  const c = Math.cos(theta * t);
+  const s = Math.sin(theta * t);
+  return target.set(ax * c + (wx / length) * s, ay * c + (wy / length) * s, az * c + (wz / length) * s);
 }
 
 export const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-export const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 export const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
+
+/** Projects into a caller-owned buffer; false means the point is beyond the far clip plane. */
+export function projectToScreen(
+  point: Vector3,
+  camera: PerspectiveCamera,
+  width: number,
+  height: number,
+  target: Vector3,
+): boolean {
+  target.copy(point).project(camera);
+  if (target.z > 1) return false;
+  target.x = ((target.x + 1) / 2) * width;
+  target.y = ((1 - target.y) / 2) * height;
+  return true;
+}
+
+/** Cosine between a surface normal and its sightline to the camera. */
+export function surfaceFacing(point: Vector3, cameraPosition: Vector3): number {
+  const x = cameraPosition.x - point.x;
+  const y = cameraPosition.y - point.y;
+  const z = cameraPosition.z - point.z;
+  const length = Math.sqrt(x * x + y * y + z * z) * point.length();
+  return length ? (point.x * x + point.y * y + point.z * z) / length : 0;
+}
+
+export function labelOpacity(facing: number): number {
+  return clamp01((facing - LABEL_FADE_START) / LABEL_FADE_RANGE);
+}

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { altitudeProfile } from '../lib/altitude.ts';
+import { EARTH_RADIUS_KM } from '../lib/geo.ts';
 import { followAngularRoom, followBlend, followDistance, followLead } from './followCamera.ts';
 
 const halfFov = Math.PI / 12;
@@ -46,4 +48,16 @@ describe('aircraft camera composition', () => {
     const fast = followLead(2, 0.3, 0.5, 1.6, halfFov);
     expect(fast.response * 2 * 0.5).toBeLessThanOrEqual(followAngularRoom(1.6, halfFov, 0.5));
   });
+});
+
+it('uses caller-owned prediction buffers and cached phase profiles without changing composition', () => {
+  const profile = altitudeProfile(EARTH_RADIUS_KM);
+  const target = { fraction: 0, response: 0 };
+  for (const angle of [0, 1]) {
+    expect(followLead(angle, 0.4, 0.2, 2, halfFov, target)).toBe(target);
+    expect(target).toEqual(followLead(angle, 0.4, 0.2, 2, halfFov));
+  }
+  for (const fraction of [0, 0.1, 0.5, 0.9, 1]) {
+    expect(followDistance(1, fraction, true, halfFov, profile)).toBe(followDistance(1, fraction, true, halfFov));
+  }
 });

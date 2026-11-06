@@ -10,7 +10,8 @@ import {
   type CountryLabel,
   type LabelRect,
 } from '../lib/countryLabels.ts';
-import { clamp01, latLngToVector3 } from './math3d.ts';
+import { labelOpacity, LABEL_RADIUS, LABEL_FADE_START, latLngToVector3, surfaceFacing } from './math3d.ts';
+import { setStyle } from './dom.ts';
 
 interface LabelEntry {
   label: CountryLabel;
@@ -22,23 +23,18 @@ interface LabelEntry {
   y: number;
   opacity: number;
   fontPx: number;
+  style: ReturnType<typeof labelStyle>;
+  measure: HTMLSpanElement | null;
 }
-interface LabelContext {
-  camera: PerspectiveCamera;
-  width: number;
-  height: number;
-  reserved: readonly LabelRect[];
-}
-
 /** Decorative HTML layer, updated only by the renderer's existing on-demand frame. */
 export class CountryLabelLayer {
   private container = document.createElement('div');
-  private measure = document.createElement('span');
   private labels: LabelEntry[] = [];
   private candidates: LabelEntry[] = [];
   private rectangles: LabelRect[] = [];
   private projected = new Vector3();
-  private toCamera = new Vector3();
+  private pendingMeasurements: LabelEntry[] = [];
+  private measuredZoom = NaN;
   private abort = new AbortController();
   private placesVisible = false;
   private waterVisible = false;
@@ -55,10 +51,6 @@ export class CountryLabelLayer {
     this.container.setAttribute('aria-hidden', 'true');
     this.container.style.display = 'none';
     parent.prepend(this.container);
-    this.measure.className = 'country-label';
-    this.measure.style.visibility = 'hidden';
-    this.measure.style.transform = 'translate3d(-10000px, -10000px, 0)';
-    this.container.append(this.measure);
     // Fonts can finish loading after the first labels are measured. Re-measure once in that case.
     void document.fonts.ready.then(() => {
       if (this.disposed) return;
@@ -115,15 +107,18 @@ export class CountryLabelLayer {
         return {
           label,
           el,
-          position: latLngToVector3(label.lat, label.lng, 1.002),
+          position: latLngToVector3(label.lat, label.lng, LABEL_RADIUS),
           sizes: new Map<number, { width: number; height: number }>(),
           rect: { x0: 0, y0: 0, x1: 0, y1: 0 },
           x: 0,
           y: 0,
           opacity: 0,
           fontPx: 0,
+          style: null,
+          measure: null,
         };
       });
+      this.measuredZoom = NaN;
       this.requestRender();
     } catch (error) {
       // One attempt per layer; aborted teardown is silent and data failures never affect the globe.
@@ -131,10 +126,47 @@ export class CountryLabelLayer {
     }
   }
 
-  update({ camera, width, height, reserved }: LabelContext): void {
+  /** Batch all metric writes, then reads, before the renderer places any projected DOM. */
+  measure(camera: PerspectiveCamera, height: number): void {
     if ((!this.placesVisible && !this.waterVisible) || this.disposed) return;
     const pxPerRadian = height / 2 / Math.tan((camera.fov * Math.PI) / 360) / (camera.position.length() - 1);
     const zoom = mapZoom(pxPerRadian);
+    const changed = zoom !== this.measuredZoom;
+    this.measuredZoom = zoom;
+    this.pendingMeasurements.length = 0;
+    for (const entry of this.labels) {
+      if (changed) entry.style = labelStyle(entry.label, zoom);
+      const style = entry.style;
+      if (
+        !style ||
+        !(entry.label.kind === 'country' ? this.placesVisible : this.waterVisible) ||
+        surfaceFacing(entry.position, camera.position) <= LABEL_FADE_START
+      )
+        continue;
+      const fontPx = Math.round(style.fontPx * 2) / 2;
+      entry.fontPx = fontPx;
+      if (entry.sizes.has(fontPx)) continue;
+      if (!entry.measure) {
+        entry.measure = document.createElement('span');
+        entry.measure.className = entry.el.className;
+        entry.measure.style.visibility = 'hidden';
+        entry.measure.style.transform = 'translate3d(-10000px, -10000px, 0)';
+        this.container.append(entry.measure);
+      }
+      entry.measure.textContent = entry.el.textContent;
+      entry.measure.style.fontSize = `${fontPx}px`;
+      entry.measure.style.display = '';
+      this.pendingMeasurements.push(entry);
+    }
+    for (const entry of this.pendingMeasurements) {
+      const measure = entry.measure;
+      if (measure) entry.sizes.set(entry.fontPx, { width: measure.offsetWidth, height: measure.offsetHeight });
+    }
+    for (const entry of this.pendingMeasurements) if (entry.measure) entry.measure.style.display = 'none';
+  }
+
+  update(camera: PerspectiveCamera, width: number, height: number, reserved: readonly LabelRect[]): void {
+    if ((!this.placesVisible && !this.waterVisible) || this.disposed) return;
     this.candidates.length = 0;
     this.rectangles.length = 0;
     for (const entry of this.labels) {
@@ -142,11 +174,9 @@ export class CountryLabelLayer {
         this.hide(entry);
         continue;
       }
-      const style = labelStyle(entry.label, zoom);
-      const facing =
-        this.toCamera.copy(camera.position).sub(entry.position).normalize().dot(entry.position) /
-        entry.position.length();
-      const opacity = style ? style.opacity * clamp01((facing - 0.02) / 0.12) : 0;
+      const style = entry.style;
+      const facing = surfaceFacing(entry.position, camera.position);
+      const opacity = style ? style.opacity * labelOpacity(facing) : 0;
       if (!style || opacity <= 0) {
         this.hide(entry);
         continue;
@@ -156,20 +186,11 @@ export class CountryLabelLayer {
         this.hide(entry);
         continue;
       }
-      // Half-pixel buckets keep cached text metrics bounded while zooming.
-      const fontPx = Math.round(style.fontPx * 2) / 2;
-      let size = entry.sizes.get(fontPx);
-      if (!size) {
-        this.measure.className = entry.el.className;
-        this.measure.textContent = entry.el.textContent;
-        this.measure.style.fontSize = `${fontPx}px`;
-        size = { width: this.measure.offsetWidth, height: this.measure.offsetHeight };
-        entry.sizes.set(fontPx, size);
-      }
+      const size = entry.sizes.get(entry.fontPx);
+      if (!size) continue;
       entry.x = Math.round(((p.x + 1) / 2) * width * 10) / 10;
       entry.y = Math.round(((1 - p.y) / 2) * height * 10) / 10;
       entry.opacity = Math.round(opacity * 100) / 100;
-      entry.fontPx = fontPx;
       const r = entry.rect;
       r.x0 = entry.x - size.width / 2;
       r.x1 = entry.x + size.width / 2;
@@ -189,12 +210,11 @@ export class CountryLabelLayer {
         this.hide(entry);
         continue;
       }
-      const style = entry.el.style;
       const transform = `translate3d(${entry.x}px, ${entry.y}px, 0px) translate(-50%, -50%)`;
-      if (style.transform !== transform) style.transform = transform;
-      if (style.opacity !== String(entry.opacity)) style.opacity = String(entry.opacity);
-      if (style.fontSize !== `${entry.fontPx}px`) style.fontSize = `${entry.fontPx}px`;
-      if (style.display !== '') style.display = '';
+      setStyle(entry.el, 'transform', transform);
+      setStyle(entry.el, 'opacity', String(entry.opacity));
+      setStyle(entry.el, 'fontSize', `${entry.fontPx}px`);
+      setStyle(entry.el, 'display', '');
     }
   }
 
@@ -209,5 +229,6 @@ export class CountryLabelLayer {
     this.labels = [];
     this.candidates = [];
     this.rectangles = [];
+    this.pendingMeasurements = [];
   }
 }
