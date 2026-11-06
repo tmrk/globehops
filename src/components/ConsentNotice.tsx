@@ -45,11 +45,11 @@ export function ConsentNotice({ onChoose, onDetails }: ConsentNoticeProps) {
         </button>
       </p>
       <div className="consent__actions">
-        <button type="button" className="consent__allow" onClick={() => onChoose('granted')}>
-          Allow
-        </button>
         <button type="button" className="consent__deny" onClick={() => onChoose('denied')}>
           Deny
+        </button>
+        <button type="button" className="consent__allow" onClick={() => onChoose('granted')}>
+          Allow
         </button>
       </div>
     </dialog>

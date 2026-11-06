@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.7.1 — 2026-11-06 — Equal consent buttons, aligned version
+
+- **Equal answers.** The analytics question's Deny and Allow buttons are now the same size and together span the full width of the sheet or card: Deny on the left, Allow (amber) on the right.
+- **Neater version tag on desktop.** The faint version now sits the same 16 px from the left and bottom edges as the journey panel and globe controls (it was 3 px from the bottom); the panel's maximum height leaves room for it so they never overlap.
+
 ## 1.7.0 — 2026-11-06 — Clearer analytics question; version in About on phones
 
 - **Analytics question at the bottom.** The one-time Google Analytics question no longer floats over the globe near the top. It is now a sheet at the bottom of the screen on phones (a card at the bottom centre on desktop), and the rest of the page is dimmed until you answer. **Allow** is a large amber button; **Deny** (formerly “No thanks”) is a quieter text button beneath it, or beside it on desktop. Escape does not dismiss the question; Details still opens About → Privacy on top of it. Both answers are remembered and can be changed in About.

@@ -152,6 +152,8 @@ a {
 
 .layout-desktop {
   --edge: 16px;
+  /* The version tag's line plus a gap, kept clear below the panel. */
+  --version-room: calc(var(--text-2xs) + 10px);
 }
 
 .stage {
@@ -367,13 +369,14 @@ a {
 }
 
 /* Desktop only: the running release below the journey panel, deliberately faint — there when you
-   look for it. Phones show it only in About. */
+   look for it. It keeps the same --edge margin from the left and bottom as the panel and globe
+   controls; the panel's max-height leaves --version-room for it. Phones show it only in About. */
 
 .app-version {
   position: fixed;
   z-index: 26;
   left: calc(var(--edge) + var(--safe-left));
-  bottom: max(3px, calc(var(--safe-bottom) - 14px));
+  bottom: calc(var(--edge) + var(--safe-bottom));
   margin: 0;
   font: 500 var(--text-2xs) / 1 var(--mono);
   font-stretch: var(--mono-stretch);
@@ -681,7 +684,7 @@ button.map-menu__item:hover {
   top: calc(2 * var(--edge) + var(--float-h));
   left: var(--edge);
   width: 392px;
-  max-height: calc(100% - 3 * var(--edge) - var(--float-h));
+  max-height: calc(100% - 3 * var(--edge) - var(--float-h) - var(--version-room));
   border-radius: var(--radius-lg);
 }
 
@@ -2650,44 +2653,43 @@ button.map-menu__item:hover {
   text-decoration-color: currentColor;
 }
 
-/* Allow is the obvious, filled answer; Deny is a quiet text button beneath it. */
+/* Two equal answers across the full width: Deny on the left, Allow (amber) on the right. */
 .consent__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
   margin-top: 18px;
 }
 
+.consent__deny,
 .consent__allow {
   height: 48px;
-  padding: 0 28px;
+  padding: 0 16px;
   border-radius: var(--radius-full);
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.consent__deny {
+  border: 1px solid var(--line-strong);
+  background: var(--hover);
+  color: var(--text);
+}
+
+.consent__deny:hover {
+  background: var(--press);
+}
+
+.consent__allow {
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: var(--text-lg);
-  font-weight: 700;
-  box-shadow: 0 6px 20px rgba(255, 194, 75, 0.22);
 }
 
 .consent__allow:hover {
   background: #ffcd69;
 }
 
-.consent__deny {
-  height: 44px;
-  padding: 0 18px;
-  border-radius: var(--radius-full);
-  color: var(--text-3);
-  font-size: var(--text-md);
-  font-weight: 500;
-}
-
-.consent__deny:hover {
-  background: var(--hover);
-  color: var(--text-2);
-}
-
-/* Desktop: a card at the bottom centre; the two answers side by side. */
+/* Desktop: a card at the bottom centre. */
 .layout-desktop .consent {
   inset: auto 0 calc(24px + var(--safe-bottom));
   width: min(540px, calc(100% - 32px));
@@ -2695,16 +2697,6 @@ button.map-menu__item:hover {
   padding: 22px 24px 20px;
   border-bottom: 1px solid var(--line);
   border-radius: var(--radius-lg);
-}
-
-.layout-desktop .consent__actions {
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-}
-
-.layout-desktop .consent__allow {
-  min-width: 160px;
 }
 
 /* ------------------------------------------------------------------------------------------ */
