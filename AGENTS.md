@@ -58,6 +58,15 @@ Never hand-edit generated `public/agent/*.json`: run `npm run agent:build` after
 - Layover menus are native `<select>` elements with the combobox role; E2E helpers target airport pickers with `airportField(page)`, not a bare `getByRole('combobox')`.
 - Never commit `.cache/`, downloaded source imagery, secrets or test/build output.
 
+## Versioning
+
+GlobeHops uses [semantic versioning](https://semver.org/). `package.json` is the source of truth; Vite injects it with the build commit and date (`src/version.ts`), shown faintly beside the brand, in About and in `agent/dataset.json`.
+
+- Every change deployed to users is a release: bump with `npm version <patch|minor|major> --no-git-tag-version` (updates `package-lock.json` too) and add `## <version> — <YYYY-MM-DD> — <title>` at the top of `RECENT_CHANGES.md`. `scripts/version.test.ts` fails if they disagree or headings are out of order.
+- **patch**: fixes, copy, data/asset corrections without new behaviour; **minor**: new or changed user-visible features; **major**: breaking changes to share links, the agent contract or other public interfaces (avoid; links stay backwards compatible).
+- Follow-up fixes to an unreleased version can share it. Data-only refreshes by the airport workflow do not bump the version.
+- `.github/workflows/tag-release.yml` tags the commit of each successful push-triggered deploy whose version has no tag yet (`v<version>`); never move or reuse a tag.
+
 ## Definition of done
 
-Lint, unit tests and production build pass, and the E2E specs affected by the change pass (Chromium by default; add WebKit for touch, date input, font or Safari-specific changes). The full four-project suite takes several minutes: run it only for broad UI changes or when asked; CI runs only the three `@smoke` E2E tests (desktop Chromium) before every deployment. Review mobile and desktop screenshots. Update relevant documentation and `RECENT_CHANGES.md`; record genuine application bugs and limitations precisely. Keep changes within the user’s authorised scope.
+Lint, unit tests and production build pass, and the E2E specs affected by the change pass (Chromium by default; add WebKit for touch, date input, font or Safari-specific changes). The full four-project suite takes several minutes: run it only for broad UI changes or when asked; CI runs only the three `@smoke` E2E tests (desktop Chromium) before every deployment. Review mobile and desktop screenshots. Bump the version and add its `RECENT_CHANGES.md` entry; update relevant documentation; record genuine application bugs and limitations precisely. Keep changes within the user’s authorised scope.

@@ -366,6 +366,18 @@ a {
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 
+/* The running release, deliberately faint: there when you look for it, otherwise unnoticed. */
+.brand__version {
+  align-self: flex-start;
+  margin: 3px 0 0 -3px;
+  font: 500 var(--text-2xs) / 1 var(--mono);
+  font-stretch: var(--mono-stretch);
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+  opacity: 0.75;
+  user-select: text;
+}
+
 /* ------------------------------------------------------------------------------------------ */
 /* Buttons                                                                                    */
 
@@ -2555,6 +2567,14 @@ button.map-menu__item:hover {
 
 .about__toggle:hover {
   background: var(--press);
+}
+
+.about__version {
+  margin: 18px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  color: var(--text-3);
 }
 
 /* ------------------------------------------------------------------------------------------ */

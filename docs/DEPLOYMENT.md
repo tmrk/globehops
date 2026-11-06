@@ -14,6 +14,10 @@ gh run list --repo tmrk/globehops --workflow deploy.yml
 gh run watch <run-id> --repo tmrk/globehops
 ```
 
+## Release tags
+
+`.github/workflows/tag-release.yml` runs when a push-triggered Deploy run on `main` completes successfully. It reads the version from `package.json` at the deployed commit and pushes the lightweight tag `v<version>` there unless that tag already exists, so the tag marks the first deployed commit of each release and is never moved. It needs `contents: write` and is a separate workflow, so the airport refresh's `workflow_call` into Deploy keeps its read-only contents permission (data refreshes do not change the version). Versions 1.0.0–1.5.0 were tagged by hand on their last deployed commits.
+
 ## Airport and time-zone refresh
 
 `.github/workflows/update-airports.yml` runs daily at **04:23 UTC** or manually. It downloads the three CSVs, validates and regenerates only when the content hash changes. When airport content changes, the workflow restores `.cache/timezones` using cache key `tz-2026f` and runs `npm run timezones:build` against the pinned TBB ZIP (downloading if absent). It then runs unit tests and a production build before committing both generated datasets and their build records to `main`. No-change airport checks skip the zone rebuild; this workflow does not upgrade the pinned TBB release automatically. Check source/licence changes explicitly when changing that pin.
@@ -35,6 +39,7 @@ Check that both build and deploy jobs succeeded and inspect the `github-pages` d
 
 Also verify:
 
+- The brand shows the expected faint version (e.g. `v1.6.0`), and `/globehops/agent/dataset.json` reports the same `app.version` with the deployed commit.
 - `/globehops/llms.txt` responds with 200 and readable discovery text. `/globehops/agent/capabilities.json`, `itinerary.schema.json`, `examples.json` and build-emitted `dataset.json` each respond with 200 and a JSON content type; check the freshness metadata against the committed records.
 - A scheduled link such as `/globehops/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15&arr2=2026-11-20T09:05&dep2=2026-11-20T11:00&arr3=2026-11-20T13:50` loads local endpoint times and journey totals.
 - Day/night shading changes when scrubbing UTC time, the toggle restores the unshaded appearance, and playback moves through flights and transfers. Check reduced-motion behaviour and keyboard controls at desktop/mobile sizes.

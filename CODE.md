@@ -4,6 +4,7 @@
 | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `index.html`                                                          | Document metadata and React mount.                                                                    |
 | `src/main.tsx`                                                        | React entry, fonts and global CSS.                                                                    |
+| `src/version.ts`, `src/env.d.ts`                                      | Release version, build commit/date (Vite `define` from package.json and git) and their wording.       |
 | `src/analytics.ts`, `src/hooks/useAnalyticsConsent.ts`                | Consent-gated GA4 loader/events, native History URL writes and the remembered decision.               |
 | `src/App.tsx`                                                         | Airport/zone loading, route/journey/timeline orchestration, clock, persistence and layout insets.     |
 | `src/components/LegSchedule.tsx`                                      | Leg-local date/time editor and schedule issues.                                                       |
@@ -20,7 +21,7 @@
 | `src/components/AboutDialog.tsx`                                      | Method, credits, source links and the privacy/usage-statistics switch.                                |
 | `src/components/CodeBadge.tsx`                                        | IATA/ICAO badges and the no-code plane glyph.                                                         |
 | `src/components/ErrorBoundary.tsx`                                    | Lazy globe failure boundary.                                                                          |
-| `src/components/Brand.tsx`                                            | Wordmark and SVG logo.                                                                                |
+| `src/components/Brand.tsx`                                            | Wordmark, SVG logo and the faint release version beside it.                                           |
 | `src/components/Icons.tsx`                                            | Small inline SVG icon set.                                                                            |
 | `src/components/Toast.tsx`                                            | Live status messages and share fallback.                                                              |
 | `src/components/ConsentNotice.tsx`                                    | One-time, non-blocking Google Analytics consent question.                                             |
@@ -92,12 +93,13 @@
 | `scripts/build-icons.ts`                                              | PNG icons from SVGs and optional globe social preview capture.                                        |
 | `public/`                                                             | SVG/PNG icons, manifest and social preview.                                                           |
 | `scripts/build-textures.ts`                                           | NASA day/night JPEG resampling, light-mask extraction and WebP generation.                            |
+| `scripts/version.test.ts`                                             | Keeps package.json, package-lock.json and the newest RECENT_CHANGES heading on one version.           |
 | `data/`                                                               | Aliases, their rationale and airport build provenance.                                                |
 | `src/**/*.test.ts`, `scripts/*.test.ts`                               | Unit tests beside production logic.                                                                   |
 | `e2e/fixtures.ts`                                                     | Shared page/console error audit and route helpers.                                                    |
 | `e2e/journey.spec.ts`, `e2e/globe.spec.ts`, `e2e/time.spec.ts`        | Journey editing, schedules, playback, daylight, rendering, assets and layout tests.                   |
 | `playwright.config.ts`                                                | Browser projects and Pages preview configuration.                                                     |
-| `.github/workflows/`                                                  | Pages deployment and daily airport/time-zone refresh.                                                 |
+| `.github/workflows/`                                                  | Pages deployment, release tagging and daily airport/time-zone refresh.                                |
 
 ## Conventions
 

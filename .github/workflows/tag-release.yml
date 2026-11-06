@@ -1,0 +1,35 @@
+# Tags each successfully deployed new release as v<version> (from package.json) on the deployed
+# commit. Commits that keep the version (fixes in progress, data refreshes) create no tag; an
+# existing tag is never moved. Runs after push-triggered Deploy runs only: data refreshes call
+# Deploy through workflow_call and never change the version.
+name: Tag release
+
+on:
+  workflow_run:
+    workflows: [Deploy]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Tag the release if its version is new
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if git ls-remote --exit-code --tags origin "refs/tags/${version}" >/dev/null; then
+            echo "${version} already exists; nothing to tag."
+          else
+            git tag "${version}" "${{ github.event.workflow_run.head_sha }}"
+            git push origin "refs/tags/${version}"
+            echo "Tagged ${version} at ${{ github.event.workflow_run.head_sha }}."
+          fi

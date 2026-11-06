@@ -104,7 +104,7 @@ Positions use the shared flight-progress model along a great circle. Altitude is
 
 ## Dataset freshness and licences
 
-Fetch [agent/dataset.json](https://tmrk.github.io/globehops/agent/dataset.json) for the airport build's `generatedAt`, upstream commit and counts, plus zone release, licence, attribution and build metadata. Vite emits this record from the current build inputs and serves it in development; it is not a separately hand-maintained snapshot. Airport updates are checked daily, but the record is the authority on the currently deployed dataset.
+Fetch [agent/dataset.json](https://tmrk.github.io/globehops/agent/dataset.json) for the airport build's `generatedAt`, upstream commit and counts, plus zone release, licence, attribution and build metadata, and `app` with the deployed GlobeHops release (`version`, `commit`, `date`). Vite emits this record from the current build inputs and serves it in development; it is not a separately hand-maintained snapshot. Airport updates are checked daily, but the record is the authority on the currently deployed dataset.
 
 OurAirports data is public domain. Airport time zones are a separate ODbL-1.0 derivative database from timezone-boundary-builder 2026f/OpenStreetMap. The freshness record links to its machine-readable source. Code is MIT; imagery, borders and fonts retain their own terms. See [data sources](DATA_SOURCES.md), [time-zone processing](../data/TIMEZONES.md) and [third-party notices](../THIRD_PARTY_NOTICES.md).
 

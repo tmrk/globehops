@@ -6,6 +6,7 @@ import { DEFAULT_FLIGHT_TIME_MODEL } from '../lib/flightTime.ts';
 import { DEFAULT_LAYOVER_MIN, formatLayover } from '../lib/layover.ts';
 import { LogoMark } from './Brand.tsx';
 import { IconClose } from './Icons.tsx';
+import { APP_COMMIT, APP_DATE, APP_VERSION, CHANGELOG_URL, describeBuild } from '../version.ts';
 
 export interface AboutDialogHandle {
   /** Opens the dialog, optionally scrolled to the privacy section. */
@@ -36,6 +37,7 @@ export const AboutDialog = forwardRef<AboutDialogHandle, AboutDialogProps>(funct
     : null;
   const m = DEFAULT_FLIGHT_TIME_MODEL;
   const a = DEFAULT_ALTITUDE_MODEL;
+  const build = describeBuild(APP_COMMIT, APP_DATE);
 
   return (
     <dialog
@@ -154,6 +156,13 @@ export const AboutDialog = forwardRef<AboutDialogHandle, AboutDialogProps>(funct
             <span className="switch" aria-hidden="true" />
           </button>
         ) : null}
+        <p className="about__version">
+          Version {APP_VERSION}
+          {build ? ` · ${build}` : ''} ·{' '}
+          <a href={CHANGELOG_URL} target="_blank" rel="noreferrer">
+            What’s new
+          </a>
+        </p>
       </div>
     </dialog>
   );

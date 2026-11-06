@@ -60,6 +60,18 @@ npx playwright show-trace test-results/<test-directory>/trace.zip
 
 Before finishing: lint, unit tests, build, the E2E specs the change affects (e.g. `npx playwright test e2e/time.spec.ts -g "flight times" --project=desktop-chromium --project=mobile-chromium`), screenshot review and relevant docs/`RECENT_CHANGES.md` updates. Run all four projects only for broad UI changes or on request; CI runs only the smoke tests before deploying.
 
+## Releases and versions
+
+Each change that reaches users is a release (see “Versioning” in [AGENTS.md](../AGENTS.md)):
+
+```sh
+npm version minor --no-git-tag-version   # or patch / major; updates package.json and package-lock.json
+# add “## 1.7.0 — 2026-11-07 — Title” at the top of RECENT_CHANGES.md
+npm test -- scripts/version.test.ts      # version, lockfile and changelog agree
+```
+
+Commit and push to `main`. After Deploy succeeds, the Tag release workflow creates `v<version>` on that commit if it does not exist yet. The running build shows its version beside the brand (hover for commit and date), in About, and in `agent/dataset.json` (`app.version`, `app.commit`, `app.date`).
+
 ## Regeneration
 
 Airports:

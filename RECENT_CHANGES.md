@@ -1,6 +1,15 @@
 # Recent changes
 
-## 2026-11-06 — City lights, crisper terminator, coastlines, neater totals, optional analytics
+Every release has a [semantic version](https://semver.org/) (shown faintly beside the GlobeHops name and in About) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
+
+## 1.6.0 — 2026-11-06 — Version number
+
+- **Versioning.** GlobeHops now follows semantic versioning: `package.json` holds the release version, each release adds a numbered entry here, and a workflow tags every successfully deployed new version as `v<version>`. Earlier releases were numbered retroactively (1.0.0 initial release … 1.5.0 city lights) and tagged on their last deployed commits.
+- **Version in the corner.** A faint `v1.6.0` sits beside the GlobeHops name in the top-left corner on phones and desktops; hovering shows the build commit and date. About ends with “Version 1.6.0 · Build abc1234, 6 Nov 2026 · What’s new”, linking to this changelog.
+- `agent/dataset.json` gains an `app` record (`version`, `commit`, `date`) so agents can tell which release they are talking to.
+- A unit test keeps `package.json`, `package-lock.json` and the newest changelog heading on the same version, with headings in descending order.
+
+## 1.5.0 — 2026-11-06 — City lights, crisper terminator, coastlines, neater totals, optional analytics
 
 - **Crisper day and night.** The day/night blend now spans about −4° to +3.5° of solar elevation (was about −7° to +6°), the night side is darker (6 % instead of 13 % of daylight) and the orange twilight glow is narrower. The atmosphere rim uses the same edges.
 - **City lights at night.** A night-light mask derived from NASA Black Marble 2016 (`lights-2k.webp`, 44 KB; `lights-4k.webp`, 143 KB) glows warm after dusk on the night side. It loads after the day texture, only while day/night shading is on, fades in over 0.7 s (instantly with reduced motion), uses the 2K mask on phones and GPUs below 4096 px, and is skipped silently if it fails. `npm run textures:build` now also builds it from the Black Marble 3 km JPEG (`--day-only` / `--night-only`).
@@ -10,7 +19,7 @@
 
 Limitations: in the GA4 property, **Admin → Data streams → Enhanced measurement → Page views → “Page changes based on browser history events”** should be switched off; GlobeHops already avoids history page views from edits, but the mobile picker's Back still produces a `popstate`. City lights are a 2016 composite and the coastline is a 1:50m generalisation. The existing country-names E2E test is intermittently flaky on desktop Chromium (“Ireland / LHR” label overlap after zooming); it fails at a similar rate without these changes.
 
-## 2026-11-06 — Calmer, aligned interface
+## 1.4.0 — 2026-11-06 — Calmer, aligned interface
 
 A review of the whole interface for clutter and alignment. Every feature remains; fewer controls are visible at once and everything sits on one grid.
 
@@ -27,7 +36,7 @@ A review of the whole interface for clutter and alignment. Every feature remains
 
 Limitations: per-end flight-time clearing moved into the editor heading; the sheet gesture and native pickers still need real-device review.
 
-## 2026-11-05 — Flight-time editing, smooth playback, country names, typography and logo
+## 1.3.0 — 2026-11-05 — Flight-time editing, smooth playback, country names, typography and logo
 
 - **Flight times, in place:** every flight row shows “Add times” (or its local departure → arrival once dated) and opens an editor with one row per end: the airport, its zone for that instant (“CET · UTC+1”) and a date and time field. Fields are native pickers under formatted faces (“Fri 20 Nov 2026”); empty fields show the time estimated from the rest of the journey with ≈ and start the picker there; keyboard focus reveals the native segmented editor. A Done button returns focus to the flight. The time bar's date explorer uses the same field.
 - **Airport time zones reviewed:** all 9,934 assignments were cross-checked against the IANA tzdb country table. Two upstream OurAirports records had wrong positions and therefore wrong clocks: Ulleung, South Korea (recorded in Inner Mongolia → China time) and a “(Misplaced duplicate?)” Venezuelan record in Chad. They are now excluded (`data/excluded-airports.json`, with evidence). The time-zone build gained a country plausibility check; the 11 genuine special clocks it finds (e.g. Ciudad Juárez, Lord Howe, Eucla, Easter Island) are documented in `data/timezone-reviewed.json`, and a test fails on any new unexplained outlier. Schedule arithmetic remains UTC.
@@ -42,7 +51,7 @@ Limitations: per-end flight-time clearing moved into the editor heading; the she
 
 Limitations: native date/time pickers and the sheet gesture still need real-device review (Playwright emulates touch with synthetic events). Zone abbreviations come from the browser's ICU data, which currently prints London's winter zone as GMT+0, so GlobeHops shows “UTC+0” there. Country names follow Natural Earth's de facto depiction.
 
-## 2026-11-05 — Time, flight playback, day and night, agent access
+## 1.2.0 — 2026-11-05 — Time, flight playback, day and night, agent access
 
 - **Optional flight times:** select a flight to enter departure/arrival dates and times in each airport's local time. Times are stored per stop (a leg's departure on its origin, its arrival on its destination), so inserting stops keeps them in place; Reverse clears them. Missing times are propagated from entered ones (forward, then backward) using the flight-time estimator and layover settings; entered values never move. Every time carries provenance (entered, estimated, or assumed for an undated example). Errors (negative flight time, overlapping connection, nonexistent local time, offset mismatch, unknown zone) block playback; warnings cover ambiguous DST times (choose an offset), short connections, unusual durations and future rule changes.
 - **Airport time zones:** a build-time point-in-polygon lookup against timezone-boundary-builder 2026f (pinned SHA-256) assigns an IANA zone to all 9,934 airports (one documented override, Union Glacier). The compact table (15 KB gz) is a separate ODbL derivative database; no polygons reach the browser. Conversions use the runtime `Intl` tzdb (DST, history, date line) instead of a Temporal polyfill.
@@ -55,7 +64,7 @@ Limitations: native date/time pickers and the sheet gesture still need real-devi
 
 Limitations: positions and altitudes are illustrative estimates, not flight tracks; there is no taxi phase. Future schedules use today's time-zone rules. Overlapping zones in disputed areas resolve deterministically (documented in `data/TIMEZONES.md`). Multi-route comparison is prepared in the model but has no UI yet. Native date/time pickers still need real-device review.
 
-## 2026-11-05 — Borders, layovers, flight profile and design language
+## 1.1.0 — 2026-11-05 — Borders, layovers, flight profile and design language
 
 - **Country borders:** Natural Earth 1:50m land boundaries (public domain, v5.1.2) drawn on the globe, on by default. A globe button toggles them and the choice is remembered; hidden borders are not downloaded. New `npm run borders:build` pipeline with validation and tests.
 - **Layovers:** every connection gets a layover (default 1h 30m) that can be changed per stop from 30 minutes to three days. Totals show flying time, layover time and the overall journey time. Custom layovers travel in share links and the remembered route as `LHR_180`.
@@ -67,14 +76,14 @@ Limitations: positions and altitudes are illustrative estimates, not flight trac
 
 Limitations: the altitude profile is a fixed illustrative model (no aircraft types, step climbs or holding). Border lines follow Natural Earth's de facto depiction at 1:50m and are approximate at close zoom. Layover choices are not validated against minimum connection times.
 
-## 2026-11-05 — Deployment verification and texture loading
+## 1.0.1 — 2026-11-05 — Deployment verification and texture loading
 
 - First GitHub Pages deployment verified: Deploy workflow green (lint, unit, build, Chromium E2E), and the full four-project Playwright suite passes against https://tmrk.github.io/globehops/ (`E2E_BASE_URL`). The live bundle hashes match a local build of the same commit.
 - Textures now load progressively: 1K → 4K for everyone; 8K only when zoomed in close on capable desktops (saves ~2 MB and ~130 MB GPU memory on typical visits).
 - `scripts/dataset.test.ts` skips its cache-backed CLI integration test when `.cache/ourairports/` is absent (CI), instead of failing.
 - Initial dataset rebuilt online so `data/airports-build.json` records the upstream OurAirports commit.
 
-## 2026-11-05 — Initial release
+## 1.0.0 — 2026-11-05 — Initial release
 
 - Interactive textured Earth with true great-circle arcs, dashed ground tracks, projected airport labels and flight inspection.
 - Airport autocomplete, up to ten stops, insertion/removal, reverse, keyboard/pointer reorder, share URLs and remembered route/unit preferences.

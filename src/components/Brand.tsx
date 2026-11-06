@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { APP_COMMIT, APP_DATE, APP_VERSION, describeBuild } from '../version.ts';
 
 /**
  * The GlobeHops mark: a globe with one great-circle hop between two airports, drawn with the same
@@ -43,10 +44,14 @@ export function LogoMark({ size = 30 }: { size?: number }) {
 }
 
 export function Brand() {
+  const build = describeBuild(APP_COMMIT, APP_DATE);
   return (
     <div className="brand">
       <LogoMark />
       <span className="brand__name">GlobeHops</span>
+      <span className="brand__version" title={build || undefined} aria-label={`Version ${APP_VERSION}`}>
+        v{APP_VERSION}
+      </span>
     </div>
   );
 }
