@@ -2,7 +2,7 @@ import type { Journey } from '../lib/schedule.ts';
 import { subsolarPoint } from '../lib/sun.ts';
 import { journeyStateAt, type Timeline } from '../lib/timeline.ts';
 import type { SimFrame, SimulationFeed } from '../globe/simFeed.ts';
-import type { SimulationClock } from './clock.ts';
+import { playbackRate, type SimulationClock } from './clock.ts';
 
 export function simFrameAt(journey: Journey, timeline: Timeline | null, time: number, dayNight: boolean): SimFrame {
   const frame: SimFrame = {
@@ -36,8 +36,19 @@ export function createSimulationFeed(
   const listeners = new Set<() => void>();
   const getFrame = () => {
     const ctx = getContext();
-    const frame = simFrameAt(ctx.journey, ctx.open ? ctx.timeline : null, clock.getSnapshot().time, ctx.dayNight);
-    frame.follow = ctx.open && ctx.follow && clock.getSnapshot().playing;
+    const snapshot = clock.getSnapshot();
+    const frame = simFrameAt(ctx.journey, ctx.open ? ctx.timeline : null, snapshot.time, ctx.dayNight);
+    frame.follow = ctx.open && ctx.follow && snapshot.playing;
+    if (frame.aircraft?.kind === 'air' && ctx.timeline && snapshot.playing) {
+      const span = snapshot.start !== null && snapshot.end !== null ? snapshot.end - snapshot.start : 15000;
+      const rate = playbackRate(snapshot.speed, span);
+      const next = journeyStateAt(ctx.journey, ctx.timeline, snapshot.time + rate * 100);
+      // Local distance velocity, in real seconds, predicts through the camera's smoothing lag.
+      frame.aircraft.fractionPerSecond =
+        next.phase === 'flight' && next.leg === frame.aircraft.leg
+          ? Math.max(0, (next.distanceFraction - frame.aircraft.fraction) / 0.1)
+          : 0;
+    }
     const next = JSON.stringify(frame);
     if (next !== signature || !cached) {
       signature = next;

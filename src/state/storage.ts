@@ -113,3 +113,12 @@ export function loadAnalyticsConsent(): AnalyticsConsent | null {
 export function saveAnalyticsConsent(consent: AnalyticsConsent): void {
   write(ANALYTICS_KEY, consent);
 }
+
+/** Cinematic aircraft camera; null leaves it off by default. */
+export function loadFollowAircraft(): boolean | null {
+  const value = read('globehops:followAircraft');
+  return value === 'on' ? true : value === 'off' ? false : null;
+}
+export function saveFollowAircraft(enabled: boolean): void {
+  write('globehops:followAircraft', enabled ? 'on' : 'off');
+}

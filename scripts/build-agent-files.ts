@@ -151,6 +151,13 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         'Timeline display zone; airport code must belong to the route.',
       ),
       units: parameter('string', false, 'km|mi', ['km', 'mi'], 'Distance display only.'),
+      follow: parameter(
+        'string',
+        false,
+        '0 or 1',
+        ['1'],
+        'Follow the aircraft with the camera; off by default. User camera input exits follow.',
+      ),
       daynight: parameter('string', false, '0 or 1', ['0'], 'Day/night shading; on by default.'),
       itinerary: parameter(
         'string',
@@ -191,7 +198,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       notes:
         'Great circle on a sphere; no winds, airline schedules, aircraft type or actual flight tracking. Altitude is illustrative.',
     },
-    visualisationOptions: ['t', 'play', 'speed', 'clock', 'units', 'daynight'],
+    visualisationOptions: ['t', 'play', 'speed', 'clock', 'units', 'daynight', 'follow'],
     validation: {
       valid:
         'No error issues; warnings and info preserve validity. Structural validation precedes semantic resolution. Tolerant readable links keep usable values.',

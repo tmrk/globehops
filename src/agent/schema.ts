@@ -51,6 +51,7 @@ export const ITINERARY_SCHEMA = {
         clock: { type: 'string', pattern: '^(?:local|utc|[A-Za-z0-9]{2,8}|[0-9]+)$' },
         units: { enum: ['km', 'mi'] },
         dayNight: { type: 'boolean' },
+        follow: { type: 'boolean' },
       },
     },
   },

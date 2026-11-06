@@ -2844,3 +2844,35 @@ button.map-menu__item:hover {
     0 1px 4px rgba(3, 10, 19, 0.9),
     0 0 10px rgba(3, 10, 19, 0.5);
 }
+
+.globe-plane.is-following svg {
+  scale: 1.25;
+}
+.globe-plane.is-following.is-ground svg {
+  scale: 1.05;
+  opacity: 1;
+}
+.time-bar__follow {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-h);
+  height: var(--control-h);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-2);
+}
+.time-bar__follow:hover {
+  background: var(--press);
+  color: var(--text);
+}
+.time-bar__follow[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+@media (pointer: coarse) {
+  .time-bar__follow {
+    width: 44px;
+    height: 44px;
+  }
+}

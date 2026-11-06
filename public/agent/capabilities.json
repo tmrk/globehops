@@ -58,6 +58,13 @@
       "examples": ["km", "mi"],
       "semantics": "Distance display only."
     },
+    "follow": {
+      "type": "string",
+      "required": false,
+      "format": "0 or 1",
+      "examples": ["1"],
+      "semantics": "Follow the aircraft with the camera; off by default. User camera input exits follow."
+    },
     "daynight": {
       "type": "string",
       "required": false,
@@ -103,7 +110,7 @@
     "defaultLayoverMinutes": 90,
     "notes": "Great circle on a sphere; no winds, airline schedules, aircraft type or actual flight tracking. Altitude is illustrative."
   },
-  "visualisationOptions": ["t", "play", "speed", "clock", "units", "daynight"],
+  "visualisationOptions": ["t", "play", "speed", "clock", "units", "daynight", "follow"],
   "validation": {
     "valid": "No error issues; warnings and info preserve validity. Structural validation precedes semantic resolution. Tolerant readable links keep usable values.",
     "issues": [

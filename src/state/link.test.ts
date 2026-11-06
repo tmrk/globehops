@@ -51,10 +51,11 @@ describe('journey share links', () => {
       clock: 'JFK',
       units: 'mi' as const,
       dayNight: false,
+      follow: true,
     };
     const query = serializeLink(entered, view);
     expect(query).toBe(
-      '?route=CPH-LHR_180-JFK&dep1=2026-11-20T08:15%2B01:00&arr2=2026-11-20T09:05&dep2=2026-11-20T08:15%2B01:00&arr3=2026-11-20T09:05&t=2026-11-20T09:30Z&play=1&speed=3600&clock=JFK&units=mi&daynight=0',
+      '?route=CPH-LHR_180-JFK&dep1=2026-11-20T08:15%2B01:00&arr2=2026-11-20T09:05&dep2=2026-11-20T08:15%2B01:00&arr3=2026-11-20T09:05&t=2026-11-20T09:30Z&play=1&speed=3600&clock=JFK&units=mi&daynight=0&follow=1',
     );
     const parsed = parseLink(query);
     expect(parsed.view).toEqual(view);
@@ -93,6 +94,7 @@ describe('journey share links', () => {
     'units=meters',
     'daynight=maybe',
     'play=yes',
+    'follow=yes',
     'dep4=2026-11-20T08:00',
     'arr0=2026-11-20T08:00',
   ])('ignores malformed %s while retaining valid parts', (param) => {
@@ -149,4 +151,17 @@ describe('journey share links', () => {
     ).toThrow(RangeError);
     expect(() => buildLinkUrl(`https://example.com/${'x'.repeat(8000)}`, stops)).toThrow(RangeError);
   });
+});
+
+it('keeps default links unchanged and round trips the optional aircraft view in both formats', () => {
+  expect(parseLink('').view.follow).toBe(false);
+  expect(serializeLink(stops, { follow: false })).toBe('?route=CPH-LHR_180-JFK');
+  expect(parseLink('?FOLLOW=1').view.follow).toBe(true);
+  expect(parseLink('?follow=0').view.follow).toBe(false);
+  const encoded = encodeItineraryParam({
+    version: 1,
+    stops: [{ airport: 'CPH' }, { airport: 'JFK' }],
+    view: { follow: true },
+  });
+  expect(parseLink(`?itinerary=${encoded}`).view.follow).toBe(true);
 });

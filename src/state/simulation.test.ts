@@ -71,6 +71,23 @@ describe('simulation frames', () => {
     expect(simFrameAt(journey, timeline, timeline.start, false).subsolar).toBeNull();
     expect(simFrameAt({ ...journey, playable: false }, timeline, timeline.start, true).aircraft).toBeNull();
   });
+  it('predicts real-time distance velocity only during playback', () => {
+    const clock = new SimulationClock({ now: () => timeline.start, requestFrame: () => 1, cancelFrame: () => {} });
+    const context = { journey, timeline, open: true, dayNight: false, follow: true };
+    const feed = createSimulationFeed(clock, () => context);
+    clock.setRange(timeline.start, timeline.end);
+    clock.seek((timeline.start + timeline.segments[0].end) / 2);
+    expect(feed.getFrame().aircraft).not.toHaveProperty('fractionPerSecond');
+    clock.play();
+    const frame = feed.getFrame();
+    expect(frame.follow).toBe(true);
+    expect(frame.aircraft?.kind).toBe('air');
+    if (frame.aircraft?.kind === 'air') expect(frame.aircraft.fractionPerSecond).toBeGreaterThan(0);
+    clock.pause();
+    expect(feed.getFrame().follow).toBe(false);
+    expect(feed.getFrame().aircraft).not.toHaveProperty('fractionPerSecond');
+    clock.dispose();
+  });
   it('caches unchanged frames and notifies subscribers when context changes', () => {
     const clock = new SimulationClock({ now: () => timeline.start });
     const context = { journey, timeline, open: true, dayNight: true, follow: true };

@@ -17,6 +17,7 @@ export const LINK_PARAMS = {
   clock: 'clock',
   units: 'units',
   dayNight: 'daynight',
+  follow: 'follow',
   itinerary: 'itinerary',
 } as const;
 export const ROUTE_PARAM = LINK_PARAMS.route;
