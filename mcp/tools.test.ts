@@ -62,3 +62,19 @@ describe('MCP direct handlers', () => {
     }
   });
 });
+
+it('view overrides can repair itinerary view semantics and oversized documents retain readable links', () => {
+  const repaired = handleTool(context, 'visualize_route', {
+    itinerary: { version: 1, stops: [{ airport: 'CPH' }, { airport: 'JFK' }], view: { leg: 2, clock: 'LAX' } },
+    view: { leg: 1, clock: 'utc' },
+  });
+  expect(repaired.isError).not.toBe(true);
+  expect(repaired.structuredContent!.url).toContain('clock=utc');
+  const oversized = handleTool(context, 'visualize_route', {
+    itinerary: { version: 1, $schema: 'x'.repeat(6100), stops: [{ airport: 'CPH' }, { airport: 'JFK' }] },
+    view: { names: true },
+  });
+  expect(oversized.isError).not.toBe(true);
+  expect(oversized.structuredContent!.url).toContain('names=1');
+  expect(oversized.structuredContent!.itineraryParamUrl).toBeNull();
+});

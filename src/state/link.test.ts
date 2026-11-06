@@ -165,3 +165,29 @@ it('keeps default links unchanged and round trips the optional aircraft view in 
   });
   expect(parseLink(`?itinerary=${encoded}`).view.follow).toBe(true);
 });
+
+it('round trips language, layers and flight selection in readable and document links', () => {
+  const view = { lang: 'hu' as const, names: true, borders: false, leg: 2 };
+  const query = serializeLink(stops, view);
+  expect(parseLink(query).view).toMatchObject(view);
+  const url = new URL(buildLinkUrl('https://example.com/globehops/', stops, view));
+  expect(url.pathname).toBe('/globehops/hu/');
+  expect(url.searchParams.has('lang')).toBe(false);
+  expect(buildLinkUrl('https://example.com/seven/', stops, { lang: 'sv', time: Date.UTC(2026, 10, 20, 10) })).toContain(
+    '/seven/sv/?route=CPH-LHR_180-JFK&t=2026-11-20T10:00Z',
+  );
+  expect(parseLink(url.search, url.pathname).view).toMatchObject(view);
+  expect(parseLink('?lang=hu', '/globehops/sv/').view.lang).toBe('sv');
+  expect(buildLinkUrl('https://example.com/elsewhere/en/', stops, { lang: 'sv' })).toContain('/elsewhere/sv/');
+  const encoded = encodeItineraryParam({
+    version: 1,
+    stops: [{ airport: 'CPH' }, { airport: 'LHR' }, { airport: 'JFK' }],
+    view,
+  });
+  expect(parseLink(`?itinerary=${encoded}`).view).toMatchObject(view);
+  for (const invalid of ['lang=de', 'names=yes', 'borders=2', 'leg=0', 'leg=3', 'leg=1.5'])
+    expect(parseLink(`?route=CPH-LHR-JFK&${invalid}`).issues).toHaveLength(1);
+  expect(serializeLink(stops, { follow: false, dayNight: true, clock: 'local' }, true)).toContain(
+    'clock=local&daynight=1&follow=0',
+  );
+});

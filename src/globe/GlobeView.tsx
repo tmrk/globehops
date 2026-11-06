@@ -134,16 +134,14 @@ export default function GlobeView(props: GlobeViewProps) {
   }, [route]);
 
   useEffect(() => {
-    rendererRef.current?.setSelectedLeg(selectedLeg);
-  }, [selectedLeg]);
+    // Reconcile follow before framing so programmatic view updates never echo back as user input.
+    rendererRef.current?.setFollowAircraft(props.followAircraft);
+    rendererRef.current?.setSelectedLeg(selectedLeg, { frame: !props.followAircraft });
+  }, [selectedLeg, props.followAircraft]);
 
   useEffect(() => {
     if (fitNonce > 0) rendererRef.current?.frameCurrent(true);
   }, [fitNonce]);
-
-  useEffect(() => {
-    rendererRef.current?.setFollowAircraft(props.followAircraft);
-  }, [props.followAircraft]);
 
   useEffect(() => {
     const r = rendererRef.current;

@@ -133,13 +133,20 @@ export function resolveItinerary(ctx: AgentContext, raw: unknown) {
   if (
     clock !== undefined &&
     !['local', 'utc'].includes(clock.toLowerCase()) &&
-    !normalized.state?.stops?.some((s) => s.code === clock.toUpperCase())
+    !input.stops.some((s) => s.airport.id === findAirportByCode(ctx.index, clock.toUpperCase())?.id)
   )
     issues.push({
       code: 'invalid_clock',
       severity: 'error',
       message: `Clock "${clock}" must be "local", "utc" or an airport code from this route.`,
       path: '/view/clock',
+    });
+  if (normalized.state?.view.leg !== undefined && normalized.state.view.leg >= input.stops.length)
+    issues.push({
+      code: 'invalid_leg',
+      severity: 'error',
+      message: 'leg must be a one-based flight number within this route.',
+      path: '/view/leg',
     });
   return { input, issues, document: normalized.document, view: normalized.state?.view, stopPaths };
 }
@@ -199,19 +206,37 @@ export function planItinerary(ctx: AgentContext, raw: unknown, opts: PlanOptions
   let url: string | null = null,
     itineraryParamUrl: string | null = null;
   try {
-    url = buildLinkUrl(ctx.baseUrl, input.stops, view);
-    if (document) {
-      const alternative = new URL(ctx.baseUrl);
-      alternative.search = `?itinerary=${encodeItineraryParam(document)}`;
-      itineraryParamUrl = alternative.href;
-    } else if (input.stops.length) {
-      // Canonical stops and view are shared by both link forms.
-      const alternative = new URL(ctx.baseUrl);
-      alternative.search = `?itinerary=${encodeItineraryParam(linkStateToDocument(parseLink(new URL(url).search)))}`;
-      itineraryParamUrl = alternative.href;
+    const canonicalClock =
+      view?.clock && !['local', 'utc'].includes(view.clock)
+        ? input.stops.find(
+            (s) =>
+              s.airport.ident === view.clock ||
+              s.airport.icao === view.clock ||
+              s.airport.iata === view.clock ||
+              String(s.airport.id) === view.clock,
+          )?.airport
+        : undefined;
+    url = buildLinkUrl(
+      ctx.baseUrl,
+      input.stops,
+      canonicalClock ? { ...view, clock: airportCode(canonicalClock) } : view,
+      (['follow', 'dayNight', 'clock'] as const).filter((key) => document?.view?.[key] !== undefined),
+    );
+    if (document || input.stops.length) {
+      try {
+        const alternative = new URL(url);
+        alternative.search = `?itinerary=${encodeItineraryParam(document ?? linkStateToDocument(parseLink(new URL(url).search)))}`;
+        if (alternative.href.length > MAX_URL_LENGTH)
+          throw new RangeError('The itinerary-document link is too large to share.');
+        itineraryParamUrl = alternative.href;
+      } catch (error) {
+        issues.push({
+          code: 'document_link_too_large',
+          severity: 'warning',
+          message: `${error instanceof Error ? error.message : 'Cannot encode itinerary document.'} Use the readable url instead.`,
+        });
+      }
     }
-    if (url.length > MAX_URL_LENGTH || (itineraryParamUrl && itineraryParamUrl.length > MAX_URL_LENGTH))
-      throw new RangeError('This journey is too large to share.');
   } catch (error) {
     issues.push({
       code: 'link_too_large',

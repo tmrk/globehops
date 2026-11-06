@@ -14,6 +14,7 @@ interface I18n {
   t: Translate;
   fmt: ReturnType<typeof uiFormatters>;
   setLocale: (locale: Locale) => Promise<void>;
+  setVisitLocale: (locale: Locale) => Promise<void>;
 }
 const Context = createContext<I18n | null>(null);
 export function I18nProvider({
@@ -56,6 +57,7 @@ export function I18nProvider({
     setCurrent({ locale, messages });
   }, []);
   const setLocale = useCallback((locale: Locale) => switchLocale(locale, true), [switchLocale]);
+  const setVisitLocale = useCallback((locale: Locale) => switchLocale(locale, false), [switchLocale]);
   useEffect(() => {
     const onPop = () => {
       const { locale } = resolveLocale({
@@ -76,8 +78,8 @@ export function I18nProvider({
     [current.locale, t, cityNames],
   );
   const value = useMemo(
-    () => ({ locale: current.locale, cityNames, t, fmt, setLocale }),
-    [current.locale, cityNames, t, fmt, setLocale],
+    () => ({ locale: current.locale, cityNames, t, fmt, setLocale, setVisitLocale }),
+    [current.locale, cityNames, t, fmt, setLocale, setVisitLocale],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

@@ -76,11 +76,23 @@ const exampleSpecs: { title: string; description: string; itinerary: ItineraryDo
   },
   {
     title: 'Visualisation options',
-    description: 'Select simulation time, speed, clock, miles and shading.',
+    description: 'Swedish view with simulation time, speed, UTC clock, miles, labels, borders and selected flight.',
     itinerary: {
       version: 1,
       stops: [{ airport: 'CPH', departure: '2026-11-20T08:15' }, { airport: 'JFK' }],
-      view: { time: '2026-11-20T09:30Z', play: false, speed: 3600, clock: 'utc', units: 'mi', dayNight: false },
+      view: {
+        time: '2026-11-20T09:30Z',
+        play: false,
+        speed: 3600,
+        clock: 'utc',
+        units: 'mi',
+        dayNight: false,
+        lang: 'sv',
+        names: true,
+        borders: false,
+        leg: 1,
+        follow: true,
+      },
     },
   },
   {
@@ -110,6 +122,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
     homepage: DEFAULT_BASE_URL,
     urlTemplates: {
       simple: `${DEFAULT_BASE_URL}?route={route}`,
+      localized: `${DEFAULT_BASE_URL}{lang}/?route={route}`,
       scheduled: `${DEFAULT_BASE_URL}?route={route}&dep1={localDeparture}`,
       document: `${DEFAULT_BASE_URL}?itinerary={base64urlJson}`,
     },
@@ -159,6 +172,34 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         'Follow the aircraft with the camera; off by default. User camera input exits follow.',
       ),
       daynight: parameter('string', false, '0 or 1', ['0'], 'Day/night shading; on by default.'),
+      lang: parameter(
+        'string',
+        false,
+        'en|hu|sv',
+        ['en', 'hu', 'sv'],
+        'Language; generated URLs use locale paths /en/, /hu/, /sv/. Query lang is an alias on the unprefixed path. Explicit path takes precedence.',
+      ),
+      names: parameter(
+        'string',
+        false,
+        '0 or 1',
+        ['1'],
+        'Place-name labels for this visit; overrides saved preference.',
+      ),
+      borders: parameter(
+        'string',
+        false,
+        '0 or 1',
+        ['0'],
+        'Country borders for this visit; overrides saved preference.',
+      ),
+      leg: parameter(
+        'integer',
+        false,
+        '1-based flight number',
+        [1, 2],
+        'Frames the selected flight; must exist in the route. Does not change the simulation instant.',
+      ),
       itinerary: parameter(
         'string',
         false,
@@ -198,7 +239,19 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       notes:
         'Great circle on a sphere; no winds, airline schedules, aircraft type or actual flight tracking. Altitude is illustrative.',
     },
-    visualisationOptions: ['t', 'play', 'speed', 'clock', 'units', 'daynight', 'follow'],
+    visualisationOptions: [
+      't',
+      'play',
+      'speed',
+      'clock',
+      'units',
+      'daynight',
+      'follow',
+      'lang',
+      'names',
+      'borders',
+      'leg',
+    ],
     validation: {
       valid:
         'No error issues; warnings and info preserve validity. Structural validation precedes semantic resolution. Tolerant readable links keep usable values.',
@@ -212,8 +265,17 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         ['timeline_unavailable', 'No playable flight timeline.'],
         ['invalid_samples', 'Sample count or instant array exceeds bounds.'],
         ['invalid_instant', 'Requested instant malformed.'],
+        ['invalid_clock', 'Clock must identify local, utc or an airport in this route.'],
+        ['invalid_leg', 'Selected flight must exist in this route.'],
         ['link_too_large', 'Cannot encode within sharing limits.'],
       ].map(([code, meaning]) => ({ code, severity: 'error', meaning })),
+      warnings: [
+        {
+          code: 'document_link_too_large',
+          severity: 'warning',
+          meaning: 'The complete document URL exceeds limits; use the available readable URL.',
+        },
+      ],
       structuralCodes: ['type', 'const', 'items', 'pattern', 'range', 'position', 'enum', 'additionalProperties'],
     },
     versioning:
@@ -231,9 +293,23 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       prerequisites: 'Node >=22.18; npm ci in the checkout.',
       baseUrlEnvironment: 'GLOBEHOPS_BASE_URL',
       tools: ['search_airports', 'calculate_route', 'validate_itinerary', 'visualize_route', 'get_journey_timeline'],
+      resources: [
+        'globehops://agent/capabilities.json',
+        'globehops://agent/itinerary.schema.json',
+        'globehops://agent/examples.json',
+        'globehops://agent/usage',
+      ],
+      prompts: ['plan_and_visualize'],
       documentation: 'https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md',
       remoteEndpoint: null,
     },
+    webMcp: {
+      experimental: true,
+      api: 'document.modelContext (AbortSignal cleanup), legacy navigator.modelContext registerTool/unregisterTool or provideContext',
+      tools: ['get_journey', 'set_route', 'set_view', 'select_flight', 'get_share_link'],
+      network: false,
+    },
+    locales: ['en', 'hu', 'sv'],
     licences: {
       code: 'MIT',
       airports: 'Public domain (OurAirports)',

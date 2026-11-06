@@ -29,7 +29,9 @@ describe('committed agent discovery', () => {
     expect(validate(example.itinerary), JSON.stringify(validate.errors)).toBe(true);
     expect(example.expected.valid).toBe(true);
     const expected = documentToLinkState(example.itinerary);
-    expect(parseLink(new URL(example.url).search)).toEqual(expected);
-    expect(parseLink(new URL(example.itineraryParamUrl).search)).toEqual(expected);
+    expect(parseLink(new URL(example.url).search, new URL(example.url).pathname)).toEqual(expected);
+    expect(parseLink(new URL(example.itineraryParamUrl).search, new URL(example.itineraryParamUrl).pathname)).toEqual(
+      expected,
+    );
   });
 });

@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { searchAirports, planItinerary, timelineAt, validateItinerary, type AgentContext } from '../src/agent/plan.ts';
-import { decodeItineraryParam } from '../src/agent/itinerary.ts';
+import { linkStateToDocument, type ItineraryDocument } from '../src/agent/itinerary.ts';
+import { parseLink } from '../src/state/link.ts';
 import { ITINERARY_SCHEMA } from '../src/agent/schema.ts';
 
 // Derive the MCP document description and validation directly from the published schema.
@@ -60,12 +61,13 @@ export type ToolName = keyof typeof INPUT_SCHEMAS;
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   search_airports: 'Find airports using GlobeHops ranking, with coordinates and IANA time zones.',
   calculate_route:
-    'Calculate the shared GlobeHops journey model, distances, entered/estimated times, canonical links and validation issues. Estimates are not schedules.',
+    'Calculate 1–10 airport stops, great-circle distances in km/mi, durations in minutes, airport-local and UTC times, canonical links and issues. Flight estimates (850 km/h + 30 min) are not airline schedules.',
   validate_itinerary:
     'Validate document structure, airports, local time-zone offsets and chronology using the same model as the app. Warnings remain valid.',
-  visualize_route: 'Return a link opening the full interactive GlobeHops globe with this journey and view options.',
+  visualize_route:
+    'Return readable and itinerary-document globe URLs, a humanSummary and totals. Use 1–10 airport stops; departures/arrivals are airport-local wall times; view.time is an absolute ISO instant. lang chooses en/hu/sv paths; leg is a one-based flight.',
   get_journey_timeline:
-    'Sample journey state, estimated great-circle position, illustrative altitude and daylight. Undated routes require assumeDeparture.',
+    'Sample 2–1000 instants (or up to 1000 explicit ISO instants with offsets): state, latitude/longitude in degrees, illustrative altitude in km and daylight. Undated routes require assumeDeparture; a single stop has no timeline.',
 };
 function result(value: Record<string, unknown>, isError = false): CallToolResult {
   return {
@@ -101,15 +103,28 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
     if (name === 'visualize_route') {
       const visual = INPUT_SCHEMAS.visualize_route.parse(raw);
       if (visual.view !== undefined) {
-        const initial = planItinerary(ctx, input);
-        if (!initial.valid || !initial.itineraryParamUrl) return result(initial, true);
-        const decoded = decodeItineraryParam(new URL(initial.itineraryParamUrl).searchParams.get('itinerary')!);
-        if (!decoded.ok) throw new Error('Cannot construct visualisation document.');
-        input = { ...decoded.doc, view: { ...decoded.doc.view, ...(visual.view as object) } };
+        const initial =
+          args.itinerary !== undefined
+            ? (args.itinerary as ItineraryDocument)
+            : linkStateToDocument(parseLink(`?route=${encodeURIComponent(args.route ?? '')}`));
+        input = {
+          ...initial,
+          view: { ...(args.itinerary !== undefined ? initial.view : {}), ...(visual.view as object) },
+        };
+        // Keep tolerant route diagnostics when converting to a strict document.
+        if (args.route !== undefined) {
+          const parsed = parseLink(`?route=${encodeURIComponent(args.route)}`);
+          if (parsed.issues.length) return result({ error: 'Invalid route', issues: parsed.issues }, true);
+        }
       }
       const plan = planItinerary(ctx, input);
       return result(
-        { url: plan.url, summary: { totals: plan.totals, issues: plan.issues, valid: plan.valid } },
+        {
+          url: plan.url,
+          itineraryParamUrl: plan.itineraryParamUrl,
+          humanSummary: `${plan.stops.map((s) => s.code).join(' → ') || 'Empty route'} · ${plan.totals.flights} flights · ${plan.totals.distanceKm} km · ${plan.totals.journeyMinutes} min (${plan.totals.provenance}).`,
+          summary: { totals: plan.totals, issues: plan.issues, valid: plan.valid },
+        },
         !plan.valid,
       );
     }
@@ -211,6 +226,8 @@ const OUTPUT_SCHEMAS = {
   validate_itinerary: z.object({ valid: z.boolean(), issues: issuesOutput }),
   visualize_route: z.object({
     url: z.string().nullable(),
+    itineraryParamUrl: z.string().nullable(),
+    humanSummary: z.string(),
     summary: z.object({ valid: z.boolean(), issues: issuesOutput, totals: totalsOutput }),
   }),
   get_journey_timeline: z.object({

@@ -1,3 +1,5 @@
+import { isLocale, type Locale } from '../i18n/locales.ts';
+import { localizedPath, localeFromPath } from '../i18n/detect.ts';
 import type { Airport, DistanceUnit, LocalTimeInput } from '../types.ts';
 import type { PlaybackSpeed } from './clock.ts';
 import { PLAYBACK_SPEEDS, MAX_URL_LENGTH, MAX_STOPS, LINK_PARAMS as P } from '../agent/contract.ts';
@@ -24,13 +26,19 @@ export interface LinkView {
   units: DistanceUnit | null;
   dayNight: boolean;
   follow: boolean;
+  lang?: Locale;
+  names?: boolean;
+  borders?: boolean;
+  /** One-based flight number. */
+  leg?: number;
 }
 export interface LinkState {
   stops: LinkStop[] | null;
   view: LinkView;
   issues: string[];
 }
-export function parseLink(search: string): LinkState {
+export function parseLink(search: string, pathname?: string, base = '/globehops/'): LinkState {
+  const pathLocale = pathname ? localeFromPath(pathname, base) : null;
   const state: LinkState = {
     stops: null,
     view: { time: null, play: false, speed: 'auto', clock: 'local', units: null, dayNight: true, follow: false },
@@ -46,7 +54,11 @@ export function parseLink(search: string): LinkState {
   const itinerary = params.get(P.itinerary);
   if (itinerary !== undefined) {
     const result = decodeItineraryParam(itinerary);
-    if (result.ok) return documentToLinkState(result.doc);
+    if (result.ok) {
+      const parsed = documentToLinkState(result.doc);
+      if (pathLocale) parsed.view.lang = pathLocale;
+      return parsed;
+    }
     state.issues.push(...result.issues.map((i) => `${i.path || 'Itinerary'}: ${i.message}`));
   }
   const tokens = parseRouteParam(search);
@@ -102,6 +114,15 @@ export function parseLink(search: string): LinkState {
       if (value.toLowerCase() === 'km' || value.toLowerCase() === 'mi')
         state.view.units = value.toLowerCase() as DistanceUnit;
       else invalid(key);
+    } else if (key === P.lang) {
+      if (isLocale(value)) state.view.lang = value;
+      else invalid(key);
+    } else if (key === P.names || key === P.borders) {
+      if (value === '0' || value === '1') state.view[key] = value === '1';
+      else invalid(key);
+    } else if (key === P.leg) {
+      if (/^[1-9]$/.test(value) && (!state.stops || +value < state.stops.length)) state.view.leg = +value;
+      else invalid(key);
     } else if (key === P.follow) {
       if (value === '0' || value === '1') state.view.follow = value === '1';
       else invalid(key);
@@ -110,6 +131,7 @@ export function parseLink(search: string): LinkState {
       else invalid(key);
     }
   }
+  if (pathLocale) state.view.lang = pathLocale;
   return state;
 }
 export interface SerializableLinkStop {
@@ -118,7 +140,15 @@ export interface SerializableLinkStop {
   arrival: LocalTimeInput | null;
   departure: LocalTimeInput | null;
 }
-export function serializeLink(stops: SerializableLinkStop[], view: Partial<LinkView> = {}): string {
+export type LinkDefaultKey = 'follow' | 'dayNight' | 'clock';
+
+export function serializeLink(
+  stops: SerializableLinkStop[],
+  view: Partial<LinkView> = {},
+  explicitDefaults: boolean | readonly LinkDefaultKey[] = false,
+): string {
+  const includeDefault = (key: LinkDefaultKey) =>
+    explicitDefaults === true || (Array.isArray(explicitDefaults) && explicitDefaults.includes(key));
   const list = stops.slice(0, MAX_STOPS);
   const params: [string, string][] = [];
   const route = routeTokens(list).join('-');
@@ -130,19 +160,34 @@ export function serializeLink(stops: SerializableLinkStop[], view: Partial<LinkV
   if (view.time != null) params.push([P.time, formatIsoInstant(view.time)]);
   if (view.play) params.push([P.play, '1']);
   if (view.speed !== undefined && view.speed !== 'auto') params.push([P.speed, String(view.speed)]);
-  if (view.clock && view.clock !== 'local') params.push([P.clock, view.clock]);
+  if (view.clock && (view.clock !== 'local' || includeDefault('clock'))) params.push([P.clock, view.clock]);
   if (view.units) params.push([P.units, view.units]);
-  if (view.dayNight === false) params.push([P.dayNight, '0']);
-  if (view.follow) params.push([P.follow, '1']);
+  if (view.dayNight === false || (includeDefault('dayNight') && view.dayNight !== undefined))
+    params.push([P.dayNight, view.dayNight ? '1' : '0']);
+  if (view.follow || (includeDefault('follow') && view.follow !== undefined))
+    params.push([P.follow, view.follow ? '1' : '0']);
+  if (view.lang) params.push([P.lang, view.lang]);
+  if (view.names !== undefined) params.push([P.names, view.names ? '1' : '0']);
+  if (view.borders !== undefined) params.push([P.borders, view.borders ? '1' : '0']);
+  if (view.leg !== undefined) params.push([P.leg, String(view.leg)]);
   const query = params.length
     ? `?${params.map(([key, value]) => `${key}=${encodeURIComponent(value).replace(/%3A/gi, ':')}`).join('&')}`
     : '';
   if (query.length > MAX_URL_LENGTH) throw new RangeError('This journey is too large to share.');
   return query;
 }
-export function buildLinkUrl(base: string, stops: SerializableLinkStop[], view: Partial<LinkView> = {}): string {
+export function buildLinkUrl(
+  base: string,
+  stops: SerializableLinkStop[],
+  view: Partial<LinkView> = {},
+  explicitDefaults: boolean | readonly LinkDefaultKey[] = false,
+): string {
   const url = new URL(base);
-  url.search = serializeLink(stops, view);
+  url.search = serializeLink(stops, { ...view, lang: undefined }, explicitDefaults);
+  if (view.lang) {
+    const basePath = url.pathname.replace(/\/(?:en|hu|sv)\/?$/, '/');
+    url.pathname = localizedPath(basePath, view.lang);
+  }
   const result = url.toString();
   if (result.length > MAX_URL_LENGTH) throw new RangeError('This journey is too large to share.');
   return result;

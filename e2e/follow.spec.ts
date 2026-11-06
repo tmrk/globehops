@@ -149,7 +149,7 @@ test('Follow aircraft reduced motion pages between positions and remembers links
   await page.screenshot({ path: info.outputPath('follow-reduced.png') });
   await page.reload();
   await expect(followButton(page)).toHaveAttribute('aria-pressed', 'true');
-  expect(await page.evaluate(() => localStorage.getItem('globehops:lastJourney'))).toContain('follow=1');
+  expect(await page.evaluate(() => localStorage.getItem('globehops:lastJourney'))).not.toContain('follow=');
   await globe(page).press('ArrowRight');
   await expect(followButton(page)).toHaveAttribute('aria-pressed', 'false');
   await followButton(page).click();

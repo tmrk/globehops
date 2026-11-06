@@ -35,9 +35,13 @@ The guide is at the project path `/globehops/llms.txt`, not the domain-root `/ll
 | `units`        | Distance display override                                              | `km`, `mi`                     |
 | `follow`       | Aircraft camera; off by default, user camera input exits               | `1` to enable                  |
 | `daynight`     | Day/night shading, enabled by default                                  | `0` to disable                 |
+| `lang`         | `en`, `hu`, `sv`; generated links use `/en/`, `/hu/`, `/sv/` paths     | `lang=hu` alias on root path   |
+| `names`        | Place-name labels for this visit                                       | `1` on, `0` off                |
+| `borders`      | Country borders for this visit                                         | `0` off, `1` on                |
+| `leg`          | One-based selected flight; frames that flight without seeking time     | `2`                            |
 | `itinerary`    | Alternative complete base64url UTF-8 JSON document                     | See examples file              |
 
-The itinerary parameter takes precedence over readable parameters. URL input takes precedence over remembered browser state; absent both, the app opens an example. Explicit `?route=` clears the route. Canonical empty links omit `route`.
+The itinerary parameter takes precedence over readable parameters. An explicit locale path takes precedence over `lang`; otherwise document `view.lang` or the `?lang=` alias selects the language. `buildLinkUrl` and MCP generate locale paths, for example `/globehops/hu/?route=CPH-JFK&names=1&borders=0&leg=1`. Link and browser-tool view overrides do not save user preferences; later manual control changes may save them. When `follow` and `leg` are both supplied, the flight is selected while the aircraft camera takes priority; `select_flight` exits follow to frame its flight. URL input takes precedence over remembered browser state; absent both, the app opens an example. Explicit `?route=` clears the route. Canonical empty links omit `route`.
 
 Unknown parameters are ignored. Readable parsing is tolerant: malformed values produce issues while usable values survive; parameter names are case-insensitive. Unknown airports are reported and skipped. Agent calculations mark unknown-airport issues as errors even though they return the surviving route. Warnings do not make an itinerary invalid.
 
@@ -61,7 +65,7 @@ Instants (`t`, timeline `at`, `assumeDeparture`) use ISO date/time with `Z` or `
 }
 ```
 
-Validate with the [draft 2020-12 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json). `version` and `stops` are required. Each stop requires `airport`; optional fields are `arrival`, `departure`, `layoverMinutes`. Layovers are integers 0–10080 and apply only to transfer stops. All view fields are optional: `time`, `play` (boolean), `speed` (`"auto"` or numeric 1800/3600/7200), `clock`, `units`, `dayNight` (boolean), `follow` (boolean, default false). Unknown properties are rejected at every level; a top-level string `$schema` is allowed.
+Validate with the [draft 2020-12 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json). `version` and `stops` are required. Each stop requires `airport`; optional fields are `arrival`, `departure`, `layoverMinutes`. Layovers are integers 0–10080 and apply only to transfer stops. All view fields are optional: `time`, `play` (boolean), `speed` (`"auto"` or numeric 1800/3600/7200), `clock`, `units`, `dayNight` (boolean), `follow` (boolean, default false), `lang` (`en`/`hu`/`sv`), `names` and `borders` (booleans), `leg` (integer 1–9, must identify a flight in this route). Unknown properties are rejected at every level; a top-level string `$schema` is allowed.
 
 Encode compact JSON as base64url UTF-8 without padding, then append `?itinerary=<encoded>`. JSON documents must contain 1–10 stops; one stop shows a single airport. Do not encode private information into links you share.
 
@@ -259,6 +263,8 @@ The full response also echoes input, includes canonical `url` and `itineraryPara
 }
 ```
 
+`visualize_route` additionally returns `itineraryParamUrl` (the complete document link) and a one-line `humanSummary`. The existing structured `summary` is preserved. Both links are available when within sharing limits. If only the document URL exceeds the limit, `itineraryParamUrl` is null with a `document_link_too_large` warning; the readable URL remains usable and the plan remains valid.
+
 `get_journey_timeline`:
 
 ```json
@@ -289,6 +295,26 @@ The response contains three instants, including departure and arrival. Its middl
 ```
 
 Phases are `before`, `flight`, `transfer`, `after`. Ground states include `stopCode`; in-flight states include `distanceFraction` and illustrative altitude. For dated journeys use `at`, for example `["2026-11-20T09:30Z"]`, to request particular instants. Generated sample instants include the final arrival, whose phase is `after`.
+
+## MCP resources and prompt
+
+`resources/list` exposes `globehops://agent/capabilities.json`, `globehops://agent/itinerary.schema.json`, `globehops://agent/examples.json` and `globehops://agent/usage`. Read them with `resources/read`; they are module-relative local files, with no network request. Generated resource contents match static discovery. `prompts/get` with name `plan_and_visualize` and a string `journey` argument gives concise instructions to search places, validate local times and produce a clickable visualisation link.
+
+## Experimental in-page browser tools (WebMCP)
+
+When supported, the live app registers `get_journey`, `set_route`, `set_view`, `select_flight` and `get_share_link` once its airport and time-zone loading has settled. All execution is local; these tools introduce no network service or data transmission. With no supported API, the normal accessible UI remains available. Tool descriptions and JSON input schemas are discoverable through the browser's model-context API; errors return `isError: true` and a text block containing JSON with an actionable `error`.
+
+| Tool             | Arguments and result                                                                                                                                                                                                                                                                                                                                            |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_journey`    | `{}` → stops, legs, transfers, km/mi totals, airport-local and UTC times, validation issues, current `view` and `url`. View time is read from the live simulation clock, even during playback.                                                                                                                                                                  |
+| `set_route`      | Exactly one of `{route: "CPH-LHR_180-JFK"}` or `{itinerary: <v1 document>}`. Uses shared parsing and semantic checks; errors leave the journey unchanged. Empty route clears it. Returns `applied` and issues.                                                                                                                                                  |
+| `set_view`       | A partial object: `t` (absolute ISO instant), `play`, `speed`, `clock`, `units`, `dayNight`, `follow`, `names`, `borders`, `lang`, `leg`. Uses `t` here, versus `view.time` in documents. Only supplied fields change. Explicit `play: true` may start playback with reduced motion enabled, like the Play button; link autoplay still respects reduced motion. |
+| `select_flight`  | `{leg: 1}` uses a one-based flight number; `{leg: null}` restores the overview. Frames without seeking the clock and exits follow.                                                                                                                                                                                                                              |
+| `get_share_link` | `{}` → `{url}` with the open timeline’s instant and play state, locale path and view; a live globe remains live. Does not write playback frames to browser history. Explicit empty route is retained.                                                                                                                                                           |
+
+Registration supports the current draft's `document.modelContext.registerTool(tool, {signal})` and the requested legacy `navigator.modelContext.registerTool`/`unregisterTool` or `provideContext` shape. Cleanup aborts modern registrations or unregisters legacy tools when the app unmounts, including partial-registration failures. The `provideContext` fallback owns and replaces the page's tool context. This API is experimental and may change; see the [WebMCP specification](https://webmachinelearning.github.io/webmcp/) and [original proposal](https://webmachinelearning.github.io/webmcp/docs/proposal.html).
+
+Browser agents using the DOM can use named buttons, airport comboboxes, flight buttons, the journey list and the timeline slider. Names are localised in English, Hungarian and Swedish; native layover selects also have the combobox role, so select airport inputs by accessible name rather than by role alone. `get_journey` is the locale-independent state interface.
 
 ## Why there is no remote MCP endpoint
 

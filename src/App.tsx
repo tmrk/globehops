@@ -1,5 +1,9 @@
+import { useWebTools } from './hooks/useWebTools.ts';
+import { parseWebCommand } from './agent/webTools.ts';
+import { createAgentContext, planItinerary } from './agent/plan.ts';
+import { linkStateToDocument, decodeItineraryParam } from './agent/itinerary.ts';
 import { useI18n } from './i18n/I18nProvider.tsx';
-import { localizedPath } from './i18n/detect.ts';
+import { localizedPath, localeFromPath } from './i18n/detect.ts';
 import {
   lazy,
   Suspense,
@@ -35,7 +39,14 @@ import { buildTimeline, journeyStateAt } from './lib/timeline.ts';
 import { SimulationClock } from './state/clock.ts';
 import { createSimulationFeed, type SimulationContext } from './state/simulation.ts';
 import { useClockPhase } from './hooks/useClock.ts';
-import { parseLink, serializeLink, type LinkState, type LinkView, type SerializableLinkStop } from './state/link.ts';
+import {
+  parseLink,
+  serializeLink,
+  type LinkState,
+  type LinkView,
+  type LinkDefaultKey,
+  type SerializableLinkStop,
+} from './state/link.ts';
 import airportsUrl from './data/generated/airports.json?url';
 import { airportCode, displayCode, loadAirports, type AirportDataset } from './data/airports.ts';
 import { localizedCity } from './data/placeNames.ts';
@@ -87,7 +98,7 @@ function defaultUnit(): DistanceUnit {
 }
 
 export default function App() {
-  const { t, fmt, locale, cityNames } = useI18n();
+  const { t, fmt, locale, cityNames, setVisitLocale } = useI18n();
 
   // Side panel on wide screens and landscape tablets; bottom sheet on phones and portrait tablets.
   const isDesktop = useMediaQuery('(min-width: 1000px), (min-width: 760px) and (orientation: landscape)');
@@ -113,9 +124,11 @@ export default function App() {
   const [timeOpen, setTimeOpen] = useState(false);
   const [assumedStart, setAssumedStart] = useState<number | null>(null);
   const [followAircraft, setFollowAircraft] = useState(() => loadFollowAircraft() ?? false);
-  useEffect(() => saveFollowAircraft(followAircraft), [followAircraft]);
+
   const [dayNight, setDayNight] = useState(() => loadDayNight() ?? true);
   const [clockZone, setClockZone] = useState<string>(() => loadClockZone() ?? 'local');
+  const [linkLayers, setLinkLayers] = useState<Pick<LinkView, 'names' | 'borders'>>({});
+  const [explicitDefaults, setExplicitDefaults] = useState<LinkDefaultKey[]>([]);
   const [linkUnits, setLinkUnits] = useState<DistanceUnit | null>(null);
   const [linkedTime, setLinkedTime] = useState<number | null>(null);
   const [pausedTime, setPausedTime] = useState<number | null>(null);
@@ -140,6 +153,10 @@ export default function App() {
   }, [baseIndex, cityNames, locale]);
   const [dataError, setDataError] = useState(false);
   const [route, dispatch] = useReducer(routeReducer, undefined, () => createRouteState());
+  const routeStopCount = useRef(0);
+  useLayoutEffect(() => {
+    routeStopCount.current = route.stops.filter((stop) => stop.airportId !== null).length;
+  }, [route.stops]);
   const [unit, setUnit] = useState<DistanceUnit>(() => loadUnit() ?? defaultUnit());
   const [showCountryNames, setShowCountryNames] = useState(() => loadCountryNames() ?? false);
   const [showBorders, setShowBorders] = useState(() => loadBorders() ?? true);
@@ -176,6 +193,7 @@ export default function App() {
   const loadCodes = useCallback(
     (codes: string[], idx: SearchIndex, opts: { example?: boolean } = {}) => {
       const { stops, missing } = resolveRouteCodes(codes, idx);
+      routeStopCount.current = stops.length;
       dispatch({
         type: 'load',
         airportIds: stops.map((s) => s.airport.id),
@@ -195,6 +213,7 @@ export default function App() {
 
   const applyLink = useCallback(
     (link: LinkState, idx: SearchIndex, search: string) => {
+      let stopCount = routeStopCount.current;
       const notices = locale === 'en' ? [...link.issues] : link.issues.length ? [t('errors.invalidLink')] : [];
       if (link.stops !== null) {
         const missing: string[] = [];
@@ -206,6 +225,7 @@ export default function App() {
           }
           return [{ ...stop, airport: result.stops[0].airport }];
         });
+        stopCount = routeStopCount.current = resolved.length;
         dispatch({
           type: 'load',
           airportIds: resolved.map((s) => s.airport.id),
@@ -221,12 +241,42 @@ export default function App() {
               : t('toasts.unknownAirports', missing.join(', ')),
           );
       }
+      if (link.view.leg !== undefined) {
+        if (link.view.leg < stopCount) dispatch({ type: 'selectLeg', leg: link.view.leg - 1 });
+        else
+          notices.push(
+            locale === 'en'
+              ? `Flight ${link.view.leg} is outside this route; use 1 to ${Math.max(0, stopCount - 1)}.`
+              : t('errors.invalidLink'),
+          );
+      }
       if (notices.length) showToast(notices.join(' '));
+      const targetLocale = localeFromPath(window.location.pathname, import.meta.env.BASE_URL) ?? link.view.lang;
+      if (targetLocale) {
+        void setVisitLocale(targetLocale);
+        const address = new URL(window.location.href);
+        address.pathname = localizedPath(import.meta.env.BASE_URL, targetLocale);
+        address.searchParams.delete('lang');
+        replaceUrl(address.href);
+      }
       const params = new URLSearchParams(search.toLowerCase());
-      const itinerary = params.has('itinerary');
-      setFollowAircraft(params.has('follow') || itinerary ? link.view.follow : (loadFollowAircraft() ?? false));
-      setDayNight(params.has('daynight') || itinerary ? link.view.dayNight : (loadDayNight() ?? true));
-      setClockZone(params.has('clock') || itinerary ? link.view.clock : (loadClockZone() ?? 'local'));
+      const encoded = [...new URLSearchParams(search)].find(([key]) => key.toLowerCase() === 'itinerary')?.[1];
+      const decoded = encoded ? decodeItineraryParam(encoded) : null;
+      const documentView = decoded?.ok ? decoded.doc.view : undefined;
+      const hasView = (key: 'follow' | 'dayNight' | 'clock') =>
+        params.has(key.toLowerCase()) || documentView?.[key] !== undefined;
+      setExplicitDefaults((['follow', 'dayNight', 'clock'] as const).filter(hasView));
+      setShowCountryNames(link.view.names ?? loadCountryNames() ?? false);
+      setShowBorders(link.view.borders ?? loadBorders() ?? true);
+      setLinkLayers({ names: link.view.names, borders: link.view.borders });
+      setFollowAircraft(hasView('follow') ? link.view.follow : (loadFollowAircraft() ?? false));
+      setDayNight(hasView('dayNight') ? link.view.dayNight : (loadDayNight() ?? true));
+      const linkedClock = !['local', 'utc'].includes(link.view.clock)
+        ? resolveRouteCodes([link.view.clock], idx).stops[0]?.airport
+        : undefined;
+      setClockZone(
+        hasView('clock') ? (linkedClock ? airportCode(linkedClock) : link.view.clock) : (loadClockZone() ?? 'local'),
+      );
       setUnit(link.view.units ?? loadUnit() ?? defaultUnit());
       setLinkUnits(link.view.units);
       const open = !!(link.view.time !== null || link.view.play || link.stops?.some((s) => s.arrival || s.departure));
@@ -247,7 +297,7 @@ export default function App() {
       pendingExplicitPlay.current = false;
       if (!open) clock.goLive();
     },
-    [clock, showToast, t, locale],
+    [clock, showToast, t, locale, setVisitLocale],
   );
 
   const zoneLoadError = useEffectEvent(() => showToast(t('toasts.zonesUnavailable')));
@@ -415,15 +465,37 @@ export default function App() {
   // ---- Persist readable links and schedule, preserving mobile picker history ----
   const query = useMemo(
     () =>
-      serializeLink(filledStops, {
-        time: timeOpen && !playing ? pausedTime : null,
-        speed,
-        clock: clockZone,
-        units: linkUnits,
-        dayNight,
-        follow: followAircraft,
-      }),
-    [filledStops, timeOpen, playing, pausedTime, speed, clockZone, linkUnits, dayNight, followAircraft],
+      serializeLink(
+        filledStops,
+        {
+          time: timeOpen && !playing ? pausedTime : null,
+          speed,
+          clock: clockZone,
+          units: linkUnits,
+          dayNight,
+          follow: followAircraft,
+          names: linkLayers.names !== undefined ? showCountryNames : undefined,
+          borders: linkLayers.borders !== undefined ? showBorders : undefined,
+          leg: route.selectedLeg !== null ? route.selectedLeg + 1 : undefined,
+        },
+        explicitDefaults,
+      ),
+    [
+      filledStops,
+      timeOpen,
+      playing,
+      pausedTime,
+      speed,
+      clockZone,
+      linkUnits,
+      dayNight,
+      followAircraft,
+      linkLayers,
+      showCountryNames,
+      showBorders,
+      route.selectedLeg,
+      explicitDefaults,
+    ],
   );
   const shareUrl = window.location.origin + localizedPath(import.meta.env.BASE_URL, null) + query;
   const addressUrl = window.location.origin + window.location.pathname + query;
@@ -431,11 +503,169 @@ export default function App() {
     shareUrlRef.current = addressUrl;
     if (!initialized) return;
     if (addressUrl !== window.location.href) replaceUrl(addressUrl);
-    saveLastJourney(serializeLink(filledStops, { speed, clock: clockZone, dayNight, follow: followAircraft }));
+    saveLastJourney(serializeLink(filledStops, { speed }));
     document.title = filledStops.length
       ? t('panel.routeTitle', filledStops.map((s) => airportCode(s.airport)).join(' → '))
       : t('common.documentTitle');
   }, [addressUrl, filledStops, initialized, speed, clockZone, dayNight, followAircraft, locale, t]);
+
+  const getAgentContext = useMemo(() => {
+    let cached: ReturnType<typeof createAgentContext> | null = null;
+    return () =>
+      (cached ??= dataset
+        ? createAgentContext({
+            airports: dataset,
+            timezones: zones,
+            baseUrl: window.location.origin + import.meta.env.BASE_URL,
+          })
+        : null);
+  }, [dataset, zones]);
+  useWebTools(initialized && zonesLoaded && !!dataset, async (name, args) => {
+    const command = parseWebCommand(name, args, journey.legs.length);
+    const snapshot = clock.getSnapshot();
+    const currentView: LinkView = {
+      time: timeOpen ? snapshot.time : null,
+      play: snapshot.playing,
+      speed: snapshot.speed,
+      clock: clockZone,
+      units: unit,
+      dayNight,
+      follow: followAircraft,
+      names: showCountryNames,
+      borders: showBorders,
+      lang: locale,
+      ...(route.selectedLeg !== null ? { leg: route.selectedLeg + 1 } : {}),
+    };
+    const currentLink = () => {
+      const url = new URL(localizedPath(import.meta.env.BASE_URL, locale), window.location.origin);
+      url.search = serializeLink(filledStops, { ...currentView, lang: undefined }, true);
+      // An explicit empty route must not reload the remembered journey.
+      if (!filledStops.length) url.searchParams.set('route', '');
+      return url.href;
+    };
+    if (command.type === 'get_share_link') return { url: currentLink() };
+    if (command.type === 'get_journey') {
+      const doc = linkStateToDocument(parseLink(serializeLink(filledStops, currentView)));
+      const plan = planItinerary(
+        getAgentContext()!,
+        doc,
+        !journey.dated && timeOpen ? { assumeDeparture: new Date(assumedStart ?? snapshot.time).toISOString() } : {},
+      );
+      return {
+        contractVersion: plan.contractVersion,
+        stops: plan.stops,
+        legs: plan.legs,
+        transfers: plan.transfers,
+        totals: plan.totals,
+        issues: plan.issues,
+        valid: plan.valid,
+        view: {
+          ...currentView,
+          time: new Date(snapshot.time).toISOString(),
+          live: snapshot.live,
+          leg: currentView.leg ?? null,
+        },
+        url: currentLink(),
+      };
+    }
+    if (command.type === 'select_flight') {
+      flushSync(() => {
+        setFollowAircraft(false);
+        dispatch({ type: 'selectLeg', leg: command.leg === null ? null : command.leg - 1 });
+      });
+      return { applied: true, leg: command.leg };
+    }
+    if (command.type === 'set_route') {
+      const plan = command.link.stops?.length
+        ? planItinerary(getAgentContext()!, linkStateToDocument(command.link))
+        : null;
+      if (plan && !plan.valid)
+        throw new TypeError(
+          plan.issues
+            .filter((i) => i.severity === 'error')
+            .map((i) => `${i.path ?? i.code}: ${i.message}`)
+            .join(' '),
+        );
+      if (command.link.view.lang) {
+        const address = new URL(window.location.href);
+        address.pathname = localizedPath(import.meta.env.BASE_URL, command.link.view.lang);
+        replaceUrl(address.href);
+      }
+      flushSync(() => applyLink(command.link, index!, command.search));
+      if (command.link.view.lang) await setVisitLocale(command.link.view.lang);
+      return { applied: true, issues: plan?.issues ?? [] };
+    }
+    if (
+      command.view.clock &&
+      !['local', 'utc'].includes(command.view.clock) &&
+      !filledStops.some((s) => airportCode(s.airport) === command.view.clock)
+    )
+      throw new TypeError('clock must name an airport in this route, local or utc.');
+    if (command.view.play && (!journey.legs.length || journey.issues.some((issue) => issue.severity === 'error')))
+      throw new TypeError('Playback requires at least one flight and a valid schedule.');
+    const patch = command.view;
+    flushSync(() => {
+      if (patch.follow !== undefined) setFollowAircraft(patch.follow);
+      if (patch.dayNight !== undefined) setDayNight(patch.dayNight);
+      if (patch.names !== undefined) {
+        setShowCountryNames(patch.names);
+        setLinkLayers((previous) => ({ ...previous, names: patch.names }));
+      }
+      if (patch.borders !== undefined) {
+        setShowBorders(patch.borders);
+        setLinkLayers((previous) => ({ ...previous, borders: patch.borders }));
+      }
+      if (patch.units !== undefined && patch.units !== null) {
+        setUnit(patch.units);
+        setLinkUnits(patch.units);
+      }
+      if (patch.clock !== undefined) setClockZone(patch.clock);
+      if (patch.speed !== undefined) clock.setSpeed(patch.speed);
+      if (patch.leg !== undefined) {
+        if (patch.follow === undefined) setFollowAircraft(false);
+        dispatch({ type: 'selectLeg', leg: patch.leg - 1 });
+      }
+      setExplicitDefaults((previous) => [
+        ...new Set([
+          ...previous,
+          ...(['follow', 'dayNight', 'clock'] as const).filter((key) => patch[key] !== undefined),
+        ]),
+      ]);
+      if (patch.time !== undefined || patch.play !== undefined) {
+        if (!timeOpen) {
+          setAssumedStart(patch.time ?? Date.now());
+          setTimeOpen(true);
+        }
+        if (patch.time !== undefined) {
+          setLinkedTime(patch.time);
+          setPausedTime(patch.time);
+        }
+        pendingView.current = { ...currentView, ...patch };
+        pendingExplicitPlay.current = patch.play === true;
+        if (patch.play === false) clock.pause();
+        // A view patch can leave the timeline unchanged, so apply it directly when already open.
+        if (timeOpen) {
+          pendingView.current = null;
+          if (patch.time !== undefined && patch.time !== null) {
+            clock.setRange(
+              Math.min(timeline?.start ?? Infinity, patch.time),
+              Math.max(timeline?.end ?? -Infinity, patch.time),
+            );
+            clock.seek(patch.time);
+          }
+          if (patch.play) clock.play();
+        }
+      }
+    });
+    if (patch.lang) {
+      const address = new URL(window.location.href);
+      address.pathname = localizedPath(import.meta.env.BASE_URL, patch.lang);
+      address.searchParams.delete('lang');
+      replaceUrl(address.href);
+      await setVisitLocale(patch.lang);
+    }
+    return { applied: true };
+  });
 
   // ---- Globe data ----
   const globeRoute = useMemo<GlobeRoute>(() => {
@@ -581,6 +811,11 @@ export default function App() {
     }
   };
 
+  const changeFollowAircraft = (on: boolean) => {
+    setFollowAircraft(on);
+    saveFollowAircraft(on);
+  };
+
   const changeUnit = (u: DistanceUnit) => {
     setUnit(u);
     if (linkUnits !== null) setLinkUnits(u);
@@ -624,6 +859,7 @@ export default function App() {
   };
 
   const selectLeg = (leg: number | null) => {
+    if (followAircraft) changeFollowAircraft(false);
     dispatch({ type: 'selectLeg', leg });
     if (timeOpen && leg !== null && journey.legs[leg]?.departure) clock.seek(journey.legs[leg].departure!.epochMs);
   };
@@ -748,7 +984,7 @@ export default function App() {
       clockZone={clockZone}
       docked={docked}
       followAircraft={followAircraft}
-      onFollowAircraft={globeFailed ? undefined : setFollowAircraft}
+      onFollowAircraft={globeFailed ? undefined : changeFollowAircraft}
       onClockZone={(value) => {
         setClockZone(value);
         if (value === 'local' || value === 'utc') saveClockZone(value);
@@ -778,7 +1014,7 @@ export default function App() {
               <GlobeView
                 sim={sim}
                 followAircraft={followAircraft}
-                onFollowAircraftChange={setFollowAircraft}
+                onFollowAircraftChange={changeFollowAircraft}
                 route={globeRoute}
                 selectedLeg={route.selectedLeg}
                 insets={insets}

@@ -10,6 +10,11 @@ const scheduled = {
 /** JSON-serialisable corpus is shared by runtime, published schema and MCP schema tests. */
 export const DOCUMENT_CORPUS: unknown[] = [
   minimal,
+  { ...scheduled, view: { lang: 'hu', names: true, borders: false, follow: true, leg: 2 } },
+  ...[{ lang: 'de' }, { names: 1 }, { borders: null }, { leg: 0 }, { leg: 10 }, { leg: 1.5 }].map((view) => ({
+    ...scheduled,
+    view,
+  })),
   scheduled,
   { ...minimal, $schema: 'custom' },
   ...Array.from({ length: 10 }, (_, i) => ({

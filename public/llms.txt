@@ -13,6 +13,8 @@ This guide lives at the project path `/globehops/llms.txt`, not the site-root `/
 
 View parameters: `t` is an ISO instant, `play=1` starts playback (respecting reduced motion), `speed=auto|1800|3600|7200`, `clock=local|utc|<route airport code>`, `units=km|mi`, `daynight=0` disables shading, `follow=1` enables the aircraft camera (off by default; user camera input exits).
 
+Language: use `/globehops/en/`, `/globehops/hu/` or `/globehops/sv/`; `?lang=en|hu|sv` is an alias on the unprefixed path. An explicit locale path wins. Document `view.lang` and MCP `view.lang` generate locale paths. `names=1` enables place-name labels, `borders=0` hides country borders; either accepts 0/1. `leg=N` selects and frames a one-based flight without seeking time. When combined, follow camera takes priority over flight framing. Link view overrides apply to this visit and do not change stored user preferences.
+
 ## Contract and limits
 
 - [Capabilities](https://tmrk.github.io/globehops/agent/capabilities.json): parameters, limits, issue vocabulary and estimation model.
@@ -37,3 +39,11 @@ Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distance
 - [MCP configuration and tool examples](https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md): search_airports, calculate_route, validate_itinerary, visualize_route, get_journey_timeline.
 
 Set `GLOBEHOPS_BASE_URL` to override generated links. There is no remote MCP endpoint: GitHub Pages hosts static files. Tools reuse the same calculations as the browser and require no network services.
+
+MCP also exposes resources `globehops://agent/capabilities.json`, `globehops://agent/itinerary.schema.json`, `globehops://agent/examples.json`, `globehops://agent/usage` and the `plan_and_visualize` prompt (`journey` string). `visualize_route` returns readable `url`, complete `itineraryParamUrl`, one-line `humanSummary` and the structured `summary`.
+
+## Experimental browser tools (WebMCP)
+
+When the browser offers model-context tools, the live page registers `get_journey` (stops, legs, totals, times, issues, current view/link), `set_route` (exactly one route string or v1 itinerary), `set_view` (partial t/play/speed/follow/dayNight/names/borders/units/clock/lang/leg), `select_flight` (one-based leg or null for overview), and `get_share_link` (open timeline instant/play state and locale; a live globe stays live). `t` is an ISO instant here; documents use `view.time`. No data is sent anywhere. Invalid arguments return actionable errors without partial changes. Explicit browser-tool playback acts like pressing Play; link autoplay respects reduced motion. No supported API means no registration and no change to normal UI behaviour.
+
+Supports the current draft `document.modelContext.registerTool` with AbortSignal cleanup and legacy `navigator.modelContext` registerTool/unregisterTool or provideContext. This experimental API may change. DOM agents can use accessible airport comboboxes, named flight buttons and timeline controls; names follow the selected language. See the integration guide for exact arguments and lifecycle details.

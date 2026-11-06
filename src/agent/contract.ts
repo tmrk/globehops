@@ -18,6 +18,10 @@ export const LINK_PARAMS = {
   units: 'units',
   dayNight: 'daynight',
   follow: 'follow',
+  lang: 'lang',
+  names: 'names',
+  borders: 'borders',
+  leg: 'leg',
   itinerary: 'itinerary',
 } as const;
 export const ROUTE_PARAM = LINK_PARAMS.route;

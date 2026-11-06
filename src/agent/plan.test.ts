@@ -145,7 +145,10 @@ describe('shared agent planning', () => {
       $schema: 'x'.repeat(6100),
       stops: [{ airport: 'CPH' }, { airport: 'JFK' }],
     });
-    expect(plan.issues.some((i) => i.code === 'link_too_large')).toBe(true);
+    expect(plan.issues.some((i) => i.code === 'document_link_too_large' && i.severity === 'warning')).toBe(true);
+    expect(plan.valid).toBe(true);
+    expect(plan.url).toContain('?route=CPH-JFK');
+    expect(plan.itineraryParamUrl).toBeNull();
     expect(plan.legs).toHaveLength(1);
   });
   it('retains original stop paths after skipping an unknown airport', () => {
@@ -225,4 +228,18 @@ describe('clock validation', () => {
       }).map((i) => i.code),
     ).not.toContain('invalid_clock');
   });
+});
+
+it('canonicalises airport clock aliases and validates flight selection', () => {
+  const plan = planItinerary(ctx, {
+    version: 1,
+    stops: [{ airport: 'EKCH' }, { airport: 'EGLL' }],
+    view: { clock: 'EGLL', lang: 'hu', names: true, borders: false, leg: 1 },
+  });
+  expect(plan.valid).toBe(true);
+  expect(plan.url).toContain('/hu/?route=CPH-LHR&clock=LHR');
+  expect(plan.itineraryParamUrl).toContain('/hu/?itinerary=');
+  expect(
+    planItinerary(ctx, { version: 1, stops: [{ airport: 'CPH' }, { airport: 'LHR' }], view: { leg: 2 } }).issues,
+  ).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'invalid_leg' })]));
 });

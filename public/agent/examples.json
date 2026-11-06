@@ -173,7 +173,7 @@
   },
   {
     "title": "Visualisation options",
-    "description": "Select simulation time, speed, clock, miles and shading.",
+    "description": "Swedish view with simulation time, speed, UTC clock, miles, labels, borders and selected flight.",
     "itinerary": {
       "version": 1,
       "stops": [{ "airport": "CPH", "departure": "2026-11-20T08:15" }, { "airport": "JFK" }],
@@ -183,11 +183,16 @@
         "speed": 3600,
         "clock": "utc",
         "units": "mi",
-        "dayNight": false
+        "dayNight": false,
+        "lang": "sv",
+        "names": true,
+        "borders": false,
+        "leg": 1,
+        "follow": true
       }
     },
-    "url": "https://tmrk.github.io/globehops/?route=CPH-JFK&dep1=2026-11-20T08:15&t=2026-11-20T09:30Z&speed=3600&clock=utc&units=mi&daynight=0",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMDg6MTUifSx7ImFpcnBvcnQiOiJKRksifV0sInZpZXciOnsidGltZSI6IjIwMjYtMTEtMjBUMDk6MzBaIiwicGxheSI6ZmFsc2UsInNwZWVkIjozNjAwLCJjbG9jayI6InV0YyIsInVuaXRzIjoibWkiLCJkYXlOaWdodCI6ZmFsc2V9fQ",
+    "url": "https://tmrk.github.io/globehops/sv/?route=CPH-JFK&dep1=2026-11-20T08:15&t=2026-11-20T09:30Z&speed=3600&clock=utc&units=mi&daynight=0&follow=1&names=1&borders=0&leg=1",
+    "itineraryParamUrl": "https://tmrk.github.io/globehops/sv/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMDg6MTUifSx7ImFpcnBvcnQiOiJKRksifV0sInZpZXciOnsidGltZSI6IjIwMjYtMTEtMjBUMDk6MzBaIiwicGxheSI6ZmFsc2UsInNwZWVkIjozNjAwLCJjbG9jayI6InV0YyIsInVuaXRzIjoibWkiLCJkYXlOaWdodCI6ZmFsc2UsImxhbmciOiJzdiIsIm5hbWVzIjp0cnVlLCJib3JkZXJzIjpmYWxzZSwibGVnIjoxLCJmb2xsb3ciOnRydWV9fQ",
     "expected": {
       "totals": {
         "distanceKm": 6188.7,
@@ -217,7 +222,7 @@
       "stops": [{ "airport": "LHR", "departure": "2026-11-20T11:00" }, { "airport": "JFK" }],
       "view": { "clock": "JFK", "units": "km", "dayNight": true }
     },
-    "url": "https://tmrk.github.io/globehops/?route=LHR-JFK&dep1=2026-11-20T11:00&clock=JFK&units=km",
+    "url": "https://tmrk.github.io/globehops/?route=LHR-JFK&dep1=2026-11-20T11:00&clock=JFK&units=km&daynight=1",
     "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkxIUiIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMTE6MDAifSx7ImFpcnBvcnQiOiJKRksifV0sInZpZXciOnsiY2xvY2siOiJKRksiLCJ1bml0cyI6ImttIiwiZGF5TmlnaHQiOnRydWV9fQ",
     "expected": {
       "totals": {

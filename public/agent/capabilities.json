@@ -5,6 +5,7 @@
   "homepage": "https://tmrk.github.io/globehops/",
   "urlTemplates": {
     "simple": "https://tmrk.github.io/globehops/?route={route}",
+    "localized": "https://tmrk.github.io/globehops/{lang}/?route={route}",
     "scheduled": "https://tmrk.github.io/globehops/?route={route}&dep1={localDeparture}",
     "document": "https://tmrk.github.io/globehops/?itinerary={base64urlJson}"
   },
@@ -72,6 +73,34 @@
       "examples": ["0"],
       "semantics": "Day/night shading; on by default."
     },
+    "lang": {
+      "type": "string",
+      "required": false,
+      "format": "en|hu|sv",
+      "examples": ["en", "hu", "sv"],
+      "semantics": "Language; generated URLs use locale paths /en/, /hu/, /sv/. Query lang is an alias on the unprefixed path. Explicit path takes precedence."
+    },
+    "names": {
+      "type": "string",
+      "required": false,
+      "format": "0 or 1",
+      "examples": ["1"],
+      "semantics": "Place-name labels for this visit; overrides saved preference."
+    },
+    "borders": {
+      "type": "string",
+      "required": false,
+      "format": "0 or 1",
+      "examples": ["0"],
+      "semantics": "Country borders for this visit; overrides saved preference."
+    },
+    "leg": {
+      "type": "integer",
+      "required": false,
+      "format": "1-based flight number",
+      "examples": [1, 2],
+      "semantics": "Frames the selected flight; must exist in the route. Does not change the simulation instant."
+    },
     "itinerary": {
       "type": "string",
       "required": false,
@@ -110,7 +139,19 @@
     "defaultLayoverMinutes": 90,
     "notes": "Great circle on a sphere; no winds, airline schedules, aircraft type or actual flight tracking. Altitude is illustrative."
   },
-  "visualisationOptions": ["t", "play", "speed", "clock", "units", "daynight", "follow"],
+  "visualisationOptions": [
+    "t",
+    "play",
+    "speed",
+    "clock",
+    "units",
+    "daynight",
+    "follow",
+    "lang",
+    "names",
+    "borders",
+    "leg"
+  ],
   "validation": {
     "valid": "No error issues; warnings and info preserve validity. Structural validation precedes semantic resolution. Tolerant readable links keep usable values.",
     "issues": [
@@ -171,7 +212,20 @@
       { "code": "timeline_unavailable", "severity": "error", "meaning": "No playable flight timeline." },
       { "code": "invalid_samples", "severity": "error", "meaning": "Sample count or instant array exceeds bounds." },
       { "code": "invalid_instant", "severity": "error", "meaning": "Requested instant malformed." },
+      {
+        "code": "invalid_clock",
+        "severity": "error",
+        "meaning": "Clock must identify local, utc or an airport in this route."
+      },
+      { "code": "invalid_leg", "severity": "error", "meaning": "Selected flight must exist in this route." },
       { "code": "link_too_large", "severity": "error", "meaning": "Cannot encode within sharing limits." }
+    ],
+    "warnings": [
+      {
+        "code": "document_link_too_large",
+        "severity": "warning",
+        "meaning": "The complete document URL exceeds limits; use the available readable URL."
+      }
     ],
     "structuralCodes": ["type", "const", "items", "pattern", "range", "position", "enum", "additionalProperties"]
   },
@@ -188,9 +242,23 @@
     "prerequisites": "Node >=22.18; npm ci in the checkout.",
     "baseUrlEnvironment": "GLOBEHOPS_BASE_URL",
     "tools": ["search_airports", "calculate_route", "validate_itinerary", "visualize_route", "get_journey_timeline"],
+    "resources": [
+      "globehops://agent/capabilities.json",
+      "globehops://agent/itinerary.schema.json",
+      "globehops://agent/examples.json",
+      "globehops://agent/usage"
+    ],
+    "prompts": ["plan_and_visualize"],
     "documentation": "https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md",
     "remoteEndpoint": null
   },
+  "webMcp": {
+    "experimental": true,
+    "api": "document.modelContext (AbortSignal cleanup), legacy navigator.modelContext registerTool/unregisterTool or provideContext",
+    "tools": ["get_journey", "set_route", "set_view", "select_flight", "get_share_link"],
+    "network": false
+  },
+  "locales": ["en", "hu", "sv"],
   "licences": {
     "code": "MIT",
     "airports": "Public domain (OurAirports)",

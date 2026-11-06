@@ -1,0 +1,120 @@
+import { ITINERARY_SCHEMA } from './schema.ts';
+import { documentToLinkState, validateItineraryDocument, encodeItineraryParam } from './itinerary.ts';
+import { parseLink, type LinkState, type LinkView } from '../state/link.ts';
+
+export const WEB_TOOL_NAMES = ['get_journey', 'set_route', 'set_view', 'select_flight', 'get_share_link'] as const;
+export type WebToolName = (typeof WEB_TOOL_NAMES)[number];
+export type WebCommand =
+  | { type: 'get_journey' }
+  | { type: 'get_share_link' }
+  | { type: 'set_route'; link: LinkState; search: string }
+  | { type: 'set_view'; view: Partial<LinkView> }
+  | { type: 'select_flight'; leg: number | null };
+const emptySchema = { type: 'object', properties: {}, additionalProperties: false };
+const { time: instantSchema, ...viewProperties } = ITINERARY_SCHEMA.properties.view.properties;
+export const WEB_TOOL_DEFINITIONS = [
+  {
+    name: 'get_journey',
+    description: 'Read the live journey, km/mi totals, airport-local and UTC times, issues, view and share link.',
+    inputSchema: emptySchema,
+  },
+  {
+    name: 'set_route',
+    description:
+      'Replace the route with 1–10 airport codes (transfer suffix _minutes), or an itinerary v1 document. Local times belong to each airport. Supply exactly one input; an empty route clears the journey.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: { route: { type: 'string', maxLength: 8000 }, itinerary: ITINERARY_SCHEMA },
+      oneOf: [{ required: ['route'] }, { required: ['itinerary'] }],
+    },
+  },
+  {
+    name: 'set_view',
+    description:
+      'Patch the view for this visit. t is an ISO instant with offset; speed is simulation seconds per second (auto ≈15s journey). Explicit play is a user-requested action. No preferences are saved.',
+    inputSchema: {
+      ...ITINERARY_SCHEMA.properties.view,
+      properties: {
+        ...viewProperties,
+        t: instantSchema,
+      },
+    },
+  },
+  {
+    name: 'select_flight',
+    description: 'Frame a one-based flight number; null restores the route overview.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['leg'],
+      properties: { leg: { type: ['integer', 'null'], minimum: 1, maximum: 9 } },
+    },
+  },
+  {
+    name: 'get_share_link',
+    description:
+      'Return a share URL with the current view and open timeline instant/play state; a live globe remains live. Never writes playback frames to history.',
+    inputSchema: emptySchema,
+  },
+] as const;
+const isObject = (raw: unknown): raw is Record<string, unknown> =>
+  typeof raw === 'object' && raw !== null && !Array.isArray(raw);
+/** Validate everything before a live app mutation; no DOM, storage or network access. */
+export function parseWebCommand(name: WebToolName, raw: unknown, flights: number): WebCommand {
+  if (!isObject(raw)) throw new TypeError('Arguments must be an object.');
+  const keys = (allowed: string[]) => {
+    for (const key of Object.keys(raw)) if (!allowed.includes(key)) throw new TypeError(`Unknown argument ${key}.`);
+  };
+  if (name === 'get_journey' || name === 'get_share_link') {
+    keys([]);
+    return { type: name };
+  }
+  if (name === 'select_flight') {
+    keys(['leg']);
+    if (
+      raw.leg !== null &&
+      (typeof raw.leg !== 'number' || !Number.isInteger(raw.leg) || raw.leg < 1 || raw.leg > flights)
+    )
+      throw new TypeError(`leg must be null or a flight number from 1 to ${flights}.`);
+    return { type: name, leg: raw.leg as number | null };
+  }
+  if (name === 'set_route') {
+    keys(['route', 'itinerary']);
+    if ((raw.route !== undefined) === (raw.itinerary !== undefined))
+      throw new TypeError('Supply exactly one of route or itinerary.');
+    let link: LinkState;
+    let search: string;
+    if (raw.route !== undefined) {
+      if (typeof raw.route !== 'string' || raw.route.length > 8000)
+        throw new TypeError('route must be a string of at most 8000 characters.');
+      search = `?route=${encodeURIComponent(raw.route)}`;
+      link = parseLink(search);
+    } else {
+      const checked = validateItineraryDocument(raw.itinerary);
+      if (!checked.ok) throw new TypeError(checked.issues.map((i) => `${i.path}: ${i.message}`).join(' '));
+      search = `?itinerary=${encodeItineraryParam(checked.doc)}`;
+      link = documentToLinkState(checked.doc);
+    }
+    if (link.issues.length) throw new TypeError(link.issues.join(' '));
+    return { type: name, link, search };
+  }
+  keys(['t', 'play', 'speed', 'clock', 'units', 'dayNight', 'follow', 'lang', 'names', 'borders', 'leg']);
+  if (raw.leg !== undefined && (typeof raw.leg !== 'number' || raw.leg > flights))
+    throw new TypeError(`leg must be a flight number from 1 to ${flights}.`);
+  const { t, ...view } = raw;
+  const checked = validateItineraryDocument({
+    version: 1,
+    stops: Array.from({ length: Math.max(1, flights + 1) }, () => ({ airport: 'CPH' })),
+    view: { ...view, ...(t !== undefined ? { time: t } : {}) },
+  });
+  if (!checked.ok) throw new TypeError(checked.issues.map((i) => `${i.path}: ${i.message}`).join(' '));
+  const parsed = documentToLinkState(checked.doc);
+  if (parsed.issues.length) throw new TypeError(parsed.issues.join(' '));
+  const patch: Partial<LinkView> = {};
+  for (const key of Object.keys(raw)) {
+    const field = key === 't' ? 'time' : (key as keyof LinkView);
+    Object.assign(patch, { [field]: parsed.view[field] });
+  }
+  return { type: name, view: patch };
+}

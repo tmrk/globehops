@@ -1,3 +1,4 @@
+import { isLocale, type Locale } from '../i18n/locales.ts';
 import type { LinkState, LinkStop, LinkView } from '../state/link.ts';
 import type { LocalTimeInput } from '../types.ts';
 import { MAX_STOPS, MAX_LAYOVER_MIN, MAX_ITINERARY_PARAM_LENGTH, PLAYBACK_SPEEDS } from './contract.ts';
@@ -16,6 +17,10 @@ export interface ItineraryDocument {
     units?: 'km' | 'mi';
     dayNight?: boolean;
     follow?: boolean;
+    lang?: Locale;
+    names?: boolean;
+    borders?: boolean;
+    leg?: number;
   };
 }
 export interface DocIssue {
@@ -84,12 +89,22 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
     if (!object(raw.view)) issue('/view', 'type', 'View must be an object.');
     else {
       const view = raw.view;
-      properties(view, ['time', 'play', 'speed', 'clock', 'units', 'dayNight', 'follow'], '/view');
+      properties(
+        view,
+        ['time', 'play', 'speed', 'clock', 'units', 'dayNight', 'follow', 'lang', 'names', 'borders', 'leg'],
+        '/view',
+      );
       if (view.time !== undefined && (typeof view.time !== 'string' || !new RegExp(INSTANT_PATTERN).test(view.time)))
         issue('/view/time', 'pattern', 'Use an ISO instant with Z or an explicit UTC offset.');
-      for (const key of ['play', 'dayNight', 'follow'])
+      for (const key of ['play', 'dayNight', 'follow', 'names', 'borders'])
         if (view[key] !== undefined && typeof view[key] !== 'boolean')
           issue(`/view/${key}`, 'type', `${key} must be a boolean.`);
+      if (view.lang !== undefined && !isLocale(view.lang)) issue('/view/lang', 'enum', 'Use en, hu or sv.');
+      if (
+        view.leg !== undefined &&
+        (typeof view.leg !== 'number' || !Number.isInteger(view.leg) || view.leg < 1 || view.leg >= MAX_STOPS)
+      )
+        issue('/view/leg', 'range', 'Use a one-based flight number within this route.');
       if (view.speed !== undefined && !PLAYBACK_SPEEDS.some((s) => s.value === view.speed))
         issue('/view/speed', 'enum', 'Use auto, 1800, 3600 or 7200.');
       if (
@@ -172,6 +187,10 @@ export function documentToLinkState(doc: ItineraryDocument): LinkState {
     units: source?.units ?? null,
     dayNight: source?.dayNight ?? true,
     follow: source?.follow ?? false,
+    ...(source?.lang !== undefined ? { lang: source.lang } : {}),
+    ...(source?.names !== undefined ? { names: source.names } : {}),
+    ...(source?.borders !== undefined ? { borders: source.borders } : {}),
+    ...(source?.leg !== undefined ? { leg: source.leg } : {}),
   };
   return { stops, view, issues };
 }
@@ -192,6 +211,10 @@ export function linkStateToDocument(s: LinkState): ItineraryDocument {
       ...(s.view.units !== null ? { units: s.view.units } : {}),
       dayNight: s.view.dayNight,
       ...(s.view.follow ? { follow: true } : {}),
+      ...(s.view.lang !== undefined ? { lang: s.view.lang } : {}),
+      ...(s.view.names !== undefined ? { names: s.view.names } : {}),
+      ...(s.view.borders !== undefined ? { borders: s.view.borders } : {}),
+      ...(s.view.leg !== undefined ? { leg: s.view.leg } : {}),
     },
   };
 }
