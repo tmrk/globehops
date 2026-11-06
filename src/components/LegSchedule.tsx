@@ -65,6 +65,16 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
                   {formatZoneLabel(zone, point?.epochMs ?? now)}
                 </span>
               )}
+              {input && (
+                <button
+                  type="button"
+                  className="when__clear"
+                  aria-label={`Clear ${field} time`}
+                  onClick={() => onChange(stop, field, null)}
+                >
+                  <IconClose size={14} />
+                </button>
+              )}
             </div>
             <div className="when__fields">
               <DateTimeField
@@ -94,18 +104,6 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
                   else if (date) commit(date, '');
                 }}
               />
-              {input ? (
-                <button
-                  type="button"
-                  className="icon-btn icon-btn--quiet icon-btn--small when__clear"
-                  aria-label={`Clear ${field} time`}
-                  onClick={() => onChange(stop, field, null)}
-                >
-                  <IconClose size={14} />
-                </button>
-              ) : (
-                <span className="when__clear" aria-hidden="true" />
-              )}
             </div>
             {!zone ? (
               <p className="when__note">

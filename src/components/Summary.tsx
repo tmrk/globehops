@@ -15,10 +15,12 @@ interface SummaryProps {
   legs: Leg[];
   layovers: Layover[];
   unit: DistanceUnit;
-  onUnitChange: (unit: DistanceUnit) => void;
+  /** The primary action beside the totals (Play), if any. */
+  action?: React.ReactNode;
 }
 
-export function Summary({ journey, onCheckLeg, legs, layovers, unit, onUnitChange }: SummaryProps) {
+/** Journey totals, pinned to the bottom of the panel like the total on a ticket. */
+export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: SummaryProps) {
   const [showInfo, setShowInfo] = useState(false);
   const infoId = useId();
   const totalKm = legs.reduce((s, l) => s + l.distanceKm, 0);
@@ -26,6 +28,9 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, onUnitChang
   const groundMin = journey.dated ? journey.totals.layoverMin : layovers.reduce((s, l) => s + l.minutes, 0);
   const totalMin = flightMin ? flightMin + groundMin : 0;
   const flights = legs.length;
+  const estimated =
+    !journey.dated ||
+    journey.legs.some((l) => l.departure?.provenance !== 'entered' || l.arrival?.provenance !== 'entered');
   const m = DEFAULT_FLIGHT_TIME_MODEL;
   const speed = unit === 'km' ? `${m.cruiseSpeedKmh} km/h` : `${Math.round(m.cruiseSpeedKmh / 1.609344 / 5) * 5} mph`;
   const cruise =
@@ -41,6 +46,8 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, onUnitChang
             layovers.length === 1 ? 'layover' : 'in layovers'
           }`
         : `${flights} flight${flights === 1 ? '' : 's'} · shortest great-circle distance`;
+  const issue = journey.issues.find((i) => i.severity === 'error');
+  const issueLeg = issue?.leg ?? (issue?.field === 'arrival' ? Math.max(0, (issue.stop ?? 1) - 1) : (issue?.stop ?? 0));
 
   return (
     <section className="summary" aria-label="Journey totals">
@@ -54,7 +61,7 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, onUnitChang
         </div>
         <div className="stat">
           <span className="stat__label">
-            {journey.dated ? 'Journey time' : layovers.length ? 'Est. total time' : 'Est. flight time'}
+            {journey.dated ? 'Journey time' : layovers.length ? 'Total time' : 'Flight time'}
             <button
               type="button"
               className="info-btn"
@@ -63,49 +70,32 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, onUnitChang
               aria-label="How times are estimated"
               onClick={() => setShowInfo((v) => !v)}
             >
-              <IconInfo size={15} />
+              <IconInfo size={14} />
             </button>
           </span>
           <span className="stat__value">
-            {flights && totalMin
-              ? `${!journey.dated || journey.legs.some((l) => l.departure?.provenance !== 'entered' || l.arrival?.provenance !== 'entered') ? '≈ ' : ''}${formatDuration(totalMin)}`
-              : '—'}
+            {flights && totalMin ? `${estimated ? '≈ ' : ''}${formatDuration(totalMin)}` : '—'}
           </span>
         </div>
-        <div className="unit-toggle" role="radiogroup" aria-label="Distance unit">
-          {(['km', 'mi'] as const).map((u) => (
-            <button
-              key={u}
-              type="button"
-              role="radio"
-              aria-checked={unit === u}
-              className={unit === u ? 'is-on' : ''}
-              onClick={() => onUnitChange(u)}
-            >
-              {u}
-            </button>
-          ))}
-        </div>
+        {action}
       </div>
-      {journey.dated && journey.start && journey.end && (
-        <p className="summary__note">
-          Departs{' '}
-          {formatClock(journey.start.epochMs, journey.start.zone, { weekday: true, date: true }).replace(',', '')}{' '}
-          {airportCode(journey.stops[0].airport)} · arrives {formatClock(journey.end.epochMs, journey.end.zone)}{' '}
-          {airportCode(journey.stops.at(-1)!.airport)}
-        </p>
-      )}
-      <p className="summary__note">{note}</p>
-      {(() => {
-        const issue = journey.issues.find((i) => i.severity === 'error');
-        const leg =
-          issue?.leg ?? (issue?.field === 'arrival' ? Math.max(0, (issue.stop ?? 1) - 1) : (issue?.stop ?? 0));
-        return issue ? (
-          <button type="button" className="text-btn schedule-error" onClick={() => onCheckLeg(leg)}>
-            Check flight {leg + 1} times
-          </button>
-        ) : null;
-      })()}
+      <p className="summary__note">
+        {journey.dated && journey.start && journey.end ? (
+          <>
+            Departs{' '}
+            {formatClock(journey.start.epochMs, journey.start.zone, { weekday: true, date: true }).replace(',', '')}{' '}
+            {airportCode(journey.stops[0].airport)} · arrives {formatClock(journey.end.epochMs, journey.end.zone)}{' '}
+            {airportCode(journey.stops.at(-1)!.airport)}
+            <br />
+          </>
+        ) : null}
+        {note}
+      </p>
+      {issue ? (
+        <button type="button" className="text-btn schedule-error" onClick={() => onCheckLeg(issueLeg)}>
+          Check flight {issueLeg + 1} times
+        </button>
+      ) : null}
       <div id={infoId} className="summary__info" hidden={!showInfo}>
         <p>
           Entered times use each airport’s local time zone; missing times are estimated. Flight times are estimates, not

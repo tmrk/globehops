@@ -1,4 +1,13 @@
-import { test, expect, expectRoute, chooseAirport, stopButtons, airportField } from './fixtures.ts';
+import {
+  test,
+  expect,
+  expectRoute,
+  chooseAirport,
+  stopButtons,
+  airportField,
+  openDisplay,
+  startEditing,
+} from './fixtures.ts';
 
 test('first visit loads the example, its stops, legs and totals', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('./');
@@ -9,7 +18,7 @@ test('first visit loads the example, its stops, legs and totals', { tag: '@smoke
   await expect(totals).toContainText('2 flights');
   await expect(totals).toContainText(/\d[\d,]*km/);
   await expect(totals).toContainText(/≈ \d+h \d+m/);
-  await expect(page.getByRole('radio', { name: 'km', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await expect(totals.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 });
 
 test('desktop entry uses keyboard selection and advances to destination', async ({ page, isMobile }) => {
@@ -114,13 +123,16 @@ test('mobile takeover focuses input, keeps results in viewport, selects and canc
 test('insert and remove a transfer, reverse, clear and choose a suggestion', async ({ page }) => {
   await page.goto('./?route=CPH-JFK');
   await expectRoute(page, ['CPH', 'JFK']);
+  // Everyday rows stay uncluttered; edit mode reveals insert, remove, reorder, reverse and clear.
+  await expect(page.getByRole('button', { name: 'Remove Copenhagen', exact: true })).toHaveCount(0);
+  await startEditing(page);
   await page.getByRole('button', { name: 'Add a stop after Copenhagen', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Stop 1' })).toBeFocused();
   await chooseAirport(page, 'LHR', 'LHR');
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
   await page.getByRole('button', { name: 'Remove London', exact: true }).click();
   await expectRoute(page, ['CPH', 'JFK']);
-  await page.getByRole('button', { name: 'Reverse', exact: true }).click();
+  await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
   await expectRoute(page, ['JFK', 'CPH']);
   await page.getByRole('button', { name: 'Clear route', exact: true }).click();
   // Clearing opens the inline departure picker on desktop; dismiss it before using chips.
@@ -135,6 +147,7 @@ test('insert and remove a transfer, reverse, clear and choose a suggestion', asy
 test('keyboard grips reorder in both directions', async ({ page }) => {
   await page.goto('./?route=CPH-LHR-JFK');
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
+  await startEditing(page);
   const grip = page.getByRole('button', { name: 'Reorder London. Use up and down arrow keys to move' });
   await grip.focus();
   await grip.press('ArrowUp');
@@ -147,10 +160,16 @@ test('keyboard grips reorder in both directions', async ({ page }) => {
 test('miles persist across reload and URL routes override remembered routes', async ({ page }) => {
   await page.goto('./?route=CPH-YYZ');
   await expectRoute(page, ['CPH', 'YYZ']);
-  await page.getByRole('radiogroup', { name: 'Distance unit' }).getByRole('radio', { name: 'mi', exact: true }).click();
+  const display = await openDisplay(page);
+  await expect(display.getByRole('radio', { name: 'km', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await display
+    .getByRole('radiogroup', { name: 'Distance unit' })
+    .getByRole('radio', { name: 'mi', exact: true })
+    .click();
   await expect(page.getByRole('region', { name: 'Journey totals' })).toContainText(/\dmi/);
   await page.reload();
   await expectRoute(page, ['CPH', 'YYZ']);
+  await openDisplay(page);
   await expect(page.getByRole('radio', { name: 'mi', exact: true })).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByRole('region', { name: 'Journey totals' })).toContainText(/\dmi/);
   await page.goto('./');
@@ -265,7 +284,8 @@ test('connections get a default layover that can be changed, totalled, shared an
   await expect(totals).toContainText('≈ 11h 40m');
   await expect(totals).toContainText('3h 00m layover');
   // The layover belongs to its stop: reversing keeps it at London.
-  await page.getByRole('button', { name: 'Reverse', exact: true }).click();
+  await startEditing(page);
+  await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
   await expect(page).toHaveURL(/\/globehops\/\?route=JFK-LHR_180-CPH$/);
   await page.reload();
   await expect(page.getByRole('combobox', { name: 'Layover in London' })).toHaveValue('180');
@@ -283,6 +303,7 @@ test('country borders are on by default and the choice is remembered', async ({ 
   await page.goto('./?route=CPH-LHR');
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
   expect((await bordersLoaded).status()).toBe(200);
+  await openDisplay(page);
   const toggle = page.getByRole('button', { name: 'Country borders' });
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
   await toggle.click();
@@ -292,6 +313,7 @@ test('country borders are on by default and the choice is remembered', async ({ 
   page.on('request', (request) => requested.push(new URL(request.url()).pathname));
   await page.reload();
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await openDisplay(page);
   await expect(page.getByRole('button', { name: 'Country borders' })).toHaveAttribute('aria-pressed', 'false');
   expect(requested.filter((path) => /borders-.*\.json$/.test(path))).toEqual([]);
   await page.getByRole('button', { name: 'Country borders' }).click();

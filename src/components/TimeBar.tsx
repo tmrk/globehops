@@ -17,7 +17,7 @@ import {
 import { legColor } from '../lib/legColors.ts';
 import { PLAYBACK_SPEEDS, type PlaybackSpeed, type SimulationClock } from '../state/clock.ts';
 import { DateTimeField } from './DateTimeField.tsx';
-import { IconChevronLeft, IconChevronRight, IconClose, IconPause, IconPlay } from './Icons.tsx';
+import { IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconPause, IconPlay } from './Icons.tsx';
 interface Props {
   clock: SimulationClock;
   journey: Journey;
@@ -27,8 +27,20 @@ interface Props {
   onClose: () => void;
   onToggle: () => void;
   onEditLeg: (leg: number) => void;
+  /** Phones: part of the journey sheet instead of a floating card. */
+  docked?: boolean;
 }
-export function TimeBar({ clock, journey, timeline, clockZone, onClockZone, onClose, onToggle, onEditLeg }: Props) {
+export function TimeBar({
+  clock,
+  journey,
+  timeline,
+  clockZone,
+  onClockZone,
+  onClose,
+  onToggle,
+  onEditLeg,
+  docked = false,
+}: Props) {
   const snapshot = useClock(clock);
   const browserZone = browserTimeZone();
   const requestedZone =
@@ -78,7 +90,7 @@ export function TimeBar({ clock, journey, timeline, clockZone, onClockZone, onCl
   if (!options.some((o) => o.value === clockZone)) options.push({ value: clockZone, label: `${clockZone} time` });
   return (
     <section
-      className="time-bar"
+      className={`time-bar${docked ? ' time-bar--docked' : ''}`}
       aria-label="Timeline"
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
@@ -126,7 +138,7 @@ export function TimeBar({ clock, journey, timeline, clockZone, onClockZone, onCl
             )}
           </div>
         </div>
-        <button type="button" className="icon-btn" aria-label="Close timeline" onClick={onClose}>
+        <button type="button" className="icon-btn icon-btn--quiet" aria-label="Close timeline" onClick={onClose}>
           <IconClose size={18} />
         </button>
       </div>
@@ -156,8 +168,9 @@ export function TimeBar({ clock, journey, timeline, clockZone, onClockZone, onCl
         />
       </div>
       <div className="time-bar__foot">
-        <label className="time-bar__clock">
-          {readout}
+        <label className="time-bar__menu time-bar__clock">
+          <span className="time-bar__readout">{readout}</span>
+          <IconChevronDown size={13} className="time-bar__chev" />
           <select aria-label="Clock time zone" value={clockZone} onChange={(e) => onClockZone(e.target.value)}>
             {options.map((o) => (
               <option key={o.value} value={o.value}>
@@ -168,19 +181,17 @@ export function TimeBar({ clock, journey, timeline, clockZone, onClockZone, onCl
         </label>
         {timeline ? (
           <>
-            <button
-              type="button"
-              className="icon-btn icon-btn--small"
-              aria-label="Previous flight"
-              onClick={() => step(-1)}
-            >
-              <IconChevronLeft size={16} />
-            </button>
-            <button type="button" className="icon-btn icon-btn--small" aria-label="Next flight" onClick={() => step(1)}>
-              <IconChevronRight size={16} />
-            </button>
-            <label className="time-bar__speed">
+            <span className="time-bar__steps" role="group" aria-label="Jump between flights">
+              <button type="button" aria-label="Previous flight" onClick={() => step(-1)}>
+                <IconChevronLeft size={16} />
+              </button>
+              <button type="button" aria-label="Next flight" onClick={() => step(1)}>
+                <IconChevronRight size={16} />
+              </button>
+            </span>
+            <label className="time-bar__menu time-bar__speed">
               {PLAYBACK_SPEEDS.find((s) => s.value === snapshot.speed)?.short}
+              <IconChevronDown size={13} className="time-bar__chev" />
               <select
                 aria-label="Playback speed"
                 value={snapshot.speed}
@@ -221,7 +232,7 @@ export function TimeBar({ clock, journey, timeline, clockZone, onClockZone, onCl
             />
             <button
               type="button"
-              className="text-btn"
+              className="time-bar__menu time-bar__now"
               onClick={() => {
                 clock.setRange(null, null);
                 clock.seek(Date.now());

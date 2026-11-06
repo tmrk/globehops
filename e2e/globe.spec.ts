@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { test, expect, expectRoute, chooseAirport } from './fixtures.ts';
+import { test, expect, expectRoute, chooseAirport, openDisplay, startEditing } from './fixtures.ts';
 
 test('WebGL canvas renders varied pixels and airport labels', { tag: '@smoke' }, async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -81,7 +81,8 @@ test('reduced motion renders routes and responds to changes', async ({ page }) =
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
   expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
-  await page.getByRole('button', { name: 'Reverse', exact: true }).click();
+  await startEditing(page);
+  await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
   await expectRoute(page, ['JFK', 'LHR', 'CPH']);
   await expect(page.locator('.globe-marker__label')).toHaveText(['JFK', 'LHR', 'CPH']);
   await expect(page.getByRole('application')).toBeVisible();
@@ -164,6 +165,7 @@ test('country names are optional, lazy, remembered and do not overlap', async ({
   await page.goto('./?route=CPH-LHR-JFK');
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await openDisplay(page);
   const toggle = page.getByRole('button', { name: 'Country names', exact: true });
   const names = page.locator('.country-label:visible');
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
@@ -202,6 +204,7 @@ test('country names are optional, lazy, remembered and do not overlap', async ({
   await expectNoOverlap();
   await page.screenshot({ path: testInfo.outputPath('country-names.png'), animations: 'disabled' });
   await page.reload();
+  await openDisplay(page);
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => names.count()).toBeGreaterThanOrEqual(5);
   await expectNoOverlap();
@@ -212,6 +215,7 @@ test('country names are optional, lazy, remembered and do not overlap', async ({
   await toggle.click();
   await expect(names).toHaveCount(0);
   await page.reload();
+  await openDisplay(page);
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await expect(names).toHaveCount(0);
 });
@@ -230,13 +234,16 @@ test('invalid country-name data stays decorative and warns only once', async ({ 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('./?route=CPH-LHR-JFK');
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await openDisplay(page);
   const toggle = page.getByRole('button', { name: 'Country names', exact: true });
   await toggle.click();
   await expect.poll(() => warnings.length).toBe(1);
   await expect(page.locator('.country-label:visible')).toHaveCount(0);
   await toggle.click();
   await toggle.click();
-  await page.getByRole('button', { name: 'Reverse', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await startEditing(page);
+  await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
   await expectRoute(page, ['JFK', 'LHR', 'CPH']);
   expect(requests).toBe(1);
   expect(warnings).toHaveLength(1);

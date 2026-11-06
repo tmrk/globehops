@@ -149,3 +149,28 @@ export const IconLabels = (p: IconProps) => (
     <path d="M3 16L7.5 5 12 16M4.6 12h5.8M20 16v-5a3 3 0 1 0 0 4M20 12h-2a2 2 0 1 0 2 2M3 20h18" />
   </Icon>
 );
+
+/** Stacked map sheets: display options for the globe. */
+export const IconLayers = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10 3.2l7 3.6-7 3.6-7-3.6z" />
+    <path d="M3 10.2l7 3.6 7-3.6M3 13.6l7 3.6 7-3.6" />
+  </Icon>
+);
+export const IconPencil = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12.6 4.4l3 3-8.4 8.4-3.7.7.7-3.7z" />
+    <path d="M11 6l3 3" />
+  </Icon>
+);
+export const IconRuler = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3.2 13.2l10-10 3.6 3.6-10 10z" />
+    <path d="M6.3 10.1l1.6 1.6M8.6 7.8l1.1 1.1M10.9 5.5l1.6 1.6" />
+  </Icon>
+);
+export const IconCheck = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.5 10.5l3.6 3.6 7.4-8.2" />
+  </Icon>
+);

@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { test, expect } from './fixtures.ts';
+import { test, expect, openDisplay } from './fixtures.ts';
 import type { Page } from '@playwright/test';
 
 const scheduled =
@@ -261,6 +261,7 @@ test('day and night aligns with airport positions at opposite UTC instants', asy
   expect(evening.jfk - evening.dxb).toBeGreaterThan(20);
   const morning = await sample('2026-03-21T06:00Z');
   expect(morning.dxb - morning.jfk).toBeGreaterThan(20);
+  await openDisplay(page);
   await page.getByRole('button', { name: 'Day and night', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Day and night', exact: true })).toHaveAttribute(
     'aria-pressed',
@@ -273,7 +274,7 @@ test('day and night aligns with airport positions at opposite UTC instants', asy
   expect(Math.abs(off.jfk - off.dxb)).toBeLessThan(65);
 });
 
-test('mobile timeline avoids the sheet, supports touch and stays usable at narrow and landscape sizes', async ({
+test('mobile timeline docks into the sheet, supports touch and stays usable at narrow and landscape sizes', async ({
   page,
   isMobile,
   browserName,
@@ -281,20 +282,25 @@ test('mobile timeline avoids the sheet, supports touch and stays usable at narro
 }, testInfo) => {
   test.skip(!isMobile, 'Touch layout on Pixel and iPhone.');
   await page.goto(`./${scheduled}&t=2026-11-20T07:15Z`);
-  await expect.poll(async () => (await page.locator('.hud__tools').boundingBox())!.y).toBeGreaterThan(60);
+  const sheet = page.getByRole('main', { name: 'Journey planner' });
+  // One bottom surface: the timeline is the top of the journey sheet; the map tools stay below the top bar.
+  await expect(sheet.getByRole('region', { name: 'Timeline', exact: true })).toBeVisible();
+  await expect.poll(async () => (await page.locator('.map-tools').boundingBox())!.y).toBeGreaterThan(60);
   await timeline(page).getByRole('button', { name: 'Play journey' }).click();
   await expect(page.locator('.panel')).toHaveClass(/is-collapsed/);
   await timeline(page).getByRole('button', { name: 'Pause playback' }).click();
-  const bar = await timeline(page).boundingBox();
-  const sheet = await page.locator('.panel').boundingBox();
-  expect(bar!.y + bar!.height).toBeLessThanOrEqual(sheet!.y);
+  // Collapsed, the sheet is only its handle and the timeline, flush with the bottom of the screen.
   await expect
     .poll(async () => {
       const b = (await timeline(page).boundingBox())!;
-      const s = (await page.locator('.panel').boundingBox())!;
-      return Math.round(s.y - b.y - b.height);
+      const s = (await sheet.boundingBox())!;
+      return Math.round(s.y + s.height - b.y - b.height);
     })
-    .toBe(12);
+    .toBeLessThanOrEqual(1);
+  const box = (await sheet.boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(Math.round(box.y + box.height)).toBe(viewport.height);
+  expect(box.height).toBeLessThan(viewport.height * 0.35);
   const slider = timeline(page).getByRole('slider');
   const bounds = (await slider.boundingBox())!;
   const previous = await slider.inputValue();
@@ -334,6 +340,7 @@ test('remembered schedules omit transient time and view units; explicit empty ro
   await page.goto('./');
   await expect(timeline(page)).toContainText('En route to London Heathrow');
   await expect(page).toHaveURL(/dep1=2026-11-20T08:15/);
+  await openDisplay(page);
   await expect(page.getByRole('radio', { name: 'km', exact: true })).toHaveAttribute('aria-checked', 'true');
   await page.evaluate(() => {
     history.pushState(null, '', '?route=CPH-LHR&units=mi');
@@ -355,7 +362,7 @@ test('globe clock opens a native day explorer without a route, and day-night pre
   page,
 }) => {
   await page.goto('./?route=');
-  await page.getByRole('button', { name: /Globe time: now/ }).click();
+  await (await openDisplay(page)).getByRole('button', { name: /Globe time: now/ }).click();
   const bar = timeline(page);
   await expect(bar).toContainText('Day and night');
   await expect(bar.getByRole('button', { name: 'Play journey' })).toBeDisabled();
@@ -366,10 +373,14 @@ test('globe clock opens a native day explorer without a route, and day-night pre
   await expect(bar).toContainText('Fri 20 Mar, 00:00 UTC');
   await bar.getByRole('button', { name: 'Now', exact: true }).click();
   await expect(bar.getByLabel('Globe date', { exact: true })).not.toHaveValue('2026-03-20');
-  await page.getByRole('button', { name: 'Day and night', exact: true }).click();
-  await bar.getByRole('button', { name: 'Close timeline' }).click();
+  await (await openDisplay(page)).getByRole('button', { name: 'Day and night', exact: true }).click();
+  // While the timeline is open the menu offers no second way into it.
   await expect(page.getByRole('button', { name: /Globe time: now/ })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await bar.getByRole('button', { name: 'Close timeline' }).click();
+  await expect(bar).toHaveCount(0);
   await page.goto('./');
+  await openDisplay(page);
   await expect(page.getByRole('button', { name: 'Day and night', exact: true })).toHaveAttribute(
     'aria-pressed',
     'false',

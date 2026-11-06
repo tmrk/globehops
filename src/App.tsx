@@ -5,11 +5,11 @@ import { AirportPicker, type AirportPickerHandle } from './components/AirportPic
 import { Brand } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { GlobeHud } from './components/GlobeHud.tsx';
-import { IconChevronUp, IconInfo, IconShare, IconSwap, IconPlay, IconPause } from './components/Icons.tsx';
+import { IconCheck, IconChevronUp, IconInfo, IconPencil, IconShare, IconPlay } from './components/Icons.tsx';
+import { MapTools } from './components/MapTools.tsx';
 import { StopList } from './components/StopList.tsx';
 import { Summary } from './components/Summary.tsx';
 import { TimeBar } from './components/TimeBar.tsx';
-import { TimeChip } from './components/TimeChip.tsx';
 import { Toast } from './components/Toast.tsx';
 import { useToast } from './hooks/useToast.ts';
 import { useBottomSheet } from './hooks/useBottomSheet.ts';
@@ -134,6 +134,8 @@ export default function App() {
   const [isExample, setIsExample] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
+  /** Edit mode: reorder, remove and insert stops, reverse or clear the route. */
+  const [arranging, setArranging] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [fits, setFits] = useState(true);
   const [fitNonce, setFitNonce] = useState(0);
@@ -446,17 +448,14 @@ export default function App() {
   useLayoutEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
-    // On phones the open time bar floats above the sheet; the globe centres in the space above both.
-    const timeBar = () => document.querySelector<HTMLElement>('.time-bar');
+    // On phones the open time bar is part of the sheet, so the sheet alone covers the bottom of the globe.
     const measure = () => {
       const r = panel.getBoundingClientRect();
       const sheet = Math.max(0, Math.round(window.innerHeight - r.top));
-      // The bar is positioned from the sheet inset (CSS), so add its height rather than reading its position.
-      const bar = isDesktop ? 0 : (timeBar()?.offsetHeight ?? 0);
       setSheetInset((prev) => (Math.abs(prev - sheet) < 2 ? prev : sheet));
       const next: Insets = isDesktop
         ? { top: 0, right: 0, bottom: 0, left: Math.round(r.right) }
-        : { top: 56, right: 0, bottom: sheet + (bar ? bar + 20 : 0), left: 0 };
+        : { top: 56, right: 0, bottom: sheet + 8, left: 0 };
       setInsets((prev) =>
         Math.abs(prev.left - next.left) < 2 && Math.abs(prev.bottom - next.bottom) < 2 && prev.top === next.top
           ? prev
@@ -466,14 +465,12 @@ export default function App() {
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(panel);
-    const bar = timeBar();
-    if (bar) ro.observe(bar);
     window.addEventListener('resize', measure);
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [isDesktop, collapsed, editing, route.stops, route.selectedLeg, timeOpen, initialized]);
+  }, [isDesktop, collapsed, editing, route.stops, route.selectedLeg, timeOpen, initialized, arranging]);
 
   useEffect(() => {
     if (!refitAfterLayout.current) return;
@@ -647,7 +644,12 @@ export default function App() {
   const clear = () => {
     dispatch({ type: 'clear' });
     setIsExample(false);
+    setArranging(false);
     if (isDesktop) setEditing(0);
+  };
+  const toggleArranging = () => {
+    if (!arranging && route.selectedLeg !== null) selectLeg(null);
+    setArranging((on) => !on);
   };
 
   const editingCount = route.stops.length;
@@ -683,6 +685,42 @@ export default function App() {
     setCollapsed,
     reducedMotion,
   });
+  // Phones with the timeline docked: the totals scroll with the list so the stops keep some room.
+  const summaryInList = !isDesktop && timeOpen;
+  const summary = legs.length > 0 && (
+    <Summary
+      journey={journey}
+      onCheckLeg={editLeg}
+      legs={legs}
+      layovers={layovers}
+      unit={unit}
+      action={
+        timeOpen ? null : (
+          <button type="button" className="play-btn" aria-label="Play" onClick={togglePlayback}>
+            <IconPlay size={18} />
+            <span>Play</span>
+          </button>
+        )
+      }
+    />
+  );
+  const canArrange = filledAirports.length > 0 || route.stops.length > 2;
+  const timeBar = (docked: boolean) => (
+    <TimeBar
+      clock={clock}
+      journey={journey}
+      timeline={timeline}
+      clockZone={clockZone}
+      docked={docked}
+      onClockZone={(value) => {
+        setClockZone(value);
+        if (value === 'local' || value === 'utc') saveClockZone(value);
+      }}
+      onClose={closeTime}
+      onToggle={togglePlayback}
+      onEditLeg={editLeg}
+    />
+  );
 
   return (
     <div className={`app ${isDesktop ? 'layout-desktop' : 'layout-mobile'}`}>
@@ -728,22 +766,45 @@ export default function App() {
       <header className="topbar">
         <h1 className="sr-only">GlobeHops</h1>
         <Brand />
-        <div className="topbar__tools">
-          {initialized && !timeOpen && dayNight && <TimeChip clock={clock} onOpen={openTime} />}
-          <button
-            type="button"
-            className="icon-btn icon-btn--floating"
-            aria-label="About GlobeHops"
-            onClick={() => aboutRef.current?.open()}
-          >
-            <IconInfo />
-          </button>
-        </div>
+        <button
+          type="button"
+          className="float-btn"
+          aria-label="About GlobeHops"
+          onClick={() => aboutRef.current?.open()}
+        >
+          <IconInfo />
+        </button>
       </header>
 
-      {(timeOpen || !globeFailed) && (
+      {initialized && (
+        <MapTools
+          clock={clock}
+          globe={!globeFailed}
+          showBorders={showBorders}
+          showCountryNames={showCountryNames}
+          dayNight={dayNight}
+          unit={unit}
+          timeOpen={timeOpen}
+          frameLabel={
+            legs.length ? (route.selectedLeg !== null ? 'Re-centre on this flight' : 'Re-centre on the route') : null
+          }
+          onToggleBorders={toggleBorders}
+          onToggleCountryNames={toggleCountryNames}
+          onToggleDayNight={() =>
+            setDayNight((on) => {
+              saveDayNight(!on);
+              return !on;
+            })
+          }
+          onUnitChange={changeUnit}
+          onOpenTime={openTime}
+          onFit={() => setFitNonce((n) => n + 1)}
+        />
+      )}
+
+      {((isDesktop && timeOpen) || (!globeFailed && !timeOpen)) && (
         <div
-          className={`hud-wrap${timeOpen ? ' has-timeline' : ''}`}
+          className={`hud-wrap${isDesktop && timeOpen ? ' has-timeline' : ''}`}
           style={
             {
               '--inset-left': `${insets.left}px`,
@@ -751,46 +812,18 @@ export default function App() {
             } as React.CSSProperties
           }
         >
-          {timeOpen && (
-            <TimeBar
-              clock={clock}
-              journey={journey}
-              timeline={timeline}
-              clockZone={clockZone}
-              onClockZone={(value) => {
-                setClockZone(value);
-                if (value === 'local' || value === 'utc') saveClockZone(value);
-              }}
-              onClose={closeTime}
-              onToggle={togglePlayback}
-              onEditLeg={editLeg}
-            />
-          )}
-          {!globeFailed && (
-            <GlobeHud
-              timeOpen={timeOpen}
-              dayNight={dayNight}
-              onToggleDayNight={() =>
-                setDayNight((on) => {
-                  saveDayNight(!on);
-                  return !on;
-                })
-              }
-              legs={legs}
-              selectedLeg={route.selectedLeg}
-              fits={fits}
-              showBorders={showBorders}
-              showCountryNames={showCountryNames}
-              onSelectLeg={selectLeg}
-              onFit={() => setFitNonce((n) => n + 1)}
-              onToggleBorders={toggleBorders}
-              onToggleCountryNames={toggleCountryNames}
-            />
+          {isDesktop && timeOpen && timeBar(false)}
+          {!globeFailed && !timeOpen && (
+            <GlobeHud legs={legs} selectedLeg={route.selectedLeg} fits={fits} onSelectLeg={selectLeg} />
           )}
         </div>
       )}
 
-      <main ref={panelRef} className={`panel${sheetCollapsed ? ' is-collapsed' : ''}`} aria-label="Journey planner">
+      <main
+        ref={panelRef}
+        className={`panel${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && timeOpen ? ' has-timeline' : ''}`}
+        aria-label="Journey planner"
+      >
         {!isDesktop && (
           <button
             type="button"
@@ -803,19 +836,23 @@ export default function App() {
           </button>
         )}
 
+        {!isDesktop && timeOpen && timeBar(true)}
+
         {sheetCollapsed ? (
-          <button type="button" className="peek" onClick={() => sheet.expand()} aria-label="Show journey details">
-            <span className="peek__route">
-              {filledAirports.length ? filledAirports.map(airportCode).join(' → ') : 'Plan a journey'}
-            </span>
-            {legs.length > 0 && (
-              <span className="peek__totals">
-                {formatDistance(totalKm, unit)}
-                {totalMin ? ` · ${estimated ? '≈ ' : ''}${formatDuration(totalMin)}` : ''}
+          !timeOpen && (
+            <button type="button" className="peek" onClick={() => sheet.expand()} aria-label="Show journey details">
+              <span className="peek__route">
+                {filledAirports.length ? filledAirports.map(airportCode).join(' → ') : 'Plan a journey'}
               </span>
-            )}
-            <IconChevronUp className="peek__chev" />
-          </button>
+              {legs.length > 0 && (
+                <span className="peek__totals">
+                  {formatDistance(totalKm, unit)}
+                  {totalMin ? ` · ${estimated ? '≈ ' : ''}${formatDuration(totalMin)}` : ''}
+                </span>
+              )}
+              <IconChevronUp size={18} className="peek__chev" />
+            </button>
+          )
         ) : (
           <>
             <div className="panel__head">
@@ -824,36 +861,30 @@ export default function App() {
                   <>
                     Example journey<span className="panel__hint">Choose any airport to change it</span>
                   </>
-                ) : (
+                ) : filledAirports.length ? (
                   'Your journey'
+                ) : (
+                  'Plan a journey'
                 )}
               </h2>
               <div className="panel__actions">
-                {legs.length > 0 && (
+                {canArrange && (
                   <button
                     type="button"
-                    className="chip-btn"
-                    aria-label={playing ? 'Pause' : 'Play'}
-                    onClick={togglePlayback}
+                    className={`head-btn${arranging ? ' is-on' : ''}`}
+                    aria-pressed={arranging}
+                    onClick={toggleArranging}
                   >
-                    {playing ? <IconPause size={17} /> : <IconPlay size={17} />}
-                    <span>{playing ? 'Pause' : 'Play'}</span>
+                    {arranging ? <IconCheck size={17} /> : <IconPencil size={16} />}
+                    <span>{arranging ? 'Done' : 'Edit'}</span>
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="chip-btn chip-btn--icon"
-                  title="Reverse route"
-                  onClick={reverse}
-                  disabled={filledAirports.length < 2}
-                >
-                  <IconSwap size={17} />
-                  <span className="sr-only">Reverse</span>
-                </button>
-                <button type="button" className="chip-btn" onClick={share} disabled={filledAirports.length < 1}>
-                  <IconShare size={17} />
-                  <span>Share</span>
-                </button>
+                {filledAirports.length > 0 && (
+                  <button type="button" className="head-btn" onClick={share}>
+                    <IconShare size={17} />
+                    <span>Share</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -875,6 +906,7 @@ export default function App() {
                   unit={unit}
                   selectedLeg={route.selectedLeg}
                   editing={isDesktop ? editing : null}
+                  arranging={arranging}
                   renderPicker={(i) => (
                     <AirportPicker
                       key={route.stops[i].key}
@@ -892,6 +924,8 @@ export default function App() {
                   onMove={(from, to) => dispatch({ type: 'moveStop', from, to })}
                   onLayoverChange={(index, minutes) => dispatch({ type: 'setLayover', index, minutes })}
                   onSelectLeg={selectLeg}
+                  onReverse={reverse}
+                  onClear={clear}
                 />
               )}
               {initialized && legs.length === 0 && filledAirports.length === 0 && (
@@ -908,31 +942,15 @@ export default function App() {
                   </ul>
                 </div>
               )}
+              {summaryInList && summary}
               <footer className="panel__foot">
-                <button
-                  type="button"
-                  className="text-btn"
-                  onClick={clear}
-                  disabled={filledAirports.length === 0 && route.stops.length === 2}
-                >
-                  Clear route
-                </button>
                 <button type="button" className="credits" onClick={() => aboutRef.current?.open()}>
                   Imagery NASA · Airports OurAirports
                 </button>
               </footer>
             </div>
 
-            {legs.length > 0 && (
-              <Summary
-                journey={journey}
-                onCheckLeg={editLeg}
-                legs={legs}
-                layovers={layovers}
-                unit={unit}
-                onUnitChange={changeUnit}
-              />
-            )}
+            {!summaryInList && summary}
           </>
         )}
       </main>

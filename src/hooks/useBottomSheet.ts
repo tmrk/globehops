@@ -5,6 +5,14 @@ const DURATION = 240;
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 /** Approximate collapsed height (handle + peek row); only used to aim the collapse animation. */
 const PEEK_HEIGHT = 74;
+/** The sheet's handle; with the timeline docked in the sheet, the collapsed sheet is handle + timeline. */
+const HANDLE_HEIGHT = 22;
+
+/** Height the sheet keeps when collapsed: the docked timeline stays, otherwise the peek bar. */
+function peekHeight(panel: HTMLElement) {
+  const bar = panel.querySelector<HTMLElement>('.time-bar');
+  return bar ? HANDLE_HEIGHT + bar.offsetHeight : PEEK_HEIGHT;
+}
 
 interface Options {
   enabled: boolean;
@@ -62,7 +70,7 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
     (fromOffset = 0) => {
       const panel = panelRef.current;
       if (!panel || latest.current.collapsed) return;
-      const target = Math.max(0, panel.offsetHeight - PEEK_HEIGHT);
+      const target = Math.max(0, panel.offsetHeight - peekHeight(panel));
       slide(fromOffset, target, () => {
         latest.current.setCollapsed(true);
         panel.style.transform = '';
@@ -106,7 +114,7 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1 || busy.current) return;
       const target = e.target as Element;
-      // Native controls (layover menus, date pickers, the search field) keep their own gestures.
+      // Native controls (layover menus, date pickers, the search field, the timeline) keep their own gestures.
       if (target.closest('input, select, textarea')) return;
       const y = e.touches[0].clientY;
       drag = {

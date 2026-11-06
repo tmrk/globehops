@@ -31,7 +31,7 @@ Natural Earth GeoJSON → build-borders → borders.json → lazy border layer
 
 Airport and time-zone JSON are imported as asset URLs and fetched independently at startup. Airport tuples decode to typed records and ID maps; the normalised search index is built once per load. The separate zone table supplies names; runtime `Intl` supplies offsets and DST. Missing zones leave route planning available.
 
-React owns editing and interface state and memoises the journey/timeline when inputs change. The clock is an external store: its imperative feed updates the renderer without an App render per playback frame. App subscribes to phase/leg changes, TimeChip to whole minutes, and TimeBar to full clock snapshots during playback. URL > remembered journey (legacy route fallback) > example determines startup; only paused view time is debounced into history. See [time and simulation](TIME_AND_SIMULATION.md). No runtime backend or remote map service is involved.
+React owns editing and interface state and memoises the journey/timeline when inputs change. The clock is an external store: its imperative feed updates the renderer without an App render per playback frame. App subscribes to phase/leg changes, the display menu's globe clock to whole minutes, and TimeBar to full clock snapshots during playback. URL > remembered journey (legacy route fallback) > example determines startup; only paused view time is debounced into history. See [time and simulation](TIME_AND_SIMULATION.md). No runtime backend or remote map service is involved.
 
 ## Renderer and lifecycle
 

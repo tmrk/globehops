@@ -57,6 +57,19 @@ export async function expectRoute(page: Page, codes: string[]) {
   await expect(page).toHaveURL(new RegExp(`/globehops/\\?route=${codes.join('-')}$`));
 }
 
+/** Opens the globe's display menu (map layers, distance unit, globe time) unless it is open. */
+export async function openDisplay(page: Page) {
+  const button = page.getByRole('button', { name: 'Display options' });
+  if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+  return page.getByRole('group', { name: 'Display options' });
+}
+
+/** Switches the journey panel to edit mode (reorder, remove, insert, reverse and clear). */
+export async function startEditing(page: Page) {
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Done', exact: true })).toHaveAttribute('aria-pressed', 'true');
+}
+
 /** The airport search field (layover menus are comboboxes too). */
 export const airportField = (page: Page) => page.getByRole('combobox', { name: /airport$|^Stop \d+$/ });
 

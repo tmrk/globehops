@@ -1,5 +1,21 @@
 # Recent changes
 
+## 2026-11-06 — Calmer, aligned interface
+
+A review of the whole interface for clutter and alignment. Every feature remains; fewer controls are visible at once and everything sits on one grid.
+
+- **One grid for the journey.** Stops, flights, layovers and actions share four columns: route line, airport code, text, trailing tools. Codes, flight and layover icons, names and figures each form one straight vertical line. The route line is drawn per row, so it no longer breaks beside an open flight editor.
+- **Edit mode.** Rows no longer carry a grip, a remove button and an insert button each. **Edit** (top of the panel) reveals reorder handles, remove and “add a stop here”, plus **Reverse route** and **Clear route**; **Done** returns to the calm view. Choosing an airport, Add stop, layovers and flight times work as before outside edit mode.
+- **Quieter flights.** Each flight row reads “✈ 979 km · ≈ 1h 40m” with “Add times ⌄” (or its local times, departure-board style) at the right, instead of a numbered badge, an amber bordered pill and a plus on every row. The plane takes the flight's colour.
+- **One primary action.** The totals sit at the bottom of the panel behind a ticket-style tear line, with a single amber **Play** button. Share and Edit are text buttons in the panel header; the header's Play/Reverse/Share chips are gone.
+- **One map control.** The four floating globe buttons and the “Now” clock chip became one top-right group: a **display menu** (country borders, country names, day and night, km/mi, and the globe clock that opens the timeline) and **Re-centre**.
+- **Phones: one bottom surface.** The open timeline is now the top of the journey sheet instead of a second floating card; collapsed during playback, the sheet is just the timeline, leaving more globe. While it is docked the totals scroll with the list. Timeline controls are equal-height chips with visible menu chevrons, and previous/next flight share one capsule.
+- **Flight-times editor.** Date and time fields line up in two columns for departure and arrival; clearing an entered time is a small × in its heading.
+- **Airport look.** Codes are split-flap departure-board tiles; the Play button is an amber wayfinding sign.
+- README screenshots, README usage text, CODE.md (component map and a layout/alignment rule) and the E2E specs were updated. Tests open the display menu or Edit mode where those controls moved.
+
+Limitations: per-end flight-time clearing moved into the editor heading; the sheet gesture and native pickers still need real-device review.
+
 ## 2026-11-05 — Flight-time editing, smooth playback, country names, typography and logo
 
 - **Flight times, in place:** every flight row shows “Add times” (or its local departure → arrival once dated) and opens an editor with one row per end: the airport, its zone for that instant (“CET · UTC+1”) and a date and time field. Fields are native pickers under formatted faces (“Fri 20 Nov 2026”); empty fields show the time estimated from the rest of the journey with ≈ and start the picker there; keyboard focus reveals the native segmented editor. A Done button returns focus to the flight. The time bar's date explorer uses the same field.

@@ -13,14 +13,14 @@ It runs in any modern browser on phones, tablets and desktops. There is nothing 
 ## What you can do
 
 - **Find airports** by city, airport name, IATA or ICAO code, or alternative names. Accents are optional: “malmo” finds Malmö.
-- **Plan up to ten stops.** Insert, remove, drag or use the keyboard to reorder them, or reverse the whole journey.
-- **Explore the globe.** Drag to rotate and scroll or pinch to zoom; arrow keys and +/− work too. Select a flight in the list or on the globe to fly to it. Routes too wide for one view can be stepped through flight by flight. Country names can be switched on from the globe controls; more appear as you zoom in. On phones, drag the journey sheet down to see the whole globe.
+- **Plan up to ten stops.** Choose any airport to change it and use “Add stop” to continue the journey. Tap **Edit** to insert, remove or reorder stops (drag or use the keyboard), reverse the whole journey or clear it.
+- **Explore the globe.** Drag to rotate and scroll or pinch to zoom; arrow keys and +/− work too. Select a flight in the list or on the globe to fly to it. Routes too wide for one view can be stepped through flight by flight. Country names can be switched on in the display menu (the layers button at the top right); more appear as you zoom in. The button below it re-centres the globe on your route. On phones, drag the journey sheet down to see the whole globe.
 - **Set layovers.** Each connection starts at 1h 30m. Change it under the connecting airport, from 30 minutes to three days.
-- **Show or hide country borders** with the button on the globe. They are on by default.
+- **Show or hide country borders** in the display menu. They are on by default.
 - **Add flight times (optional).** Tap “Add times” on any flight to set its departure and arrival date and time, always in each airport’s local time, with the airport’s time zone shown beside it. Times you leave out are estimated from the ones you enter and shown in place, marked with ≈; tap one to adjust it. GlobeHops warns about impossible or contradictory schedules, a clock time that occurs twice when clocks go back (you choose which one), and a time that doesn’t exist when clocks go forward.
 - **Play the journey.** Press Play to watch the plane fly every leg and wait out each connection, with the whole trip compressed into about 15 seconds. Pause, drag the timeline to any moment, jump between flights or pick a fixed speed (0.5, 1 or 2 hours per second). The clock shows your own time, UTC or any airport’s local time.
-- **Day and night.** The globe is lit by the Sun for the moment shown: the current time normally, or the moment you play or scrub to. The night side darkens with a soft twilight band, following the seasons. Turn shading off with the sun button on the globe.
-- **Switch kilometres and miles.** The journey totals show distance, time in the air, layovers and the overall journey time.
+- **Day and night.** The globe is lit by the Sun for the moment shown: the current time normally, or the moment you play or scrub to. The night side darkens with a soft twilight band, following the seasons. Turn shading off in the display menu, which also lets you explore any date and time from the globe clock.
+- **Switch kilometres and miles** in the display menu. The journey totals at the bottom of the panel show distance, time in the air, layovers and the overall journey time.
 - **Share the journey.** The page address always holds the current route, so you can bookmark it or send it to someone. The Share button copies it or opens your device’s share sheet.
 
 ### Route links

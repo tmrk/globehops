@@ -12,7 +12,7 @@ import { formatLegTimes } from '../lib/journeyText.ts';
 import { LegSchedule } from './LegSchedule.tsx';
 import type { LocalTimeInput } from '../types.ts';
 import { CodeBadge } from './CodeBadge.tsx';
-import { IconChevronDown, IconClock, IconClose, IconGrip, IconPlus } from './Icons.tsx';
+import { IconChevronDown, IconClock, IconClose, IconGrip, IconPlane, IconPlus, IconSwap, IconTrash } from './Icons.tsx';
 
 export interface StopListProps {
   journey: Journey;
@@ -27,6 +27,8 @@ export interface StopListProps {
   unit: DistanceUnit;
   selectedLeg: number | null;
   editing: number | null;
+  /** Edit mode: reorder, remove and insert controls, plus reverse and clear. */
+  arranging: boolean;
   /** Renders the inline picker for the stop being edited (desktop). */
   renderPicker: (index: number) => React.ReactNode;
   onEdit: (index: number) => void;
@@ -36,6 +38,8 @@ export interface StopListProps {
   onMove: (from: number, to: number) => void;
   onSelectLeg: (leg: number | null) => void;
   onLayoverChange: (stopIndex: number, minutes: number | null) => void;
+  onReverse: () => void;
+  onClear: () => void;
 }
 
 interface DragState {
@@ -47,11 +51,43 @@ interface DragState {
   mids: number[];
 }
 
+/** How the route line looks in one half of a row: a flight (leg colour), ground time, or not yet a flight. */
+type Segment = 'leg' | 'ground' | 'pending' | null;
+
+/**
+ * The route line beside each row. Every row draws its own top and bottom half, so the line stays
+ * continuous whatever the rows' heights are, and a node marks each airport.
+ */
+function Rail({
+  top,
+  bottom,
+  topColor,
+  bottomColor,
+  node,
+}: {
+  top: Segment;
+  bottom: Segment;
+  topColor?: string;
+  bottomColor?: string;
+  node?: boolean;
+}) {
+  return (
+    <span
+      className={`rail${top ? ` rail--top-${top}` : ''}${bottom ? ` rail--bottom-${bottom}` : ''}`}
+      style={{ '--rail-top': topColor, '--rail-bottom': bottomColor } as React.CSSProperties}
+      aria-hidden="true"
+    >
+      {node && <span className="rail__node" />}
+    </span>
+  );
+}
+
 export function StopList(props: StopListProps) {
-  const { stops, legs, lookup, unit, selectedLeg, editing } = props;
+  const { stops, legs, lookup, unit, selectedLeg, editing, arranging } = props;
   const listRef = useRef<HTMLOListElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const count = stops.length;
+  const filled = stops.filter((s) => s.airportId !== null).length;
 
   const legByFromStop = new Map<number, Leg>();
   for (const leg of legs) if (leg.toStop === leg.fromStop + 1) legByFromStop.set(leg.fromStop, leg);
@@ -94,12 +130,15 @@ export function StopList(props: StopListProps) {
     }
   };
 
+  const canAdd = count < MAX_STOPS && stops.every((s) => s.airportId !== null);
+
   return (
-    <div className="itinerary">
+    <div className={`itinerary${arranging ? ' is-arranging' : ''}`}>
       <ol ref={listRef} className="stops" aria-label="Journey stops">
         {stops.map((stop, i) => {
           const airport = stop.airportId !== null ? lookup(stop.airportId) : undefined;
           const leg = legByFromStop.get(i);
+          const prevLeg = legByFromStop.get(i - 1);
           const isLast = i === count - 1;
           const role = i === 0 ? 'origin' : isLast ? 'destination' : 'transfer';
           const dragging = drag?.index === i;
@@ -109,26 +148,40 @@ export function StopList(props: StopListProps) {
           if (dragging) style.transform = `translateY(${drag.dy}px)`;
           const showDropAbove = drag && drag.target === i && drag.target < drag.index;
           const showDropBelow = drag && drag.target === i && drag.target > drag.index;
-          const nextColor = leg ? legColor(leg.index) : undefined;
+          const color = leg ? legColor(leg.index) : undefined;
           const layover = layoverByStop.get(i);
           const journeyLeg = leg ? props.journey.legs[leg.index] : null;
           const legTimes = journeyLeg && props.journey.dated ? formatLegTimes(journeyLeg) : null;
-          const transfer = props.journey.transfers.find(
-            (t) => t.stop === stops.slice(0, i).filter((s) => s.airportId !== null).length,
-          );
+          const filledBefore = stops.slice(0, i).filter((s) => s.airportId !== null).length;
+          const transfer = props.journey.transfers.find((t) => t.stop === filledBefore);
+          const selected = !!leg && selectedLeg === leg.index && !arranging;
+          const top: Segment = i === 0 ? null : prevLeg ? 'leg' : 'pending';
+          const bottom: Segment = isLast ? null : layover ? 'ground' : leg ? 'leg' : 'pending';
+          const facts = leg
+            ? `${formatDistance(leg.distanceKm, unit)}${
+                legTimes ? '' : leg.durationMin !== null ? ` · ≈ ${formatDuration(leg.durationMin)}` : ' · same airport'
+              }`
+            : '';
 
           return (
             <li
               key={stop.key}
               className={`stop-item${dragging ? ' is-dragging' : ''}${showDropAbove ? ' drop-above' : ''}${showDropBelow ? ' drop-below' : ''}`}
-              style={{ '--next-color': nextColor } as React.CSSProperties}
             >
               <div
-                className={`stop${props.activeStop === stops.slice(0, i).filter((s) => s.airportId !== null).length ? ' is-active-transfer' : ''} stop--${role}${airport ? '' : ' stop--empty'}${editing === i ? ' is-editing' : ''}`}
+                className={`row stop stop--${role}${airport ? '' : ' stop--empty'}${editing === i ? ' is-editing' : ''}${
+                  props.activeStop === filledBefore && airport ? ' is-active-transfer' : ''
+                }`}
                 data-stop-row
                 style={style}
               >
-                <span className="stop__node" aria-hidden="true" />
+                <Rail
+                  top={top}
+                  bottom={bottom}
+                  topColor={prevLeg ? legColor(prevLeg.index) : undefined}
+                  bottomColor={color}
+                  node
+                />
                 {editing === i ? (
                   <div className="stop__picker">{props.renderPicker(i)}</div>
                 ) : (
@@ -155,43 +208,51 @@ export function StopList(props: StopListProps) {
                         <span className="stop__placeholder">{stopPlaceholder(i, count)}</span>
                       )}
                     </button>
-                    {count > 2 && (
-                      <button
-                        type="button"
-                        className="icon-btn icon-btn--quiet stop__grip"
-                        aria-label={`Reorder ${name || caption}. Use up and down arrow keys to move`}
-                        onPointerDown={(e) => onGripPointerDown(e, i)}
-                        onPointerMove={onGripPointerMove}
-                        onPointerUp={onGripPointerUp}
-                        onPointerCancel={() => setDrag(null)}
-                        onKeyDown={(e) => onGripKeyDown(e, i)}
-                      >
-                        <IconGrip size={18} />
-                      </button>
-                    )}
-                    {(airport || count > 2) && (
-                      <button
-                        type="button"
-                        className="icon-btn icon-btn--quiet stop__remove"
-                        aria-label={
-                          count > 2 ? `Remove ${name || 'this stop'}` : `Clear ${caption.toLowerCase()} airport`
-                        }
-                        onClick={() => props.onRemove(i)}
-                      >
-                        <IconClose size={16} />
-                      </button>
+                    {arranging && (
+                      <span className="row__tools">
+                        {count > 2 ? (
+                          <button
+                            type="button"
+                            className="icon-btn icon-btn--quiet stop__grip"
+                            aria-label={`Reorder ${name || caption}. Use up and down arrow keys to move`}
+                            onPointerDown={(e) => onGripPointerDown(e, i)}
+                            onPointerMove={onGripPointerMove}
+                            onPointerUp={onGripPointerUp}
+                            onPointerCancel={() => setDrag(null)}
+                            onKeyDown={(e) => onGripKeyDown(e, i)}
+                          >
+                            <IconGrip size={18} />
+                          </button>
+                        ) : null}
+                        {airport || count > 2 ? (
+                          <button
+                            type="button"
+                            className="icon-btn icon-btn--quiet stop__remove"
+                            aria-label={
+                              count > 2 ? `Remove ${name || 'this stop'}` : `Clear ${caption.toLowerCase()} airport`
+                            }
+                            onClick={() => props.onRemove(i)}
+                          >
+                            <IconClose size={16} />
+                          </button>
+                        ) : (
+                          <span className="icon-btn" aria-hidden="true" />
+                        )}
+                      </span>
                     )}
                   </>
                 )}
               </div>
               {layover && (
-                <div className="layover" style={style}>
-                  <span className="layover__line" aria-hidden="true" />
+                <div className="row layover" style={style}>
+                  <Rail top="ground" bottom="ground" />
+                  <span className="row__icon">
+                    <IconClock size={16} />
+                  </span>
                   <span
-                    className="layover__pick"
+                    className={`layover__pick${transfer?.source === 'times' ? ' is-fixed' : ''}`}
                     title={transfer?.source === 'times' ? 'From your flight times' : undefined}
                   >
-                    <IconClock size={15} className="layover__icon" />
                     <span className="layover__value" aria-hidden={transfer?.source !== 'times' ? true : undefined}>
                       {transfer?.source === 'times' &&
                       (transfer.arrival?.provenance !== 'entered' || transfer.departure?.provenance !== 'entered')
@@ -223,106 +284,149 @@ export function StopList(props: StopListProps) {
                   </span>
                 </div>
               )}
-              {!isLast && (
-                <div
-                  className={`connector${leg ? ' connector--leg' : ''}${leg && selectedLeg === leg.index ? ' is-selected' : ''}${leg && props.activeLeg === leg.index ? ' is-active' : ''}`}
-                >
-                  <span className="connector__line" aria-hidden="true" />
-                  {leg ? (
-                    <button
-                      type="button"
-                      className="connector__leg"
-                      data-leg={leg.index}
-                      aria-pressed={selectedLeg === leg.index}
-                      aria-expanded={selectedLeg === leg.index}
-                      aria-controls={selectedLeg === leg.index ? `leg-schedule-${leg.index}` : undefined}
-                      aria-label={`Flight ${leg.index + 1}, ${airportCode(leg.from)} to ${airportCode(leg.to)}: ${formatDistance(
-                        leg.distanceKm,
-                        unit,
-                      )}${legTimes ? `, ${legTimes.dep} to ${legTimes.arr} local time` : leg.durationMin !== null ? `, about ${formatDuration(leg.durationMin)}` : ''}. ${
-                        selectedLeg === leg.index
-                          ? 'Selected. Close flight times'
-                          : legTimes
-                            ? 'Show on globe and change flight times'
-                            : 'Show on globe and add flight times'
-                      }`}
-                      onClick={() => props.onSelectLeg(selectedLeg === leg.index ? null : leg.index)}
-                    >
-                      <span className="connector__num">{leg.index + 1}</span>
-                      <span className="connector__facts">
-                        <span className="connector__dist">{formatDistance(leg.distanceKm, unit)}</span>
-                        {!legTimes && (
-                          <span className="connector__time">
-                            {leg.durationMin !== null ? `≈ ${formatDuration(leg.durationMin)}` : 'same airport'}
+              {!isLast &&
+                (leg ? (
+                  <div
+                    className={`row leg${selected ? ' is-selected' : ''}${props.activeLeg === leg.index ? ' is-active' : ''}`}
+                    style={{ '--leg': color } as React.CSSProperties}
+                  >
+                    <Rail top="leg" bottom="leg" topColor={color} bottomColor={color} />
+                    {arranging ? (
+                      <>
+                        <span className="leg__body">
+                          <span className="row__icon leg__icon">
+                            <IconPlane size={15} />
+                          </span>
+                          <span className="leg__facts">{facts}</span>
+                        </span>
+                        {count < MAX_STOPS && (
+                          <span className="row__tools">
+                            <button
+                              type="button"
+                              className="icon-btn icon-btn--quiet"
+                              aria-label={`Add a stop after ${name || caption}`}
+                              onClick={() => props.onInsert(i + 1)}
+                            >
+                              <IconPlus size={17} />
+                            </button>
                           </span>
                         )}
-                      </span>
-                      {leg.durationMin !== null && (
-                        <span className={`connector__when${legTimes ? ' has-times' : ''}`}>
-                          <IconClock size={14} className="connector__clock" />
-                          {legTimes ? (
-                            <span className="connector__times">
-                              <span className={journeyLeg?.departure?.provenance !== 'entered' ? 'is-estimated' : ''}>
-                                {journeyLeg?.departure?.provenance !== 'entered' ? '≈' : ''}
-                                {legTimes.dep}
-                              </span>
-                              <span className="connector__arrow">→</span>
-                              <span className={journeyLeg?.arrival?.provenance !== 'entered' ? 'is-estimated' : ''}>
-                                {journeyLeg?.arrival?.provenance !== 'entered' ? '≈' : ''}
-                                {legTimes.arr}
-                              </span>
-                              {legTimes.dayShift !== 0 && (
-                                <sup>
-                                  {legTimes.dayShift > 0 ? '+' : '−'}
-                                  {Math.abs(legTimes.dayShift)}
-                                </sup>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="connector__add">Add times</span>
-                          )}
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="leg__body leg__main"
+                        data-leg={leg.index}
+                        aria-pressed={selected}
+                        aria-expanded={selected}
+                        aria-controls={selected ? `leg-schedule-${leg.index}` : undefined}
+                        aria-label={`Flight ${leg.index + 1}, ${airportCode(leg.from)} to ${airportCode(leg.to)}: ${formatDistance(
+                          leg.distanceKm,
+                          unit,
+                        )}${legTimes ? `, ${legTimes.dep} to ${legTimes.arr} local time` : leg.durationMin !== null ? `, about ${formatDuration(leg.durationMin)}` : ''}. ${
+                          selected
+                            ? 'Selected. Close flight times'
+                            : legTimes
+                              ? 'Show on globe and change flight times'
+                              : 'Show on globe and add flight times'
+                        }`}
+                        onClick={() => props.onSelectLeg(selected ? null : leg.index)}
+                      >
+                        <span className="row__icon leg__icon">
+                          <IconPlane size={15} />
                         </span>
-                      )}
-                    </button>
-                  ) : (
-                    <span className="connector__spacer" />
-                  )}
-                  {count < MAX_STOPS && leg && (
-                    <button
-                      type="button"
-                      className="icon-btn icon-btn--quiet icon-btn--small connector__insert"
-                      aria-label={`Add a stop after ${name || caption}`}
-                      onClick={() => props.onInsert(i + 1)}
-                    >
-                      <IconPlus size={16} />
-                    </button>
-                  )}
+                        <span className="leg__facts">{facts}</span>
+                        {leg.durationMin !== null && (
+                          <span className={`leg__when${legTimes ? ' has-times' : ''}`}>
+                            {legTimes ? (
+                              <span className="leg__times">
+                                <span className={journeyLeg?.departure?.provenance !== 'entered' ? 'is-estimated' : ''}>
+                                  {journeyLeg?.departure?.provenance !== 'entered' ? '≈' : ''}
+                                  {legTimes.dep}
+                                </span>
+                                <span className="leg__arrow">→</span>
+                                <span className={journeyLeg?.arrival?.provenance !== 'entered' ? 'is-estimated' : ''}>
+                                  {journeyLeg?.arrival?.provenance !== 'entered' ? '≈' : ''}
+                                  {legTimes.arr}
+                                </span>
+                                {legTimes.dayShift !== 0 && (
+                                  <sup>
+                                    {legTimes.dayShift > 0 ? '+' : '−'}
+                                    {Math.abs(legTimes.dayShift)}
+                                  </sup>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="leg__add">Add times</span>
+                            )}
+                            <IconChevronDown size={14} className="leg__chev" />
+                          </span>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="row gap" aria-hidden="true">
+                    <Rail top="pending" bottom="pending" />
+                  </div>
+                ))}
+              {leg && journeyLeg && selected && (
+                <div className="row leg-detail" style={{ '--leg': color } as React.CSSProperties}>
+                  <Rail top="leg" bottom="leg" topColor={color} bottomColor={color} />
+                  <LegSchedule
+                    journey={props.journey}
+                    leg={journeyLeg}
+                    onChange={props.onTimeChange}
+                    onClose={() => {
+                      const index = leg.index;
+                      props.onSelectLeg(null);
+                      // The Done button disappears with the editor; return focus to the flight it belonged to.
+                      requestAnimationFrame(() =>
+                        listRef.current?.querySelector<HTMLElement>(`.leg__main[data-leg="${index}"]`)?.focus(),
+                      );
+                    }}
+                  />
                 </div>
-              )}
-              {leg && journeyLeg && selectedLeg === leg.index && (
-                <LegSchedule
-                  journey={props.journey}
-                  leg={journeyLeg}
-                  onChange={props.onTimeChange}
-                  onClose={() => {
-                    const index = leg.index;
-                    props.onSelectLeg(null);
-                    // The Done button disappears with the editor; return focus to the flight it belonged to.
-                    requestAnimationFrame(() =>
-                      listRef.current?.querySelector<HTMLElement>(`.connector__leg[data-leg="${index}"]`)?.focus(),
-                    );
-                  }}
-                />
               )}
             </li>
           );
         })}
       </ol>
-      {count < MAX_STOPS && (
-        <button type="button" className="add-stop" onClick={props.onAdd}>
-          <IconPlus size={16} />
-          <span>Add stop</span>
-        </button>
+      {(canAdd || arranging) && (
+        <div className="itinerary__actions">
+          {canAdd && (
+            <button type="button" className="row row--action add-stop" onClick={props.onAdd}>
+              <Rail top={null} bottom={null} />
+              <span className="row__icon">
+                <IconPlus size={17} />
+              </span>
+              <span>Add stop</span>
+            </button>
+          )}
+          {arranging && (
+            <>
+              <button type="button" className="row row--action" onClick={props.onReverse} disabled={filled < 2}>
+                <Rail top={null} bottom={null} />
+                <span className="row__icon">
+                  <IconSwap size={17} />
+                </span>
+                <span>Reverse route</span>
+              </button>
+              <button
+                type="button"
+                className="row row--action row--danger"
+                onClick={props.onClear}
+                disabled={filled === 0 && count === 2}
+              >
+                <Rail top={null} bottom={null} />
+                <span className="row__icon">
+                  <IconTrash size={17} />
+                </span>
+                <span>Clear route</span>
+              </button>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
