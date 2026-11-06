@@ -116,6 +116,7 @@ export interface GlobeRendererOptions {
   showBorders: boolean;
   countryLabelsUrl: string;
   showCountryLabels: boolean;
+  labelLocale?: string;
   reducedMotion: boolean;
   onLegClick?: (leg: number) => void;
   onFollowAircraftChange?: (enabled: boolean) => void;
@@ -274,6 +275,7 @@ export class GlobeRenderer {
     this.labelLayer.setAttribute('aria-hidden', 'true');
     container.appendChild(this.labelLayer);
     this.countryLabels = new CountryLabelLayer(this.labelLayer, options.countryLabelsUrl, this.requestRender);
+    this.countryLabels.setLocale(options.labelLocale ?? 'en');
     this.countryLabels.setVisible(options.showCountryLabels);
 
     this.plane = document.createElement('div');
@@ -600,6 +602,10 @@ export class GlobeRenderer {
     if (visible) this.ensureBorders();
     for (const layer of this.borderLayers) layer.line.visible = visible;
     this.requestRender();
+  }
+
+  setLabelLocale(locale: string) {
+    this.countryLabels.setLocale(locale);
   }
 
   setCountryLabelsVisible(visible: boolean) {

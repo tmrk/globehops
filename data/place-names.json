@@ -1,0 +1,323 @@
+{
+  "format": 1,
+  "cities": [
+    {
+      "key": "Kyiv|UA",
+      "names": {
+        "sv": "Kyiv"
+      },
+      "reason": "Owner-requested international spelling Kyiv replaces Natural Earth 5.1.2 Kiev; Hungarian Kijev is unchanged. Swedish Språkrådet now prefers Kyjiv (21 September 2026), so this is a project preference, not a claimed 2022 Swedish recommendation."
+    },
+    {
+      "key": "Kiev|UA",
+      "names": {
+        "sv": "Kyiv"
+      },
+      "reason": "Owner-requested international spelling Kyiv replaces Natural Earth 5.1.2 Kiev; Hungarian Kijev is unchanged. Swedish Språkrådet now prefers Kyjiv (21 September 2026), so this is a project preference, not a claimed 2022 Swedish recommendation."
+    },
+    {
+      "key": "Venezia (VE)|IT",
+      "names": {
+        "hu": "Velence",
+        "sv": "Venedig"
+      },
+      "reason": "Venice uses its Italian municipality name and province code in OurAirports; Natural Earth lacks Venezia among the matching alias fields. Established Hungarian and Swedish exonyms."
+    },
+    {
+      "key": "Firenze (FI)|IT",
+      "names": {
+        "sv": "Florens"
+      },
+      "reason": "Florence uses its Italian municipality name and province code in OurAirports; Natural Earth lacks Firenze among the matching alias fields. Hungarian already displays Firenze."
+    },
+    {
+      "key": "Spata-Artemida|GR",
+      "names": {
+        "hu": "Athén",
+        "sv": "Aten"
+      },
+      "reason": "ATH: owner spot-check requests the familiar Athens service city; the exact airport municipality is Spata-Artemida, east of Athens."
+    },
+    {
+      "key": "Otopeni|RO",
+      "names": {
+        "hu": "Bukarest",
+        "sv": "Bukarest"
+      },
+      "reason": "OTP: owner spot-check requests Bucharest service-city names; the exact airport municipality is Otopeni."
+    },
+    {
+      "key": "Boryspil|UA",
+      "names": {
+        "hu": "Kijev",
+        "sv": "Kyiv"
+      },
+      "reason": "KBP: owner spot-check requests Kyiv service-city names; the exact airport municipality is Boryspil. Kyiv is the owner-requested international spelling; see the Kyiv override note."
+    },
+    {
+      "key": "Balice|PL",
+      "names": {
+        "hu": "Krakkó",
+        "sv": "Kraków"
+      },
+      "reason": "KRK: owner spot-check requests Kraków service-city names; the exact airport municipality is Balice."
+    }
+  ],
+  "labels": [
+    {
+      "kind": "country",
+      "key": "United States of America",
+      "names": {
+        "en": "United States",
+        "hu": "Egyesült Államok"
+      },
+      "reason": "Short cartographic names; Swedish USA is already concise upstream."
+    },
+    {
+      "kind": "country",
+      "key": "Micronesia",
+      "names": {
+        "hu": "Mikronézia",
+        "sv": "Mikronesien"
+      },
+      "reason": "Use the short geographic name instead of the formal state name."
+    },
+    {
+      "kind": "country",
+      "key": "S. Geo. and the Is.",
+      "names": {
+        "hu": "Déli-Georgia és Déli-Sandwich-sz.",
+        "sv": "Sydgeorgien och Sydsandwichö."
+      },
+      "reason": "Abbreviate the long island suffixes to keep the full geographic identities readable on the map."
+    },
+    {
+      "kind": "country",
+      "key": "Br. Indian Ocean Ter.",
+      "names": {
+        "hu": "Brit Indiai-óceáni ter.",
+        "sv": "Britt. Indiska oceanterrit."
+      },
+      "reason": "Shorten the long territorial designations for the map, preserving the British Indian Ocean identity."
+    },
+    {
+      "kind": "country",
+      "key": "Guernsey",
+      "names": {
+        "hu": "Guernsey"
+      },
+      "reason": "Omit the formal bailiwick designation."
+    },
+    {
+      "kind": "country",
+      "key": "Taiwan",
+      "names": {
+        "hu": "Tajvan"
+      },
+      "reason": "Use the geographic name rather than the formal Republic of China."
+    },
+    {
+      "kind": "country",
+      "key": "eSwatini",
+      "names": {
+        "hu": "Eswatini",
+        "sv": "Eswatini"
+      },
+      "reason": "Use the current short country name instead of the former Swaziland."
+    },
+    {
+      "kind": "country",
+      "key": "St. Vin. and Gren.",
+      "names": {
+        "hu": "Saint Vincent és Grenadine-sz.",
+        "sv": "Saint Vincent och Grenadinerna"
+      },
+      "reason": "Abbreviate the long Hungarian island designation for the map."
+    },
+    {
+      "kind": "country",
+      "key": "Fr. S. Antarctic Lands",
+      "names": {
+        "hu": "Francia déli területek"
+      },
+      "reason": "Short cartographic form of the French Southern and Antarctic Lands."
+    },
+    {
+      "kind": "country",
+      "key": "Dominica",
+      "names": {
+        "hu": "Dominika"
+      },
+      "reason": "Use the short geographic name instead of the formal Commonwealth."
+    },
+    {
+      "kind": "country",
+      "key": "Dem. Rep. Congo",
+      "names": {
+        "hu": "Kongói DK"
+      },
+      "reason": "Common cartographic abbreviation of Kongói Demokratikus Köztársaság."
+    },
+    {
+      "kind": "country",
+      "key": "Congo",
+      "names": {
+        "hu": "Kongói Közt."
+      },
+      "reason": "Abbreviate Köztársaság while distinguishing the two Congos."
+    },
+    {
+      "kind": "country",
+      "key": "Central African Rep.",
+      "names": {
+        "hu": "Közép-afrikai Közt.",
+        "sv": "Centralafrikanska rep."
+      },
+      "reason": "Abbreviate the unusually long republic designation."
+    },
+    {
+      "kind": "country",
+      "key": "Cabo Verde",
+      "names": {
+        "hu": "Zöld-foki-szigetek"
+      },
+      "reason": "Use the geographic island name rather than the formal republic."
+    },
+    {
+      "kind": "country",
+      "key": "Indian Ocean Ter.",
+      "names": {
+        "hu": "Ausztrál Indiai-óceáni ter.",
+        "sv": "Australiska Indiska oceanterrit."
+      },
+      "reason": "Shorten the Australian Indian Ocean Territories; correct upstream Swedish Australienska and avoid havsområde."
+    },
+    {
+      "kind": "country",
+      "key": "Heard I. and McDonald Is.",
+      "names": {
+        "hu": "Heard- és McDonald-szigetek"
+      },
+      "reason": "Omit redundant sziget after Heard."
+    },
+    {
+      "kind": "country",
+      "key": "Siachen Glacier",
+      "names": {
+        "sv": "Siachenglaciären"
+      },
+      "reason": "Use the Swedish compound noun instead of the spaced English-influenced form."
+    },
+    {
+      "kind": "ocean",
+      "key": "Arctic Ocean",
+      "names": {
+        "hu": "Északi-Jeges-tenger"
+      },
+      "reason": "Hand-placed in open water for a readable whole-globe label; Arctic uses the conventional Hungarian geographic name.",
+      "point": [84, 0]
+    },
+    {
+      "kind": "ocean",
+      "key": "SOUTHERN OCEAN",
+      "names": {
+        "en": "Southern Ocean"
+      },
+      "reason": "Hand-placed in open water for a readable whole-globe label; Arctic uses the conventional Hungarian geographic name.",
+      "point": [-64, 60]
+    },
+    {
+      "kind": "ocean",
+      "key": "North Atlantic Ocean",
+      "names": {},
+      "reason": "Hand-placed in open water for a readable whole-globe label; Arctic uses the conventional Hungarian geographic name.",
+      "point": [30, -40]
+    },
+    {
+      "kind": "ocean",
+      "key": "South Atlantic Ocean",
+      "names": {},
+      "reason": "Hand-placed in open water for a readable whole-globe label; Arctic uses the conventional Hungarian geographic name.",
+      "point": [-30, -15]
+    },
+    {
+      "kind": "ocean",
+      "key": "North Pacific Ocean",
+      "names": {},
+      "reason": "Hand-placed in the central open North Pacific; the lower latitude keeps this long label clear of Honolulu airport labels on a phone.",
+      "point": [10, -175]
+    },
+    {
+      "kind": "ocean",
+      "key": "South Pacific Ocean",
+      "names": {},
+      "reason": "Hand-placed in open water for a readable whole-globe label; Arctic uses the conventional Hungarian geographic name.",
+      "point": [-30, -135]
+    },
+    {
+      "kind": "ocean",
+      "key": "INDIAN OCEAN",
+      "names": {
+        "en": "Indian Ocean"
+      },
+      "reason": "Hand-placed in open water for a readable whole-globe label; Arctic uses the conventional Hungarian geographic name.",
+      "point": [-25, 80]
+    },
+    {
+      "kind": "sea",
+      "key": "Laccadive Sea",
+      "names": {
+        "hu": "Lakkadív-tenger"
+      },
+      "reason": "Replace the untranslated Hungarian fallback with the Hungarian exonym."
+    },
+    {
+      "kind": "sea",
+      "key": "Bahía de Campeche",
+      "names": {
+        "en": "Bay of Campeche",
+        "hu": "Campeche-öböl"
+      },
+      "reason": "Use English and Hungarian bay names instead of the Spanish source name."
+    },
+    {
+      "kind": "sea",
+      "key": "Golfo de California",
+      "names": {
+        "en": "Gulf of California"
+      },
+      "reason": "Use the English name instead of the Spanish source name."
+    },
+    {
+      "kind": "sea",
+      "key": "Bay of Fundy",
+      "names": {
+        "hu": "Fundy-öböl"
+      },
+      "reason": "Correct upstream Funfy typo; audited although rank-4 bays are currently omitted."
+    },
+    {
+      "kind": "sea",
+      "key": "Philippine Sea",
+      "names": {
+        "hu": "Fülöp-tenger"
+      },
+      "reason": "Use the established Hungarian geographic name rather than Filippínó-tenger."
+    },
+    {
+      "kind": "sea",
+      "key": "Sargasso Sea",
+      "names": {
+        "hu": "Sargasso-tenger"
+      },
+      "reason": "Keep the established Hungarian spelling."
+    },
+    {
+      "kind": "sea",
+      "key": "Mediterranean Sea",
+      "names": {},
+      "point": [35, 18],
+      "reason": "Place the basin-wide label in central open Mediterranean water; the computed deepest interior point lies far east, crowding Levant labels in whole-globe views."
+    }
+  ]
+}
