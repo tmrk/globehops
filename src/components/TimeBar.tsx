@@ -58,7 +58,7 @@ export function TimeBar({
   const { t, fmt } = useI18n();
 
   const snapshot = useClock(clock);
-  const browserZone = `${browserTimeZone()}`;
+  const browserZone = browserTimeZone();
   const allJourneys = useMemo(() => comparison?.map((entry) => entry.journey) ?? [journey], [comparison, journey]);
   const sharedRange = useMemo(() => (comparison ? comparisonRange(comparison) : timeline), [comparison, timeline]);
   const metrics = useMemo(() => (comparison ? compareMetrics(comparison) : null), [comparison]);
@@ -69,7 +69,7 @@ export function TimeBar({
         ? 'UTC'
         : (allJourneys.flatMap((entry) => entry.stops).find((s) => airportCode(s.airport) === clockZone)?.zone ??
           browserZone);
-  const zone = `${isSupportedTimeZone(requestedZone) ? requestedZone : browserZone}`;
+  const zone = isSupportedTimeZone(requestedZone) ? requestedZone : browserZone;
   const state = timeline ? journeyStateAt(journey, timeline, snapshot.time) : null;
   const text = state
     ? fmt.describeState(journey, state)

@@ -129,7 +129,7 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
       if (e.touches.length !== 1 || busy.current) return;
       const target = e.target as Element;
       // Native controls (layover menus, date pickers, the search field, the timeline) keep their own gestures.
-      if (target.closest('input, select, textarea, .time-bar')) return;
+      if (target.closest('input, select, textarea')) return;
       const y = e.touches[0].clientY;
       drag = {
         startY: y,
