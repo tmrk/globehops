@@ -14,7 +14,6 @@ import {
   loadLastRoute,
   loadUnit,
   saveBorders,
-  saveLastRoute,
   saveUnit,
   loadLastJourney,
   saveLastJourney,
@@ -53,9 +52,9 @@ describe('safe storage', () => {
       expect(loadUnit()).toBe('mi');
       saveUnit('km');
       expect(loadUnit()).toBe('km');
-      saveLastRoute(Array(15).fill('CPH'));
+      data.set('globehops:lastRoute', JSON.stringify(Array(15).fill('CPH')));
       expect(loadLastRoute()).toHaveLength(10);
-      saveLastRoute(['CPH', 'LHR_180', 'JFK']);
+      data.set('globehops:lastRoute', JSON.stringify(['CPH', 'LHR_180', 'JFK']));
       expect(loadLastRoute()).toEqual(['CPH', 'LHR_180', 'JFK']);
       expect(loadCountryNames()).toBeNull();
       saveCountryNames(true);
@@ -106,7 +105,6 @@ describe('safe storage', () => {
           saveUnit('km');
           saveBorders(false);
           saveCountryNames(true);
-          saveLastRoute([]);
         }).not.toThrow();
       } finally {
         vi.unstubAllGlobals();
@@ -149,7 +147,7 @@ describe('journey preferences', () => {
       expect(loadClockZone()).toBe('local');
       data.set('globehops:clockZone', 'CPH');
       expect(loadClockZone()).toBeNull();
-      saveLastRoute(['CPH', 'LHR']);
+      data.set('globehops:lastRoute', JSON.stringify(['CPH', 'LHR']));
       expect(loadLastRoute()).toEqual(['CPH', 'LHR']);
     } finally {
       vi.unstubAllGlobals();
