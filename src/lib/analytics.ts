@@ -44,9 +44,3 @@ export function reportedLocation(href: string): string {
     return '';
   }
 }
-
-/** How the visitor arrived: an explicit link (route, itinerary or parameters) or the plain address. */
-export function entryType(search: string): 'link' | 'direct' {
-  const params = new URLSearchParams(search);
-  return params.has('route') || params.has('itinerary') ? 'link' : 'direct';
-}

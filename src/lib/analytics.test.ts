@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyticsAvailable, entryType, GA_HOSTS, parseConsent, reportedLocation } from './analytics.ts';
+import { analyticsAvailable, GA_HOSTS, parseConsent, reportedLocation } from './analytics.ts';
 
 const live = { hostname: GA_HOSTS[0], production: true };
 
@@ -43,15 +43,5 @@ describe('reportedLocation', () => {
 
   it('reports nothing for an unparseable address', () => {
     expect(reportedLocation('not a url')).toBe('');
-  });
-});
-
-describe('entryType', () => {
-  it('distinguishes shared links from the plain address', () => {
-    expect(entryType('?route=CPH-LHR')).toBe('link');
-    expect(entryType('?route=')).toBe('link');
-    expect(entryType('?itinerary=abc')).toBe('link');
-    expect(entryType('')).toBe('direct');
-    expect(entryType('?units=mi')).toBe('direct');
   });
 });

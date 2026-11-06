@@ -5,14 +5,15 @@
  * - Consent Mode v2 “basic”: no request reaches Google before consent. Advertising storage, user
  *   data and personalisation are always denied; Google signals and ad personalisation are off.
  * - One page view per visit, reported as the bare address and a fixed title, because the real
- *   address and document title contain the itinerary.
+ *   address and document title contain the itinerary. The Google tag sends its own page view as
+ *   it initialises and ignores `config` overrides for it; only `set` queued before `js` reaches it,
+ *   and it then applies to every later event too (verified against gtag.js, 2026-11-06).
  * - The app rewrites its address on every edit and scrub. Those writes use the browser's own
  *   History methods, captured before gtag.js can wrap them, so they never count as page views.
  * - Withdrawing consent sets Google's documented opt-out flag and removes the _ga cookies.
  */
 import {
   analyticsAvailable,
-  entryType,
   GA_MEASUREMENT_ID,
   GA_PAGE_TITLE,
   reportedLocation,
@@ -28,7 +29,6 @@ declare global {
 
 const nativeReplaceState = History.prototype.replaceState;
 const nativePushState = History.prototype.pushState;
-const initialSearch = window.location.search;
 const optOutFlag = `ga-disable-${GA_MEASUREMENT_ID}`;
 
 /** Rewrites the address without creating a history entry or an analytics page view. */
@@ -77,16 +77,14 @@ export function enableAnalytics(): void {
     ad_user_data: 'denied',
     ad_personalization: 'denied',
   });
-  gtag('js', new Date());
-  const referrer = document.referrer ? reportedLocation(document.referrer) : '';
-  gtag('config', GA_MEASUREMENT_ID, {
+  // Must precede `js`: see the note at the top of this file.
+  gtag('set', {
     page_location: reportedLocation(window.location.href),
-    ...(referrer ? { page_referrer: referrer } : {}),
     page_title: GA_PAGE_TITLE,
-    entry: entryType(initialSearch),
-    allow_google_signals: false,
-    allow_ad_personalization_signals: false,
+    page_referrer: document.referrer ? reportedLocation(document.referrer) : '',
   });
+  gtag('js', new Date());
+  gtag('config', GA_MEASUREMENT_ID, { allow_google_signals: false, allow_ad_personalization_signals: false });
   const script = document.createElement('script');
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GA_MEASUREMENT_ID)}`;
