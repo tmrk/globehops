@@ -61,19 +61,16 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
   ) : (
     t('summary.fromEnteredTimes')
   );
+  const destination = journey.stops.at(-1)?.airport;
   const dates =
-    journey.dated && journey.start && journey.end
+    journey.dated && journey.start && journey.end && destination
       ? {
           departs: t(
             'summary.departure',
             fmt.clock(journey.start.epochMs, journey.start.zone, { weekday: true, date: true }).replace(',', ''),
             airportCode(journey.stops[0].airport),
           ),
-          arrives: t(
-            'summary.arrival',
-            fmt.clock(journey.end.epochMs, journey.end.zone),
-            airportCode(journey.stops.at(-1)!.airport),
-          ),
+          arrives: t('summary.arrival', fmt.clock(journey.end.epochMs, journey.end.zone), airportCode(destination)),
         }
       : null;
   const issue = journey.issues.find((i) => i.severity === 'error');

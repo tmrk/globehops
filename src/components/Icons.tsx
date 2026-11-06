@@ -93,7 +93,6 @@ export const IconBack = (p: IconProps) => (
     <path d="M12.5 4.5L7 10l5.5 5.5" />
   </Icon>
 );
-export const IconChevronLeft = IconBack;
 export const IconChevronRight = (p: IconProps) => (
   <Icon {...p}>
     <path d="M7.5 4.5L13 10l-5.5 5.5" />
@@ -108,12 +107,6 @@ export const IconInfo = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="10" cy="10" r="7" />
     <path d="M10 9v4.6M10 6.4v.1" />
-  </Icon>
-);
-export const IconLink = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M8.5 11.5a3 3 0 004.2 0l2.6-2.6a3 3 0 00-4.2-4.2l-.9.9" />
-    <path d="M11.5 8.5a3 3 0 00-4.2 0L4.7 11.1a3 3 0 004.2 4.2l.9-.9" />
   </Icon>
 );
 export const IconTrash = (p: IconProps) => (

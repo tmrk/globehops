@@ -29,12 +29,11 @@ export function ComparisonLanes({ list, active, onActivate, time, zone, range }:
           fmt.city(entry.journey.stops[state.stop].airport),
           fmt.duration(state.untilDepartureMin),
         );
-      case 'after':
-        return t(
-          'compare.landed',
-          fmt.city(entry.journey.stops.at(-1)!.airport),
-          fmt.clock(entry.journey.end!.epochMs, zone),
-        );
+      case 'after': {
+        const stop = entry.journey.stops[state.stop];
+        const end = entry.journey.end;
+        return end ? t('compare.landed', fmt.city(stop.airport), fmt.clock(end.epochMs, zone)) : '';
+      }
     }
   };
   return (
@@ -46,9 +45,6 @@ export function ComparisonLanes({ list, active, onActivate, time, zone, range }:
           key={entry.id}
           aria-pressed={active === index}
           onClick={() => onActivate?.(index)}
-          onKeyDown={(event) => {
-            if (event.key === ' ') event.stopPropagation();
-          }}
           style={{ '--journey-color': entry.color } as CSSProperties}
         >
           <span className="comparison-lane__status">

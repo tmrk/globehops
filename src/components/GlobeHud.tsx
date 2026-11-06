@@ -1,7 +1,7 @@
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { airportCode } from '../data/airports.ts';
 import type { Leg } from '../types.ts';
-import { IconChevronLeft, IconChevronRight, IconClose } from './Icons.tsx';
+import { IconBack, IconChevronRight, IconClose } from './Icons.tsx';
 
 interface GlobeHudProps {
   legs: Leg[];
@@ -27,7 +27,7 @@ export function GlobeHud({ legs, selectedLeg, fits, onSelectLeg }: GlobeHudProps
             onSelectLeg(selectedLeg === null ? legs.length - 1 : (selectedLeg - 1 + legs.length) % legs.length)
           }
         >
-          <IconChevronLeft size={18} />
+          <IconBack size={18} />
         </button>
         <span className="leg-stepper__label" aria-live="polite">
           {sel ? (

@@ -56,6 +56,7 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
 
   const results = useMemo(() => (index && query.trim() ? searchAirports(index, query, 8) : []), [index, query]);
   const open = results.length > 0;
+  const activeIndex = active < results.length ? active : -1;
   const trimmed = query.trim();
 
   const choose = (a: Airport | undefined) => {
@@ -72,21 +73,22 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return;
     switch (e.key) {
       case 'ArrowDown':
         if (!open) return;
         e.preventDefault();
-        moveActive(active < results.length - 1 ? active + 1 : 0);
+        moveActive(activeIndex < results.length - 1 ? activeIndex + 1 : 0);
         break;
       case 'ArrowUp':
         if (!open) return;
         e.preventDefault();
-        moveActive(active > 0 ? active - 1 : results.length - 1);
+        moveActive(activeIndex > 0 ? activeIndex - 1 : results.length - 1);
         break;
       case 'Enter':
         if (!open) return;
         e.preventDefault();
-        choose(results[active >= 0 ? active : 0]);
+        choose(results[activeIndex >= 0 ? activeIndex : 0]);
         break;
       case 'Escape':
         e.preventDefault();
@@ -127,14 +129,14 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
           key={a.id}
           id={optionId(i)}
           role="option"
-          aria-selected={i === active}
-          className={`picker__option${i === active ? ' is-active' : ''}`}
+          aria-selected={i === activeIndex}
+          className={`picker__option${i === activeIndex ? ' is-active' : ''}`}
           // Keep focus in the input so the keyboard stays up and blur doesn't close the list.
           onPointerDown={(e) => {
             e.preventDefault();
             pressRef.current = { id: a.id, x: e.clientX, y: e.clientY };
           }}
-          onPointerMove={(e) => e.pointerType === 'mouse' && active !== i && setActive(i)}
+          onPointerMove={(e) => e.pointerType === 'mouse' && activeIndex !== i && setActive(i)}
           onPointerUp={(e) => {
             // Touch: preventing pointerdown (to keep the keyboard up) can suppress the click
             // event in some browsers, so select on pointerup for taps that didn't scroll.
@@ -163,7 +165,23 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
   );
 
   return (
-    <div className={`picker picker--${variant}`} onBlur={onBlur}>
+    <div
+      className={`picker picker--${variant}`}
+      onBlur={onBlur}
+      onKeyDown={(event) => {
+        if (variant !== 'takeover' || event.key !== 'Tab') return;
+        const back = event.currentTarget.querySelector('button');
+        const input = inputRef.current;
+        if (!back || !input) return;
+        if (event.shiftKey && event.target === back) {
+          event.preventDefault();
+          input.focus();
+        } else if (!event.shiftKey && event.target === input) {
+          event.preventDefault();
+          back.focus();
+        }
+      }}
+    >
       <div className="picker__bar">
         {variant === 'takeover' && (
           <button
@@ -187,7 +205,7 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
             aria-autocomplete="list"
             aria-expanded={open}
             aria-controls={listId}
-            aria-activedescendant={open && active >= 0 ? optionId(active) : undefined}
+            aria-activedescendant={open && activeIndex >= 0 ? optionId(activeIndex) : undefined}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="none"

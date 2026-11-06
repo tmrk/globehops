@@ -46,20 +46,26 @@ export function JourneyTabs({ list, active, onActivate, onAdd }: Props) {
               style={{ '--journey-color': entry.color } as CSSProperties}
               onClick={() => onActivate(index)}
               onKeyDown={(event) => {
-                const target =
-                  event.key === 'Home'
-                    ? 0
-                    : event.key === 'End'
-                      ? list.length - 1
-                      : event.key === 'ArrowLeft'
-                        ? (index + list.length - 1) % list.length
-                        : event.key === 'ArrowRight'
-                          ? (index + 1) % list.length
-                          : null;
-                if (target === null) return;
+                let target: number;
+                switch (event.key) {
+                  case 'Home':
+                    target = 0;
+                    break;
+                  case 'End':
+                    target = list.length - 1;
+                    break;
+                  case 'ArrowLeft':
+                    target = (index + list.length - 1) % list.length;
+                    break;
+                  case 'ArrowRight':
+                    target = (index + 1) % list.length;
+                    break;
+                  default:
+                    return;
+                }
                 event.preventDefault();
                 onActivate(target);
-                document.getElementById(`journey-tab-${list[target].id}`)?.focus();
+                tabsRef.current?.querySelector<HTMLElement>(`#journey-tab-${list[target].id}`)?.focus();
               }}
             >
               <span className="journey-chip">{entry.id}</span>
