@@ -60,8 +60,8 @@ const BOOLEAN_VIEW_PARAMS = {
   [P.dayNight]: 'dayNight',
 } as const satisfies Record<string, keyof LinkView>;
 const comparisonLimitMessage = `Only ${MAX_JOURNEYS} journeys can be compared.`;
-// Recognize unsupported later letters too, so they retain the excess-journey diagnostic.
-const JOURNEY_PARAM_PATTERN = new RegExp(`^([${JOURNEY_LINK_PREFIXES[0][0]}-z])\\.(.+)$`);
+// Any later letter is grouped too, so unsupported prefixes (e.–z.) report the journey limit.
+const JOURNEY_PARAM_PATTERN = /^([b-z])\.(.+)$/;
 
 export function parseLink(search: string, pathname?: string, base = '/globehops/'): LinkState {
   const pathLocale = pathname ? localeFromPath(pathname, base) : null;
@@ -110,8 +110,7 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
     }
     const journeyParams = new URLSearchParams();
     for (const [key, value] of group) {
-      if ([P.route, P.label].some((allowed) => allowed === key) || /^(dep|arr)\d+$/.test(key))
-        journeyParams.set(key, value);
+      if (key === P.route || key === P.label || /^(dep|arr)\d+$/.test(key)) journeyParams.set(key, value);
       else state.issues.push(`Invalid ${prefix}.${key} parameter in this link.`);
     }
     const parsed = parseLink(`?${journeyParams}`);

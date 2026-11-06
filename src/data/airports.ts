@@ -100,7 +100,6 @@ export function displayCode(a: Airport): string | null {
   return a.iata ?? a.icao;
 }
 
-/** Compact label for airports without a public code. */
 /**
  * Short, unambiguous airport name for status text: "London Heathrow", "Copenhagen Kastrup",
  * "New York JFK". Uses the airport name without generic suffixes when it already starts with the

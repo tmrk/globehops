@@ -258,13 +258,17 @@ export function planItinerary(ctx: AgentContext, raw: unknown, opts: PlanOptions
             String(s.airport.id) === view.clock,
         )?.airport
       : undefined;
-  const { url, itineraryParamUrl } = planLinks(
+  const url = readableLink(
     ctx,
     document,
     { label: document?.journeys?.[0].label ?? null, stops: input.stops },
     canonicalClock ? { ...view, clock: airportCode(canonicalClock) } : view,
     issues,
   );
+  const itineraryParamUrl =
+    url && (document || input.stops.length)
+      ? documentLink(url, document ?? linkStateToDocument(parseLink(new URL(url).search)), issues)
+      : null;
   return {
     contractVersion: CONTRACT_VERSION,
     input: raw,
@@ -332,19 +336,17 @@ function comparisonRequired(): AgentIssue {
 
 const EXPLICIT_DEFAULT_KEYS = ['follow', 'dayNight', 'clock'] as const satisfies readonly LinkDefaultKey[];
 
-function planLinks(
+/** The readable share link, or null (with an error issue) when it exceeds the URL limit. */
+function readableLink(
   ctx: AgentContext,
   document: ItineraryDocument | null,
   primary: SerializableJourney,
   view: Partial<LinkView> | undefined,
   issues: AgentIssue[],
   alternatives?: SerializableJourney[],
-) {
-  let url: string | null = null;
-  let itineraryParamUrl: string | null = null;
-  if (alternatives !== undefined && !document) return { url, itineraryParamUrl };
+): string | null {
   try {
-    url = buildLinkUrl(
+    return buildLinkUrl(
       ctx.baseUrl,
       primary.stops,
       view,
@@ -357,25 +359,25 @@ function planLinks(
       severity: 'error',
       message: error instanceof Error ? error.message : 'Cannot encode link.',
     });
+    return null;
   }
-  // Comparisons retain a document link even when their readable link exceeds the limit.
-  if ((url && (document || primary.stops.length)) || (document && alternatives !== undefined)) {
-    try {
-      const alternative = new URL(url ?? ctx.baseUrl);
-      const linkDocument = document ?? linkStateToDocument(parseLink(alternative.search));
-      alternative.search = `?${LINK_PARAMS.itinerary}=${encodeItineraryParam(linkDocument)}`;
-      if (alternative.href.length > MAX_URL_LENGTH)
-        throw new RangeError('The itinerary-document link is too large to share.');
-      itineraryParamUrl = alternative.href;
-    } catch (error) {
-      issues.push({
-        code: 'document_link_too_large',
-        severity: 'warning',
-        message: `${error instanceof Error ? error.message : 'Cannot encode itinerary document.'} Use the readable url instead.`,
-      });
-    }
+}
+
+/** The same journey as a compact `?itinerary=` link on `base`, or null (with a warning) when too large. */
+function documentLink(base: string, document: ItineraryDocument, issues: AgentIssue[]): string | null {
+  try {
+    const url = new URL(base);
+    url.search = `?${LINK_PARAMS.itinerary}=${encodeItineraryParam(document)}`;
+    if (url.href.length > MAX_URL_LENGTH) throw new RangeError('The itinerary-document link is too large to share.');
+    return url.href;
+  } catch (error) {
+    issues.push({
+      code: 'document_link_too_large',
+      severity: 'warning',
+      message: `${error instanceof Error ? error.message : 'Cannot encode itinerary document.'} Use the readable url instead.`,
+    });
+    return null;
   }
-  return { url, itineraryParamUrl };
 }
 
 export function planComparison(ctx: AgentContext, raw: unknown, opts: PlanOptions = {}) {
@@ -416,14 +418,18 @@ export function planComparison(ctx: AgentContext, raw: unknown, opts: PlanOption
       message: 'leg must be a one-based flight number within journey A.',
       path: '/view/leg',
     });
-  const { url, itineraryParamUrl } = planLinks(
-    ctx,
-    document,
-    { label: compared[0]?.label ?? null, stops: resolved[0]?.input.stops ?? [] },
-    clockAirport ? { ...view, clock: airportCode(clockAirport) } : view,
-    issues,
-    compared.slice(1).map((entry) => ({ label: entry.label, stops: entry.journey.stops })),
-  );
+  const url = document
+    ? readableLink(
+        ctx,
+        document,
+        { label: compared[0]?.label ?? null, stops: resolved[0]?.input.stops ?? [] },
+        clockAirport ? { ...view, clock: airportCode(clockAirport) } : view,
+        issues,
+        compared.slice(1).map((entry) => ({ label: entry.label, stops: entry.journey.stops })),
+      )
+    : null;
+  // A comparison keeps its document link even when the readable link exceeds the limit.
+  const itineraryParamUrl = document ? documentLink(url ?? ctx.baseUrl, document, issues) : null;
   const validJourneys = compared.filter(
     (entry) =>
       entry.journey.stops.length >= 2 &&
