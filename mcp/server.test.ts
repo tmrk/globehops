@@ -6,7 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 describe('real stdio MCP server', () => {
-  it('negotiates, lists tools and calls all five from a different cwd', async () => {
+  it('negotiates, lists tools and calls all six from a different cwd', async () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [fileURLToPath(new URL('./server.ts', import.meta.url))],
@@ -29,6 +29,7 @@ describe('real stdio MCP server', () => {
       const list = await client.listTools();
       expect(list.tools.map((t) => t.name).sort()).toEqual([
         'calculate_route',
+        'compare_journeys',
         'get_journey_timeline',
         'search_airports',
         'validate_itinerary',
@@ -39,6 +40,7 @@ describe('real stdio MCP server', () => {
         expect(tool.outputSchema).toBeDefined();
       }
       const calls = [
+        ['compare_journeys', { journeys: [{ route: 'CPH-JFK' }, { route: 'CPH-LHR-JFK' }] }],
         ['search_airports', { query: 'CPH', limit: 1 }],
         ['calculate_route', { route: 'CPH-LHR_180-JFK' }],
         ['validate_itinerary', { route: 'CPH-JFK' }],

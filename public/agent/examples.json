@@ -1,5 +1,51 @@
 [
   {
+    "title": "Compare direct and connecting journeys",
+    "description": "Entered local times stay absolute; the undated alternative aligns to the earliest dated departure.",
+    "itinerary": {
+      "version": 1,
+      "journeys": [
+        {
+          "label": "Via London",
+          "stops": [{ "airport": "BUD", "departure": "2026-12-01T07:10" }, { "airport": "LHR" }, { "airport": "JFK" }]
+        },
+        { "label": "Direct", "stops": [{ "airport": "BUD" }, { "airport": "JFK" }] }
+      ],
+      "view": { "play": true }
+    },
+    "url": "https://tmrk.github.io/globehops/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct&play=1",
+    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJqb3VybmV5cyI6W3sibGFiZWwiOiJWaWEgTG9uZG9uIiwic3RvcHMiOlt7ImFpcnBvcnQiOiJCVUQiLCJkZXBhcnR1cmUiOiIyMDI2LTEyLTAxVDA3OjEwIn0seyJhaXJwb3J0IjoiTEhSIn0seyJhaXJwb3J0IjoiSkZLIn1dfSx7ImxhYmVsIjoiRGlyZWN0Iiwic3RvcHMiOlt7ImFpcnBvcnQiOiJCVUQifSx7ImFpcnBvcnQiOiJKRksifV19XSwidmlldyI6eyJwbGF5Ijp0cnVlfX0",
+    "expected": {
+      "totals": {
+        "distanceKm": 7029.3,
+        "distanceMi": 4367.8,
+        "flightMinutes": 555,
+        "layoverMinutes": 90,
+        "journeyMinutes": 645,
+        "flights": 2,
+        "transfers": 1,
+        "provenance": "estimated"
+      },
+      "comparison": {
+        "fastest": "B",
+        "firstArrival": "B",
+        "ranking": [
+          { "id": "B", "journeyMinutes": 525, "deltaMinutes": 0 },
+          { "id": "A", "journeyMinutes": 645, "deltaMinutes": 120 }
+        ]
+      },
+      "issues": [
+        {
+          "code": "future_rules",
+          "severity": "info",
+          "message": "Future times use today's time-zone rules, which can change",
+          "path": "/journeys/0"
+        }
+      ],
+      "valid": true
+    }
+  },
+  {
     "title": "Copenhagen to New York",
     "description": "Undated route with flight estimates.",
     "itinerary": { "version": 1, "stops": [{ "airport": "CPH" }, { "airport": "JFK" }] },

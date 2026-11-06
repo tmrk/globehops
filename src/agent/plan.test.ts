@@ -10,6 +10,7 @@ import { daylightAt, subsolarPoint } from '../lib/sun.ts';
 import {
   createAgentContext,
   planItinerary,
+  planComparison,
   resolveItinerary,
   searchAirports,
   timelineAt,
@@ -242,4 +243,138 @@ it('canonicalises airport clock aliases and validates flight selection', () => {
   expect(
     planItinerary(ctx, { version: 1, stops: [{ airport: 'CPH' }, { airport: 'LHR' }], view: { leg: 2 } }).issues,
   ).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'invalid_leg' })]));
+});
+
+describe('agent comparisons', () => {
+  const journeys = [
+    {
+      label: 'Via London',
+      stops: [
+        { airport: 'BUD', departure: '2026-12-01T07:10' },
+        { airport: 'LHR', arrival: '2026-12-01T08:55', departure: '2026-12-01T11:20' },
+        { airport: 'JFK', arrival: '2026-12-01T14:35' },
+      ],
+    },
+    {
+      label: 'Direct',
+      stops: [
+        { airport: 'BUD', departure: '2026-12-01T08:00' },
+        { airport: 'JFK', arrival: '2026-12-01T12:00' },
+      ],
+    },
+  ];
+  it('computes per-journey details with the single planner shapes and shares both document forms', () => {
+    const plan = planComparison(ctx, { version: 1, journeys, view: { clock: 'EGLL', lang: 'sv', follow: false } });
+    expect(plan.valid).toBe(true);
+    expect(plan.comparison).toMatchObject({
+      fastest: 'B',
+      firstArrival: 'B',
+      ranking: [{ id: 'B', deltaMinutes: 0 }, { id: 'A' }],
+    });
+    expect(plan.journeys[0].totals).toEqual(planItinerary(ctx, { version: 1, stops: journeys[0].stops }).totals);
+    expect(plan.journeys[0].legs).toEqual(planItinerary(ctx, { version: 1, stops: journeys[0].stops }).legs);
+    expect(plan.journeys[0].transfers).toEqual(planItinerary(ctx, { version: 1, stops: journeys[0].stops }).transfers);
+    expect(plan.humanSummary).toContain('B BUD → JFK 10h 00m (fastest, arrives first)');
+    expect(plan.url).toContain('/sv/?route=BUD-LHR-JFK');
+    expect(plan.url).toContain('b.route=BUD-JFK');
+    expect(plan.url).toContain('clock=LHR');
+    expect(plan.url).toContain('follow=0');
+    const readable = parseLink(new URL(plan.url!).search, new URL(plan.url!).pathname);
+    const document = parseLink(new URL(plan.itineraryParamUrl!).search, new URL(plan.itineraryParamUrl!).pathname);
+    // Readable links canonicalise ICAO clock aliases.
+    expect({ ...document, view: { ...document.view, clock: 'LHR' } }).toEqual(readable);
+  });
+  it('resolves route shorthand, aligns undated alternatives and canonicalises cross-journey clocks', () => {
+    const plan = planComparison(ctx, {
+      journeys: [journeys[1], { label: 'Via London', route: 'BUD-LHR_180-JFK' }],
+      view: { clock: 'EGLL' },
+    });
+    expect(plan.valid).toBe(true);
+    expect(plan.journeys.map((journey) => journey.anchor)).toEqual(['entered', 'assumed']);
+    expect(plan.journeys[1].departure?.utc).toBe(plan.journeys[0].departure?.utc);
+    expect(plan.url).toContain('b.route=BUD-LHR_180-JFK');
+    expect(plan.url).toContain('clock=LHR');
+    const assumed = planComparison(
+      ctx,
+      { journeys: [{ route: 'BUD-JFK' }, { route: 'BUD-LHR-JFK' }] },
+      { assumeDeparture: '2026-12-01T07:00Z' },
+    );
+    expect(
+      assumed.journeys.every(
+        (journey) => journey.departure?.utc === '2026-12-01T07:00Z' && journey.anchor === 'assumed',
+      ),
+    ).toBe(true);
+    const undated = planComparison(ctx, { journeys: [{ route: 'BUD-JFK' }, { route: 'BUD-LHR-JFK' }] });
+    expect(undated.journeys.every((journey) => journey.departure === null && journey.anchor === 'none')).toBe(true);
+    expect(undated.comparison.firstArrival).toBeNull();
+  });
+  it('keeps issue paths after skipped airports and excludes invalid journeys from rankings', () => {
+    const plan = planComparison(ctx, {
+      journeys: [
+        journeys[0],
+        { stops: [{ airport: 'BUD' }, { airport: 'ZZZ' }, { airport: 'JFK', arrival: '2026-03-08T02:30' }] },
+      ],
+    });
+    expect(plan.valid).toBe(false);
+    expect(plan.issues).toContainEqual(
+      expect.objectContaining({ code: 'unknown_airport', path: '/journeys/1/stops/1/airport' }),
+    );
+    expect(plan.issues).toContainEqual(
+      expect.objectContaining({ code: 'nonexistent_local_time', path: '/journeys/1/stops/2/arrival' }),
+    );
+    expect(plan.comparison.ranking.map((entry) => entry.id)).toEqual(['A']);
+    expect(plan.comparison.fastest).toBeNull();
+    expect(plan.comparison.firstArrival).toBeNull();
+    expect(plan.journeys).toHaveLength(2);
+  });
+  it('validates malformed inputs, view references and assumptions without throwing', () => {
+    for (const raw of [
+      null,
+      {},
+      { journeys: [] },
+      { journeys: [{ route: 'BUD-!' }] },
+      { journeys: [{ route: 'BUD-JFK', stops: journeys[0].stops }] },
+      { journeys: [{ stops: [{ airport: '!' }] }] },
+    ])
+      expect(planComparison(ctx, raw).valid).toBe(false);
+    expect(planComparison(ctx, { version: 1, journeys }, { assumeDeparture: 'bad' }).issues).toContainEqual(
+      expect.objectContaining({ code: 'invalid_assumption' }),
+    );
+    const invalidView = planComparison(ctx, {
+      version: 1,
+      journeys: [journeys[1], journeys[0]],
+      view: { clock: 'SYD', leg: 2 },
+    });
+    expect(invalidView.issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(['invalid_clock', 'invalid_leg']),
+    );
+  });
+  it('handles ties and warns if the document URL exceeds limits while retaining the readable link', () => {
+    const plan = planComparison(ctx, { version: 1, $schema: 'x'.repeat(6100), journeys: [journeys[0], journeys[0]] });
+    expect(plan.valid).toBe(true);
+    expect(plan.comparison.fastest).toBeNull();
+    expect(plan.comparison.firstArrival).toBeNull();
+    expect(plan.comparison.ranking.map((entry) => entry.deltaMinutes)).toEqual([0, 0]);
+    expect(plan.url).toContain('&b.route=');
+    expect(plan.itineraryParamUrl).toBeNull();
+    expect(plan.issues).toContainEqual(
+      expect.objectContaining({ code: 'document_link_too_large', severity: 'warning' }),
+    );
+  });
+  it('lets the single planner handle one journey and redirects multi-journey calculations', () => {
+    expect(planItinerary(ctx, { version: 1, journeys: [journeys[0]] }).valid).toBe(true);
+    const plan = planItinerary(ctx, { version: 1, journeys });
+    expect(plan.totals).toEqual(planItinerary(ctx, { version: 1, stops: journeys[0].stops }).totals);
+    expect(plan.issues).toContainEqual({
+      code: 'use_compare_journeys',
+      severity: 'error',
+      message: 'This document compares journeys; use compare_journeys.',
+    });
+    expect(timelineAt(ctx, { version: 1, journeys }, { samples: 2 }).issues).toContainEqual(
+      expect.objectContaining({ code: 'use_compare_journeys' }),
+    );
+    expect(
+      validateItinerary(ctx, { version: 1, journeys }).some((issue) => issue.code === 'use_compare_journeys'),
+    ).toBe(false);
+  });
 });

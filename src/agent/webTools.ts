@@ -1,8 +1,17 @@
-import { ITINERARY_SCHEMA } from './schema.ts';
+import { MAX_JOURNEYS } from './contract.ts';
+import { comparisonDocument } from './comparisonInput.ts';
+import { ITINERARY_SCHEMA, COMPARISON_INPUT_SCHEMA } from './schema.ts';
 import { documentToLinkState, validateItineraryDocument, encodeItineraryParam } from './itinerary.ts';
 import { parseLink, type LinkState, type LinkView } from '../state/link.ts';
 
-export const WEB_TOOL_NAMES = ['get_journey', 'set_route', 'set_view', 'select_flight', 'get_share_link'] as const;
+export const WEB_TOOL_NAMES = [
+  'get_journey',
+  'set_route',
+  'compare_journeys',
+  'set_view',
+  'select_flight',
+  'get_share_link',
+] as const;
 export type WebToolName = (typeof WEB_TOOL_NAMES)[number];
 export type WebCommand =
   | { type: 'get_journey' }
@@ -15,7 +24,8 @@ const { time: instantSchema, ...viewProperties } = ITINERARY_SCHEMA.properties.v
 export const WEB_TOOL_DEFINITIONS = [
   {
     name: 'get_journey',
-    description: 'Read the live journey, km/mi totals, airport-local and UTC times, issues, view and share link.',
+    description:
+      'Read the live journey, km/mi totals, airport-local and UTC times, issues, view and share link. In compare mode also returns comparison.',
     inputSchema: emptySchema,
   },
   {
@@ -28,6 +38,12 @@ export const WEB_TOOL_DEFINITIONS = [
       properties: { route: { type: 'string', maxLength: 8000 }, itinerary: ITINERARY_SCHEMA },
       oneOf: [{ required: ['route'] }, { required: ['itinerary'] }],
     },
+  },
+  {
+    name: 'compare_journeys',
+    description:
+      'Compare 2–4 alternative journeys on one shared clock. Use airport-local timetable times; undated alternatives align to the earliest dated departure. Replaces the route for this visit.',
+    inputSchema: COMPARISON_INPUT_SCHEMA,
   },
   {
     name: 'set_view',
@@ -78,6 +94,16 @@ export function parseWebCommand(name: WebToolName, raw: unknown, flights: number
     )
       throw new TypeError(`leg must be null or a flight number from 1 to ${flights}.`);
     return { type: name, leg: raw.leg as number | null };
+  }
+  if (name === 'compare_journeys') {
+    keys(['journeys', 'view']);
+    if (!Array.isArray(raw.journeys) || raw.journeys.length < 2 || raw.journeys.length > MAX_JOURNEYS)
+      throw new TypeError('Supply 2–4 journeys.');
+    const checked = comparisonDocument(raw);
+    if (!checked.ok) throw new TypeError(checked.issues.map((issue) => `${issue.path}: ${issue.message}`).join(' '));
+    const link = documentToLinkState(checked.doc);
+    if (link.issues.length) throw new TypeError(link.issues.join(' '));
+    return { type: 'set_route', link, search: `?itinerary=${encodeItineraryParam(checked.doc)}` };
   }
   if (name === 'set_route') {
     keys(['route', 'itinerary']);

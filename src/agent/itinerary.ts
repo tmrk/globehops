@@ -1,14 +1,23 @@
 import { isLocale, type Locale } from '../i18n/locales.ts';
 import type { LinkState, LinkStop, LinkView } from '../state/link.ts';
 import type { LocalTimeInput } from '../types.ts';
-import { MAX_STOPS, MAX_LAYOVER_MIN, MAX_ITINERARY_PARAM_LENGTH, PLAYBACK_SPEEDS } from './contract.ts';
+import { MAX_STOPS, MAX_JOURNEYS, MAX_LAYOVER_MIN, MAX_ITINERARY_PARAM_LENGTH, PLAYBACK_SPEEDS } from './contract.ts';
 import { formatIsoInstant, formatIsoOffset, parseIsoInstant } from '../lib/timezone.ts';
 
 export const ITINERARY_VERSION = 1;
-export interface ItineraryDocument {
+export interface StopDoc {
+  airport: string;
+  arrival?: string;
+  departure?: string;
+  layoverMinutes?: number;
+}
+export interface JourneyDoc {
+  label?: string;
+  stops: StopDoc[];
+}
+interface DocumentBase {
   $schema?: string;
   version: 1;
-  stops: { airport: string; arrival?: string; departure?: string; layoverMinutes?: number }[];
   view?: {
     time?: string;
     play?: boolean;
@@ -23,6 +32,11 @@ export interface ItineraryDocument {
     leg?: number;
   };
 }
+export type ItineraryDocument = DocumentBase &
+  ({ stops: StopDoc[]; journeys?: never } | { stops?: never; journeys: JourneyDoc[] });
+export type View = NonNullable<ItineraryDocument['view']>;
+export const LABEL_PATTERN =
+  '^[^\\u0000-\\u001f\\u007f-\\u009f]*[^\\s\\u0000-\\u001f\\u007f-\\u009f][^\\u0000-\\u001f\\u007f-\\u009f]*$';
 export interface DocIssue {
   path: string;
   code: string;
@@ -49,41 +63,74 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
   };
   if (!object(raw))
     return { ok: false, issues: [{ path: '', code: 'type', message: 'An itinerary must be an object.' }] };
-  properties(raw, ['$schema', 'version', 'stops', 'view'], '');
+  properties(raw, ['$schema', 'version', 'stops', 'journeys', 'view'], '');
   if (raw.$schema !== undefined && typeof raw.$schema !== 'string')
     issue('/$schema', 'type', '$schema must be a string.');
   if (raw.version !== 1) issue('/version', 'const', 'Use itinerary version 1.');
-  if (!Array.isArray(raw.stops)) issue('/stops', 'type', 'Stops must be an array.');
-  else {
-    if (raw.stops.length < 1 || raw.stops.length > MAX_STOPS) issue('/stops', 'items', `Use 1 to ${MAX_STOPS} stops.`);
-    // Bound the work even for untrusted documents with enormous arrays.
-    raw.stops.slice(0, MAX_STOPS).forEach((stop: unknown, i: number) => {
-      const path = `/stops/${i}`;
-      if (!object(stop)) {
-        issue(path, 'type', 'Each stop must be an object.');
-        return;
-      }
-      properties(stop, ['airport', 'arrival', 'departure', 'layoverMinutes'], path);
-      if (typeof stop.airport !== 'string' || !new RegExp(AIRPORT_PATTERN).test(stop.airport))
-        issue(`${path}/airport`, 'pattern', 'Use an IATA, ICAO/ident code or numeric airport id.');
-      for (const field of ['arrival', 'departure'])
+  const validateStops = (stops: unknown, basePath: string) => {
+    if (!Array.isArray(stops)) issue(basePath, 'type', 'Stops must be an array.');
+    else {
+      if (stops.length < 1 || stops.length > MAX_STOPS) issue(basePath, 'items', `Use 1 to ${MAX_STOPS} stops.`);
+      // Bound the work even for untrusted documents with enormous arrays.
+      stops.slice(0, MAX_STOPS).forEach((stop: unknown, i: number) => {
+        const path = `${basePath}/${i}`;
+        if (!object(stop)) {
+          issue(path, 'type', 'Each stop must be an object.');
+          return;
+        }
+        properties(stop, ['airport', 'arrival', 'departure', 'layoverMinutes'], path);
+        if (typeof stop.airport !== 'string' || !new RegExp(AIRPORT_PATTERN).test(stop.airport))
+          issue(`${path}/airport`, 'pattern', 'Use an IATA, ICAO/ident code or numeric airport id.');
+        for (const field of ['arrival', 'departure'])
+          if (
+            stop[field] !== undefined &&
+            (typeof stop[field] !== 'string' || !new RegExp(LOCAL_TIME_PATTERN).test(stop[field]))
+          )
+            issue(`${path}/${field}`, 'pattern', 'Use a local time YYYY-MM-DDTHH:MM with an optional UTC offset.');
+        if (stop.layoverMinutes !== undefined) {
+          if (
+            typeof stop.layoverMinutes !== 'number' ||
+            !Number.isInteger(stop.layoverMinutes) ||
+            stop.layoverMinutes < 0 ||
+            stop.layoverMinutes > MAX_LAYOVER_MIN
+          )
+            issue(
+              `${path}/layoverMinutes`,
+              'range',
+              `Layover minutes must be an integer from 0 to ${MAX_LAYOVER_MIN}.`,
+            );
+          if (i === 0 || i === (stops as unknown[]).length - 1)
+            issue(`${path}/layoverMinutes`, 'position', 'Layover minutes apply only to transfer stops.');
+        }
+      });
+    }
+  };
+  if ((raw.stops !== undefined) === (raw.journeys !== undefined))
+    issue('', 'oneOf', 'Supply exactly one of stops or journeys.');
+  if (raw.stops !== undefined) validateStops(raw.stops, '/stops');
+  if (raw.journeys !== undefined) {
+    if (!Array.isArray(raw.journeys)) issue('/journeys', 'type', 'Journeys must be an array.');
+    else {
+      if (raw.journeys.length < 1 || raw.journeys.length > MAX_JOURNEYS)
+        issue('/journeys', 'items', `Use 1 to ${MAX_JOURNEYS} journeys.`);
+      raw.journeys.slice(0, MAX_JOURNEYS).forEach((journey: unknown, index: number) => {
+        const path = `/journeys/${index}`;
+        if (!object(journey)) {
+          issue(path, 'type', 'Each journey must be an object.');
+          return;
+        }
+        properties(journey, ['label', 'stops'], path);
         if (
-          stop[field] !== undefined &&
-          (typeof stop[field] !== 'string' || !new RegExp(LOCAL_TIME_PATTERN).test(stop[field]))
+          journey.label !== undefined &&
+          (typeof journey.label !== 'string' ||
+            Array.from(journey.label).length < 1 ||
+            Array.from(journey.label).length > 40 ||
+            !new RegExp(LABEL_PATTERN).test(journey.label))
         )
-          issue(`${path}/${field}`, 'pattern', 'Use a local time YYYY-MM-DDTHH:MM with an optional UTC offset.');
-      if (stop.layoverMinutes !== undefined) {
-        if (
-          typeof stop.layoverMinutes !== 'number' ||
-          !Number.isInteger(stop.layoverMinutes) ||
-          stop.layoverMinutes < 0 ||
-          stop.layoverMinutes > MAX_LAYOVER_MIN
-        )
-          issue(`${path}/layoverMinutes`, 'range', `Layover minutes must be an integer from 0 to ${MAX_LAYOVER_MIN}.`);
-        if (i === 0 || i === (raw.stops as unknown[]).length - 1)
-          issue(`${path}/layoverMinutes`, 'position', 'Layover minutes apply only to transfer stops.');
-      }
-    });
+          issue(`${path}/label`, 'pattern', 'Use a label of 1–40 characters without control characters.');
+        validateStops(journey.stops, `${path}/stops`);
+      });
+    }
   }
   if (raw.view !== undefined) {
     if (!object(raw.view)) issue('/view', 'type', 'View must be an object.');
@@ -168,13 +215,19 @@ export function formatDocumentTime(value: LocalTimeInput): string {
 }
 export function documentToLinkState(doc: ItineraryDocument): LinkState {
   const issues: string[] = [];
-  const stops: LinkStop[] = doc.stops.map((s, i) => {
-    const arrival = s.arrival ? parseDocumentTime(s.arrival) : null;
-    const departure = s.departure ? parseDocumentTime(s.departure) : null;
-    if (s.arrival && !arrival) issues.push(`Stop ${i + 1}: invalid arrival time.`);
-    if (s.departure && !departure) issues.push(`Stop ${i + 1}: invalid departure time.`);
-    return { code: s.airport.toUpperCase(), layoverMin: s.layoverMinutes ?? null, arrival, departure };
-  });
+  const mapStops = (stops: StopDoc[]): LinkStop[] =>
+    stops.map((s, i) => {
+      const arrival = s.arrival ? parseDocumentTime(s.arrival) : null;
+      const departure = s.departure ? parseDocumentTime(s.departure) : null;
+      if (s.arrival && !arrival) issues.push(`Stop ${i + 1}: invalid arrival time.`);
+      if (s.departure && !departure) issues.push(`Stop ${i + 1}: invalid departure time.`);
+      return { code: s.airport.toUpperCase(), layoverMin: s.layoverMinutes ?? null, arrival, departure };
+    });
+  const primary = doc.journeys?.[0];
+  const stops = mapStops(primary?.stops ?? doc.stops ?? []);
+  const compare = doc.journeys
+    ?.slice(1)
+    .map((journey) => ({ label: journey.label?.trim() ?? null, stops: mapStops(journey.stops) }));
   const source = doc.view;
   const time = source?.time ? parseIsoInstant(source.time) : null;
   if (source?.time && time === null) issues.push('The itinerary view time is invalid.');
@@ -192,17 +245,36 @@ export function documentToLinkState(doc: ItineraryDocument): LinkState {
     ...(source?.borders !== undefined ? { borders: source.borders } : {}),
     ...(source?.leg !== undefined ? { leg: source.leg } : {}),
   };
-  return { stops, view, issues };
+  return {
+    stops,
+    view,
+    issues,
+    ...(primary?.label !== undefined ? { label: primary.label.trim() } : {}),
+    ...(compare?.length ? { compare } : {}),
+  };
 }
 export function linkStateToDocument(s: LinkState): ItineraryDocument {
-  return {
-    version: ITINERARY_VERSION,
-    stops: (s.stops ?? []).map((stop, i, all) => ({
+  const mapStops = (stops: LinkStop[]): StopDoc[] =>
+    stops.map((stop, i, all) => ({
       airport: stop.code,
       ...(i > 0 && stop.arrival ? { arrival: formatDocumentTime(stop.arrival) } : {}),
       ...(i < all.length - 1 && stop.departure ? { departure: formatDocumentTime(stop.departure) } : {}),
       ...(i > 0 && i < all.length - 1 && stop.layoverMin !== null ? { layoverMinutes: stop.layoverMin } : {}),
-    })),
+    }));
+  const stops = mapStops(s.stops ?? []);
+  return {
+    version: ITINERARY_VERSION,
+    ...(s.compare?.length
+      ? {
+          journeys: [
+            { ...(s.label ? { label: s.label } : {}), stops },
+            ...s.compare.map((journey) => ({
+              ...(journey.label ? { label: journey.label } : {}),
+              stops: mapStops(journey.stops),
+            })),
+          ],
+        }
+      : { stops }),
     view: {
       ...(s.view.time !== null ? { time: formatIsoInstant(s.view.time) } : {}),
       play: s.view.play,

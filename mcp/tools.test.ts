@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { context } from './data.ts';
-import { handleTool, INPUT_SCHEMAS, type ToolName } from './tools.ts';
+import { handleTool, INPUT_SCHEMAS, OUTPUT_SCHEMAS, type ToolName } from './tools.ts';
 import { DOCUMENT_CORPUS } from './document-corpus.ts';
 import { validateItineraryDocument } from '../src/agent/itinerary.ts';
 
 const validArgs: Record<ToolName, unknown> = {
+  compare_journeys: {
+    journeys: [{ label: 'Direct', route: 'CPH-JFK' }, { route: 'CPH-LHR-JFK' }],
+    assumeDeparture: '2026-11-20T08:00Z',
+  },
   search_airports: { query: 'Copenhagen', limit: 1 },
   calculate_route: { route: 'CPH-LHR_180-JFK' },
   validate_itinerary: { route: 'CPH-JFK' },
@@ -77,4 +81,66 @@ it('view overrides can repair itinerary view semantics and oversized documents r
   expect(oversized.isError).not.toBe(true);
   expect(oversized.structuredContent!.url).toContain('names=1');
   expect(oversized.structuredContent!.itineraryParamUrl).toBeNull();
+});
+
+describe('MCP comparisons', () => {
+  const journeys = [
+    { label: 'Direct', stops: [{ airport: 'BUD', departure: '2026-12-01T08:00' }, { airport: 'JFK' }] },
+    { label: 'Via London', route: 'BUD-LHR_180-JFK' },
+  ];
+  it('returns the documented comparison shape and a link carrying every journey', () => {
+    const result = handleTool(context, 'compare_journeys', { journeys, view: { play: true } });
+    expect(result.isError).not.toBe(true);
+    const plan = OUTPUT_SCHEMAS.compare_journeys.parse(result.structuredContent);
+    expect(plan.journeys.map((journey) => journey.id)).toEqual(['A', 'B']);
+    expect(plan.journeys[0].anchor).toBe('entered');
+    expect(plan.journeys[1].anchor).toBe('assumed');
+    expect(plan.journeys[1].departure?.utc).toBe(plan.journeys[0].departure?.utc);
+    expect(plan.url).toContain('b.route=BUD-LHR_180-JFK');
+    expect(plan.comparison.fastest).toBe('A');
+  });
+  it('supports journeys documents in visualization and validation, and directs calculation tools to compare_journeys', () => {
+    const itinerary = {
+      version: 1,
+      journeys: [
+        journeys[0],
+        { label: 'Via London', stops: [{ airport: 'BUD' }, { airport: 'LHR' }, { airport: 'JFK' }] },
+      ],
+    };
+    const visual = handleTool(context, 'visualize_route', { itinerary, view: { clock: 'LHR', lang: 'hu' } });
+    expect(visual.isError).not.toBe(true);
+    const output = OUTPUT_SCHEMAS.visualize_route.parse(visual.structuredContent);
+    expect(output.url).toContain('/hu/?route=BUD-JFK');
+    expect(output.comparison?.fastest).toBe('A');
+    expect(output.summary.totals.flights).toBe(1);
+    expect(handleTool(context, 'validate_itinerary', { itinerary }).isError).not.toBe(true);
+    for (const name of ['calculate_route', 'get_journey_timeline'] as const) {
+      const result = handleTool(context, name, { itinerary });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent!.issues).toContainEqual(
+        expect.objectContaining({ code: 'use_compare_journeys' }),
+      );
+    }
+  });
+  it('rejects ambiguous/oversized input and reports journey-prefixed errors', () => {
+    for (const args of [
+      { journeys: [journeys[0]] },
+      { journeys: Array(5).fill(journeys[0]) },
+      { journeys: [{ route: 'BUD-JFK', stops: journeys[0].stops }, journeys[0]] },
+      { journeys: [{}, journeys[0]] },
+      { journeys, view: { lang: 'de' } },
+    ])
+      expect(handleTool(context, 'compare_journeys', args).isError).toBe(true);
+    const invalid = handleTool(context, 'compare_journeys', { journeys: [journeys[0], { route: 'BUD-ZZZ-JFK' }] });
+    expect(invalid.isError).toBe(true);
+    expect(invalid.structuredContent!.issues).toContainEqual(
+      expect.objectContaining({ code: 'unknown_airport', path: '/journeys/1/stops/1/airport' }),
+    );
+  });
+  it('validates each handler result against its output schema', () => {
+    for (const name of Object.keys(validArgs) as ToolName[]) {
+      const result = handleTool(context, name, validArgs[name]);
+      expect(OUTPUT_SCHEMAS[name].safeParse(result.structuredContent).success, name).toBe(true);
+    }
+  });
 });

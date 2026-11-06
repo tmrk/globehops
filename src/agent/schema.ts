@@ -1,5 +1,5 @@
-import { MAX_STOPS, MAX_LAYOVER_MIN } from './contract.ts';
-import { AIRPORT_PATTERN, LOCAL_TIME_PATTERN, INSTANT_PATTERN } from './itinerary.ts';
+import { MAX_STOPS, MAX_JOURNEYS, MAX_LAYOVER_MIN } from './contract.ts';
+import { AIRPORT_PATTERN, LOCAL_TIME_PATTERN, INSTANT_PATTERN, LABEL_PATTERN } from './itinerary.ts';
 
 const stopProperties = {
   airport: { type: 'string', pattern: AIRPORT_PATTERN, description: 'IATA, ICAO/OurAirports ident, or numeric id.' },
@@ -22,24 +22,28 @@ export const ITINERARY_SCHEMA = {
   title: 'GlobeHops itinerary v1',
   type: 'object',
   additionalProperties: false,
-  required: ['version', 'stops'],
+  required: ['version'],
+  oneOf: [
+    { type: 'object', required: ['stops'], properties: { stops: { type: 'array' } } },
+    { type: 'object', required: ['journeys'], properties: { journeys: { type: 'array' } } },
+  ],
   properties: {
     $schema: { type: 'string' },
     version: { const: 1 },
-    stops: {
+    stops: { $ref: '#/$defs/stops' },
+    journeys: {
       type: 'array',
       minItems: 1,
-      maxItems: MAX_STOPS,
-      // Enumerating lengths expresses the transfer-only layover rule without custom keywords.
-      anyOf: Array.from({ length: MAX_STOPS }, (_, i) => ({
-        type: 'array',
-        minItems: i + 1,
-        maxItems: i + 1,
-        prefixItems: Array.from({ length: i + 1 }, (_, j) => ({
-          $ref: j === 0 || j === i ? '#/$defs/endpoint' : '#/$defs/transfer',
-        })),
-        items: false,
-      })),
+      maxItems: MAX_JOURNEYS,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['stops'],
+        properties: {
+          label: { type: 'string', minLength: 1, maxLength: 40, pattern: LABEL_PATTERN },
+          stops: { $ref: '#/$defs/stops' },
+        },
+      },
     },
     view: {
       type: 'object',
@@ -65,6 +69,22 @@ export const ITINERARY_SCHEMA = {
     },
   },
   $defs: {
+    stops: {
+      type: 'array',
+      minItems: 1,
+      maxItems: MAX_STOPS,
+      // Enumerating lengths expresses the transfer-only layover rule without custom keywords.
+      anyOf: Array.from({ length: MAX_STOPS }, (_, i) => ({
+        type: 'array',
+        minItems: i + 1,
+        maxItems: i + 1,
+        prefixItems: Array.from({ length: i + 1 }, (_, j) => ({
+          $ref: j === 0 || j === i ? '#/$defs/endpoint' : '#/$defs/transfer',
+        })),
+        items: false,
+      })),
+    },
+
     endpoint: { type: 'object', additionalProperties: false, required: ['airport'], properties: stopProperties },
     transfer: {
       type: 'object',
@@ -76,4 +96,34 @@ export const ITINERARY_SCHEMA = {
       },
     },
   },
+} as const;
+
+/** Shared browser/MCP shorthand: each alternative supplies exactly one route or stop array. */
+export const COMPARISON_INPUT_SCHEMA = {
+  $schema: ITINERARY_SCHEMA.$schema,
+  type: 'object',
+  additionalProperties: false,
+  required: ['journeys'],
+  properties: {
+    journeys: {
+      type: 'array',
+      minItems: 2,
+      maxItems: MAX_JOURNEYS,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        oneOf: [
+          { type: 'object', required: ['route'], properties: { route: { type: 'string' } } },
+          { type: 'object', required: ['stops'], properties: { stops: { type: 'array' } } },
+        ],
+        properties: {
+          label: ITINERARY_SCHEMA.properties.journeys.items.properties.label,
+          route: { type: 'string', maxLength: 8000 },
+          stops: { $ref: '#/$defs/stops' },
+        },
+      },
+    },
+    view: ITINERARY_SCHEMA.properties.view,
+  },
+  $defs: ITINERARY_SCHEMA.$defs,
 } as const;

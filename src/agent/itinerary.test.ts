@@ -153,3 +153,71 @@ describe('itinerary document v1', () => {
     expect(validateItineraryDocument({ version: 1, stops: Array(100000).fill({ airport: 'CPH' }) }).ok).toBe(false);
   });
 });
+
+describe('journeys documents', () => {
+  const comparison: ItineraryDocument = {
+    version: 1,
+    journeys: [
+      {
+        label: 'BA via London',
+        stops: [
+          { airport: 'BUD', departure: '2026-12-01T07:10' },
+          { airport: 'LHR', layoverMinutes: 180 },
+          { airport: 'JFK' },
+        ],
+      },
+      { label: 'Közvetlen & x=y', stops: [{ airport: 'BUD' }, { airport: 'JFK' }] },
+    ],
+    view: { play: true, clock: 'LHR' },
+  };
+  it('round-trips UTF-8 documents, links, labels and shared views', () => {
+    expect(decodeItineraryParam(encodeItineraryParam(comparison))).toEqual({ ok: true, doc: comparison });
+    const state = documentToLinkState(comparison);
+    expect(state.label).toBe('BA via London');
+    expect(state.compare?.[0].label).toBe('Közvetlen & x=y');
+    expect(state.stops?.[1].layoverMin).toBe(180);
+    expect(documentToLinkState(linkStateToDocument(state))).toEqual(state);
+    expect(parseLink(`?itinerary=${encodeItineraryParam(comparison)}`)).toEqual(state);
+  });
+  it('requires exactly one form and bounds each journey independently', () => {
+    for (const raw of [
+      { version: 1 },
+      { ...comparison, stops: [{ airport: 'BUD' }] },
+      { version: 1, journeys: [] },
+      { version: 1, journeys: Array(5).fill({ stops: [{ airport: 'BUD' }] }) },
+      { version: 1, journeys: [{ stops: [] }] },
+      { version: 1, journeys: [{ stops: Array(11).fill({ airport: 'BUD' }) }] },
+    ])
+      expect(validateItineraryDocument(raw).ok).toBe(false);
+    expect(validateItineraryDocument({ version: 1, journeys: [{ stops: [{ airport: 'BUD' }] }] }).ok).toBe(true);
+  });
+  it('uses JSON-pointer paths for nested stop, label and layover issues', () => {
+    const result = validateItineraryDocument({
+      version: 1,
+      journeys: [
+        { stops: [{ airport: 'BUD' }] },
+        { label: 'x'.repeat(41), stops: [{ airport: '!', layoverMinutes: 90 }] },
+      ],
+    });
+    expect(!result.ok && result.issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining([
+        '/journeys/1/label',
+        '/journeys/1/stops/0/airport',
+        '/journeys/1/stops/0/layoverMinutes',
+      ]),
+    );
+    for (const label of ['', ' ', 'A\nB', 'x'.repeat(41)])
+      expect(validateItineraryDocument({ version: 1, journeys: [{ label, stops: [{ airport: 'BUD' }] }] }).ok).toBe(
+        false,
+      );
+  });
+  it('keeps single-journey documents in the classic stops form', () => {
+    const state = documentToLinkState({
+      version: 1,
+      journeys: [{ label: 'A', stops: [{ airport: 'BUD' }, { airport: 'JFK' }] }],
+    });
+    const document = linkStateToDocument(state);
+    expect(document.stops).toHaveLength(2);
+    expect(document.journeys).toBeUndefined();
+  });
+});
