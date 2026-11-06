@@ -98,6 +98,7 @@ export default function App() {
   });
 
   const panelRef = useRef<HTMLElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const takeoverRef = useRef<AirportPickerHandle>(null);
   const aboutRef = useRef<AboutDialogHandle>(null);
   const analytics = useAnalyticsConsent();
@@ -348,6 +349,13 @@ export default function App() {
     setArranging((on) => !on);
   };
 
+  /** A chosen suggestion becomes the visitor's journey; bring its stops and actions into view. */
+  const chooseSuggestion = (from: Airport, to: Airport) => {
+    if (!index) return;
+    loadCodes([airportCode(from), airportCode(to)], index);
+    requestAnimationFrame(() => listRef.current?.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' }));
+  };
+
   const editingCount = route.stops.length;
   const pickerText = (i: number) => {
     const current = route.stops[i]?.airportId;
@@ -437,6 +445,16 @@ export default function App() {
   );
   const canArrange = filledAirports.length > 0 || route.stops.length > 2;
   const canReset = comparing || timeOpen || (!isExample && (canArrange || hasEnteredTimes(route.stops)));
+  // A route that is exactly one of the suggestions keeps the list, so people can switch between them.
+  const chosenSuggestion = suggestions.find(
+    ({ from, to }) =>
+      route.stops.length === 2 &&
+      route.stops[0].airportId === from.id &&
+      route.stops[1].airportId === to.id &&
+      !hasEnteredTimes(route.stops),
+  );
+  const showSuggestions =
+    initialized && !comparing && (isExample || filledAirports.length === 0 || chosenSuggestion !== undefined);
   const timeBar = (docked: boolean) => (
     <TimeBar
       clock={clock}
@@ -635,6 +653,7 @@ export default function App() {
               <JourneyTabs list={compared} active={comparison.active} onActivate={activateJourney} onAdd={addJourney} />
             )}
             <div
+              ref={listRef}
               role={comparing ? 'tabpanel' : undefined}
               id={comparing ? 'journey-panel' : undefined}
               aria-labelledby={comparing ? `journey-tab-${compared[comparison.active].id}` : undefined}
@@ -723,14 +742,12 @@ export default function App() {
                   )}
                 </>
               )}
-              {initialized && !comparing && (isExample || filledAirports.length === 0) && (
+              {showSuggestions && (
                 <WelcomeSuggestions
                   suggestions={suggestions}
                   isExample={isExample}
-                  filledAirports={filledAirports}
-                  onSelect={(from, to) =>
-                    index && loadCodes([airportCode(from), airportCode(to)], index, { example: true })
-                  }
+                  chosen={chosenSuggestion}
+                  onSelect={chooseSuggestion}
                 />
               )}
               {summaryInList && summary}

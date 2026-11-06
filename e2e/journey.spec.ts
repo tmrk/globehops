@@ -15,7 +15,7 @@ test('first visit loads three long-haul examples from the home country', { tag: 
   await page.goto('./');
   await expectRoute(page, ['CPH', 'SYD']);
   await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
-  const suggestions = page.getByRole('list', { name: 'Try one of these', exact: true }).getByRole('button');
+  const suggestions = page.getByRole('list', { name: /try one of these/i }).getByRole('button');
   await expect(suggestions).toHaveCount(3);
   await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: /^Flight \d,/ })).toHaveCount(1);
@@ -26,9 +26,12 @@ test('first visit loads three long-haul examples from the home country', { tag: 
   await expect(totals.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
   await suggestions.nth(1).click();
   await expectRoute(page, ['CPH', 'SIN']);
+  // A chosen suggestion is the visitor's journey (reset, compare) while the list stays for switching.
+  await expect(page.getByRole('heading', { name: 'Your journey', exact: true })).toBeVisible();
   await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'false');
   await expect(suggestions.nth(1)).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reset journey', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Compare with another journey' })).toBeVisible();
   await startEditing(page);
   await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
   await expectRoute(page, ['SIN', 'CPH']);
@@ -269,7 +272,7 @@ test('insert and remove a transfer, reverse, reset and choose a suggestion', asy
   await expect(suggestions).toHaveCount(3);
   await suggestions.first().click();
   await expectRoute(page, ['CPH', 'SYD']);
-  await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your journey', exact: true })).toBeVisible();
 });
 
 test('keyboard grips reorder in both directions', async ({ page }) => {

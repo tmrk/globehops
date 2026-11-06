@@ -2,6 +2,10 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.11.1 — 2026-11-06 — Chosen suggestions are your journey
+
+- **Suggested routes can be reset and compared.** Choosing one of the suggested routes still counted as the automatic example, so Reset and **Compare with another journey** stayed hidden. A chosen suggestion is now your journey, with Edit, Share, Reset and Compare like any other; its stops come into view, and the other suggestions stay just below, with your choice highlighted, until you change the route. Only the route shown on your first visit is an example.
+
 ## 1.11.0 — 2026-11-06 — Reset in one step
 
 - **Start over in one step.** A reset button now sits beside Edit and Share. It asks first, in place: **Cancel** (which has the focus, and Escape works too) or **Reset**. Resetting removes every stop, time and compared journey and closes the timeline, leaving an empty planner with route suggestions; display settings such as units, layers and motion stay as they are.
