@@ -8,7 +8,7 @@ import { offsetMinutesAt } from '../../src/lib/timezone.ts';
 export const TIMEZONE_RELEASE = '2026f';
 export const TIMEZONE_SOURCE_URL = `https://github.com/evansiroky/timezone-boundary-builder/releases/download/${TIMEZONE_RELEASE}/timezones.geojson.zip`;
 export const TIMEZONE_ZIP_SHA256 = '2d160501c844d382233f30b0cd0db2533fe17f93a118a3d38959fe73e3ac20c3';
-export const NEAREST_LIMIT_KM = 30;
+const NEAREST_LIMIT_KM = 30;
 export const SENTINELS: Readonly<Record<string, string>> = {
   CPH: 'Europe/Copenhagen',
   LHR: 'Europe/London',

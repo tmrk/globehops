@@ -1,15 +1,33 @@
 import type { LatLng } from '../types.ts';
 import type { Journey } from './schedule.ts';
 import { interpolateGreatCircle } from './geo.ts';
-import { altitudeAt, altitudeProfile } from './altitude.ts';
-import { progressModel, distanceFractionAt, flightPhaseAt } from './flightProgress.ts';
-export interface TimelineSegment {
-  kind: 'flight' | 'ground';
-  leg?: number;
-  stop?: number;
-  start: number;
-  end: number;
+import { altitudeAt, altitudeProfile, type AltitudeProfile } from './altitude.ts';
+import { progressModel, distanceFractionAt, flightPhaseAt, type ProgressModel } from './flightProgress.ts';
+type FlightSegment = { kind: 'flight'; leg: number; start: number; end: number };
+export type TimelineSegment = FlightSegment | { kind: 'ground'; stop: number; start: number; end: number };
+
+interface FlightModels {
+  distanceKm: number;
+  durationMin: number;
+  progress: ProgressModel;
+  altitude: AltitudeProfile;
 }
+// Timelines outlive playback frames; weak keys release their models when a route is replaced.
+const flightModels = new WeakMap<FlightSegment, FlightModels>();
+function modelsFor(segment: FlightSegment, distanceKm: number, durationMin: number): FlightModels {
+  let models = flightModels.get(segment);
+  if (!models || models.distanceKm !== distanceKm || models.durationMin !== durationMin) {
+    models = {
+      distanceKm,
+      durationMin,
+      progress: progressModel(distanceKm, durationMin),
+      altitude: altitudeProfile(distanceKm),
+    };
+    flightModels.set(segment, models);
+  }
+  return models;
+}
+
 export interface Timeline {
   journeyId: string;
   start: number;
@@ -55,25 +73,25 @@ export function journeyStateAt(j: Journey, tl: Timeline, epochMs: number): Journ
   if (segment.kind === 'ground')
     return {
       phase: 'transfer',
-      stop: segment.stop!,
-      leg: segment.stop!,
+      stop: segment.stop,
+      leg: segment.stop,
       arrival: segment.start,
       departure: segment.end,
       untilDepartureMin: (segment.end - epochMs) / 60000,
     };
-  const leg = j.legs[segment.leg!];
+  const leg = j.legs[segment.leg];
   const elapsedMin = (epochMs - segment.start) / 60000;
   const duration = (segment.end - segment.start) / 60000;
-  const model = progressModel(leg.distanceKm, duration);
-  const distanceFraction = distanceFractionAt(model, elapsedMin);
+  const models = modelsFor(segment, leg.distanceKm, duration);
+  const distanceFraction = distanceFractionAt(models.progress, elapsedMin);
   return {
     phase: 'flight',
     leg: leg.index,
     timeFraction: elapsedMin / duration,
     distanceFraction,
     position: interpolateGreatCircle(leg.from, leg.to, distanceFraction),
-    altitudeKm: altitudeAt(altitudeProfile(leg.distanceKm), distanceFraction * leg.distanceKm),
-    flightPhase: flightPhaseAt(model, elapsedMin),
+    altitudeKm: altitudeAt(models.altitude, distanceFraction * leg.distanceKm),
+    flightPhase: flightPhaseAt(models.progress, elapsedMin),
     elapsedMin,
     remainingMin: duration - elapsedMin,
   };

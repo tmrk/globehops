@@ -76,6 +76,22 @@ describe('journey timeline', () => {
       expect(state.altitudeKm).toBe(11);
     }
   });
+  it('keeps cached models consistent when a timeline is reused for changed flight geometry or duration', () => {
+    const journey = computeJourney({ id: 'A', stops });
+    const timeline = buildTimeline(journey);
+    if (!timeline) throw new Error('Expected a playable timeline');
+    const segment = timeline.segments[0];
+    const instant = segment.start + 15 * 60000;
+    journeyStateAt(journey, timeline, instant);
+    const changed = { ...journey, legs: journey.legs.map((leg) => ({ ...leg, distanceKm: leg.distanceKm * 2 })) };
+    expect(journeyStateAt(changed, timeline, instant)).toEqual(
+      journeyStateAt(changed, { ...timeline, segments: timeline.segments.map((entry) => ({ ...entry })) }, instant),
+    );
+    segment.end += 30 * 60000;
+    expect(journeyStateAt(changed, timeline, instant)).toEqual(
+      journeyStateAt(changed, { ...timeline, segments: timeline.segments.map((entry) => ({ ...entry })) }, instant),
+    );
+  });
   it('skips zero-duration legs and zero-duration transfers', () => {
     const zeroStops = [stops[0], { ...stops[0], departure: null, layoverMin: 0 }, stops[2]];
     const zero = computeJourney({ id: 'Z', stops: zeroStops });

@@ -7,7 +7,7 @@ export const COUNTRY_LABEL_SOURCE_URL =
   'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_50m_admin_0_countries.geojson';
 export const MARINE_LABEL_SOURCE_URL =
   'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_50m_geography_marine_polys.geojson';
-export const MIN_COUNTRY_LABELS = 180;
+const MIN_COUNTRY_LABELS = 180;
 export interface CountryLabelDataset {
   format: 2;
   meta: { source: string; version: string; license: string };

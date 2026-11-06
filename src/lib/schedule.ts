@@ -16,7 +16,7 @@ import {
   zoneAbbreviation,
 } from './timezone.ts';
 
-export const JOURNEY_MODEL_VERSION = 1;
+const JOURNEY_MODEL_VERSION = 1;
 export type TimeProvenance = 'entered' | 'estimated' | 'assumed';
 export interface TimePoint {
   epochMs: number;

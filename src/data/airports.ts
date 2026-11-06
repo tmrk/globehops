@@ -101,11 +101,6 @@ export function displayCode(a: Airport): string | null {
 }
 
 /** Compact label for airports without a public code. */
-export function shortName(a: Airport): string {
-  const name = displayCity(a);
-  return name.length > 16 ? `${name.slice(0, 15)}…` : name;
-}
-
 /**
  * Short, unambiguous airport name for status text: "London Heathrow", "Copenhagen Kastrup",
  * "New York JFK". Uses the airport name without generic suffixes when it already starts with the

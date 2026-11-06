@@ -66,7 +66,7 @@ export const SOLAR_ELEVATION_DEG = {
  * A display choice for legibility, not sky luminance: day and night read clearly, with a narrow
  * twilight band between them. Position stays exact, since the blend is centred on sunset.
  */
-export const TERMINATOR_HALF_WIDTH_DEG = 3;
+const TERMINATOR_HALF_WIDTH_DEG = 3;
 
 const sunsetMu = sin(SOLAR_ELEVATION_DEG.sunset);
 const halfWidthMu = sin(TERMINATOR_HALF_WIDTH_DEG);
