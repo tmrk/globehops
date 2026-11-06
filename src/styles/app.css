@@ -989,7 +989,7 @@ button.map-menu__item:hover {
 /* ---- Stops ---- */
 
 .stop {
-  min-height: 60px;
+  min-height: 52px;
 }
 
 .stop__main {
@@ -999,7 +999,7 @@ button.map-menu__item:hover {
   column-gap: var(--col-gap);
   align-items: center;
   min-width: 0;
-  min-height: 52px;
+  min-height: 46px;
   margin: 0 -8px;
   padding: 4px 8px;
   border-radius: var(--radius-sm);
@@ -1060,24 +1060,11 @@ button.map-menu__item:hover {
   color: var(--text-3);
 }
 
-.stop__text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
 .stop__city {
+  min-width: 0;
   font-size: var(--text-lg);
   font-weight: 600;
   line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.stop__name {
-  font-size: var(--text-sm);
-  color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2544,11 +2531,11 @@ button.map-menu__item:hover {
 
 /* Phones: denser rows so the globe keeps at least half the screen. */
 .layout-mobile .stop {
-  min-height: 54px;
+  min-height: 50px;
 }
 
 .layout-mobile .stop__main {
-  min-height: 48px;
+  min-height: 44px;
 }
 
 @media (max-width: 380px) {

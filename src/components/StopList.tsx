@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { airportCode, displayCity } from '../data/airports.ts';
+import { airportCode, displayCity, displayCode } from '../data/airports.ts';
 import { formatDuration } from '../lib/flightTime.ts';
 import { DEFAULT_LAYOVER_MIN, formatLayover, layoverChoices } from '../lib/layover.ts';
 import { formatDistance } from '../lib/units.ts';
@@ -190,6 +190,7 @@ export function StopList(props: StopListProps) {
                       type="button"
                       className="stop__main"
                       onClick={() => props.onEdit(i)}
+                      title={airport?.name}
                       aria-label={
                         airport
                           ? `${caption}: ${airport.name} (${airportCode(airport)}). Change airport`
@@ -199,10 +200,9 @@ export function StopList(props: StopListProps) {
                       {airport ? (
                         <>
                           <CodeBadge airport={airport} />
-                          <span className="stop__text">
-                            <span className="stop__city">{name}</span>
-                            <span className="stop__name">{airport.name}</span>
-                          </span>
+                          {/* Code and city identify the airport, as on a boarding pass. Airfields without a
+                              code show their name instead; full names stay in search and the label. */}
+                          <span className="stop__city">{displayCode(airport) ? name : airport.name}</span>
                         </>
                       ) : (
                         <span className="stop__placeholder">{stopPlaceholder(i, count)}</span>

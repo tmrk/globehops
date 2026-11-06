@@ -12,6 +12,7 @@ A review of the whole interface for clutter and alignment. Every feature remains
 - **Phones: one bottom surface.** The open timeline is now the top of the journey sheet instead of a second floating card; collapsed during playback, the sheet is just the timeline, leaving more globe. While it is docked the totals scroll with the list. Timeline controls are equal-height chips with visible menu chevrons, and previous/next flight share one capsule.
 - **Flight-times editor.** Date and time fields line up in two columns for departure and arrival; clearing an entered time is a small × in its heading.
 - **Airport look.** Codes are split-flap departure-board tiles; the Play button is an amber wayfinding sign.
+- **Code and city only.** Stop rows show the airport code and city on one line, as on a boarding pass; the full airport name stays in search results, the hover tooltip and the screen-reader label, and search still matches it. Airfields without a code show their name.
 - README screenshots, README usage text, CODE.md (component map and a layout/alignment rule) and the E2E specs were updated. Tests open the display menu or Edit mode where those controls moved.
 
 Limitations: per-end flight-time clearing moved into the editor heading; the sheet gesture and native pickers still need real-device review.
