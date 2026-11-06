@@ -117,7 +117,7 @@ test(
       /earth-(?:4k|8k)-.*\.webp$/.test(new URL(response.url()).pathname),
     );
     const borders = page.waitForResponse((response) => /borders-.*\.json$/.test(new URL(response.url()).pathname));
-    await page.goto('./');
+    await page.goto('./?route=CPH-LHR-JFK');
     await expectRoute(page, ['CPH', 'LHR', 'JFK']);
     await expect(page.locator('.stage')).toHaveClass(/is-ready/);
     await (await fullTexture).finished();

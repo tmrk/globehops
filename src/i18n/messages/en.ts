@@ -28,6 +28,7 @@ export const en = {
   'panel.edit': 'Edit',
   'panel.share': 'Share',
   'errors.airportsUnavailable': 'Airport data couldn’t be loaded. Check your connection and reload the page.',
+  'panel.tryOneOfThese': 'Try one of these',
   'panel.orTryOneOfThese': 'Or try one of these',
   'panel.credits': 'Imagery NASA · Airports OurAirports',
   'picker.loadingAirports': 'Loading airports…',
