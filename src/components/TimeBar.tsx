@@ -1,13 +1,12 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import { airportCode } from '../data/airports.ts';
 import { useClock } from '../hooks/useClock.ts';
-import { formatDuration } from '../lib/flightTime.ts';
-import { clockZoneOptions, describeState, formatDateLabel } from '../lib/journeyText.ts';
+
 import type { Journey } from '../lib/schedule.ts';
 import { journeyStateAt, type Timeline } from '../lib/timeline.ts';
 import {
   isSupportedTimeZone,
   browserTimeZone,
-  formatClock,
   formatLocalDateTime,
   parseLocalDateTime,
   resolveLocal,
@@ -41,6 +40,8 @@ export function TimeBar({
   onEditLeg,
   docked = false,
 }: Props) {
+  const { t, fmt } = useI18n();
+
   const snapshot = useClock(clock);
   const browserZone = browserTimeZone();
   const requestedZone =
@@ -52,15 +53,15 @@ export function TimeBar({
   const zone = isSupportedTimeZone(requestedZone) ? requestedZone : browserZone;
   const state = timeline ? journeyStateAt(journey, timeline, snapshot.time) : null;
   const text = state
-    ? describeState(journey, state)
-    : { title: 'Day and night', detail: 'Explore sunlight around the world' };
+    ? fmt.describeState(journey, state)
+    : { title: t('timebar.dayAndNight'), detail: t('timebar.exploreSunlightAroundTheWorld') };
   if (state?.phase === 'before')
-    text.detail = `Departs in ${formatDuration((state.nextDeparture - snapshot.time) / 60000)}`;
+    text.detail = t('timebar.departsIn', fmt.duration((state.nextDeparture - snapshot.time) / 60000));
   const error = journey.issues.find((i) => i.severity === 'error');
   const errorLeg = error?.leg ?? (error?.field === 'arrival' ? Math.max(0, (error.stop ?? 1) - 1) : (error?.stop ?? 0));
   if (error) {
-    text.title = `Fix flight ${errorLeg + 1}'s times to play`;
-    text.detail = 'Check the local dates and times';
+    text.title = t('timebar.fixTimes', errorLeg + 1);
+    text.detail = t('timebar.checkTheLocalDatesAndTimes');
   }
   const date = formatLocalDateTime(utcToLocal(zone, snapshot.time)).slice(0, 10);
   const midnight = parseLocalDateTime(`${date}T00:00`)!;
@@ -73,7 +74,7 @@ export function TimeBar({
         : resolution.after.epochMs;
   const start = timeline ? (snapshot.start ?? timeline.start - 30 * 60000) : dayStart;
   const end = timeline ? (snapshot.end ?? timeline.end) : dayStart + 24 * 3600000;
-  const readout = `${formatClock(snapshot.time, zone, { weekday: true, date: true })} ${zoneAbbreviation(zone, snapshot.time)}`;
+  const readout = `${fmt.clock(snapshot.time, zone, { weekday: true, date: true })} ${zoneAbbreviation(zone, snapshot.time)}`;
   const seek = (time: number) => {
     clock.pause();
     clock.seek(time);
@@ -86,12 +87,13 @@ export function TimeBar({
         : departures.findLast((t) => t < snapshot.time - 1000);
     seek(target ?? (direction > 0 ? departures.at(-1) : departures[0]) ?? snapshot.time);
   };
-  const options = clockZoneOptions(journey, browserZone);
-  if (!options.some((o) => o.value === clockZone)) options.push({ value: clockZone, label: `${clockZone} time` });
+  const options = fmt.clockZoneOptions(journey, browserZone);
+  if (!options.some((o) => o.value === clockZone))
+    options.push({ value: clockZone, label: t('timebar.placeTime', clockZone) });
   return (
     <section
       className={`time-bar${docked ? ' time-bar--docked' : ''}`}
-      aria-label="Timeline"
+      aria-label={t('timebar.timeline')}
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         if (
@@ -109,7 +111,7 @@ export function TimeBar({
         <button
           type="button"
           className="time-bar__play"
-          aria-label={snapshot.playing ? 'Pause playback' : 'Play journey'}
+          aria-label={snapshot.playing ? t('timebar.pausePlayback') : t('timebar.playJourney')}
           disabled={!timeline}
           onClick={onToggle}
         >
@@ -128,9 +130,9 @@ export function TimeBar({
           <div className="time-bar__detail">
             {!journey.dated && timeline && snapshot.time <= timeline.start + 60000 ? (
               <>
-                Example departure now ·{' '}
+                {t('timebar.exampleDeparture')} ·{' '}
                 <button type="button" className="text-btn" onClick={() => onEditLeg(0)}>
-                  Set your times
+                  {t('timebar.setYourTimes')}
                 </button>
               </>
             ) : (
@@ -138,7 +140,12 @@ export function TimeBar({
             )}
           </div>
         </div>
-        <button type="button" className="icon-btn icon-btn--quiet" aria-label="Close timeline" onClick={onClose}>
+        <button
+          type="button"
+          className="icon-btn icon-btn--quiet"
+          aria-label={t('timebar.closeTimeline')}
+          onClick={onClose}
+        >
           <IconClose size={18} />
         </button>
       </div>
@@ -157,7 +164,7 @@ export function TimeBar({
           ))}
         </div>
         <input
-          aria-label="Journey time"
+          aria-label={t('timebar.journeyTime')}
           aria-valuetext={`${readout}. ${text.title}. ${text.detail}`}
           type="range"
           min={start}
@@ -171,7 +178,11 @@ export function TimeBar({
         <label className="time-bar__menu time-bar__clock">
           <span className="time-bar__readout">{readout}</span>
           <IconChevronDown size={13} className="time-bar__chev" />
-          <select aria-label="Clock time zone" value={clockZone} onChange={(e) => onClockZone(e.target.value)}>
+          <select
+            aria-label={t('timebar.clockTimeZone')}
+            value={clockZone}
+            onChange={(e) => onClockZone(e.target.value)}
+          >
             {options.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -181,19 +192,19 @@ export function TimeBar({
         </label>
         {timeline ? (
           <>
-            <span className="time-bar__steps" role="group" aria-label="Jump between flights">
-              <button type="button" aria-label="Previous flight" onClick={() => step(-1)}>
+            <span className="time-bar__steps" role="group" aria-label={t('timebar.jumpBetweenFlights')}>
+              <button type="button" aria-label={t('timebar.previousFlight')} onClick={() => step(-1)}>
                 <IconChevronLeft size={16} />
               </button>
-              <button type="button" aria-label="Next flight" onClick={() => step(1)}>
+              <button type="button" aria-label={t('timebar.nextFlight')} onClick={() => step(1)}>
                 <IconChevronRight size={16} />
               </button>
             </span>
             <label className="time-bar__menu time-bar__speed">
-              {PLAYBACK_SPEEDS.find((s) => s.value === snapshot.speed)?.short}
+              {snapshot.speed === 'auto' ? t('timebar.auto') : t('timebar.speed', fmt.number(snapshot.speed / 3600))}
               <IconChevronDown size={13} className="time-bar__chev" />
               <select
-                aria-label="Playback speed"
+                aria-label={t('timebar.playbackSpeed')}
                 value={snapshot.speed}
                 onChange={(e) =>
                   clock.setSpeed(e.target.value === 'auto' ? 'auto' : (Number(e.target.value) as PlaybackSpeed))
@@ -201,7 +212,7 @@ export function TimeBar({
               >
                 {PLAYBACK_SPEEDS.map((s) => (
                   <option key={s.value} value={s.value}>
-                    {s.short}
+                    {s.value === 'auto' ? t('timebar.auto') : t('timebar.speed', fmt.number(s.value / 3600))}
                   </option>
                 ))}
               </select>
@@ -211,10 +222,10 @@ export function TimeBar({
           <>
             <DateTimeField
               kind="date"
-              label="Globe date"
+              label={t('timebar.globeDate')}
               value={date}
-              display={formatDateLabel(date)}
-              placeholder="Date"
+              display={fmt.date(date)}
+              placeholder={t('timebar.date')}
               onChange={(value) => {
                 const local = parseLocalDateTime(
                   `${value}T${formatLocalDateTime(utcToLocal(zone, snapshot.time)).slice(11)}`,
@@ -238,7 +249,7 @@ export function TimeBar({
                 clock.seek(Date.now());
               }}
             >
-              Now
+              {t('timebar.now')}
             </button>
           </>
         )}

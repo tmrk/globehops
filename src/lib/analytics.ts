@@ -35,11 +35,15 @@ export function parseConsent(raw: string | null | undefined): AnalyticsConsent |
   return raw === 'granted' || raw === 'denied' ? raw : null;
 }
 
-/** The address reported to Google: origin and path only, never the itinerary in the query. */
-export function reportedLocation(href: string): string {
+/** The address reported to Google: origin and the language-neutral path only, never the itinerary in the query. */
+export function reportedLocation(href: string, base?: string): string {
   try {
     const url = new URL(href);
-    return url.origin + url.pathname;
+    const root = base === undefined ? null : `/${base.split('/').filter(Boolean).join('/')}`;
+    return (
+      url.origin +
+      (root !== null ? (root === '/' ? root : `${root}/`) : url.pathname.replace(/\/(?:en|hu|sv)\/?$/, '/'))
+    );
   } catch {
     return '';
   }

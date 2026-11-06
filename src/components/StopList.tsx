@@ -1,11 +1,12 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useRef, useState } from 'react';
-import { airportCode, displayCity, displayCode } from '../data/airports.ts';
-import { formatDuration } from '../lib/flightTime.ts';
-import { DEFAULT_LAYOVER_MIN, formatLayover, layoverChoices } from '../lib/layover.ts';
-import { formatDistance } from '../lib/units.ts';
+import { airportCode, displayCode } from '../data/airports.ts';
+
+import { DEFAULT_LAYOVER_MIN, layoverChoices } from '../lib/layover.ts';
+
 import { legColor } from '../lib/legColors.ts';
 import { MAX_STOPS } from '../state/route.ts';
-import { stopCaption, stopLabel, stopPlaceholder } from '../lib/stopText.ts';
+
 import type { Airport, DistanceUnit, Layover, Leg, Stop } from '../types.ts';
 import type { Journey } from '../lib/schedule.ts';
 import { formatLegTimes } from '../lib/journeyText.ts';
@@ -83,6 +84,8 @@ function Rail({
 }
 
 export function StopList(props: StopListProps) {
+  const { t, fmt } = useI18n();
+
   const { stops, legs, lookup, unit, selectedLeg, editing, arranging } = props;
   const listRef = useRef<HTMLOListElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -134,7 +137,7 @@ export function StopList(props: StopListProps) {
 
   return (
     <div className={`itinerary${arranging ? ' is-arranging' : ''}`}>
-      <ol ref={listRef} className="stops" aria-label="Journey stops">
+      <ol ref={listRef} className="stops" aria-label={t('stops.journeyStops')}>
         {stops.map((stop, i) => {
           const airport = stop.airportId !== null ? lookup(stop.airportId) : undefined;
           const leg = legByFromStop.get(i);
@@ -142,8 +145,8 @@ export function StopList(props: StopListProps) {
           const isLast = i === count - 1;
           const role = i === 0 ? 'origin' : isLast ? 'destination' : 'transfer';
           const dragging = drag?.index === i;
-          const caption = stopCaption(i, count);
-          const name = airport ? displayCity(airport) : '';
+          const caption = fmt.stopCaption(i, count);
+          const name = airport ? fmt.city(airport) : '';
           const style: React.CSSProperties = {};
           if (dragging) style.transform = `translateY(${drag.dy}px)`;
           const showDropAbove = drag && drag.target === i && drag.target < drag.index;
@@ -158,8 +161,12 @@ export function StopList(props: StopListProps) {
           const top: Segment = i === 0 ? null : prevLeg ? 'leg' : 'pending';
           const bottom: Segment = isLast ? null : layover ? 'ground' : leg ? 'leg' : 'pending';
           const facts = leg
-            ? `${formatDistance(leg.distanceKm, unit)}${
-                legTimes ? '' : leg.durationMin !== null ? ` · ≈ ${formatDuration(leg.durationMin)}` : ' · same airport'
+            ? `${fmt.distance(leg.distanceKm, unit)}${
+                legTimes
+                  ? ''
+                  : leg.durationMin !== null
+                    ? ` · ≈ ${fmt.duration(leg.durationMin)}`
+                    : t('stops.sameAirport')
               }`
             : '';
 
@@ -193,8 +200,8 @@ export function StopList(props: StopListProps) {
                       title={airport?.name}
                       aria-label={
                         airport
-                          ? `${caption}: ${airport.name} (${airportCode(airport)}). Change airport`
-                          : `${stopLabel(i, count)}: choose an airport`
+                          ? t('stops.airportButton', caption, airport.name, airportCode(airport))
+                          : t('stops.emptyAirport', fmt.stopLabel(i, count))
                       }
                     >
                       {airport ? (
@@ -205,7 +212,7 @@ export function StopList(props: StopListProps) {
                           <span className="stop__city">{displayCode(airport) ? name : airport.name}</span>
                         </>
                       ) : (
-                        <span className="stop__placeholder">{stopPlaceholder(i, count)}</span>
+                        <span className="stop__placeholder">{fmt.stopPlaceholder(i, count)}</span>
                       )}
                     </button>
                     {arranging && (
@@ -214,7 +221,7 @@ export function StopList(props: StopListProps) {
                           <button
                             type="button"
                             className="icon-btn icon-btn--quiet stop__grip"
-                            aria-label={`Reorder ${name || caption}. Use up and down arrow keys to move`}
+                            aria-label={t('stops.reorder', name || caption)}
                             onPointerDown={(e) => onGripPointerDown(e, i)}
                             onPointerMove={onGripPointerMove}
                             onPointerUp={onGripPointerUp}
@@ -229,7 +236,9 @@ export function StopList(props: StopListProps) {
                             type="button"
                             className="icon-btn icon-btn--quiet stop__remove"
                             aria-label={
-                              count > 2 ? `Remove ${name || 'this stop'}` : `Clear ${caption.toLowerCase()} airport`
+                              count > 2
+                                ? t('stops.remove', name || t('stops.thisStop'))
+                                : t('stops.clearAirport', caption.toLowerCase())
                             }
                             onClick={() => props.onRemove(i)}
                           >
@@ -251,21 +260,22 @@ export function StopList(props: StopListProps) {
                   </span>
                   <span
                     className={`layover__pick${transfer?.source === 'times' ? ' is-fixed' : ''}`}
-                    title={transfer?.source === 'times' ? 'From your flight times' : undefined}
+                    title={transfer?.source === 'times' ? t('stops.fromYourFlightTimes') : undefined}
                   >
                     <span className="layover__value" aria-hidden={transfer?.source !== 'times' ? true : undefined}>
                       {transfer?.source === 'times' &&
                       (transfer.arrival?.provenance !== 'entered' || transfer.departure?.provenance !== 'entered')
                         ? '≈ '
                         : ''}
-                      <b>{formatLayover(transfer?.source === 'times' ? transfer.minutes : layover.minutes)}</b> layover
+                      <b>{fmt.layover(transfer?.source === 'times' ? transfer.minutes : layover.minutes)}</b>{' '}
+                      {t('stops.layover')}
                     </span>
                     {transfer?.source !== 'times' && (
                       <>
                         <IconChevronDown size={14} className="layover__chev" />
                         <select
                           className="layover__select"
-                          aria-label={`Layover in ${displayCity(layover.airport)}`}
+                          aria-label={t('stops.layoverAt', fmt.city(layover.airport))}
                           value={layover.minutes}
                           onChange={(e) => {
                             const minutes = Number(e.target.value);
@@ -274,8 +284,8 @@ export function StopList(props: StopListProps) {
                         >
                           {layoverChoices(layover.minutes).map((m) => (
                             <option key={m} value={m}>
-                              {formatLayover(m)}
-                              {m === DEFAULT_LAYOVER_MIN ? ' (default)' : ''}
+                              {fmt.layover(m)}
+                              {m === DEFAULT_LAYOVER_MIN ? t('stops.default') : ''}
                             </option>
                           ))}
                         </select>
@@ -304,7 +314,7 @@ export function StopList(props: StopListProps) {
                             <button
                               type="button"
                               className="icon-btn icon-btn--quiet"
-                              aria-label={`Add a stop after ${name || caption}`}
+                              aria-label={t('stops.insertAfter', name || caption)}
                               onClick={() => props.onInsert(i + 1)}
                             >
                               <IconPlus size={17} />
@@ -320,16 +330,19 @@ export function StopList(props: StopListProps) {
                         aria-pressed={selected}
                         aria-expanded={selected}
                         aria-controls={selected ? `leg-schedule-${leg.index}` : undefined}
-                        aria-label={`Flight ${leg.index + 1}, ${airportCode(leg.from)} to ${airportCode(leg.to)}: ${formatDistance(
-                          leg.distanceKm,
-                          unit,
-                        )}${legTimes ? `, ${legTimes.dep} to ${legTimes.arr} local time` : leg.durationMin !== null ? `, about ${formatDuration(leg.durationMin)}` : ''}. ${
-                          selected
-                            ? 'Selected. Close flight times'
-                            : legTimes
-                              ? 'Show on globe and change flight times'
-                              : 'Show on globe and add flight times'
-                        }`}
+                        aria-label={t(
+                          'stops.flightButton',
+                          leg.index + 1,
+                          airportCode(leg.from),
+                          airportCode(leg.to),
+                          fmt.distance(leg.distanceKm, unit),
+                          legTimes
+                            ? t('stops.localTimes', legTimes.dep, legTimes.arr)
+                            : leg.durationMin !== null
+                              ? t('stops.aboutDuration', fmt.duration(leg.durationMin))
+                              : '',
+                          selected ? t('stops.selected') : legTimes ? t('stops.changeTimes') : t('a11y.addFlightTimes'),
+                        )}
                         onClick={() => props.onSelectLeg(selected ? null : leg.index)}
                       >
                         <span className="row__icon leg__icon">
@@ -357,7 +370,7 @@ export function StopList(props: StopListProps) {
                                 )}
                               </span>
                             ) : (
-                              <span className="leg__add">Add times</span>
+                              <span className="leg__add">{t('stops.addTimes')}</span>
                             )}
                             <IconChevronDown size={14} className="leg__chev" />
                           </span>
@@ -400,7 +413,7 @@ export function StopList(props: StopListProps) {
               <span className="row__icon">
                 <IconPlus size={17} />
               </span>
-              <span>Add stop</span>
+              <span>{t('stops.addStop')}</span>
             </button>
           )}
           {arranging && (
@@ -410,7 +423,7 @@ export function StopList(props: StopListProps) {
                 <span className="row__icon">
                   <IconSwap size={17} />
                 </span>
-                <span>Reverse route</span>
+                <span>{t('stops.reverseRoute')}</span>
               </button>
               <button
                 type="button"
@@ -422,7 +435,7 @@ export function StopList(props: StopListProps) {
                 <span className="row__icon">
                   <IconTrash size={17} />
                 </span>
-                <span>Clear route</span>
+                <span>{t('stops.clearRoute')}</span>
               </button>
             </>
           )}

@@ -1,7 +1,7 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useState } from 'react';
-import { airportCode, displayCity } from '../data/airports.ts';
-import { formatDuration } from '../lib/flightTime.ts';
-import { formatDateLabel, formatZoneLabel } from '../lib/journeyText.ts';
+import { airportCode } from '../data/airports.ts';
+
 import type { Journey, JourneyLeg } from '../lib/schedule.ts';
 import { formatLocalDateTime, isSupportedTimeZone, utcToLocal } from '../lib/timezone.ts';
 import type { LocalTimeInput } from '../types.ts';
@@ -21,10 +21,24 @@ interface Props {
  * be overridden by tapping it. Instants and durations are computed in UTC by the schedule model.
  */
 export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
+  const { t, fmt } = useI18n();
+
   const [now] = useState(Date.now);
   const rows = [
-    { field: 'departure' as const, stop: leg.fromStop, point: leg.departure, verb: 'Depart', noun: 'Departure' },
-    { field: 'arrival' as const, stop: leg.toStop, point: leg.arrival, verb: 'Arrive', noun: 'Arrival' },
+    {
+      field: 'departure' as const,
+      stop: leg.fromStop,
+      point: leg.departure,
+      verb: t('schedule.depart'),
+      noun: t('schedule.departure'),
+    },
+    {
+      field: 'arrival' as const,
+      stop: leg.toStop,
+      point: leg.arrival,
+      verb: t('schedule.arrive'),
+      noun: t('schedule.arrival'),
+    },
   ];
   // The time fields themselves show a missing time; the text warning would only repeat it.
   const issues = journey.issues.filter(
@@ -34,7 +48,11 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
   );
   const entered = leg.departure?.provenance === 'entered' && leg.arrival?.provenance === 'entered';
   return (
-    <section id={`leg-schedule-${leg.index}`} className="leg-schedule" aria-label={`Flight ${leg.index + 1} times`}>
+    <section
+      id={`leg-schedule-${leg.index}`}
+      className="leg-schedule"
+      aria-label={t('schedule.flightTimes', leg.index + 1)}
+    >
       {rows.map(({ field, stop, point, verb, noun }) => {
         const input = journey.stops[stop][field];
         const { airport, zone: assignedZone } = journey.stops[stop];
@@ -54,22 +72,22 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
         const today = () => (zone ? formatLocalDateTime(utcToLocal(zone, Date.now())).slice(0, 10) : '');
         const state = input ? 'entered' : suggestion ? 'estimated' : 'empty';
         return (
-          <div key={field} className={`when when--${state}`} role="group" aria-label={`${noun}, local time`}>
+          <div key={field} className={`when when--${state}`} role="group" aria-label={t('schedule.localTime', noun)}>
             <div className="when__head">
               <span className="when__verb">{verb}</span>
               <span className="when__place">
-                <span className="when__code">{airportCode(airport)}</span> {displayCity(airport)}
+                <span className="when__code">{airportCode(airport)}</span> {fmt.city(airport)}
               </span>
               {zone && (
                 <span className="when__zone" title={zone}>
-                  {formatZoneLabel(zone, point?.epochMs ?? now)}
+                  {fmt.zone(zone, point?.epochMs ?? now)}
                 </span>
               )}
               {input && (
                 <button
                   type="button"
                   className="when__clear"
-                  aria-label={`Clear ${field} time`}
+                  aria-label={field === 'departure' ? t('schedule.clearDeparture') : t('schedule.clearArrival')}
                   onClick={() => onChange(stop, field, null)}
                 >
                   <IconClose size={14} />
@@ -79,10 +97,10 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
             <div className="when__fields">
               <DateTimeField
                 kind="date"
-                label={`${noun} date`}
+                label={field === 'departure' ? t('schedule.departureDate') : t('schedule.arrivalDate')}
                 value={date || suggestedDate}
-                display={formatDateLabel(date || suggestedDate)}
-                placeholder="Add date"
+                display={fmt.date(date || suggestedDate)}
+                placeholder={t('schedule.addDate')}
                 estimated={!date && !!suggestedDate}
                 disabled={!zone}
                 onChange={(value) => {
@@ -92,10 +110,10 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
               />
               <DateTimeField
                 kind="time"
-                label={`${noun} time`}
+                label={field === 'departure' ? t('schedule.departureTime') : t('schedule.arrivalTime')}
                 value={time || suggestedTime}
                 display={time || suggestedTime}
-                placeholder={date ? 'Add a time' : 'Add time'}
+                placeholder={date ? t('schedule.addATime') : t('schedule.addTime')}
                 estimated={!time && !!suggestedTime}
                 attention={!!date && !time}
                 disabled={!zone}
@@ -107,14 +125,16 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
             </div>
             {!zone ? (
               <p className="when__note">
-                {assignedZone ? 'Time zone unavailable in this browser' : 'Time zone unknown for this airport'}
+                {assignedZone
+                  ? t('schedule.timeZoneUnavailableInThisBrowser')
+                  : t('schedule.timeZoneUnknownForThisAirport')}
               </p>
             ) : (
               suggestion && (
                 <p className="when__note">
                   {suggestion.provenance === 'assumed'
-                    ? 'Example departure · set your own'
-                    : 'Estimated from your other times'}
+                    ? t('schedule.exampleDepartureSetYourOwn')
+                    : t('schedule.estimatedFromYourOtherTimes')}
                 </p>
               )
             )}
@@ -124,16 +144,16 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
       <div className="leg-schedule__foot">
         <p className="leg-schedule__duration">
           {entered
-            ? `Scheduled ${formatDuration(leg.durationMin ?? 0)} · estimate ≈ ${formatDuration(leg.estimatedMin ?? 0)}`
-            : `Flight ≈ ${formatDuration(leg.estimatedMin ?? 0)}, estimated`}
+            ? t('schedule.durationComparison', fmt.duration(leg.durationMin ?? 0), fmt.duration(leg.estimatedMin ?? 0))
+            : t('schedule.estimatedFlight', fmt.duration(leg.estimatedMin ?? 0))}
         </p>
         <button type="button" className="text-btn leg-schedule__done" onClick={onClose}>
-          Done
+          {t('schedule.done')}
         </button>
       </div>
       {issues.map((issue, index) => (
         <div key={index} className={`schedule-issue schedule-issue--${issue.severity}`}>
-          <p>{issue.message}</p>
+          <p>{fmt.issue(issue, journey)}</p>
           {issue.code === 'ambiguous_local_time' &&
             issue.options?.map((option) => (
               <button

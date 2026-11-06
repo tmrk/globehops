@@ -1,5 +1,6 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useId } from 'react';
-import { APP_COMMIT, APP_DATE, APP_VERSION, describeBuild } from '../version.ts';
+import { APP_COMMIT, APP_DATE, APP_VERSION } from '../version.ts';
 
 /**
  * The GlobeHops mark: a globe with one great-circle hop between two airports, drawn with the same
@@ -54,10 +55,11 @@ export function Brand() {
 
 /** Desktop only: the running release, faint in the bottom-left corner; hover shows the build. Phones show it in About. */
 export function VersionTag() {
-  const build = describeBuild(APP_COMMIT, APP_DATE);
+  const { t, fmt } = useI18n();
+  const build = fmt.build(APP_COMMIT, APP_DATE);
   return (
     <p className="app-version" title={build || undefined}>
-      <span className="sr-only">GlobeHops version </span>v{APP_VERSION}
+      <span className="sr-only">{t('common.appVersion')} </span>v{APP_VERSION}
     </p>
   );
 }

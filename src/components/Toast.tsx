@@ -1,6 +1,9 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import type { ToastState } from '../hooks/useToast.ts';
 
 export function Toast({ toast }: { toast: ToastState | null }) {
+  const { t } = useI18n();
+
   return (
     <div className="toast-region" role="status" aria-live="polite">
       {toast && (
@@ -12,7 +15,7 @@ export function Toast({ toast }: { toast: ToastState | null }) {
               readOnly
               value={toast.detail}
               onFocus={(e) => e.currentTarget.select()}
-              aria-label="Link"
+              aria-label={t('common.link')}
             />
           )}
         </div>

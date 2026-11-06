@@ -1,12 +1,13 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useId, useState } from 'react';
 import { DEFAULT_ALTITUDE_MODEL } from '../lib/altitude.ts';
-import { DEFAULT_FLIGHT_TIME_MODEL, formatDuration, sumDurations } from '../lib/flightTime.ts';
-import { DEFAULT_LAYOVER_MIN, formatLayover } from '../lib/layover.ts';
-import { formatDistanceNumber } from '../lib/units.ts';
+import { DEFAULT_FLIGHT_TIME_MODEL, sumDurations } from '../lib/flightTime.ts';
+import { DEFAULT_LAYOVER_MIN } from '../lib/layover.ts';
+
 import type { DistanceUnit, Layover, Leg } from '../types.ts';
 import type { Journey } from '../lib/schedule.ts';
 import { airportCode } from '../data/airports.ts';
-import { formatClock } from '../lib/timezone.ts';
+
 import { IconInfo } from './Icons.tsx';
 
 interface SummaryProps {
@@ -21,6 +22,8 @@ interface SummaryProps {
 
 /** Journey totals, pinned to the bottom of the panel like the total on a ticket. */
 export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: SummaryProps) {
+  const { t, fmt } = useI18n();
+
   const [showInfo, setShowInfo] = useState(false);
   const infoId = useId();
   const totalKm = legs.reduce((s, l) => s + l.distanceKm, 0);
@@ -32,32 +35,45 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
     !journey.dated ||
     journey.legs.some((l) => l.departure?.provenance !== 'entered' || l.arrival?.provenance !== 'entered');
   const m = DEFAULT_FLIGHT_TIME_MODEL;
-  const speed = unit === 'km' ? `${m.cruiseSpeedKmh} km/h` : `${Math.round(m.cruiseSpeedKmh / 1.609344 / 5) * 5} mph`;
+  const speed =
+    unit === 'km' ? `${fmt.number(m.cruiseSpeedKmh)} km/h` : `${Math.round(m.cruiseSpeedKmh / 1.609344 / 5) * 5} mph`;
   const cruise =
     unit === 'km'
-      ? `${DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm} km`
-      : `${Math.round((DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm * 3280.84) / 1000) * 1000} ft`;
+      ? `${fmt.number(DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm)} km`
+      : `${fmt.number(Math.round((DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm * 3280.84) / 1000) * 1000)} ft`;
 
-  const timeLabel = journey.dated ? 'Journey time' : layovers.length ? 'Total time' : 'Flight time';
-  const flightsText = flights === 1 ? 'Great-circle route' : `${flights} flights`;
+  const timeLabel = journey.dated
+    ? t('summary.journeyTime')
+    : layovers.length
+      ? t('summary.totalTime')
+      : t('summary.flightTime');
+  const flightsText = flights === 1 ? t('summary.greatCircleRoute') : t('summary.flights', fmt.number(flights));
   // Each part stays whole, so a narrow column breaks only between flying and ground time.
   const breakdown = layovers.length ? (
     <>
-      <span className="nowrap">{formatDuration(flightMin)} flying</span> ·{' '}
+      <span className="nowrap">{t('summary.flying', fmt.duration(flightMin))}</span> ·{' '}
       <span className="nowrap">
-        {formatDuration(groundMin)} {layovers.length === 1 ? 'layover' : 'in layovers'}
+        {fmt.duration(groundMin)} {layovers.length === 1 ? t('summary.layover') : t('summary.inLayovers')}
       </span>
     </>
   ) : estimated ? (
-    'Estimated'
+    t('summary.estimated')
   ) : (
-    'From entered times'
+    t('summary.fromEnteredTimes')
   );
   const dates =
     journey.dated && journey.start && journey.end
       ? {
-          departs: `Departs ${formatClock(journey.start.epochMs, journey.start.zone, { weekday: true, date: true }).replace(',', '')} ${airportCode(journey.stops[0].airport)}`,
-          arrives: `Arrives ${formatClock(journey.end.epochMs, journey.end.zone)} ${airportCode(journey.stops.at(-1)!.airport)}`,
+          departs: t(
+            'summary.departure',
+            fmt.clock(journey.start.epochMs, journey.start.zone, { weekday: true, date: true }).replace(',', ''),
+            airportCode(journey.stops[0].airport),
+          ),
+          arrives: t(
+            'summary.arrival',
+            fmt.clock(journey.end.epochMs, journey.end.zone),
+            airportCode(journey.stops.at(-1)!.airport),
+          ),
         }
       : null;
   const issue = journey.issues.find((i) => i.severity === 'error');
@@ -67,15 +83,15 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
   // two even columns. Each stat stays one group in reading order; CSS places its parts on shared
   // label, value and detail rows, with departure and arrival spread across the full width below.
   return (
-    <section className="summary" aria-label="Journey totals">
+    <section className="summary" aria-label={t('summary.journeyTotals')}>
       <div className={`summary__grid${action ? ' has-action' : ''}`}>
         <div className="stat">
-          <span className="stat__label">{flights > 1 ? 'Total distance' : 'Distance'}</span>
+          <span className="stat__label">{flights > 1 ? t('summary.totalDistance') : t('summary.distance')}</span>
           <span className="stat__value">
-            {flights ? formatDistanceNumber(totalKm, unit) : '—'}
+            {flights ? fmt.distanceNumber(totalKm, unit) : '—'}
             <span className="stat__unit">{unit}</span>
           </span>
-          <span className="stat__detail">{flights ? flightsText : 'Choose two airports'}</span>
+          <span className="stat__detail">{flights ? flightsText : t('summary.chooseTwoAirports')}</span>
         </div>
         <div className="stat stat--end">
           <span className="stat__label">
@@ -85,14 +101,14 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
               className="info-btn"
               aria-expanded={showInfo}
               aria-controls={infoId}
-              aria-label="How times are estimated"
+              aria-label={t('summary.howTimesAreEstimated')}
               onClick={() => setShowInfo((v) => !v)}
             >
               <IconInfo size={14} />
             </button>
           </span>
           <span className="stat__value">
-            {flights && totalMin ? `${estimated ? '≈ ' : ''}${formatDuration(totalMin)}` : '—'}
+            {flights && totalMin ? `${estimated ? '≈ ' : ''}${fmt.duration(totalMin)}` : '—'}
           </span>
           <span className="stat__detail">{breakdown}</span>
         </div>
@@ -105,20 +121,12 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
       </div>
       {issue ? (
         <button type="button" className="text-btn schedule-error" onClick={() => onCheckLeg(issueLeg)}>
-          Check flight {issueLeg + 1} times
+          {t('summary.checkTimes', issueLeg + 1)}
         </button>
       ) : null}
       <div id={infoId} className="summary__info" hidden={!showInfo}>
-        <p>
-          Entered times use each airport’s local time zone; missing times are estimated. Flight times are estimates, not
-          schedules: great-circle distance at an average {speed}, plus {m.overheadMinutes} min for take-off, climb,
-          approach and landing. Real flights vary with winds, routing, air traffic control and taxi times.
-        </p>
-        <p>
-          Each connection adds a layover, {formatLayover(DEFAULT_LAYOVER_MIN)} unless you change it under the connecting
-          airport. Arcs climb to a typical cruising altitude of about {cruise}, hold it, and descend before landing;
-          height is exaggerated so it shows on the globe.
-        </p>
+        <p>{t('summary.method', speed, m.overheadMinutes)}</p>
+        <p>{t('summary.connectionMethod', fmt.layover(DEFAULT_LAYOVER_MIN), cruise)}</p>
       </div>
     </section>
   );

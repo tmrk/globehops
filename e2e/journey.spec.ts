@@ -202,7 +202,8 @@ test('desktop Chromium share copies an exact URL which recreates the journey', a
   await expect(page.getByRole('status').filter({ has: page.locator('.toast') })).toHaveText('Link copied');
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toBe(page.url());
-  const fresh = await browser.newContext({ locale: 'en-GB' });
+  // This independent context does not inherit the shared explicit-English preference.
+  const fresh = await browser.newContext({ locale: 'en-GB', timezoneId: 'UTC' });
   try {
     const other = await fresh.newPage();
     auditPage(other);

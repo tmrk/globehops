@@ -1,6 +1,8 @@
+import { LanguageSelector } from '../i18n/LanguageSelector.tsx';
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import type { SimulationClock } from '../state/clock.ts';
-import { browserTimeZone, formatClock, zoneAbbreviation } from '../lib/timezone.ts';
+import { browserTimeZone, zoneAbbreviation } from '../lib/timezone.ts';
 import type { DistanceUnit } from '../types.ts';
 import {
   IconBorders,
@@ -34,20 +36,22 @@ interface MapToolsProps {
 
 /** Minute-level globe clock, the entry to the time controls when no journey is playing. */
 function GlobeTime({ clock, onOpen }: { clock: SimulationClock; onOpen: () => void }) {
+  const { t, fmt } = useI18n();
+
   const snapshot = useCallback(() => Math.floor(clock.getSnapshot().time / 60000) * 60000, [clock]);
   const time = useSyncExternalStore(clock.subscribe, snapshot);
   const zone = browserTimeZone();
-  const label = formatClock(time, zone);
+  const label = fmt.clock(time, zone);
   return (
     <button
       type="button"
       className="map-menu__item"
       onClick={onOpen}
-      aria-label={`Globe time: now, ${label} ${zoneAbbreviation(zone, time)}. Open timeline`}
+      aria-label={t('maptools.clockAction', label, zoneAbbreviation(zone, time))}
     >
       <IconClock size={18} className="map-menu__icon" />
-      <span className="map-menu__label">Globe time</span>
-      <span className="map-menu__value">Now {label}</span>
+      <span className="map-menu__label">{t('maptools.globeTime')}</span>
+      <span className="map-menu__value">{t('maptools.nowTime', label)}</span>
       <IconChevronRight size={14} className="map-menu__chev" />
     </button>
   );
@@ -78,6 +82,8 @@ function Toggle({
  * globe clock) in a small menu, and re-centring on the route.
  */
 export function MapTools(props: MapToolsProps) {
+  const { t } = useI18n();
+
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -103,12 +109,12 @@ export function MapTools(props: MapToolsProps) {
 
   return (
     <div className="map-tools" ref={rootRef}>
-      <div className="float-group" role="group" aria-label="Globe controls">
+      <div className="float-group" role="group" aria-label={t('maptools.globeControls')}>
         <button
           ref={buttonRef}
           type="button"
           className="float-group__btn"
-          aria-label="Display options"
+          aria-label={t('maptools.displayOptions')}
           aria-expanded={open}
           aria-controls={menuId}
           onClick={() => setOpen((v) => !v)}
@@ -120,7 +126,7 @@ export function MapTools(props: MapToolsProps) {
             type="button"
             className="float-group__btn"
             aria-label={props.frameLabel}
-            title="Re-centre"
+            title={t('maptools.reCentre')}
             onClick={props.onFit}
           >
             <IconFrame />
@@ -128,23 +134,23 @@ export function MapTools(props: MapToolsProps) {
         )}
       </div>
       {open && (
-        <div id={menuId} className="map-menu" role="group" aria-label="Display options">
+        <div id={menuId} className="map-menu" role="group" aria-label={t('maptools.displayOptions')}>
           {props.globe && (
             <>
               <Toggle
-                label="Country borders"
+                label={t('maptools.countryBorders')}
                 icon={<IconBorders size={18} />}
                 on={props.showBorders}
                 onClick={props.onToggleBorders}
               />
               <Toggle
-                label="Country names"
+                label={t('maptools.countryNames')}
                 icon={<IconLabels size={18} />}
                 on={props.showCountryNames}
                 onClick={props.onToggleCountryNames}
               />
               <Toggle
-                label="Day and night"
+                label={t('maptools.dayAndNight')}
                 icon={<IconSunMoon size={18} />}
                 on={props.dayNight}
                 onClick={props.onToggleDayNight}
@@ -155,8 +161,8 @@ export function MapTools(props: MapToolsProps) {
             <span className="map-menu__icon">
               <IconRuler size={18} />
             </span>
-            <span className="map-menu__label">Distance</span>
-            <span className="segmented" role="radiogroup" aria-label="Distance unit">
+            <span className="map-menu__label">{t('maptools.distance')}</span>
+            <span className="segmented" role="radiogroup" aria-label={t('maptools.distanceUnit')}>
               {(['km', 'mi'] as const).map((u) => (
                 <button
                   key={u}
@@ -170,6 +176,8 @@ export function MapTools(props: MapToolsProps) {
               ))}
             </span>
           </div>
+          <hr className="map-menu__rule" />
+          <LanguageSelector />
           {!props.timeOpen && (
             <>
               <hr className="map-menu__rule" />

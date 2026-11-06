@@ -1,6 +1,7 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import { forwardRef, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { airportPlace } from '../data/airports.ts';
+
 import { searchAirports, type SearchIndex } from '../data/search.ts';
 import type { Airport } from '../types.ts';
 import { CodeBadge } from './CodeBadge.tsx';
@@ -23,8 +24,6 @@ export interface AirportPickerHandle {
   reset: () => void;
 }
 
-const EXAMPLE_HINT = 'Try a city, airport or code — Copenhagen, Heathrow, JFK';
-
 /**
  * WAI-ARIA 1.2 combobox with a listbox popup. Search runs locally over the bundled
  * OurAirports dataset on every keystroke (well under a millisecond per query).
@@ -33,6 +32,8 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
   { index, label, caption, placeholder, variant, onSelect, onCancel },
   ref,
 ) {
+  const { t, fmt } = useI18n();
+
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,17 +108,17 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
   };
 
   let status: string;
-  if (!index) status = 'Loading airports…';
-  else if (!trimmed) status = EXAMPLE_HINT;
-  else if (!results.length) status = `No airports match “${trimmed}”`;
-  else status = `${results.length} suggestion${results.length === 1 ? '' : 's'}`;
+  if (!index) status = t('picker.loadingAirports');
+  else if (!trimmed) status = t('picker.hint');
+  else if (!results.length) status = t('picker.noMatches', trimmed);
+  else status = t(results.length === 1 ? 'picker.oneSuggestion' : 'picker.suggestions', fmt.number(results.length));
 
   const list = (
     <ul
       ref={listRef}
       id={listId}
       role="listbox"
-      aria-label="Airport suggestions"
+      aria-label={t('picker.results')}
       className="picker__list"
       hidden={!open}
     >
@@ -154,7 +155,7 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
           <CodeBadge airport={a} />
           <span className="picker__text">
             <span className="picker__name">{a.name}</span>
-            <span className="picker__place">{airportPlace(a)}</span>
+            <span className="picker__place">{fmt.place(a)}</span>
           </span>
         </li>
       ))}
@@ -165,7 +166,12 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
     <div className={`picker picker--${variant}`} onBlur={onBlur}>
       <div className="picker__bar">
         {variant === 'takeover' && (
-          <button type="button" className="icon-btn picker__back" onClick={onCancel} aria-label="Back to journey">
+          <button
+            type="button"
+            className="icon-btn picker__back"
+            onClick={onCancel}
+            aria-label={t('picker.backToJourney')}
+          >
             <IconBack />
           </button>
         )}

@@ -1,12 +1,14 @@
 import { test as base, expect, type Page } from '@playwright/test';
 
 type Fixtures = {
+  localeChoice: string | null;
   expectedConsoleErrors: RegExp[];
   auditPage: (page: Page) => void;
   consoleAudit: void;
 };
 
 export const test = base.extend<Fixtures>({
+  localeChoice: ['en', { option: true }],
   expectedConsoleErrors: [[], { option: true }],
   auditPage: async ({ context, expectedConsoleErrors }, provide) => {
     const errors: string[] = [];
@@ -37,8 +39,16 @@ export const test = base.extend<Fixtures>({
     }
   },
   consoleAudit: [
-    async ({ auditPage }, provide) => {
+    async ({ auditPage, context, localeChoice }, provide) => {
       void auditPage;
+      // Keep existing English assertions independent of the host's country/time zone.
+      if (localeChoice !== null)
+        await context.addInitScript((choice) => {
+          // addInitScript also runs in the initial, storage-inaccessible about:blank document.
+          if (location.protocol === 'http:' || location.protocol === 'https:') {
+            localStorage.setItem('globehops:locale', choice);
+          }
+        }, localeChoice);
       await provide();
     },
     { auto: true },

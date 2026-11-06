@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useEffect, useRef } from 'react';
 import type { AnalyticsConsent } from '../analytics.ts';
 
@@ -12,6 +13,8 @@ interface ConsentNoticeProps {
  * privacy section on top of it.
  */
 export function ConsentNotice({ onChoose, onDetails }: ConsentNoticeProps) {
+  const { t } = useI18n();
+
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -36,20 +39,20 @@ export function ConsentNotice({ onChoose, onDetails }: ConsentNoticeProps) {
       onCancel={(e) => e.preventDefault()}
     >
       <h2 id="consent-title" className="consent__title">
-        Usage statistics
+        {t('consent.usageStatistics')}
       </h2>
       <p id="consent-text" className="consent__text">
-        Allow Google Analytics cookies to help improve GlobeHops? Your routes and times are never sent.{' '}
+        {t('consent.question')}{' '}
         <button type="button" className="consent__more" onClick={onDetails}>
-          Details
+          {t('consent.details')}
         </button>
       </p>
       <div className="consent__actions">
         <button type="button" className="consent__deny" onClick={() => onChoose('denied')}>
-          Deny
+          {t('consent.deny')}
         </button>
         <button type="button" className="consent__allow" onClick={() => onChoose('granted')}>
-          Allow
+          {t('consent.allow')}
         </button>
       </div>
     </dialog>

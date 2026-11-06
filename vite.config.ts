@@ -1,3 +1,4 @@
+import { localizedPages } from './scripts/localized-pages.ts';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
@@ -68,7 +69,7 @@ function agentDataset(): Plugin {
 
 export default defineConfig({
   base,
-  plugins: [react(), agentDataset()],
+  plugins: [react(), agentDataset(), localizedPages(base)],
   define: {
     __APP_VERSION__: JSON.stringify(build.version),
     __APP_COMMIT__: JSON.stringify(build.commit),

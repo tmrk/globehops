@@ -1,12 +1,14 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
+import { LanguageSelector } from '../i18n/LanguageSelector.tsx';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import type { DatasetMeta } from '../data/airports.ts';
 import type { AnalyticsConsentState } from '../hooks/useAnalyticsConsent.ts';
 import { ALTITUDE_EXAGGERATION, DEFAULT_ALTITUDE_MODEL } from '../lib/altitude.ts';
 import { DEFAULT_FLIGHT_TIME_MODEL } from '../lib/flightTime.ts';
-import { DEFAULT_LAYOVER_MIN, formatLayover } from '../lib/layover.ts';
+import { DEFAULT_LAYOVER_MIN } from '../lib/layover.ts';
 import { LogoMark } from './Brand.tsx';
 import { IconClose } from './Icons.tsx';
-import { APP_COMMIT, APP_DATE, APP_VERSION, CHANGELOG_URL, describeBuild } from '../version.ts';
+import { APP_COMMIT, APP_DATE, APP_VERSION, CHANGELOG_URL } from '../version.ts';
 
 export interface AboutDialogHandle {
   /** Opens the dialog, optionally scrolled to the privacy section. */
@@ -24,6 +26,7 @@ export const AboutDialog = forwardRef<AboutDialogHandle, AboutDialogProps>(funct
   { meta, analytics },
   ref,
 ) {
+  const { t, fmt } = useI18n();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const privacyRef = useRef<HTMLHeadingElement>(null);
   useImperativeHandle(ref, () => ({
@@ -32,12 +35,10 @@ export const AboutDialog = forwardRef<AboutDialogHandle, AboutDialogProps>(funct
       if (section === 'privacy') privacyRef.current?.scrollIntoView({ block: 'start' });
     },
   }));
-  const updated = meta?.generatedAt
-    ? new Date(meta.generatedAt).toLocaleDateString('en-GB', { dateStyle: 'medium' })
-    : null;
+  const updated = meta?.generatedAt ? fmt.shortDate(meta.generatedAt.slice(0, 10)) : null;
   const m = DEFAULT_FLIGHT_TIME_MODEL;
   const a = DEFAULT_ALTITUDE_MODEL;
-  const build = describeBuild(APP_COMMIT, APP_DATE);
+  const build = fmt.build(APP_COMMIT, APP_DATE);
 
   return (
     <dialog
@@ -53,7 +54,7 @@ export const AboutDialog = forwardRef<AboutDialogHandle, AboutDialogProps>(funct
         <button
           type="button"
           className="icon-btn about__close"
-          aria-label="Close"
+          aria-label={t('common.close')}
           onClick={() => dialogRef.current?.close()}
         >
           <IconClose />
@@ -62,89 +63,75 @@ export const AboutDialog = forwardRef<AboutDialogHandle, AboutDialogProps>(funct
           <LogoMark size={36} />
           <h2 id="about-title">GlobeHops</h2>
         </div>
-        <p className="about__lede">
-          See any journey by air as it really curves around the Earth. Enter airports, then rotate and zoom the globe to
-          explore the great-circle routes between them.
-        </p>
-        <h3>How it works</h3>
+        <p className="about__lede">{t('about.intro')}</p>
+        <LanguageSelector />
+        <h3>{t('about.method')}</h3>
         <ul>
+          <li>{t('about.routes', fmt.number(6371.0088))}</li>
           <li>
-            Routes are the <strong>shortest great-circle paths</strong> on a spherical Earth (mean radius 6,371.0088
-            km). Real flights often deviate because of winds, air-traffic control, weather and restricted airspace.
+            {t(
+              'about.profile',
+              fmt.number(a.climbMinutes),
+              fmt.number(a.cruiseAltitudeKm),
+              fmt.number(a.descentMinutes),
+              fmt.number(ALTITUDE_EXAGGERATION),
+            )}
           </li>
           <li>
-            Each arc follows a <strong>simplified flight profile</strong>: a climb of about {a.climbMinutes} min to a
-            typical cruising altitude of {a.cruiseAltitudeKm} km, level cruise, and a descent over the last{' '}
-            {a.descentMinutes} min. Short flights peak lower. Height is exaggerated {ALTITUDE_EXAGGERATION}× so it shows
-            at globe scale; seen from above, the arc follows the great-circle ground track.
-          </li>
-          <li>
-            Flight times are <strong>estimates</strong>: distance at an average {m.cruiseSpeedKmh} km/h plus{' '}
-            {m.overheadMinutes} min for take-off, climb, approach and landing. Total time adds a layover at each
-            connection ({formatLayover(DEFAULT_LAYOVER_MIN)} unless you change it).
+            {t(
+              'about.estimates',
+              fmt.number(m.cruiseSpeedKmh),
+              fmt.number(m.overheadMinutes),
+              fmt.layover(DEFAULT_LAYOVER_MIN),
+            )}
           </li>
         </ul>
-        <p>
-          Playback estimates positions along the great circle at an illustrative altitude; these are not real flight
-          tracks. Sun position uses the NOAA/Meeus algorithm.
-        </p>
-        <h3>Sources &amp; credits</h3>
+        <p>{t('about.playback')}</p>
+        <h3>{t('about.credits')}</h3>
         <ul>
+          <li>{t('about.imagery')}</li>
           <li>
-            Earth imagery: <strong>Blue Marble Next Generation</strong> (July 2004 composite, with topography and
-            bathymetry) by NASA Earth Observatory / Reto Stöckli, NASA Goddard Space Flight Center. City lights:{' '}
-            <strong>Black Marble 2016</strong> by NASA Earth Observatory / Joshua Stevens, using Suomi NPP VIIRS data
-            from Miguel Román, NASA Goddard Space Flight Center. Cloud-free composites of satellite imagery — not a live
-            view. GlobeHops is not affiliated with or endorsed by NASA.
-          </li>
-          <li>
-            Airport data:{' '}
+            {t('about.airports')}{' '}
             <a href="https://ourairports.com/data/" target="_blank" rel="noreferrer">
               OurAirports
             </a>{' '}
-            (public domain)
-            {updated ? `, updated ${updated}` : ''}.
+            {t('about.publicDomain')}
+            {updated ? t('about.updated', updated) : ''}.
           </li>
           <li>
-            Country borders:{' '}
+            {t('about.borders')}{' '}
             <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">
               Natural Earth
             </a>{' '}
-            1:50m boundary lines, coastlines and country names (public domain). They show de facto boundaries and imply
-            no position on territorial disputes.
+            {t('about.boundaries')}
           </li>
           <li>
-            Time zones:{' '}
+            {t('about.zones')}{' '}
             <a href="https://github.com/evansiroky/timezone-boundary-builder" target="_blank" rel="noreferrer">
               timezone-boundary-builder 2026f
             </a>{' '}
-            (ODbL) — Contains information from timezone-boundary-builder, which is made available under the{' '}
+            {t('about.zoneLicense')}{' '}
             <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noreferrer">
               Open Database License (ODbL)
             </a>
-            ; boundaries ©{' '}
+            ; {t('about.copyright')}{' '}
             <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
-              OpenStreetMap contributors
+              {t('about.osm')}
             </a>
             .
           </li>
           <li>
-            Built with React, Three.js and the Barlow and Martian Mono typefaces. Open source under the MIT licence —{' '}
+            {t('about.built')}{' '}
             <a href={REPO_URL} target="_blank" rel="noreferrer">
-              source code on GitHub
+              {t('about.source')}
             </a>
             .
           </li>
         </ul>
         <h3 ref={privacyRef} id="about-privacy">
-          Privacy
+          {t('about.privacy')}
         </h3>
-        <p className="about__privacy">
-          No accounts. Your route and times live only in the page address and this browser. If you allow it, Google
-          Analytics counts visits and a few actions, such as sharing or playing a journey, using cookies. It never
-          receives your airports, dates or times, and it is never asked when your browser sends Global Privacy Control
-          or Do Not Track.
-        </p>
+        <p className="about__privacy">{t('about.privacyText')}</p>
         {analytics.available ? (
           <button
             type="button"
@@ -152,15 +139,15 @@ export const AboutDialog = forwardRef<AboutDialogHandle, AboutDialogProps>(funct
             aria-pressed={analytics.consent === 'granted'}
             onClick={() => analytics.choose(analytics.consent === 'granted' ? 'denied' : 'granted')}
           >
-            <span>Share usage statistics</span>
+            <span>{t('about.statistics')}</span>
             <span className="switch" aria-hidden="true" />
           </button>
         ) : null}
         <p className="about__version">
-          Version {APP_VERSION}
+          {t('about.version', APP_VERSION)}
           {build ? ` · ${build}` : ''} ·{' '}
           <a href={CHANGELOG_URL} target="_blank" rel="noreferrer">
-            What’s new
+            {t('about.whatsNew')}
           </a>
         </p>
       </div>

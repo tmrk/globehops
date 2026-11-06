@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useRef, useState } from 'react';
 
 export interface DateTimeFieldProps {
@@ -29,6 +30,8 @@ export function DateTimeField({
   disabled = false,
   onChange,
 }: DateTimeFieldProps) {
+  const { t } = useI18n();
+
   const pointer = useRef(false);
   const [typing, setTyping] = useState(false);
   const open = (input: HTMLInputElement) => {
@@ -58,7 +61,7 @@ export function DateTimeField({
       <input
         type={kind}
         aria-label={label}
-        aria-description={estimated ? 'estimated' : undefined}
+        aria-description={estimated ? t('common.estimated') : undefined}
         min={kind === 'date' ? '1900-01-01' : undefined}
         max={kind === 'date' ? '2100-12-31' : undefined}
         value={value}

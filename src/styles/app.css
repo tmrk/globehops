@@ -1793,8 +1793,9 @@ button.map-menu__item:hover {
 }
 
 .picker__caption {
-  position: absolute;
-  left: 12px;
+  flex: none;
+  margin-left: 12px;
+  white-space: nowrap;
   font: 600 var(--text-2xs) / 1 var(--font);
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
@@ -1807,7 +1808,7 @@ button.map-menu__item:hover {
 }
 
 .picker--takeover .picker__input {
-  padding-left: 52px;
+  padding-left: 10px;
 }
 
 .picker--takeover .picker__list {
@@ -2843,4 +2844,42 @@ button.map-menu__item:hover {
   text-shadow:
     0 1px 4px rgba(3, 10, 19, 0.9),
     0 0 10px rgba(3, 10, 19, 0.5);
+}
+
+/* Native language names stay readable even in the narrow phone display menu. */
+.language-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: var(--text-sm);
+}
+.language-choice .segmented {
+  flex-wrap: wrap;
+}
+.language-choice .segmented button {
+  min-height: var(--float-h);
+}
+
+/* Longer duration units and translated labels share the existing ticket grid. */
+:lang(hu) .summary__grid.has-action,
+:lang(sv) .summary__grid.has-action {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  column-gap: 12px;
+}
+:lang(hu) .has-action .stat__value,
+:lang(sv) .has-action .stat__value {
+  font-size: var(--text-xl);
+}
+:lang(hu) .stat__label,
+:lang(sv) .stat__label {
+  height: auto;
+  min-height: 18px;
+  white-space: normal;
+}
+:lang(hu) .play-btn,
+:lang(sv) .play-btn {
+  padding-inline: 12px;
 }

@@ -79,7 +79,7 @@ export function enableAnalytics(): void {
   });
   // Must precede `js`: see the note at the top of this file.
   gtag('set', {
-    page_location: reportedLocation(window.location.href),
+    page_location: reportedLocation(window.location.href, import.meta.env.BASE_URL),
     page_title: GA_PAGE_TITLE,
     page_referrer: document.referrer ? reportedLocation(document.referrer) : '',
   });

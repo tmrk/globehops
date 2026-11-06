@@ -41,6 +41,22 @@ describe('reportedLocation', () => {
     expect(reportedLocation('https://tmrk.github.io/globehops/')).toBe('https://tmrk.github.io/globehops/');
   });
 
+  it('strips locale directories as well as route queries', () => {
+    for (const locale of ['en', 'hu', 'sv']) {
+      expect(reportedLocation(`https://tmrk.github.io/globehops/${locale}/?route=CPH-LHR`)).toBe(
+        'https://tmrk.github.io/globehops/',
+      );
+      expect(reportedLocation(`https://example.org/${locale}?t=private`)).toBe('https://example.org/');
+    }
+  });
+
+  it('reports only the configured base even from a deeper path', () => {
+    expect(reportedLocation('https://tmrk.github.io/globehops/hu/extra?route=private', '/globehops/')).toBe(
+      'https://tmrk.github.io/globehops/',
+    );
+    expect(reportedLocation('https://example.org/sv/extra?t=private', '/')).toBe('https://example.org/');
+  });
+
   it('reports nothing for an unparseable address', () => {
     expect(reportedLocation('not a url')).toBe('');
   });

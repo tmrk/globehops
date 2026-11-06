@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useEffect, useRef } from 'react';
 import previewUrl from '../assets/textures/earth-1k.webp';
 import mediumUrl from '../assets/textures/earth-4k.webp';
@@ -28,6 +29,8 @@ export interface GlobeViewProps {
 
 /** React wrapper around the imperative GlobeRenderer. Loaded lazily (Three.js lives in this chunk). */
 export default function GlobeView(props: GlobeViewProps) {
+  const { t } = useI18n();
+
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GlobeRenderer | null>(null);
   const latest = useRef(props);
@@ -177,8 +180,8 @@ export default function GlobeView(props: GlobeViewProps) {
       className="globe-view"
       tabIndex={0}
       role="application"
-      aria-roledescription="3D globe"
-      aria-label="Interactive globe showing your journey. Drag to rotate, scroll or pinch to zoom. Arrow keys rotate, plus and minus zoom."
+      aria-roledescription={t('a11y.globeDescription')}
+      aria-label={t('a11y.globeInstructions')}
       onKeyDown={onKeyDown}
     />
   );
