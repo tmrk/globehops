@@ -66,7 +66,8 @@ import {
 } from './math3d.ts';
 import { CountryLabelLayer } from './countryLabels.ts';
 import { FOLLOW_APPROACH_MS, followBlend, followDistance, followLead } from './followCamera.ts';
-import type { AircraftView } from './simFeed.ts';
+import type { AircraftView, FleetAircraft } from './simFeed.ts';
+import { routeGeometrySignature } from './routeGeometry.ts';
 
 export type MarkerRole = 'origin' | 'transfer' | 'destination' | 'single';
 
@@ -84,6 +85,9 @@ export interface GlobeLeg {
   from: LatLng;
   to: LatLng;
   color: string;
+  /** Height multiplier; endpoints retain the same surface clearance. */
+  lift?: number;
+  muted?: boolean;
 }
 
 export interface GlobeRoute {
@@ -149,6 +153,7 @@ const ATMOSPHERE_COLOR = new Color('#7fb4ff');
 
 interface LegObject {
   key: string;
+  muted: boolean;
   /** Fractions of the leg distance (0 … 1) at which ground/arc are sampled; denser in climb and descent. */
   fractions: number[];
   ground: Vector3[]; // unit vectors along the great circle
@@ -214,6 +219,9 @@ export class GlobeRenderer {
   private labelLayer: HTMLDivElement;
   private countryLabels: CountryLabelLayer;
   private plane: HTMLDivElement;
+  private fleet: FleetAircraft[] | null = null;
+  private fleetPlanes: HTMLDivElement[] = [];
+  private routeGeometry = '';
   private userLocationDot: HTMLDivElement;
   private userLocation: Vector3 | null = null;
   private legs: LegObject[] = [];
@@ -286,11 +294,7 @@ export class GlobeRenderer {
     this.userLocationDot.style.display = 'none';
     this.labelLayer.append(this.userLocationDot);
 
-    this.plane = document.createElement('div');
-    this.plane.className = 'globe-plane';
-    this.plane.innerHTML =
-      '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 1.8c.75 0 1.25.9 1.25 2.1v5.3l7.25 4.35v2.05l-7.25-2.25v4.4l2.25 1.7v1.6L12 20.1l-3.5.95v-1.6l2.25-1.7v-4.4L3.5 15.6v-2.05l7.25-4.35V3.9c0-1.2.5-2.1 1.25-2.1z"/></svg>';
-    this.labelLayer.appendChild(this.plane);
+    this.plane = this.createPlane();
 
     // Lighting: a soft key light that travels with the camera keeps the visible hemisphere
     // daylit with a gentle falloff toward the lower-right limb.
@@ -483,6 +487,54 @@ export class GlobeRenderer {
     this.requestRender();
   }
 
+  setFleet(fleet: FleetAircraft[] | null) {
+    if (fleet === this.fleet) return;
+    const previous = this.fleet;
+    const highlightsChanged =
+      previous?.length !== fleet?.length ||
+      (fleet?.some((entry, i) => entry.highlightLeg !== previous?.[i]?.highlightLeg) ?? false);
+    this.fleet = fleet;
+    const size = fleet?.length ?? 0;
+    while (this.fleetPlanes.length > size) this.fleetPlanes.pop()!.remove();
+    while (this.fleetPlanes.length < size) this.fleetPlanes.push(this.createPlane(true));
+    for (let i = 0; i < size; i++) {
+      const entry = fleet![i];
+      const plane = this.fleetPlanes[i];
+      if (plane.style.getPropertyValue('--plane-color') !== entry.color)
+        plane.style.setProperty('--plane-color', entry.color);
+      const badge = plane.lastElementChild!;
+      if (badge.textContent !== entry.tag) badge.textContent = entry.tag;
+      plane.classList.toggle('is-ground', entry.view.kind === 'ground');
+    }
+    if (size > 0) {
+      this.plane.style.opacity = '0';
+      this.planeAnim = null;
+    } else if (previous === null || previous.length > 0) {
+      this.startSelectionPlane();
+    }
+    if (highlightsChanged) this.applySelectionStyles();
+    for (const leg of this.legs) if (leg) this.applyProgress(leg);
+    this.requestRender();
+  }
+
+  private createPlane(badge = false): HTMLDivElement {
+    const plane = document.createElement('div');
+    plane.className = 'globe-plane';
+    plane.innerHTML =
+      '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 1.8c.75 0 1.25.9 1.25 2.1v5.3l7.25 4.35v2.05l-7.25-2.25v4.4l2.25 1.7v1.6L12 20.1l-3.5.95v-1.6l2.25-1.7v-4.4L3.5 15.6v-2.05l7.25-4.35V3.9c0-1.2.5-2.1 1.25-2.1z"/></svg>';
+    if (badge) {
+      const tag = document.createElement('span');
+      tag.className = 'globe-plane__tag';
+      plane.append(tag);
+    }
+    this.labelLayer.append(plane);
+    return plane;
+  }
+
+  private hasSimulatedAircraft(): boolean {
+    return this.fleet !== null ? this.fleet.length > 0 : this.aircraft !== null;
+  }
+
   setFollow(enabled: boolean) {
     this.follow = enabled;
   }
@@ -506,9 +558,34 @@ export class GlobeRenderer {
   }
 
   setRoute(route: GlobeRoute, opts: { animate: boolean; frame: boolean }) {
+    const geometry = routeGeometrySignature(route);
+    if (geometry === this.routeGeometry) {
+      // Style-only edits preserve geometry, partial reveals, and the current camera pose.
+      route.legs.forEach((leg, i) => {
+        const obj = this.legs[i];
+        if (!obj) return;
+        obj.muted = leg.muted ?? false;
+        obj.material.color.set(leg.color);
+        obj.remainingMaterial.color.set(leg.color);
+      });
+      route.markers.forEach((marker, i) => {
+        const obj = this.markers[i];
+        obj.el.classList.remove(`globe-marker--${obj.role}`);
+        obj.el.classList.add(`globe-marker--${marker.role}`);
+        obj.role = marker.role;
+        obj.code = marker.code;
+        obj.label.textContent = marker.code;
+        obj.labelWidth = 0;
+      });
+      this.applySelectionStyles();
+      this.requestRender();
+      return;
+    }
+    this.routeGeometry = geometry;
     const previousKeys = new Set(this.legs.map((l) => l.key));
     this.clearLegs();
     this.clearMarkers();
+    for (const plane of this.fleetPlanes) plane.style.opacity = '0';
 
     const toReveal: number[] = [];
     route.legs.forEach((leg, i) => {
@@ -661,6 +738,9 @@ export class GlobeRenderer {
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.clearLegs();
     this.clearMarkers();
+    for (const plane of this.fleetPlanes) plane.remove();
+    this.fleetPlanes = [];
+    this.fleet = null;
     this.countryLabels.dispose();
     this.userLocationDot.remove();
     for (const layer of this.borderLayers) {
@@ -733,17 +813,12 @@ export class GlobeRenderer {
     this.updateUserLocation();
     const reserved = this.updateLabels();
     this.countryLabels.update({ camera: this.camera, width: this.width, height: this.height, reserved });
-    if (this.aircraft) {
+    if (this.fleet?.length) {
+      this.plane.style.opacity = '0';
+      for (let i = 0; i < this.fleet.length; i++) this.placeAircraft(this.fleetPlanes[i], this.fleet[i].view);
+    } else if (this.fleet === null && this.aircraft) {
       const view = this.aircraft;
-      const leg = this.legs[view.leg];
-      if (leg)
-        this.placePlaneOnLeg(
-          leg,
-          view.kind === 'air' ? clamp01(view.fraction) : view.at === 'start' ? 0 : 1,
-          true,
-          true,
-        );
-      else this.plane.style.opacity = '0';
+      this.placeAircraft(this.plane, view);
     }
     if (active) this.requestRender();
   };
@@ -951,7 +1026,11 @@ export class GlobeRenderer {
     );
     const n = ground.length - 1;
     const arc = ground.map((g, i) =>
-      g.clone().multiplyScalar(1 + ROUTE_LIFT + exaggeratedLift(altitudeAt(profile, fractions[i] * distanceKm))),
+      g
+        .clone()
+        .multiplyScalar(
+          1 + ROUTE_LIFT + exaggeratedLift(altitudeAt(profile, fractions[i] * distanceKm)) * (leg.lift ?? 1),
+        ),
     );
 
     const color = new Color(leg.color);
@@ -991,6 +1070,7 @@ export class GlobeRenderer {
     this.routeGroup.add(casing, remaining, line);
     return {
       key: leg.key,
+      muted: leg.muted ?? false,
       fractions,
       ground,
       frame,
@@ -1010,9 +1090,19 @@ export class GlobeRenderer {
   private applyProgress(leg: LegObject) {
     // Progress is a fraction of the distance flown. The drawn line ends exactly at that point (the
     // last visible segment is shortened), so the trail grows continuously instead of in steps.
-    const aircraft = this.aircraft;
-    const trail = aircraft?.kind === 'air' && aircraft.leg === this.highlightLeg && this.legs[aircraft.leg] === leg;
-    const progress = clamp01(trail ? aircraft.fraction : leg.progress);
+    let aircraft: AircraftView | null = null;
+    if (this.fleet !== null) {
+      for (const entry of this.fleet) {
+        if (entry.view.kind === 'air' && this.legs[entry.view.leg] === leg) {
+          aircraft = entry.view;
+          break;
+        }
+      }
+    } else if (this.aircraft?.leg === this.highlightLeg && this.legs[this.aircraft.leg] === leg) {
+      aircraft = this.aircraft;
+    }
+    const trail = aircraft?.kind === 'air';
+    const progress = clamp01(aircraft?.kind === 'air' ? aircraft.fraction : leg.progress);
     const { index, t } = locateFraction(leg.fractions, progress);
     const flown = progress > 0;
     revealLine(leg.line, leg.arc, flown ? index : -1, t);
@@ -1028,26 +1118,32 @@ export class GlobeRenderer {
   }
 
   private applySelectionStyles() {
-    const sel = this.highlightLeg ?? this.selectedLeg;
+    const highlighted = new Set<number>();
+    if (this.highlightLeg !== null) highlighted.add(this.highlightLeg);
+    for (const entry of this.fleet ?? []) if (entry.highlightLeg !== null) highlighted.add(entry.highlightLeg);
+    const hasHighlight = highlighted.size > 0;
+    if (!hasHighlight && this.selectedLeg !== null) highlighted.add(this.selectedLeg);
     this.legs.forEach((leg, i) => {
       if (!leg) return;
-      const active = sel === null || sel === i;
-      leg.material.linewidth = sel === i ? 3.6 : 2.6;
-      leg.material.opacity = active ? 1 : this.highlightLeg !== null ? 0.55 : 0.38;
+      const emphasised = highlighted.has(i);
+      const active = emphasised || (highlighted.size === 0 && !leg.muted);
+      leg.material.linewidth = emphasised ? 3.6 : leg.muted ? 2 : 2.6;
+      leg.material.opacity = active ? 1 : hasHighlight ? 0.55 : 0.38;
       leg.casingMaterial.opacity = active ? 0.38 : 0.12;
-      leg.casingMaterial.linewidth = sel === i ? 6.6 : 5.2;
+      leg.casingMaterial.linewidth = emphasised ? 6.6 : leg.muted ? 4.2 : 5.2;
     });
-    // Emphasise endpoints of the selected leg.
+    // Emphasise the endpoints of every highlighted fleet leg (or the selected leg when idle).
     const emph = new Set<string>();
-    if (sel !== null && this.legs[sel]) {
-      const l = this.legs[sel];
+    for (const index of highlighted) {
+      const l = this.legs[index];
+      if (!l) continue;
       for (const m of this.markers) {
         const p = m.position.clone().normalize();
         if (p.angleTo(l.ground[0]) < 1e-5 || p.angleTo(l.ground[l.ground.length - 1]) < 1e-5) emph.add(m.key);
       }
     }
     for (const m of this.markers) {
-      m.el.classList.toggle('is-dim', sel !== null && !emph.has(m.key));
+      m.el.classList.toggle('is-dim', highlighted.size > 0 && !emph.has(m.key));
       m.el.classList.toggle('is-emph', emph.has(m.key));
     }
   }
@@ -1125,7 +1221,7 @@ export class GlobeRenderer {
   private startSelectionPlane() {
     this.planeAnim = null;
     const valid = this.selectedLeg;
-    if (this.aircraft || valid === null || this.options.reducedMotion || this.reveal) return;
+    if (this.hasSimulatedAircraft() || valid === null || this.options.reducedMotion || this.reveal) return;
     const obj = this.legs[valid];
     if (!obj) return;
     const duration = Math.min(2600, 1100 + obj.ground[0].angleTo(obj.ground[obj.ground.length - 1]) * 600);
@@ -1141,14 +1237,14 @@ export class GlobeRenderer {
     if (leg) {
       leg.progress = easeInOutCubic(t);
       this.applyProgress(leg);
-      if (!this.aircraft) this.placePlaneOnLeg(leg, leg.progress, t < 1);
+      if (!this.hasSimulatedAircraft()) this.placePlaneOnLeg(this.plane, leg, leg.progress, t < 1);
     }
     if (t >= 1) {
       r.current++;
       r.start = now;
       if (r.current >= r.queue.length) {
         this.reveal = null;
-        if (!this.aircraft) this.plane.style.opacity = '0';
+        if (!this.hasSimulatedAircraft()) this.plane.style.opacity = '0';
         return true;
       }
     }
@@ -1157,7 +1253,7 @@ export class GlobeRenderer {
 
   private stepPlane(now: number): boolean {
     const p = this.planeAnim;
-    if (!p || this.reveal || this.aircraft) return false;
+    if (!p || this.reveal || this.hasSimulatedAircraft()) return false;
     const leg = this.legs[p.leg];
     if (!leg) {
       this.planeAnim = null;
@@ -1170,11 +1266,26 @@ export class GlobeRenderer {
       this.plane.style.opacity = '0';
       return true;
     }
-    this.placePlaneOnLeg(leg, easeInOutCubic(t), true);
+    this.placePlaneOnLeg(this.plane, leg, easeInOutCubic(t), true);
     return true;
   }
 
-  private placePlaneOnLeg(leg: LegObject, f: number, visible: boolean, simulated = false) {
+  private placeAircraft(plane: HTMLDivElement, view: AircraftView) {
+    const leg = this.legs[view.leg];
+    if (leg) {
+      this.placePlaneOnLeg(
+        plane,
+        leg,
+        view.kind === 'air' ? clamp01(view.fraction) : view.at === 'start' ? 0 : 1,
+        true,
+        true,
+      );
+    } else {
+      plane.style.opacity = '0';
+    }
+  }
+
+  private placePlaneOnLeg(plane: HTMLDivElement, leg: LegObject, f: number, visible: boolean, simulated = false) {
     const pts = leg.arc;
     const { index: i, t } = locateFraction(leg.fractions, f);
     const pos = this.tmp.copy(pts[i]).lerp(pts[i + 1], t);
@@ -1192,13 +1303,14 @@ export class GlobeRenderer {
       hidden = toCamera.multiplyScalar(t).add(pos).lengthSq() < 1;
     }
     if (!a || !s0 || !s1 || hidden) {
-      this.plane.style.opacity = '0';
+      plane.style.opacity = '0';
       return;
     }
     const angle = (Math.atan2(s1.y - s0.y, s1.x - s0.x) * 180) / Math.PI + 90;
     const fade = Math.min(1, f * 12, (1 - f) * 12);
-    this.plane.style.opacity = visible ? (simulated ? '1' : String(Math.min(fade, facing * 6))) : '0';
-    this.plane.style.transform = `translate3d(${a.x}px, ${a.y}px, 0) translate(-50%, -50%) rotate(${angle}deg)`;
+    plane.style.opacity = visible ? (simulated ? '1' : String(Math.min(fade, facing * 6))) : '0';
+    plane.style.transform = `translate3d(${a.x}px, ${a.y}px, 0) translate(-50%, -50%)`;
+    plane.style.setProperty('--plane-heading', `${angle}deg`);
   }
 
   /** Uses only origin-facing, north-up poses so OrbitControls can take over without a jump. */

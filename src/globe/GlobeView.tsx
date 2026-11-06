@@ -11,6 +11,7 @@ import coastlinesUrl from '../data/generated/coastlines.json?url';
 import { GlobeRenderer, type GlobeRoute, type Insets } from './GlobeRenderer.ts';
 import type { LatLng } from '../types.ts';
 import type { SimulationFeed } from './simFeed.ts';
+import { routeGeometrySignature } from './routeGeometry.ts';
 
 export interface GlobeViewProps {
   route: GlobeRoute;
@@ -41,6 +42,7 @@ export default function GlobeView(props: GlobeViewProps) {
   const rendererRef = useRef<GlobeRenderer | null>(null);
   const latest = useRef(props);
   const firstRoute = useRef(true);
+  const geometry = useRef<string | null>(null);
 
   useEffect(() => {
     latest.current = props;
@@ -80,6 +82,7 @@ export default function GlobeView(props: GlobeViewProps) {
     }
     rendererRef.current = renderer;
     firstRoute.current = true;
+    geometry.current = null;
     // Browsers may drop the WebGL context (e.g. a backgrounded mobile tab). Three.js restores it;
     // only fall back to the "no 3D" message if restoration doesn't happen.
     let lostTimer: number | undefined;
@@ -134,9 +137,12 @@ export default function GlobeView(props: GlobeViewProps) {
     if (!r) return;
     // The first non-empty route appears already framed (no fly-in); arcs still draw in.
     const initial = firstRoute.current && route.markers.length > 0;
+    const signature = routeGeometrySignature(route);
+    const changed = geometry.current !== signature;
+    geometry.current = signature;
     if (route.markers.length > 0) firstRoute.current = false;
     // Frame once: animated for edits, instantly for the first route.
-    r.setRoute(route, { animate: true, frame: !initial });
+    r.setRoute(route, { animate: true, frame: changed && !initial });
     if (initial) {
       // Initial data framing is automatic, even if a remembered follow choice loaded before airports.
       r.setFollowAircraft(false);
@@ -161,6 +167,7 @@ export default function GlobeView(props: GlobeViewProps) {
     if (!sim) {
       r.setIllumination(null);
       r.setAircraft(null);
+      r.setFleet(null);
       r.setHighlightLeg(null);
       r.setFollow(false);
       return;
@@ -175,6 +182,7 @@ export default function GlobeView(props: GlobeViewProps) {
       }
       r.setIllumination(frame.subsolar);
       r.setAircraft(frame.aircraft);
+      r.setFleet(frame.fleet ?? null);
       r.setHighlightLeg(frame.highlightLeg);
       r.flush();
     };
