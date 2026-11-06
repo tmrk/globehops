@@ -11,18 +11,46 @@ import {
   SiderealTime,
 } from 'astronomy-engine';
 import { normalizeLng } from './geo.ts';
-import { daylightAt, solarDeclinationDeg, solarElevationDeg, subsolarPoint } from './sun.ts';
+import {
+  DAYLIGHT_STOPS,
+  dayLightLevel,
+  daylightAt,
+  solarDeclinationDeg,
+  solarElevationDeg,
+  subsolarPoint,
+} from './sun.ts';
 
 describe('NOAA/Meeus apparent solar position', () => {
-  it('agrees with geocentric apparent equator-of-date coordinates at 200 deterministic instants, 1950–2100', () => {
+  it('agrees with apparent equator-of-date coordinates across 1900–2100, seasons and UTC times', () => {
+    const instants = new Set<number>();
+    for (let year = 1900; year <= 2100; year++) {
+      // Perihelion/aphelion, equinoxes/solstices, leap boundaries and November's large EOT.
+      const days = [
+        [0, 3],
+        [1, 28],
+        [2, 20],
+        [5, 21],
+        [6, 4],
+        [8, 22],
+        [10, 3],
+        [11, 21],
+      ];
+      if (new Date(Date.UTC(year, 1, 29)).getUTCMonth() === 1) days.push([1, 29]);
+      for (const [month, day] of days) {
+        for (const offset of [0, 26_597_123, 43_200_000, 86_399_999]) {
+          instants.add(Date.UTC(year, month, day) + offset);
+        }
+      }
+    }
+    const start = Date.UTC(1900, 0, 1);
+    const end = Date.UTC(2100, 11, 31, 23, 59, 59, 999);
+    for (let i = 0; i <= 1000; i++) instants.add(start + Math.round(((end - start) * i) / 1000));
     let maxLatitudeError = 0;
     let maxLongitudeError = 0;
-    const start = Date.UTC(1950, 0, 1);
-    const end = Date.UTC(2100, 11, 31, 23, 59, 59);
-    for (let i = 0; i < 200; i++) {
-      // Irrational day fraction samples different seasons and clock times; include both endpoints.
-      const epochMs = i === 199 ? end : start + ((end - start) * (i + ((i * 0.61803398875) % 1))) / 199;
+    for (const epochMs of instants) {
       const date = new Date(epochMs);
+      // Aberrated geocentric vector, rotated from J2000 into the true equator of date;
+      // apparent RA minus Greenwich apparent sidereal time gives Earth-fixed longitude.
       const eq = EquatorFromVector(RotateVector(Rotation_EQJ_EQD(date), GeoVector(Body.Sun, date, true)));
       const expectedLongitude = normalizeLng((eq.ra - SiderealTime(date)) * 15);
       const actual = subsolarPoint(epochMs);
@@ -30,26 +58,17 @@ describe('NOAA/Meeus apparent solar position', () => {
       const longitudeError = Math.abs(normalizeLng(actual.lng - expectedLongitude));
       maxLatitudeError = Math.max(maxLatitudeError, latitudeError);
       maxLongitudeError = Math.max(maxLongitudeError, longitudeError);
-      expect(latitudeError, date.toISOString()).toBeLessThan(0.05);
-      expect(longitudeError, date.toISOString()).toBeLessThan(0.05);
+      expect(latitudeError, date.toISOString()).toBeLessThan(0.005);
+      expect(longitudeError, date.toISOString()).toBeLessThan(0.02);
       expect(solarDeclinationDeg(epochMs)).toBe(actual.lat);
       expect(actual.lng).toBeGreaterThanOrEqual(-180);
       expect(actual.lng).toBeLessThan(180);
     }
-    console.info('Solar accuracy, 200 instants (degrees):', { maxLatitudeError, maxLongitudeError });
-  });
-
-  it('also meets the tolerance in 1900–1949 and at 2100 boundaries', () => {
-    for (const year of [1900, 1901, 1910, 1925, 1949, 2100]) {
-      for (const month of [0, 2, 5, 8, 11]) {
-        const epochMs = Date.UTC(year, month, 21, 7, 23);
-        const date = new Date(epochMs);
-        const eq = EquatorFromVector(RotateVector(Rotation_EQJ_EQD(date), GeoVector(Body.Sun, date, true)));
-        const point = subsolarPoint(epochMs);
-        expect(Math.abs(point.lat - eq.dec)).toBeLessThan(0.05);
-        expect(Math.abs(normalizeLng(point.lng - (eq.ra - SiderealTime(date)) * 15))).toBeLessThan(0.05);
-      }
-    }
+    console.info('Solar accuracy, 1900–2100 (degrees):', {
+      samples: instants.size,
+      maxLatitudeError,
+      maxLongitudeError,
+    });
   });
 
   it.each([
@@ -100,7 +119,10 @@ describe('geometric elevation and daylight', () => {
       [0, 180],
     ];
     for (const iso of [
+      '1900-01-01T00:00Z',
       '1950-01-01T00:00Z',
+      '2000-02-29T23:59Z',
+      '1968-02-29T07:23Z',
       '2024-03-20T03:06Z',
       '2024-06-20T20:51Z',
       '2024-09-22T12:44Z',
@@ -114,10 +136,10 @@ describe('geometric elevation and daylight', () => {
         const expected = Horizon(date, observer, equatorial.ra, equatorial.dec).altitude;
         const error = Math.abs(solarElevationDeg(date.getTime(), { lat, lng }) - expected);
         maxElevationError = Math.max(maxElevationError, error);
-        expect(error, `${iso} at ${lat}, ${lng}`).toBeLessThan(0.1);
+        expect(error, `${iso} at ${lat}, ${lng}`).toBeLessThan(0.02);
       }
     }
-    console.info('Solar elevation accuracy, 60 city/time pairs (degrees):', { maxElevationError });
+    console.info('Solar elevation accuracy, 90 city/time pairs (degrees):', { maxElevationError });
   });
 
   it('classifies sunlight, civil twilight and night on both sides of the terminator', () => {
@@ -144,5 +166,36 @@ describe('geometric elevation and daylight', () => {
     }
     expect(daylightAt(Date.parse('2026-06-21T12:00Z'), { lat: 90, lng: 0 })).toBe('day');
     expect(daylightAt(Date.parse('2026-12-21T12:00Z'), { lat: 90, lng: 0 })).toBe('night');
+    expect(daylightAt(Date.parse('2026-12-21T15:00Z'), { lat: -90, lng: 0 })).toBe('day');
+    expect(daylightAt(Date.parse('2026-06-21T12:00Z'), { lat: -90, lng: 0 })).toBe('night');
+  });
+});
+
+describe('solar elevation display curve', () => {
+  it.each(DAYLIGHT_STOPS)('has blend %s° → %s, including sunset at exactly 0.5', (elevation, level) => {
+    expect(dayLightLevel(elevation)).toBeCloseTo(level, 12);
+  });
+
+  it('saturates at full astronomical night and full day', () => {
+    for (const elevation of [-1000, -90, -30, -18]) expect(dayLightLevel(elevation)).toBe(0);
+    for (const elevation of [3, 10, 45, 90, 1000]) expect(dayLightLevel(elevation)).toBe(1);
+  });
+
+  it('darkens continuously and monotonically through every twilight stage', () => {
+    let previous = 0;
+    for (let step = -9000; step <= 9000; step++) {
+      const level = dayLightLevel(step / 100);
+      expect(level).toBeGreaterThanOrEqual(previous);
+      expect(level).toBeLessThanOrEqual(1);
+      previous = level;
+    }
+    for (const [elevation, level] of DAYLIGHT_STOPS) {
+      expect(Math.abs(dayLightLevel(elevation - 0.00001) - level)).toBeLessThan(1e-9);
+      expect(Math.abs(dayLightLevel(elevation + 0.00001) - level)).toBeLessThan(1e-9);
+    }
+    // No prematurely black plateau within nautical or astronomical twilight.
+    expect(dayLightLevel(-15)).toBeGreaterThan(0);
+    expect(dayLightLevel(-9)).toBeGreaterThan(dayLightLevel(-15));
+    expect(dayLightLevel(-3)).toBeGreaterThan(dayLightLevel(-9));
   });
 });

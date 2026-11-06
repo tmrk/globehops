@@ -53,6 +53,7 @@ import {
 } from '../lib/altitude.ts';
 import { countSegments, decodeBorders, densifyLine } from '../lib/borders.ts';
 import { enclosingCap, greatCircleDistanceKm, greatCirclePath, slerpVec, toVec3 } from '../lib/geo.ts';
+import { SOLAR_SHADING_GLSL } from '../lib/sun.ts';
 import type { LatLng } from '../types.ts';
 import {
   clamp01,
@@ -141,11 +142,6 @@ const ATMOSPHERE_RADIUS = 1.055;
 const LABEL_LIFT = 1.002;
 
 const ATMOSPHERE_COLOR = new Color('#7fb4ff');
-/**
- * Sine of the solar elevation (cosine of the zenith angle) over which the surface and atmosphere blend
- * from night to day: about −4° … +3.4°. GLSL literals, shared by both shaders.
- */
-const DAY_EDGE = { night: '-0.07', day: '0.06' };
 
 interface LegObject {
   key: string;
@@ -295,26 +291,28 @@ export class GlobeRenderer {
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nuniform vec3 uAtmo;\nuniform vec3 uSunView;\nuniform float uDayNight;\nuniform float uCityLights;',
+          `#include <common>\nuniform vec3 uAtmo;\nuniform vec3 uSunView;\nuniform float uDayNight;\nuniform float uCityLights;\n${SOLAR_SHADING_GLSL}`,
         )
         .replace(
           '#include <opaque_fragment>',
           `#include <opaque_fragment>
           {
-            // mu: cosine of the solar zenith angle. The day/night blend spans about −4° … +3.5°
-            // of sun elevation, so the terminator reads crisply while twilight stays soft.
+            // Both normals and uSunView are in view space. mu = sin(geometric solar elevation).
             float mu = dot(normalize(normal), uSunView);
-            float day = smoothstep(${DAY_EDGE.night}, ${DAY_EDGE.day}, mu);
+            float day = solarDayLightLevel(mu);
             vec3 nightTint = vec3(0.86, 0.93, 1.1);
             vec3 lit = gl_FragColor.rgb;
-            vec3 timed = lit * mix(0.06 * nightTint, vec3(1.0), day);
-            float twilight = (1.0 - smoothstep(0.0, 0.12, abs(mu))) * 0.04;
+            // Keep the subsolar brightness while reducing ambient flattening. Direct Lambert
+            // irradiance follows max(mu, 0); diffuse fill represents unresolved sky scattering.
+            vec3 daylight = reflectedLight.directDiffuse * 1.2 + reflectedLight.indirectDiffuse * 0.65;
+            vec3 timed = mix(diffuseColor.rgb * 0.06 * nightTint, daylight, day);
+            float twilight = 4.0 * day * (1.0 - day) * 0.012;
             timed += diffuseColor.rgb * vec3(1.0, 0.38, 0.12) * twilight;
             #ifdef USE_EMISSIVEMAP
               // The emissive colour is black, so three.js adds nothing itself; the map is only a
               // convenient carrier for the night-light mask and its UVs. Lights come on at dusk.
               float city = texture2D(emissiveMap, vEmissiveMapUv).r;
-              float dusk = 1.0 - smoothstep(-0.09, 0.015, mu);
+              float dusk = solarCityDusk(mu);
               timed += vec3(1.0, 0.66, 0.32) * (city * city * 0.55 + city * 0.45) * dusk * uCityLights;
             #endif
             gl_FragColor.rgb = mix(lit, timed, uDayNight);
@@ -358,11 +356,12 @@ export class GlobeRenderer {
           uniform float uDayNight;
           varying vec3 vNormal;
           varying vec3 vView;
+          ${SOLAR_SHADING_GLSL}
           void main() {
             float d = -dot(normalize(vNormal), normalize(vView));
             float t = clamp(d / uLimb, 0.0, 1.0);
             float glow = pow(t, 3.2) * 0.85;
-            float day = smoothstep(${DAY_EDGE.night}, ${DAY_EDGE.day}, dot(normalize(vNormal), uSunView));
+            float day = solarDayLightLevel(dot(normalize(vNormal), uSunView));
             glow *= mix(1.0, mix(0.16, 1.0, day), uDayNight);
             gl_FragColor = vec4(uColor * glow, glow);
           }`,
@@ -649,6 +648,7 @@ export class GlobeRenderer {
     this.maybeLoadLargeTexture();
 
     this.camera.updateMatrixWorld();
+    // Recompute even for paused sunlight: orbit/damping changes the normals' view space every frame.
     this.sunView.value.copy(this.sunScene).transformDirection(this.camera.matrixWorldInverse);
     this.renderer.render(this.scene, this.camera);
     const reserved = this.updateLabels();

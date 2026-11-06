@@ -54,9 +54,60 @@ export function solarElevationDeg(epochMs: number, p: LatLng): number {
   return Math.asin(Math.max(-1, Math.min(1, dot))) / RAD;
 }
 
+/** Geometric solar-centre elevations; sunset includes standard refraction and solar radius. */
+export const SOLAR_ELEVATION_DEG = {
+  astronomical: -18,
+  nautical: -12,
+  civil: -6,
+  cityLightsStart: -3,
+  sunset: -0.833,
+  fullDay: 3,
+} as const;
+
+/**
+ * Display blend, not measured sky luminance. Smooth, monotonic twilight stages in sin(elevation)
+ * keep sunset at exactly 0.5 while preserving civil/nautical/astronomical dusk on the globe.
+ * The renderer adds Lambertian direct irradiance and a legibility floor separately.
+ */
+export const DAYLIGHT_STOPS = [
+  [SOLAR_ELEVATION_DEG.astronomical, 0],
+  [SOLAR_ELEVATION_DEG.nautical, 0.025],
+  [SOLAR_ELEVATION_DEG.civil, 0.15],
+  [SOLAR_ELEVATION_DEG.sunset, 0.5],
+  [SOLAR_ELEVATION_DEG.fullDay, 1],
+] as const;
+
+const daylightSegments = DAYLIGHT_STOPS.slice(1).map(([elevation, level], i) => ({
+  low: sin(DAYLIGHT_STOPS[i][0]),
+  high: sin(elevation),
+  rise: level - DAYLIGHT_STOPS[i][1],
+}));
+
+export function dayLightLevel(elevationDeg: number): number {
+  // Clamp before sin: elevations beyond the physical ±90° range still saturate correctly.
+  const mu = sin(Math.max(-90, Math.min(90, elevationDeg)));
+  return daylightSegments.reduce((level, { low, high, rise }) => {
+    const t = Math.max(0, Math.min(1, (mu - low) / (high - low)));
+    return level + rise * t * t * (3 - 2 * t);
+  }, 0);
+}
+
+const glslFloat = (value: number) => value.toFixed(12);
+/** Both surface and atmosphere compile this exact curve, generated from the CPU curve's segments. */
+export const SOLAR_SHADING_GLSL = /* glsl */ `
+  float solarDayLightLevel(float mu) {
+    return ${daylightSegments
+      .map(({ low, high, rise }) => `${glslFloat(rise)} * smoothstep(${glslFloat(low)}, ${glslFloat(high)}, mu)`)
+      .join(' + ')};
+  }
+  float solarCityDusk(float mu) {
+    return 1.0 - smoothstep(${glslFloat(sin(SOLAR_ELEVATION_DEG.civil))}, ${glslFloat(sin(SOLAR_ELEVATION_DEG.cityLightsStart))}, mu);
+  }
+`;
+
 export type Daylight = 'day' | 'twilight' | 'night';
 
 export function daylightAt(epochMs: number, p: LatLng): Daylight {
   const elevation = solarElevationDeg(epochMs, p);
-  return elevation > -0.833 ? 'day' : elevation >= -6 ? 'twilight' : 'night';
+  return elevation > SOLAR_ELEVATION_DEG.sunset ? 'day' : elevation >= SOLAR_ELEVATION_DEG.civil ? 'twilight' : 'night';
 }
