@@ -24,12 +24,14 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Tag the release if its version is new
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           version="v$(node -p "require('./package.json').version")"
           if git ls-remote --exit-code --tags origin "refs/tags/${version}" >/dev/null; then
             echo "${version} already exists; nothing to tag."
           else
-            git tag "${version}" "${{ github.event.workflow_run.head_sha }}"
+            git tag "${version}" "${SHA}"
             git push origin "refs/tags/${version}"
-            echo "Tagged ${version} at ${{ github.event.workflow_run.head_sha }}."
+            echo "Tagged ${version} at ${SHA}."
           fi
