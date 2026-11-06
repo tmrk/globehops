@@ -16,7 +16,15 @@ import {
 import { legColor } from '../lib/legColors.ts';
 import { PLAYBACK_SPEEDS, type PlaybackSpeed, type SimulationClock } from '../state/clock.ts';
 import { DateTimeField } from './DateTimeField.tsx';
-import { IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconPause, IconPlay } from './Icons.tsx';
+import {
+  IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
+  IconClose,
+  IconFollow,
+  IconPause,
+  IconPlay,
+} from './Icons.tsx';
 interface Props {
   clock: SimulationClock;
   journey: Journey;
@@ -28,6 +36,8 @@ interface Props {
   onEditLeg: (leg: number) => void;
   /** Phones: part of the journey sheet instead of a floating card. */
   docked?: boolean;
+  followAircraft: boolean;
+  onFollowAircraft?: (enabled: boolean) => void;
 }
 export function TimeBar({
   clock,
@@ -39,6 +49,8 @@ export function TimeBar({
   onToggle,
   onEditLeg,
   docked = false,
+  followAircraft,
+  onFollowAircraft,
 }: Props) {
   const { t, fmt } = useI18n();
 
@@ -192,6 +204,21 @@ export function TimeBar({
         </label>
         {timeline ? (
           <>
+            {onFollowAircraft && (
+              <button
+                type="button"
+                className="time-bar__follow"
+                aria-label={t('timebar.followAircraft')}
+                title={t('timebar.followAircraft')}
+                aria-pressed={followAircraft}
+                onKeyDown={(e) => {
+                  if (e.key === ' ') e.stopPropagation();
+                }}
+                onClick={() => onFollowAircraft(!followAircraft)}
+              >
+                <IconFollow size={18} />
+              </button>
+            )}
             <span className="time-bar__steps" role="group" aria-label={t('timebar.jumpBetweenFlights')}>
               <button type="button" aria-label={t('timebar.previousFlight')} onClick={() => step(-1)}>
                 <IconChevronLeft size={16} />

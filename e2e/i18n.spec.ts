@@ -9,14 +9,17 @@ test('Hungarian path loads translated chrome and switches to Swedish without rel
   await expect(page.locator('html')).toHaveAttribute('lang', 'hu');
   await expect(page.getByRole('heading', { name: 'Az útvonalad', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Megosztás', exact: true })).toBeVisible();
-  await expect(page).toHaveTitle(/az utad egy 3D-s földgömbön/);
+  await expect(page).toHaveTitle('CPH → LHR · GlobeHops');
   await page.evaluate(() => {
     document.documentElement.dataset.i18nSession = 'same-document';
   });
+  // Paused schedules debounce their initial instant into the URL; compare the settled query.
+  await expect(page).toHaveURL(/t=2026-11-20T07:15Z/);
   const query = new URL(page.url()).search;
   await page.getByRole('button', { name: 'Megjelenítés', exact: true }).click();
   await page.getByRole('radio', { name: 'Svenska', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'sv');
+  await expect(page).toHaveTitle('CPH → LHR · GlobeHops');
   await expect(page).toHaveURL(new RegExp(`/globehops/sv/\\${query}$`));
   await expect(page.getByRole('heading', { name: 'Din resa', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Dela', exact: true })).toBeVisible();
@@ -170,5 +173,119 @@ for (const [locale, messages] of [
       await page.locator('[data-leg="0"]').click();
       await capture('schedule-360');
     }
+  });
+}
+
+test('city exonyms load after the UI and update suggestions, search and live descriptions', async ({ page }) => {
+  let release = () => {};
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/city-names-*.json', async (route) => {
+    await ready;
+    await route.continue();
+  });
+  await page.goto('./hu/?route=BUD-VIE-CPH-ARN');
+  await expect(page.locator('.stop__city')).toHaveText(['Budapest', 'Vienna', 'Copenhagen', 'Stockholm']);
+  await expect(page.getByRole('button', { name: 'Megosztás', exact: true })).toBeEnabled();
+  release();
+  await expect(page.locator('.stop__city')).toHaveText(['Budapest', 'Bécs', 'Koppenhága', 'Stockholm']);
+  await expect(page.locator('p[aria-live]').first()).toContainText('Bécs → Koppenhága');
+  await expect(page.locator('.stop__main').nth(1)).toHaveAttribute('title', /Bécs/);
+  await page.locator('.stop__main').first().click();
+  const input = page.getByRole('combobox', { name: hu['stops.departureAirport'], exact: true });
+  for (const [query, code] of [
+    ['Bécs', 'VIE'],
+    ['Koppenhága', 'CPH'],
+    ['Varsó', 'WAW'],
+  ]) {
+    await input.fill(query);
+    await expect(page.getByRole('option', { name: new RegExp(`^${code}\\b`) }).first()).toBeVisible();
+  }
+});
+
+test('English skips city data and selector updates cities and globe labels together', async ({ page }) => {
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (/city-names-.*\.json/.test(request.url())) requests.push(request.url());
+  });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('./en/?route=CPH-JFK');
+  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await expect(page.locator('.stop__city').first()).toHaveText('Copenhagen');
+  expect(requests).toHaveLength(0);
+  await page.getByRole('button', { name: 'Display options', exact: true }).click();
+  await page.getByRole('button', { name: 'Place names', exact: true }).click();
+  await expect(page.locator('.country-label--ocean:visible').filter({ hasText: 'North Atlantic' })).toBeVisible();
+  await page.getByRole('radio', { name: 'Magyar', exact: true }).click();
+  await expect(page.locator('.stop__city').first()).toHaveText('Koppenhága');
+  await expect(
+    page.locator('.country-label--ocean:visible').filter({ hasText: 'Atlanti-óceán' }).first(),
+  ).toBeVisible();
+  await page.getByRole('radio', { name: 'Svenska', exact: true }).click();
+  await expect(page.locator('.stop__city').first()).toHaveText('Köpenhamn');
+  await expect(page.locator('.country-label--ocean:visible').filter({ hasText: 'Atlanten' }).first()).toBeVisible();
+  expect(requests).toHaveLength(1);
+  await page.keyboard.press('Escape');
+  await page.goto('./hu/?route=');
+  await expect(page.locator('.suggestions')).toContainText('Koppenhága → Toronto');
+});
+
+for (const [locale, messages, cities, query] of [
+  ['hu', hu, ['Budapest', 'Bécs', 'Koppenhága', 'Stockholm'], 'Bécs'],
+  ['sv', sv, ['Budapest', 'Wien', 'Köpenhamn', 'Stockholm'], 'Köpenhamn'],
+] as const) {
+  test(`${locale} integrated place names, exonym picker and follow screenshots`, async ({ page }, info) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const capture = async (name: string) => {
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`${locale}-integrated-${name}.png`), animations: 'disabled' });
+    };
+    await page.goto(`./${locale}/?route=BUD-VIE-CPH-ARN`);
+    await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+    await expect(page.locator('.stop__city')).toHaveText([...cities]);
+    await capture('route');
+    await page.getByRole('button', { name: messages['maptools.displayOptions'], exact: true }).click();
+    await page.getByRole('button', { name: messages['maptools.countryNames'], exact: true }).click();
+    await expect(page.getByRole('radio', { name: 'Svenska', exact: true })).toBeVisible();
+    await capture('display');
+    await page.keyboard.press('Escape');
+    await page.locator('.stop__main').first().click();
+    await page.getByRole('combobox', { name: messages['stops.departureAirport'], exact: true }).fill(query);
+    await expect(
+      page.getByRole('option', { name: new RegExp(`^${locale === 'hu' ? 'VIE' : 'CPH'}\\b`) }).first(),
+    ).toBeVisible();
+    await capture('picker');
+    await page.goto(`./${locale}/?route=BUD-VIE-CPH-ARN&dep1=2026-11-20T08:15&follow=1&t=2026-11-20T07:30Z`);
+    const bar = page.locator('.time-bar');
+    await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+    await expect(bar.getByRole('button', { name: messages['timebar.followAircraft'], exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await bar.getByRole('button', { name: messages['timebar.playJourney'], exact: true }).click();
+    await expect(bar.getByRole('button', { name: messages['timebar.pausePlayback'], exact: true })).toBeVisible();
+    await expect(bar.locator('.time-bar__title')).toContainText(locale === 'hu' ? 'Bécs' : 'Wien');
+    expect(await bar.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await bar.getByRole('combobox', { name: messages['timebar.playbackSpeed'], exact: true }).selectOption('3600');
+    await expect(bar.locator('.time-bar__speed')).toContainText(locale === 'hu' ? '1 óra/mp' : '1 h/s');
+    const readout = bar.locator('.time-bar__readout');
+    expect(await readout.evaluate((el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight)).toBe(
+      true,
+    );
+    await capture('follow');
+    await page.goto(`./${locale}/?route=CPH-JFK&follow=0`);
+    await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+    await expect(
+      page
+        .locator('.country-label--ocean:visible')
+        .filter({ hasText: locale === 'hu' ? 'Atlanti-óceán' : 'Atlanten' })
+        .first(),
+    ).toBeVisible();
+    await capture('ocean');
+    await page.goto(`./${locale}/?route=FCO-ATH&follow=0`);
+    await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+    await expect(page.locator('.country-label--sea:visible').first()).toBeVisible();
+    await capture('sea');
   });
 }

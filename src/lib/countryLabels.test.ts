@@ -1,24 +1,40 @@
 import { describe, expect, it } from 'vitest';
-import { decodeCountryLabels, labelStyle, mapZoom, placeLabels, type CountryLabel } from './countryLabels.ts';
+import {
+  decodeCountryLabels,
+  labelStyle,
+  mapZoom,
+  placeLabels,
+  labelLocale,
+  labelPriority,
+  type CountryLabel,
+} from './countryLabels.ts';
 
-const label: CountryLabel = { name: 'Brazil', lat: -12.1, lng: -49.56, minZoom: 1.7, rank: 2 };
+const label: CountryLabel = {
+  kind: 'country',
+  name: 'Brazil',
+  names: { en: 'Brazil', hu: 'Brazília', sv: 'Brasilien' },
+  lat: -12.1,
+  lng: -49.56,
+  minZoom: 1.7,
+  rank: 2,
+};
 const wire = () => ({
-  format: 1,
+  format: 2,
   meta: { source: 'Natural Earth', version: '5.1.2', license: 'Public domain' },
-  labels: [['Brazil', -12.1, -49.56, 1.7, 2]],
+  labels: [['country', 'Brazil', 'Brazília', 'Brasilien', -12.1, -49.56, 1.7, 2]],
 });
 
 describe('decodeCountryLabels', () => {
   it('decodes the compact tuple without mutating it', () => {
     const raw = wire();
     expect(decodeCountryLabels(raw)).toEqual([label]);
-    expect(raw.labels[0]).toEqual(['Brazil', -12.1, -49.56, 1.7, 2]);
+    expect(raw.labels[0]).toEqual(['country', 'Brazil', 'Brazília', 'Brasilien', -12.1, -49.56, 1.7, 2]);
   });
   it.each([
     null,
     [],
     {},
-    { ...wire(), format: 2 },
+    { ...wire(), format: 1 },
     { ...wire(), meta: null },
     { ...wire(), meta: { source: 'x', version: '', license: 'x' } },
     { ...wire(), labels: null },
@@ -27,22 +43,22 @@ describe('decodeCountryLabels', () => {
   });
   it.each([
     [],
-    ['Brazil', 0, 0, 1, 2, 3],
-    ['', 0, 0, 1, 2],
-    [' Brazil ', 0, 0, 1, 2],
-    ['Brazil', 90.01, 0, 1, 2],
-    ['Brazil', -90.01, 0, 1, 2],
-    ['Brazil', 0, 180.01, 1, 2],
-    ['Brazil', 0, -180.01, 1, 2],
-    ['Brazil', NaN, 0, 1, 2],
-    ['Brazil', 0, Infinity, 1, 2],
-    ['Brazil', 0, 0, -0.1, 2],
-    ['Brazil', 0, 0, 12.1, 2],
-    ['Brazil', 0, 0, NaN, 2],
-    ['Brazil', 0, 0, 1, -1],
-    ['Brazil', 0, 0, 1, 21],
-    ['Brazil', 0, 0, 1, Infinity],
-    ['Brazil', '0', 0, 1, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 0, 0, 1, 2, 3],
+    ['country', '', 'Brazília', 'Brasilien', 0, 0, 1, 2],
+    ['country', ' Brazil ', 'Brazília', 'Brasilien', 0, 0, 1, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 90.01, 0, 1, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', -90.01, 0, 1, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 0, 180.01, 1, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 0, -180.01, 1, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', NaN, 0, 1, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 0, Infinity, 1, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 0, 0, -0.1, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 0, 0, 12.1, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 0, 0, NaN, 2],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 0, 0, 1, -1],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 0, 0, 1, 21],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', 0, 0, 1, Infinity],
+    ['country', 'Brazil', 'Brazília', 'Brasilien', '0', 0, 1, 2],
   ])('rejects invalid tuples: %j', (...tuple) => {
     expect(() => decodeCountryLabels({ ...wire(), labels: [tuple] })).toThrow();
   });
@@ -52,8 +68,8 @@ describe('decodeCountryLabels', () => {
       decodeCountryLabels({
         ...wire(),
         labels: [
-          ['North', 90, 180, 0, 0],
-          ['South', -90, -180, 12, 20],
+          ['ocean', 'North', 'Észak', 'Norr', 90, 180, 0, 0],
+          ['sea', 'South', 'Dél', 'Söder', -90, -180, 12, 20],
         ],
       }),
     ).toHaveLength(2);
@@ -102,5 +118,37 @@ describe('placeLabels', () => {
     expect(placeLabels(candidates, [])).toEqual([true, false, true, true]);
     expect(candidates).toEqual(before);
     expect(placeLabels([], [rect(0)])).toEqual([]);
+  });
+});
+
+describe('label locales and priority', () => {
+  it('falls back to English and accepts only supported locales', () => {
+    expect(['en', 'hu', 'sv', 'fr', 'hu-HU'].map(labelLocale)).toEqual(['en', 'hu', 'sv', 'en', 'en']);
+  });
+  it('places oceans first and countries before equal-rank seas', () => {
+    const labels: CountryLabel[] = [
+      { ...label, kind: 'sea' },
+      { ...label, kind: 'country' },
+      { ...label, kind: 'ocean', rank: 0 },
+    ];
+    expect(labels.sort(labelPriority).map((l) => l.kind)).toEqual(['ocean', 'country', 'sea']);
+    expect(labelStyle({ ...label, kind: 'ocean' }, 3)!.fontPx).toBeGreaterThan(labelStyle(label, 3)!.fontPx);
+    expect(labelStyle({ ...label, kind: 'sea' }, 3)!.fontPx).toBeLessThan(labelStyle(label, 3)!.fontPx);
+  });
+  it('requires all translations and unique kind/English identities, while allowing shared exonyms', () => {
+    const raw = wire();
+    for (const value of ['', '  ', null, 1]) {
+      const tuple: unknown[] = [...raw.labels[0]];
+      tuple[2] = value;
+      expect(() => decodeCountryLabels({ ...raw, labels: [tuple] })).toThrow();
+    }
+    const tuple = ['ocean', 'South Atlantic', 'Atlanti-óceán', 'Atlanten', -30, -15, 1, 0];
+    expect(
+      decodeCountryLabels({
+        ...raw,
+        labels: [tuple, ['ocean', 'North Atlantic', 'Atlanti-óceán', 'Atlanten', 30, -40, 1, 0]],
+      }),
+    ).toHaveLength(2);
+    expect(() => decodeCountryLabels({ ...raw, labels: [['river', 'A', 'A', 'A', 0, 0, 1, 0]] })).toThrow();
   });
 });

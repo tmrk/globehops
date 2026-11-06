@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Vector3 } from 'three';
+import { Matrix3, PerspectiveCamera, SphereGeometry, Vector3 } from 'three';
 import { toVec3 } from '../lib/geo.ts';
 import { ecefToScene, latLngToVector3, sceneToEcef, slerpUnit, sunDirectionScene } from './math3d.ts';
 
@@ -48,6 +48,54 @@ describe('scene coordinate convention', () => {
     const scaled = sceneToEcef(scene.clone().multiplyScalar(7));
     scaled.forEach((value, i) => expect(value).toBeCloseTo(ecef[i], 12));
     expectVector(ecefToScene(ecef, 7), scene.clone().multiplyScalar(7));
+  });
+});
+
+describe('surface, texture and shader coordinate spaces', () => {
+  it('aligns SphereGeometry equirectangular UVs (−180° at the left edge) with geographic markers', () => {
+    const geometry = new SphereGeometry(1, 128, 64);
+    const positions = geometry.getAttribute('position');
+    const uvs = geometry.getAttribute('uv');
+    for (let i = 0; i < positions.count; i++) {
+      const lat = uvs.getY(i) * 180 - 90;
+      if (Math.abs(lat) === 90) continue; // Three shifts U at poles to avoid texture pinching.
+      const lng = uvs.getX(i) * 360 - 180;
+      const vertex = new Vector3().fromBufferAttribute(positions, i);
+      expect(vertex.distanceTo(latLngToVector3(lat, lng))).toBeLessThan(1e-7);
+    }
+    geometry.dispose();
+  });
+
+  it('preserves solar elevation in view space after camera moves with unchanged sunlight', () => {
+    const camera = new PerspectiveCamera(30, 1.6, 0.1, 100);
+    const sun = sunDirectionScene({ lat: -23.44, lng: -45.4 });
+    const normals = [
+      [0, 0],
+      [55.618, 12.656],
+      [40.641, -73.778],
+      [-90, 0],
+      [0, 180],
+    ];
+    const uniform = new Vector3();
+    for (const [lat, lng, distance] of [
+      [30, 0, 5],
+      [-45, 150, 3],
+      [80, -100, 2],
+      [0, 179, 7],
+    ]) {
+      camera.position.copy(latLngToVector3(lat, lng, distance));
+      camera.lookAt(0, 0, 0);
+      camera.updateMatrixWorld();
+      // Same per-frame transform as renderFrame; includes camera rotations AND translations.
+      uniform.copy(sun).transformDirection(camera.matrixWorldInverse);
+      const normalMatrix = new Matrix3().getNormalMatrix(camera.matrixWorldInverse);
+      for (const [latitude, longitude] of normals) {
+        const normal = latLngToVector3(latitude, longitude);
+        const mu = normal.dot(sun);
+        normal.applyMatrix3(normalMatrix).normalize();
+        expect(normal.dot(uniform)).toBeCloseTo(mu, 12);
+      }
+    }
   });
 });
 

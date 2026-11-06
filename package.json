@@ -19,6 +19,7 @@
     "data:update": "node scripts/update-airports.ts",
     "data:check": "node scripts/update-airports.ts --check",
     "labels:build": "node scripts/build-country-labels.ts",
+    "places:build": "node scripts/build-place-names.ts",
     "borders:build": "node scripts/build-borders.ts",
     "textures:build": "node scripts/build-textures.ts",
     "icons:build": "node scripts/build-icons.ts",

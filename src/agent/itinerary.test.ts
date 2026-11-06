@@ -44,6 +44,7 @@ describe('itinerary document v1', () => {
     { ...doc, view: null },
     { ...doc, view: { play: 'true' } },
     { ...doc, view: { dayNight: 1 } },
+    { ...doc, view: { follow: 'yes' } },
     { ...doc, view: { units: 'nm' } },
     { ...doc, view: { speed: '3600' } },
     { ...doc, view: { speed: 1 } },
@@ -114,7 +115,7 @@ describe('itinerary document v1', () => {
     expect(linkStateToDocument(state)).toEqual(doc);
     expect(documentToLinkState(linkStateToDocument(state))).toEqual(state);
     const link = parseLink(
-      '?route=CPH-LHR_180-JFK&dep1=2026-11-20T08:15&arr3=2026-11-20T13:50&speed=7200&clock=JFK&units=mi&daynight=0',
+      '?route=CPH-LHR_180-JFK&dep1=2026-11-20T08:15&arr3=2026-11-20T13:50&speed=7200&clock=JFK&units=mi&daynight=0&follow=1',
     );
     expect(documentToLinkState(linkStateToDocument(link))).toEqual(link);
   });
@@ -134,7 +135,15 @@ describe('itinerary document v1', () => {
       stops: [{ airport: 'cph', departure: '2026-11-20T08:00:00Z' }, { airport: 'lhr' }],
     });
     expect(state.stops?.[0].departure).toEqual({ local: '2026-11-20T08:00', offsetMin: 0 });
-    expect(state.view).toEqual({ time: null, play: false, speed: 'auto', clock: 'local', units: null, dayNight: true });
+    expect(state.view).toEqual({
+      time: null,
+      play: false,
+      speed: 'auto',
+      clock: 'local',
+      units: null,
+      dayNight: true,
+      follow: false,
+    });
   });
   it('rejects oversized inputs before decoding and oversized output gracefully', () => {
     const result = decodeItineraryParam('a'.repeat(6001));

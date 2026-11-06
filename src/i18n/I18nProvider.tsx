@@ -1,4 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import cityNamesUrl from '../data/generated/city-names.json?url';
+import { loadCityNames, localizedCity, type CityNameTable } from '../data/placeNames.ts';
 import { replaceUrl } from '../analytics.ts';
 import { loadMessages, translator, type Translate } from './catalogue.ts';
 import { localizedPath, resolveLocale, saveLocaleChoice, loadLocaleChoice } from './detect.ts';
@@ -8,6 +10,7 @@ import { uiFormatters } from './uiFormat.ts';
 
 interface I18n {
   locale: Locale;
+  cityNames: CityNameTable | null;
   t: Translate;
   fmt: ReturnType<typeof uiFormatters>;
   setLocale: (locale: Locale) => Promise<void>;
@@ -23,6 +26,18 @@ export function I18nProvider({
   children: ReactNode;
 }) {
   const [current, setCurrent] = useState({ locale: initialLocale, messages: initialMessages });
+  const [cityNames, setCityNames] = useState<CityNameTable | null>(null);
+  const needsCityNames = current.locale !== 'en';
+  useEffect(() => {
+    if (!needsCityNames || cityNames) return;
+    const ctrl = new AbortController();
+    loadCityNames(cityNamesUrl, ctrl.signal)
+      .then(setCityNames)
+      .catch(() => {
+        // Optional exonyms: the original city names remain usable offline or after a download failure.
+      });
+    return () => ctrl.abort();
+  }, [needsCityNames, cityNames]);
   const generation = useRef(0);
   const t = useMemo<Translate>(() => translator(current.messages), [current.messages]);
   const switchLocale = useCallback(async (locale: Locale, explicit: boolean) => {
@@ -56,8 +71,14 @@ export function I18nProvider({
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, [switchLocale]);
-  const fmt = useMemo(() => uiFormatters(current.locale, t), [current.locale, t]);
-  const value = useMemo(() => ({ locale: current.locale, t, fmt, setLocale }), [current.locale, t, fmt, setLocale]);
+  const fmt = useMemo(
+    () => uiFormatters(current.locale, t, (airport) => localizedCity(airport, current.locale, cityNames)),
+    [current.locale, t, cityNames],
+  );
+  const value = useMemo(
+    () => ({ locale: current.locale, cityNames, t, fmt, setLocale }),
+    [current.locale, cityNames, t, fmt, setLocale],
+  );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 // eslint-disable-next-line react-refresh/only-export-components

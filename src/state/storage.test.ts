@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
+  loadFollowAircraft,
+  saveFollowAircraft,
   loadBorders,
   loadCountryNames,
   saveCountryNames,
@@ -25,6 +27,13 @@ describe('safe storage', () => {
       setItem: (key: string, value: string) => data.set(key, value),
     });
     try {
+      expect(loadFollowAircraft()).toBeNull();
+      saveFollowAircraft(true);
+      expect(loadFollowAircraft()).toBe(true);
+      saveFollowAircraft(false);
+      expect(loadFollowAircraft()).toBe(false);
+      data.set('globehops:followAircraft', 'maybe');
+      expect(loadFollowAircraft()).toBeNull();
       expect(loadUnit()).toBeNull();
       expect(loadLastRoute()).toBeNull();
       expect(loadAnalyticsConsent()).toBeNull();
@@ -111,7 +120,7 @@ describe('journey preferences', () => {
       expect(loadLastJourney()).toBeNull();
       expect(loadDayNight()).toBeNull();
       expect(loadClockZone()).toBeNull();
-      const query = '?route=CPH-LHR&dep1=2026-11-20T08:15%2B01:00&speed=3600&clock=utc&daynight=0';
+      const query = '?route=CPH-LHR&dep1=2026-11-20T08:15%2B01:00&speed=3600&clock=utc&daynight=0&follow=1';
       saveLastJourney(`${query}&t=2026-11-20T09:30Z&play=1&units=mi`);
       expect(loadLastJourney()).toBe(query);
       saveLastJourney('?route=' + 'A'.repeat(4000));
@@ -157,10 +166,12 @@ describe('journey preferences', () => {
         expect(loadLastJourney()).toBeNull();
         expect(loadDayNight()).toBeNull();
         expect(loadClockZone()).toBeNull();
+        expect(loadFollowAircraft()).toBeNull();
         expect(() => {
           saveLastJourney('?route=CPH-LHR');
           saveDayNight(false);
           saveClockZone('utc');
+          saveFollowAircraft(true);
         }).not.toThrow();
       } finally {
         vi.unstubAllGlobals();

@@ -53,6 +53,7 @@ import {
 } from '../lib/altitude.ts';
 import { countSegments, decodeBorders, densifyLine } from '../lib/borders.ts';
 import { enclosingCap, greatCircleDistanceKm, greatCirclePath, slerpVec, toVec3 } from '../lib/geo.ts';
+import { SOLAR_SHADING_GLSL } from '../lib/sun.ts';
 import type { LatLng } from '../types.ts';
 import {
   clamp01,
@@ -64,6 +65,7 @@ import {
   sunDirectionScene,
 } from './math3d.ts';
 import { CountryLabelLayer } from './countryLabels.ts';
+import { FOLLOW_APPROACH_MS, followBlend, followDistance, followLead } from './followCamera.ts';
 import type { AircraftView } from './simFeed.ts';
 
 export type MarkerRole = 'origin' | 'transfer' | 'destination' | 'single';
@@ -114,8 +116,10 @@ export interface GlobeRendererOptions {
   showBorders: boolean;
   countryLabelsUrl: string;
   showCountryLabels: boolean;
+  labelLocale?: string;
   reducedMotion: boolean;
   onLegClick?: (leg: number) => void;
+  onFollowAircraftChange?: (enabled: boolean) => void;
   onFitChange?: (fitsInView: boolean) => void;
   onTextureReady?: (quality: 'preview' | 'full') => void;
 }
@@ -141,11 +145,6 @@ const ATMOSPHERE_RADIUS = 1.055;
 const LABEL_LIFT = 1.002;
 
 const ATMOSPHERE_COLOR = new Color('#7fb4ff');
-/**
- * Sine of the solar elevation (cosine of the zenith angle) over which the surface and atmosphere blend
- * from night to day: about −4° … +3.4°. GLSL literals, shared by both shaders.
- */
-const DAY_EDGE = { night: '-0.07', day: '0.06' };
 
 interface LegObject {
   key: string;
@@ -231,6 +230,12 @@ export class GlobeRenderer {
   private highlightLeg: number | null = null;
   private aircraft: AircraftView | null = null;
   private follow = false;
+  private followAircraft = false;
+  private followApproachPending = false;
+  private followPreviousTime: number | null = null;
+  private followPagePending = false;
+  private reportedCameraDistance = '';
+  private reportedCameraAt = -Infinity;
   private keyLight = new DirectionalLight(0xfff6ea, 2.1);
   private subsolar: LatLng | null = null;
   private sunScene = new Vector3(1, 0, 0);
@@ -270,6 +275,7 @@ export class GlobeRenderer {
     this.labelLayer.setAttribute('aria-hidden', 'true');
     container.appendChild(this.labelLayer);
     this.countryLabels = new CountryLabelLayer(this.labelLayer, options.countryLabelsUrl, this.requestRender);
+    this.countryLabels.setLocale(options.labelLocale ?? 'en');
     this.countryLabels.setVisible(options.showCountryLabels);
 
     this.plane = document.createElement('div');
@@ -295,26 +301,28 @@ export class GlobeRenderer {
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nuniform vec3 uAtmo;\nuniform vec3 uSunView;\nuniform float uDayNight;\nuniform float uCityLights;',
+          `#include <common>\nuniform vec3 uAtmo;\nuniform vec3 uSunView;\nuniform float uDayNight;\nuniform float uCityLights;\n${SOLAR_SHADING_GLSL}`,
         )
         .replace(
           '#include <opaque_fragment>',
           `#include <opaque_fragment>
           {
-            // mu: cosine of the solar zenith angle. The day/night blend spans about −4° … +3.5°
-            // of sun elevation, so the terminator reads crisply while twilight stays soft.
+            // Both normals and uSunView are in view space. mu = sin(geometric solar elevation).
             float mu = dot(normalize(normal), uSunView);
-            float day = smoothstep(${DAY_EDGE.night}, ${DAY_EDGE.day}, mu);
+            float day = solarDayLightLevel(mu);
             vec3 nightTint = vec3(0.86, 0.93, 1.1);
             vec3 lit = gl_FragColor.rgb;
-            vec3 timed = lit * mix(0.06 * nightTint, vec3(1.0), day);
-            float twilight = (1.0 - smoothstep(0.0, 0.12, abs(mu))) * 0.04;
+            // Keep the subsolar brightness while reducing ambient flattening. Direct Lambert
+            // irradiance follows max(mu, 0); diffuse fill represents unresolved sky scattering.
+            vec3 daylight = reflectedLight.directDiffuse * 1.2 + reflectedLight.indirectDiffuse * 0.65;
+            vec3 timed = mix(diffuseColor.rgb * 0.06 * nightTint, daylight, day);
+            float twilight = 4.0 * day * (1.0 - day) * 0.012;
             timed += diffuseColor.rgb * vec3(1.0, 0.38, 0.12) * twilight;
             #ifdef USE_EMISSIVEMAP
               // The emissive colour is black, so three.js adds nothing itself; the map is only a
               // convenient carrier for the night-light mask and its UVs. Lights come on at dusk.
               float city = texture2D(emissiveMap, vEmissiveMapUv).r;
-              float dusk = 1.0 - smoothstep(-0.09, 0.015, mu);
+              float dusk = solarCityDusk(mu);
               timed += vec3(1.0, 0.66, 0.32) * (city * city * 0.55 + city * 0.45) * dusk * uCityLights;
             #endif
             gl_FragColor.rgb = mix(lit, timed, uDayNight);
@@ -358,11 +366,12 @@ export class GlobeRenderer {
           uniform float uDayNight;
           varying vec3 vNormal;
           varying vec3 vView;
+          ${SOLAR_SHADING_GLSL}
           void main() {
             float d = -dot(normalize(vNormal), normalize(vView));
             float t = clamp(d / uLimb, 0.0, 1.0);
             float glow = pow(t, 3.2) * 0.85;
-            float day = smoothstep(${DAY_EDGE.night}, ${DAY_EDGE.day}, dot(normalize(vNormal), uSunView));
+            float day = solarDayLightLevel(dot(normalize(vNormal), uSunView));
             glow *= mix(1.0, mix(0.16, 1.0, day), uDayNight);
             gl_FragColor = vec4(uColor * glow, glow);
           }`,
@@ -386,6 +395,7 @@ export class GlobeRenderer {
     this.camera.position.copy(latLngToVector3(30, 0, 5));
     this.camera.lookAt(0, 0, 0);
 
+    this.canvas.addEventListener('wheel', this.onControlsStart, { passive: true });
     this.canvas.addEventListener('pointerdown', this.onPointerDown);
     this.canvas.addEventListener('pointerup', this.onPointerUp);
     this.canvas.addEventListener('webglcontextlost', this.onContextLost);
@@ -431,11 +441,17 @@ export class GlobeRenderer {
         old.kind === view.kind &&
         old.leg === view.leg &&
         (old.kind === 'air' && view.kind === 'air'
-          ? old.fraction === view.fraction
+          ? old.fraction === view.fraction && old.fractionPerSecond === view.fractionPerSecond
           : old.kind === 'ground' && view.kind === 'ground' && old.at === view.at))
     )
       return;
     this.aircraft = view ? { ...view } : null;
+    if (!view) {
+      if (this.followAircraft) this.cancelTween();
+      this.followPreviousTime = null;
+      this.followApproachPending = this.followAircraft;
+      this.followPagePending = this.followAircraft;
+    }
     this.plane.classList.toggle('is-ground', view?.kind === 'ground');
     // The next frame (or flush()) places a simulated aircraft; hiding it here would make it blink.
     if (view) this.planeAnim = null;
@@ -452,7 +468,7 @@ export class GlobeRenderer {
     this.highlightLeg = index;
     this.applySelectionStyles();
     for (const leg of this.legs) if (leg) this.applyProgress(leg);
-    if (this.follow && index !== null && this.legs[index] && this.lastFits === false) {
+    if (this.follow && !this.followAircraft && index !== null && this.legs[index] && this.lastFits === false) {
       // Preserve the whole-route fit result while following individual legs.
       this.frameView(true, index, false);
     }
@@ -461,6 +477,24 @@ export class GlobeRenderer {
 
   setFollow(enabled: boolean) {
     this.follow = enabled;
+  }
+
+  setFollowAircraft(enabled: boolean) {
+    if (enabled === this.followAircraft) return;
+    this.followAircraft = enabled;
+    this.followApproachPending = enabled;
+    this.followPagePending = enabled;
+    this.followPreviousTime = null;
+    this.cancelTween();
+    this.plane.classList.toggle('is-following', enabled);
+    this.container.dataset.follow = enabled ? 'on' : 'off';
+    this.requestRender();
+  }
+
+  private exitFollowAircraft() {
+    if (!this.followAircraft) return;
+    this.setFollowAircraft(false);
+    this.options.onFollowAircraftChange?.(false);
   }
 
   setRoute(route: GlobeRoute, opts: { animate: boolean; frame: boolean }) {
@@ -491,7 +525,7 @@ export class GlobeRenderer {
     this.planeAnim = null;
     if (this.selectedLeg !== null && this.selectedLeg >= route.legs.length) this.selectedLeg = null;
     this.applySelectionStyles();
-    if (opts.frame) this.frameCurrent(true);
+    if (opts.frame && !this.followAircraft) this.frameCurrent(true);
     this.requestRender();
   }
 
@@ -508,6 +542,7 @@ export class GlobeRenderer {
 
   /** Fly the camera to show the selected leg, or the whole route. */
   frameCurrent(animate = true) {
+    this.exitFollowAircraft();
     this.frameView(animate, this.selectedLeg);
   }
 
@@ -549,6 +584,11 @@ export class GlobeRenderer {
 
   setReducedMotion(reduced: boolean) {
     this.options.reducedMotion = reduced;
+    if (reduced && this.followAircraft) {
+      this.cancelTween();
+      this.followPagePending = true;
+      this.requestRender();
+    }
     if (reduced && this.illuminationTween) {
       this.dayNight.value = this.illuminationTween.to;
       this.illuminationTween = null;
@@ -564,6 +604,10 @@ export class GlobeRenderer {
     this.requestRender();
   }
 
+  setLabelLocale(locale: string) {
+    this.countryLabels.setLocale(locale);
+  }
+
   setCountryLabelsVisible(visible: boolean) {
     this.countryLabels.setVisible(visible);
     this.requestRender();
@@ -571,6 +615,7 @@ export class GlobeRenderer {
 
   /** Keyboard rotation / zoom for accessibility. */
   nudge(dLng: number, dLat: number, zoom = 1) {
+    this.exitFollowAircraft();
     this.follow = false;
     this.cancelTween();
     const pos = this.camera.position;
@@ -589,6 +634,7 @@ export class GlobeRenderer {
     this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.removeEventListener('change', this.requestRender);
     this.controls.dispose();
+    this.canvas.removeEventListener('wheel', this.onControlsStart);
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
@@ -638,17 +684,29 @@ export class GlobeRenderer {
     let active = false;
 
     active = this.stepInsets() || active;
-    active = this.stepTween(now) || active;
+    let cameraMoving = this.stepFollowAircraft(now);
+    cameraMoving = this.stepTween(now) || cameraMoving;
     active = this.stepReveal(now) || active;
     active = this.stepPlane(now) || active;
     active = this.stepIllumination(now) || active;
     active = this.stepCityLights(now) || active;
     // OrbitControls.update() returns true while damping is still moving the camera.
-    if (!this.cameraTween) active = this.controls.update() || active;
+    if (!this.cameraTween && !(this.followAircraft && this.aircraft))
+      cameraMoving = this.controls.update() || cameraMoving;
+    active = cameraMoving || active;
+    const motion = cameraMoving ? 'moving' : 'settled';
+    if (this.container.dataset.cameraMotion !== motion) this.container.dataset.cameraMotion = motion;
     this.updateRotateSpeed();
     this.maybeLoadLargeTexture();
 
+    const distance = this.camera.position.length().toFixed(2);
+    if (distance !== this.reportedCameraDistance && (!cameraMoving || now - this.reportedCameraAt >= 100)) {
+      this.container.dataset.cameraDistance = distance;
+      this.reportedCameraDistance = distance;
+      this.reportedCameraAt = now;
+    }
     this.camera.updateMatrixWorld();
+    // Recompute even for paused sunlight: orbit/damping changes the normals' view space every frame.
     this.sunView.value.copy(this.sunScene).transformDirection(this.camera.matrixWorldInverse);
     this.renderer.render(this.scene, this.camera);
     const reserved = this.updateLabels();
@@ -1121,6 +1179,92 @@ export class GlobeRenderer {
     this.plane.style.transform = `translate3d(${a.x}px, ${a.y}px, 0) translate(-50%, -50%) rotate(${angle}deg)`;
   }
 
+  /** Uses only origin-facing, north-up poses so OrbitControls can take over without a jump. */
+  private stepFollowAircraft(now: number): boolean {
+    const view = this.aircraft;
+    if (!this.followAircraft || !view) return false;
+    const leg = this.legs[view.leg];
+    if (!leg) return false;
+    const start = leg.ground[0];
+    const end = leg.ground[leg.ground.length - 1];
+    const angle = start.angleTo(end);
+    const fraction = view.kind === 'air' ? clamp01(view.fraction) : view.at === 'start' ? 0 : 1;
+    const halfFov = this.availableHalfFov();
+    const distance = Math.max(
+      this.controls.minDistance,
+      Math.min(this.controls.maxDistance, followDistance(angle, fraction, view.kind === 'air', halfFov)),
+    );
+    const lead = followLead(
+      angle,
+      fraction,
+      view.kind === 'air' && !this.options.reducedMotion ? (view.fractionPerSecond ?? 0) : 0,
+      distance,
+      halfFov,
+    );
+    // Use the sampled track, including its deterministic choice of great circle at antipodes.
+    const sample = (f: number) => {
+      const { index, t } = locateFraction(leg.fractions, f);
+      return slerpUnit(leg.ground[index], leg.ground[index + 1], t);
+    };
+    const target = sample(view.kind === 'air' ? lead.fraction : fraction);
+    // OrbitControls has a polar singularity: stay 0.05 radians away, keeping camera.up = +Y.
+    const maxY = Math.cos(0.05);
+    if (Math.abs(target.y) > maxY) {
+      const horizontal = new Vector3(target.x, 0, target.z);
+      if (horizontal.lengthSq() < 1e-12) horizontal.set(start.x, 0, start.z);
+      if (horizontal.lengthSq() < 1e-12) horizontal.set(1, 0, 0);
+      horizontal.normalize().multiplyScalar(Math.sin(0.05));
+      target.set(horizontal.x, Math.sign(target.y) * maxY, horizontal.z);
+    }
+    if (this.options.reducedMotion) {
+      this.cameraTween = null;
+      const aircraft = sample(fraction);
+      this.camera.updateMatrixWorld();
+      const projected = this.project(aircraft);
+      const i = this.insets;
+      const w = Math.max(80, this.width - i.left - i.right);
+      const h = Math.max(80, this.height - i.top - i.bottom);
+      const outside =
+        !projected ||
+        this.facing(aircraft) <= 0 ||
+        Math.abs(projected.x - (i.left + w / 2)) > w * 0.25 ||
+        Math.abs(projected.y - (i.top + h / 2)) > h * 0.25;
+      if (this.followPagePending || outside) {
+        this.camera.position.copy(target).multiplyScalar(distance);
+        this.camera.lookAt(0, 0, 0);
+        this.followPagePending = false;
+        this.followApproachPending = false;
+      }
+      return false;
+    }
+    const dt = this.followPreviousTime === null ? 0 : Math.max(0, (now - this.followPreviousTime) / 1000);
+    this.followPreviousTime = now;
+    if (this.followApproachPending) {
+      this.followApproachPending = false;
+      this.flyTo(target, distance, true, FOLLOW_APPROACH_MS);
+    }
+    if (this.cameraTween) {
+      this.cameraTween.toDir.copy(target);
+      this.cameraTween.toDist = distance;
+      return true;
+    }
+    const current = this.camera.position.clone().normalize();
+    const angularError = current.angleTo(target);
+    const distanceError = distance - this.camera.position.length();
+    if (angularError < 0.00002 && Math.abs(distanceError) < 0.0001) {
+      this.followPreviousTime = null;
+      this.camera.position.copy(target).multiplyScalar(distance);
+      this.camera.lookAt(0, 0, 0);
+      return false;
+    }
+    // Fast playback uses velocity prediction. Zoom responds more slowly than the ground track.
+    const direction = slerpUnit(current, target, followBlend(dt, lead.response));
+    const nextDistance = this.camera.position.length() + distanceError * followBlend(dt, 0.45);
+    this.camera.position.copy(direction).multiplyScalar(nextDistance);
+    this.camera.lookAt(0, 0, 0);
+    return true;
+  }
+
   private flyTo(dir: Vector3, distance: number, animate: boolean, durationOverride?: number) {
     const toDir = dir.clone().normalize();
     // Keep the camera away from the exact poles (OrbitControls' up-axis singularity).
@@ -1381,6 +1525,7 @@ export class GlobeRenderer {
 
   private onControlsStart = () => {
     // Direct manipulation always wins over automatic camera movement.
+    this.exitFollowAircraft();
     this.follow = false;
     this.cancelTween();
   };

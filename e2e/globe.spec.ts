@@ -166,7 +166,7 @@ test('country names are optional, lazy, remembered and do not overlap', async ({
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
   await openDisplay(page);
-  const toggle = page.getByRole('button', { name: 'Country names', exact: true });
+  const toggle = page.getByRole('button', { name: 'Place names', exact: true });
   const names = page.locator('.country-label:visible');
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await expect(names).toHaveCount(0);
@@ -235,7 +235,7 @@ test('invalid country-name data stays decorative and warns only once', async ({ 
   await page.goto('./?route=CPH-LHR-JFK');
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
   await openDisplay(page);
-  const toggle = page.getByRole('button', { name: 'Country names', exact: true });
+  const toggle = page.getByRole('button', { name: 'Place names', exact: true });
   await toggle.click();
   await expect.poll(() => warnings.length).toBe(1);
   await expect(page.locator('.country-label:visible')).toHaveCount(0);

@@ -2,7 +2,13 @@ import type { LatLng } from '../types.ts';
 
 export type AircraftView =
   /** Fraction of the leg's distance, in [0, 1]. */
-  | { kind: 'air'; leg: number; fraction: number }
+  | {
+      kind: 'air';
+      leg: number;
+      fraction: number;
+      /** Distance fraction per real second; absent while paused. Used only to predict camera lead. */
+      fractionPerSecond?: number;
+    }
   /** Parked at the endpoint, with the nose following the leg's forward heading. */
   | { kind: 'ground'; leg: number; at: 'start' | 'end' };
 

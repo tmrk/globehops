@@ -17,8 +17,11 @@ export interface GlobeViewProps {
   insets: Insets;
   showBorders: boolean;
   showCountryNames: boolean;
+  locale?: string;
   reducedMotion: boolean;
   sim?: SimulationFeed | null;
+  followAircraft: boolean;
+  onFollowAircraftChange: (enabled: boolean) => void;
   /** Increment to re-frame the camera on the current route / leg. */
   fitNonce: number;
   onLegClick: (leg: number) => void;
@@ -57,9 +60,11 @@ export default function GlobeView(props: GlobeViewProps) {
         coastlinesUrl,
         countryLabelsUrl,
         showCountryLabels: latest.current.showCountryNames,
+        labelLocale: latest.current.locale ?? 'en',
         showBorders: latest.current.showBorders,
         reducedMotion: latest.current.reducedMotion,
         onLegClick: (leg) => latest.current.onLegClick(leg),
+        onFollowAircraftChange: (enabled) => latest.current.onFollowAircraftChange(enabled),
         onFitChange: (fits) => latest.current.onFitChange(fits),
         onTextureReady: (q) => {
           if (q === 'preview' || q === 'full') latest.current.onReady();
@@ -103,6 +108,10 @@ export default function GlobeView(props: GlobeViewProps) {
     rendererRef.current?.setCountryLabelsVisible(showCountryNames);
   }, [showCountryNames]);
 
+  useEffect(() => {
+    rendererRef.current?.setLabelLocale(props.locale ?? 'en');
+  }, [props.locale]);
+
   // Insets first, so the initial framing accounts for panels covering the globe.
   useEffect(() => {
     rendererRef.current?.setInsets(insets, !firstRoute.current);
@@ -116,7 +125,12 @@ export default function GlobeView(props: GlobeViewProps) {
     if (route.markers.length > 0) firstRoute.current = false;
     // Frame once: animated for edits, instantly for the first route.
     r.setRoute(route, { animate: true, frame: !initial });
-    if (initial) r.frameCurrent(false);
+    if (initial) {
+      // Initial data framing is automatic, even if a remembered follow choice loaded before airports.
+      r.setFollowAircraft(false);
+      r.frameCurrent(false);
+      r.setFollowAircraft(latest.current.followAircraft);
+    }
   }, [route]);
 
   useEffect(() => {
@@ -126,6 +140,10 @@ export default function GlobeView(props: GlobeViewProps) {
   useEffect(() => {
     if (fitNonce > 0) rendererRef.current?.frameCurrent(true);
   }, [fitNonce]);
+
+  useEffect(() => {
+    rendererRef.current?.setFollowAircraft(props.followAircraft);
+  }, [props.followAircraft]);
 
   useEffect(() => {
     const r = rendererRef.current;

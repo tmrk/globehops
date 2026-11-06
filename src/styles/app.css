@@ -203,6 +203,8 @@ a {
 }
 
 .globe-marker {
+  /* Projection moves these imperatively; the global reduced-motion duration must not animate transforms. */
+  transition-property: none;
   position: absolute;
   left: 0;
   top: 0;
@@ -2820,7 +2822,7 @@ button.map-menu__item:hover {
   }
 }
 
-/* Optional atlas country names, beneath the airport labels. */
+/* Optional atlas place names, beneath the airport labels. */
 .country-labels {
   position: absolute;
   inset: 0;
@@ -2882,4 +2884,70 @@ button.map-menu__item:hover {
 :lang(hu) .play-btn,
 :lang(sv) .play-btn {
   padding-inline: 12px;
+}
+
+.globe-plane.is-following svg {
+  scale: 1.25;
+}
+.globe-plane.is-following.is-ground svg {
+  scale: 1.05;
+  opacity: 1;
+}
+.time-bar__follow {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-h);
+  height: var(--control-h);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-2);
+}
+.time-bar__follow:hover {
+  background: var(--press);
+  color: var(--text);
+}
+.time-bar__follow[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+@media (pointer: coarse) {
+  .time-bar__follow {
+    width: 44px;
+    height: 44px;
+  }
+}
+.country-label--ocean,
+.country-label--sea {
+  color: rgba(177, 206, 222, 0.94);
+  font-style: italic;
+  font-weight: 500;
+  text-align: center;
+}
+.country-label--ocean {
+  white-space: pre;
+  letter-spacing: var(--track-caps);
+  line-height: 1.45;
+}
+.country-label--sea {
+  width: max-content;
+  max-width: 11em;
+  white-space: normal;
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+
+/* The docked clock shares its row with follow and flight controls; retain the full local time. */
+.time-bar--docked .time-bar__clock {
+  height: auto;
+  min-height: 44px;
+  padding-block: 6px;
+}
+.time-bar--docked .time-bar__readout {
+  overflow: visible;
+  white-space: normal;
+  line-height: 1.35;
+}
+.time-bar--docked .time-bar__title {
+  white-space: normal;
 }

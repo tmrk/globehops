@@ -2,6 +2,9 @@ import { Vector3, type PerspectiveCamera } from 'three';
 import {
   decodeCountryLabels,
   labelStyle,
+  labelLocale,
+  labelPriority,
+  type LabelLocale,
   mapZoom,
   placeLabels,
   type CountryLabel,
@@ -38,6 +41,7 @@ export class CountryLabelLayer {
   private toCamera = new Vector3();
   private abort = new AbortController();
   private visible = false;
+  private locale: LabelLocale = 'en';
   private disposed = false;
   private started = false;
   private url: string;
@@ -47,6 +51,7 @@ export class CountryLabelLayer {
     this.url = url;
     this.requestRender = requestRender;
     this.container.className = 'country-labels';
+    this.container.setAttribute('aria-hidden', 'true');
     this.container.style.display = 'none';
     parent.prepend(this.container);
     this.measure.className = 'country-label';
@@ -68,6 +73,27 @@ export class CountryLabelLayer {
     if (visible && !this.started) void this.load();
   }
 
+  setLocale(locale: string): void {
+    const next = labelLocale(locale);
+    if (this.disposed || next === this.locale) return;
+    this.locale = next;
+    for (const entry of this.labels) {
+      entry.el.textContent = this.text(entry.label);
+      entry.sizes.clear();
+    }
+    this.requestRender();
+  }
+
+  private text(label: CountryLabel): string {
+    const name = label.names[this.locale];
+    // Keep the ocean identity together; use a second line for its generic geographic term.
+    if (label.kind === 'ocean' && name.length > 12 && name.includes(' ')) {
+      const split = name.lastIndexOf(' ');
+      return name.slice(0, split) + '\n' + name.slice(split + 1);
+    }
+    return name;
+  }
+
   private async load(): Promise<void> {
     this.started = true;
     try {
@@ -76,10 +102,10 @@ export class CountryLabelLayer {
       const raw: unknown = await response.json();
       const labels = decodeCountryLabels(raw);
       if (this.disposed) return;
-      this.labels = labels.map((label) => {
+      this.labels = labels.sort(labelPriority).map((label) => {
         const el = document.createElement('span');
-        el.className = 'country-label';
-        el.textContent = label.name;
+        el.className = `country-label country-label--${label.kind}`;
+        el.textContent = this.text(label);
         el.style.display = 'none';
         this.container.append(el);
         return {
@@ -126,7 +152,8 @@ export class CountryLabelLayer {
       const fontPx = Math.round(style.fontPx * 2) / 2;
       let size = entry.sizes.get(fontPx);
       if (!size) {
-        this.measure.textContent = entry.label.name;
+        this.measure.className = entry.el.className;
+        this.measure.textContent = entry.el.textContent;
         this.measure.style.fontSize = `${fontPx}px`;
         size = { width: this.measure.offsetWidth, height: this.measure.offsetHeight };
         entry.sizes.set(fontPx, size);

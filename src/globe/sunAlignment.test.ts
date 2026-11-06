@@ -1,7 +1,10 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+import { computeJourney } from '../lib/schedule.ts';
+import { SimulationClock } from '../state/clock.ts';
+import { createSimulationFeed } from '../state/simulation.ts';
 import { Body, Equator, Horizon, Observer } from 'astronomy-engine';
 import { subsolarPoint } from '../lib/sun.ts';
-import { latLngToVector3 } from './math3d.ts';
+import { latLngToVector3, sunDirectionScene } from './math3d.ts';
 
 // Independent airport coordinates spanning both hemispheres, polar regions and the date line.
 const airports = [
@@ -37,14 +40,15 @@ const airports = [
   ['HEL', 60.317, 24.963],
 ] as const;
 
-it('aligns Earth-fixed SCENE illumination with astronomical altitude for 30 airports × 20 instants', () => {
+it('aligns Earth-fixed SCENE illumination with astronomical altitude for 30 airports × 201 instants, 1900–2100', () => {
   let maxSinError = 0;
+  let maxElevationError = 0;
   let signComparisons = 0;
-  for (let i = 0; i < 20; i++) {
-    const epochMs = Date.UTC(1950, 0, 1) + i * 2497.17391 * 86_400_000;
+  for (let i = 0; i <= 200; i++) {
+    const epochMs = Date.UTC(1900 + i, i % 12, 1 + (i % 28), (i * 7) % 24, (i * 17) % 60);
     const date = new Date(epochMs);
     const subsolar = subsolarPoint(epochMs);
-    const sceneSun = latLngToVector3(subsolar.lat, subsolar.lng);
+    const sceneSun = sunDirectionScene(subsolar);
     for (const [code, lat, lng] of airports) {
       const observer = new Observer(lat, lng, 0);
       const equatorial = Equator(Body.Sun, date, observer, true, true);
@@ -52,13 +56,56 @@ it('aligns Earth-fixed SCENE illumination with astronomical altitude for 30 airp
       const dot = latLngToVector3(lat, lng).dot(sceneSun);
       const sinError = Math.abs(dot - Math.sin((altitude * Math.PI) / 180));
       maxSinError = Math.max(maxSinError, sinError);
-      expect(sinError, `${code} at ${date.toISOString()}`).toBeLessThan(0.01);
+      const elevationError = Math.abs((Math.asin(Math.max(-1, Math.min(1, dot))) * 180) / Math.PI - altitude);
+      maxElevationError = Math.max(maxElevationError, elevationError);
+      expect(elevationError, `${code} at ${date.toISOString()}`).toBeLessThan(0.02);
+      expect(sinError, `${code} at ${date.toISOString()}`).toBeLessThan(0.00035);
       if (Math.abs(altitude) >= 1) {
         expect(Math.sign(dot), `${code} at ${date.toISOString()}`).toBe(Math.sign(altitude));
         signComparisons++;
       }
     }
   }
-  expect(signComparisons).toBeGreaterThan(550);
-  console.info('Scene alignment accuracy, 600 airport/time pairs:', { maxSinError, signComparisons });
+  expect(signComparisons).toBeGreaterThan(5900);
+  console.info('Scene alignment accuracy, 6030 airport/time pairs:', {
+    maxElevationError,
+    maxSinError,
+    signComparisons,
+  });
+});
+
+it('feeds the selected clock UTC instant to sunlight, then resumes live UTC when the timeline closes', () => {
+  vi.useFakeTimers();
+  const now = Date.parse('2026-12-21T15:00:00Z');
+  vi.setSystemTime(now);
+  const clock = new SimulationClock();
+  const context = {
+    journey: computeJourney({ id: 'solar-clock', stops: [] }),
+    timeline: null,
+    open: false,
+    dayNight: true,
+    follow: false,
+  };
+  const feed = createSimulationFeed(clock, () => context);
+  const off = feed.subscribe(() => {});
+  try {
+    clock.goLive();
+    expect(feed.getFrame().subsolar).toEqual(subsolarPoint(now));
+    context.open = true;
+    const selected = Date.parse('1968-02-29T07:23:17Z');
+    clock.seek(selected);
+    expect(feed.getFrame().subsolar).toEqual(subsolarPoint(selected));
+    // App.closeTime clears the range and calls goLive; a dated journey never supplies the Sun's time.
+    context.open = false;
+    clock.setRange(null, null);
+    clock.goLive();
+    expect(feed.getFrame().subsolar).toEqual(subsolarPoint(now));
+    vi.advanceTimersByTime(30_000);
+    expect(feed.getFrame().subsolar).toEqual(subsolarPoint(now + 30_000));
+    expect(feed.getFrame().aircraft).toBeNull();
+  } finally {
+    off();
+    clock.dispose();
+    vi.useRealTimers();
+  }
 });

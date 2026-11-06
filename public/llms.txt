@@ -11,7 +11,7 @@ This guide lives at the project path `/globehops/llms.txt`, not the site-root `/
 - [Scheduled departure](https://tmrk.github.io/globehops/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15): depN/arrN are airport-local times at 1-based stop N. Omitted times are estimated when anchored by an entered time.
 - [Worked examples](https://tmrk.github.io/globehops/agent/examples.json): complete readable and alternative `?itinerary=<base64url UTF-8 JSON>` URLs. The itinerary parameter overrides readable parameters.
 
-View parameters: `t` is an ISO instant, `play=1` starts playback (respecting reduced motion), `speed=auto|1800|3600|7200`, `clock=local|utc|<route airport code>`, `units=km|mi`, `daynight=0` disables shading.
+View parameters: `t` is an ISO instant, `play=1` starts playback (respecting reduced motion), `speed=auto|1800|3600|7200`, `clock=local|utc|<route airport code>`, `units=km|mi`, `daynight=0` disables shading, `follow=1` enables the aircraft camera (off by default; user camera input exits).
 
 ## Contract and limits
 

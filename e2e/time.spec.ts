@@ -200,8 +200,11 @@ test('repeated local hour offers offsets and nonexistent hour prevents playback'
   await expect(timeline(page)).toContainText("Fix flight 1's times to play");
 });
 
-test('day and night aligns with airport positions at opposite UTC instants', async ({ page }) => {
-  async function sample(time: string) {
+test('day and night aligns with airport positions at opposite UTC instants and after orbiting', async ({
+  page,
+  isMobile,
+}) => {
+  async function sample(time: string, orbit = false) {
     await page.goto(`./?route=JFK-DXB&t=${time}`);
     await expect(page.locator('.stage')).toHaveClass(/is-ready/);
     await expect(timeline(page)).toBeVisible();
@@ -239,6 +242,20 @@ test('day and night aligns with airport positions at opposite UTC instants', asy
         dxb: lumas[positions.findIndex((p) => p.code === 'DXB')],
       };
     };
+    if (orbit) {
+      // Sunlight is paused. Only the camera changes, so the view-space sun uniform must still update.
+      const marker = page.locator('.globe-marker').first();
+      const before = await marker.evaluate((el) => getComputedStyle(el).transform);
+      const canvas = (await page.locator('canvas.globe-canvas').boundingBox())!;
+      const x = canvas.x + canvas.width * 0.7;
+      const y = canvas.y + canvas.height * 0.45;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + 10, y - 30, { steps: 12 });
+      await page.mouse.up();
+      await expect.poll(() => marker.evaluate((el) => getComputedStyle(el).transform)).not.toBe(before);
+      await expect(timeline(page).getByRole('slider')).toHaveValue(String(Date.parse(time)));
+    }
     // WebKit can expose texture-ready before its composited WebGL frame is visible.
     let result = await measure();
     await expect
@@ -259,6 +276,10 @@ test('day and night aligns with airport positions at opposite UTC instants', asy
 
   const evening = await sample('2026-03-20T18:00Z');
   expect(evening.jfk - evening.dxb).toBeGreaterThan(20);
+  if (!isMobile) {
+    const orbited = await sample('2026-03-20T18:00Z', true);
+    expect(orbited.jfk - orbited.dxb).toBeGreaterThan(20);
+  }
   const morning = await sample('2026-03-21T06:00Z');
   expect(morning.dxb - morning.jfk).toBeGreaterThan(20);
   await openDisplay(page);
@@ -414,3 +435,16 @@ test('unsupported browser time zones disable local inputs while route editing an
   if (isMobile) await page.getByRole('button', { name: 'Show journey details' }).first().click();
   await expect(page.getByRole('button', { name: /Change airport/ }).first()).toBeVisible();
 });
+
+for (const [season, time] of [
+  ['december-solstice', '2026-12-21T15:00:00Z'],
+  ['march-equinox', '2026-03-20T15:00:00Z'],
+] as const) {
+  test(`sunlight globe review at ${season}`, async ({ page }, testInfo) => {
+    await page.goto(`./?route=CPH-LHR-JFK&t=${time}`);
+    await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+    await expect(timeline(page).getByRole('slider')).toHaveValue(String(Date.parse(time)));
+    await expect(page.locator('.globe-marker__label')).toHaveText(['CPH', 'LHR', 'JFK']);
+    await page.screenshot({ path: testInfo.outputPath(`sunlight-${season}.png`), animations: 'disabled' });
+  });
+}

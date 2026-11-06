@@ -38,6 +38,7 @@ import { useClockPhase } from './hooks/useClock.ts';
 import { parseLink, serializeLink, type LinkState, type LinkView, type SerializableLinkStop } from './state/link.ts';
 import airportsUrl from './data/generated/airports.json?url';
 import { airportCode, displayCode, loadAirports, type AirportDataset } from './data/airports.ts';
+import { localizedCity } from './data/placeNames.ts';
 import { buildSearchIndex, type SearchIndex } from './data/search.ts';
 import type { GlobeRoute, Insets } from './globe/GlobeRenderer.ts';
 import { useMediaQuery } from './hooks/useMediaQuery.ts';
@@ -50,6 +51,8 @@ import { legColor } from './lib/legColors.ts';
 
 import { computeLayovers, computeLegs, createRouteState, routeReducer, hasEnteredTimes } from './state/route.ts';
 import {
+  loadFollowAircraft,
+  saveFollowAircraft,
   loadBorders,
   loadCountryNames,
   loadLastRoute,
@@ -84,7 +87,7 @@ function defaultUnit(): DistanceUnit {
 }
 
 export default function App() {
-  const { t, fmt, locale } = useI18n();
+  const { t, fmt, locale, cityNames } = useI18n();
 
   // Side panel on wide screens and landscape tablets; bottom sheet on phones and portrait tablets.
   const isDesktop = useMediaQuery('(min-width: 1000px), (min-width: 760px) and (orientation: landscape)');
@@ -109,6 +112,8 @@ export default function App() {
   const [zonesLoaded, setZonesLoaded] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
   const [assumedStart, setAssumedStart] = useState<number | null>(null);
+  const [followAircraft, setFollowAircraft] = useState(() => loadFollowAircraft() ?? false);
+  useEffect(() => saveFollowAircraft(followAircraft), [followAircraft]);
   const [dayNight, setDayNight] = useState(() => loadDayNight() ?? true);
   const [clockZone, setClockZone] = useState<string>(() => loadClockZone() ?? 'local');
   const [linkUnits, setLinkUnits] = useState<DistanceUnit | null>(null);
@@ -122,7 +127,17 @@ export default function App() {
     reducedMotionRef.current = reducedMotion;
   }, [reducedMotion]);
   const [dataset, setDataset] = useState<AirportDataset | null>(null);
-  const [index, setIndex] = useState<SearchIndex | null>(null);
+  const [baseIndex, setBaseIndex] = useState<SearchIndex | null>(null);
+  // Only dataset, locale or exonym changes rebuild search; route edits and playback reuse it.
+  const index = useMemo(() => {
+    if (!baseIndex || !cityNames || locale === 'en') return baseIndex;
+    return buildSearchIndex(
+      baseIndex.entries.map((entry) => entry.airport),
+      {
+        extraNames: (airport) => [localizedCity(airport, locale, cityNames)],
+      },
+    );
+  }, [baseIndex, cityNames, locale]);
   const [dataError, setDataError] = useState(false);
   const [route, dispatch] = useReducer(routeReducer, undefined, () => createRouteState());
   const [unit, setUnit] = useState<DistanceUnit>(() => loadUnit() ?? defaultUnit());
@@ -150,6 +165,10 @@ export default function App() {
   const aboutRef = useRef<AboutDialogHandle>(null);
   const analytics = useAnalyticsConsent();
   const indexRef = useRef<SearchIndex | null>(null);
+
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
 
   const lookup = useCallback((id: number) => dataset?.byId.get(id), [dataset]);
 
@@ -205,6 +224,7 @@ export default function App() {
       if (notices.length) showToast(notices.join(' '));
       const params = new URLSearchParams(search.toLowerCase());
       const itinerary = params.has('itinerary');
+      setFollowAircraft(params.has('follow') || itinerary ? link.view.follow : (loadFollowAircraft() ?? false));
       setDayNight(params.has('daynight') || itinerary ? link.view.dayNight : (loadDayNight() ?? true));
       setClockZone(params.has('clock') || itinerary ? link.view.clock : (loadClockZone() ?? 'local'));
       setUnit(link.view.units ?? loadUnit() ?? defaultUnit());
@@ -271,7 +291,7 @@ export default function App() {
         const idx = buildSearchIndex(data.airports);
         indexRef.current = idx;
         setDataset(data);
-        setIndex(idx);
+        setBaseIndex(idx);
         initializeRoute(idx);
       })
       .catch((err) => {
@@ -401,8 +421,9 @@ export default function App() {
         clock: clockZone,
         units: linkUnits,
         dayNight,
+        follow: followAircraft,
       }),
-    [filledStops, timeOpen, playing, pausedTime, speed, clockZone, linkUnits, dayNight],
+    [filledStops, timeOpen, playing, pausedTime, speed, clockZone, linkUnits, dayNight, followAircraft],
   );
   const shareUrl = window.location.origin + localizedPath(import.meta.env.BASE_URL, null) + query;
   const addressUrl = window.location.origin + window.location.pathname + query;
@@ -410,11 +431,11 @@ export default function App() {
     shareUrlRef.current = addressUrl;
     if (!initialized) return;
     if (addressUrl !== window.location.href) replaceUrl(addressUrl);
-    saveLastJourney(serializeLink(filledStops, { speed, clock: clockZone, dayNight }));
+    saveLastJourney(serializeLink(filledStops, { speed, clock: clockZone, dayNight, follow: followAircraft }));
     document.title = filledStops.length
       ? t('panel.routeTitle', filledStops.map((s) => airportCode(s.airport)).join(' → '))
       : t('common.documentTitle');
-  }, [addressUrl, filledStops, initialized, speed, clockZone, dayNight, locale, t]);
+  }, [addressUrl, filledStops, initialized, speed, clockZone, dayNight, followAircraft, locale, t]);
 
   // ---- Globe data ----
   const globeRoute = useMemo<GlobeRoute>(() => {
@@ -633,6 +654,7 @@ export default function App() {
         clock: clockZone,
         units: linkUnits,
         dayNight,
+        follow: followAircraft,
       };
     } else if (timeline) {
       if (!clock.getSnapshot().playing && clock.getSnapshot().time >= timeline.end) clock.seek(timeline.start);
@@ -641,7 +663,7 @@ export default function App() {
       clock.toggle();
     }
     if (!isDesktop && !playing && (!timeOpen || timeline) && !collapsed) {
-      refitAfterLayout.current = true;
+      refitAfterLayout.current = !followAircraft;
       setCollapsed(true);
     }
   };
@@ -725,6 +747,8 @@ export default function App() {
       timeline={timeline}
       clockZone={clockZone}
       docked={docked}
+      followAircraft={followAircraft}
+      onFollowAircraft={globeFailed ? undefined : setFollowAircraft}
       onClockZone={(value) => {
         setClockZone(value);
         if (value === 'local' || value === 'utc') saveClockZone(value);
@@ -753,11 +777,14 @@ export default function App() {
             <Suspense fallback={null}>
               <GlobeView
                 sim={sim}
+                followAircraft={followAircraft}
+                onFollowAircraftChange={setFollowAircraft}
                 route={globeRoute}
                 selectedLeg={route.selectedLeg}
                 insets={insets}
                 showBorders={showBorders}
                 showCountryNames={showCountryNames}
+                locale={locale}
                 reducedMotion={reducedMotion}
                 fitNonce={fitNonce}
                 onLegClick={(leg) => selectLeg(route.selectedLeg === leg ? null : leg)}

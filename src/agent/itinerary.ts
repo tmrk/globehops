@@ -15,6 +15,7 @@ export interface ItineraryDocument {
     clock?: string;
     units?: 'km' | 'mi';
     dayNight?: boolean;
+    follow?: boolean;
   };
 }
 export interface DocIssue {
@@ -83,10 +84,10 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
     if (!object(raw.view)) issue('/view', 'type', 'View must be an object.');
     else {
       const view = raw.view;
-      properties(view, ['time', 'play', 'speed', 'clock', 'units', 'dayNight'], '/view');
+      properties(view, ['time', 'play', 'speed', 'clock', 'units', 'dayNight', 'follow'], '/view');
       if (view.time !== undefined && (typeof view.time !== 'string' || !new RegExp(INSTANT_PATTERN).test(view.time)))
         issue('/view/time', 'pattern', 'Use an ISO instant with Z or an explicit UTC offset.');
-      for (const key of ['play', 'dayNight'])
+      for (const key of ['play', 'dayNight', 'follow'])
         if (view[key] !== undefined && typeof view[key] !== 'boolean')
           issue(`/view/${key}`, 'type', `${key} must be a boolean.`);
       if (view.speed !== undefined && !PLAYBACK_SPEEDS.some((s) => s.value === view.speed))
@@ -170,6 +171,7 @@ export function documentToLinkState(doc: ItineraryDocument): LinkState {
     clock: /^(local|utc)$/i.test(clock) ? clock.toLowerCase() : clock.toUpperCase(),
     units: source?.units ?? null,
     dayNight: source?.dayNight ?? true,
+    follow: source?.follow ?? false,
   };
   return { stops, view, issues };
 }
@@ -189,6 +191,7 @@ export function linkStateToDocument(s: LinkState): ItineraryDocument {
       clock: s.view.clock,
       ...(s.view.units !== null ? { units: s.view.units } : {}),
       dayNight: s.view.dayNight,
+      ...(s.view.follow ? { follow: true } : {}),
     },
   };
 }

@@ -84,7 +84,7 @@ function Rail({
 }
 
 export function StopList(props: StopListProps) {
-  const { t, fmt } = useI18n();
+  const { t, fmt, locale } = useI18n();
 
   const { stops, legs, lookup, unit, selectedLeg, editing, arranging } = props;
   const listRef = useRef<HTMLOListElement>(null);
@@ -197,10 +197,15 @@ export function StopList(props: StopListProps) {
                       type="button"
                       className="stop__main"
                       onClick={() => props.onEdit(i)}
-                      title={airport?.name}
+                      title={airport ? (locale === 'en' ? airport.name : `${name} · ${airport.name}`) : undefined}
                       aria-label={
                         airport
-                          ? t('stops.airportButton', caption, airport.name, airportCode(airport))
+                          ? t(
+                              'stops.airportButton',
+                              caption,
+                              locale === 'en' ? airport.name : name,
+                              airportCode(airport),
+                            )
                           : t('stops.emptyAirport', fmt.stopLabel(i, count))
                       }
                     >
