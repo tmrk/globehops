@@ -1,7 +1,8 @@
 import { I18nProvider } from './i18n/I18nProvider.tsx';
 import { loadMessages } from './i18n/catalogue.ts';
-import { loadLocaleChoice, localizedPath, resolveLocale } from './i18n/detect.ts';
+import { loadLocaleChoice, resolveLocale } from './i18n/detect.ts';
 import { replaceUrl } from './analytics.ts';
+import { visitLocaleAddress } from './state/visitLocale.ts';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 // Barlow sets the interface; Martian Mono (weight and width axes) sets codes, times and figures.
@@ -34,13 +35,11 @@ async function start() {
   const messages = await loadMessages(resolved.locale);
   document.documentElement.lang = resolved.locale;
   document.title = messages['common.documentTitle'];
-  if (resolved.source === 'query') {
-    const address = new URL(location.href);
-    address.pathname = localizedPath(import.meta.env.BASE_URL, resolved.locale);
-    address.searchParams.delete('lang');
-    replaceUrl(address.href);
-  }
-  createRoot(document.getElementById('root')!).render(
+  if (resolved.source === 'query')
+    replaceUrl(visitLocaleAddress(window.location.href, import.meta.env.BASE_URL, resolved.locale));
+  const root = document.getElementById('root');
+  if (!root) throw new Error('Missing application root.');
+  createRoot(root).render(
     <StrictMode>
       <I18nProvider initialLocale={resolved.locale} initialMessages={messages}>
         <App />
