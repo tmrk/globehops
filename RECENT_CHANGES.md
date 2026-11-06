@@ -2,6 +2,15 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.10.0 — 2026-11-06 — Compare journeys, long-haul welcome and crisper corners
+
+- **Compare journeys.** Under your route, **Compare with another journey** adds up to four options (A–D), each with its own colour on the globe. New options start with the same airports; add a stop or change them. Tabs switch between options, and a summary shows each journey's total time on one shared time axis, which one is fastest and by how much the others take longer, and which arrives first. **Play all** flies every journey at the same time on one clock, using their real departures, arrivals and layovers: each has its own lettered aircraft, and the timeline shows a lane per journey ("Flying to London · 2h 10m left", "Layover in Frankfurt", "Landed in New York · 14:35"). Journeys without times start together at an example time. Comparisons are kept in share links (`b.route`, `b.dep1`, … for options B–D; single-journey links are unchanged).
+- **Agents can set up comparisons.** Entering many times by hand is tedious, so assistants can do it: itinerary documents accept `journeys` (with optional labels such as an airline), the local MCP server has a `compare_journeys` tool that returns one link playing all options plus totals, the fastest and the first arrival, and the in-browser WebMCP tools can apply a comparison to the open page.
+- **A welcome from your part of the world.** First visits now show three nonstop routes of at least twelve hours from your country's main airport to famous hubs in different regions (for Budapest: Sydney, Los Angeles and São Paulo). The country comes from your browser's time zone; nothing is looked up or sent anywhere.
+- **Crisper corners.** Rows, options and tabs are square, airport-code tiles and badges almost square, buttons, menus and panels only slightly rounded, like airport signage. Round shapes remain only for icon buttons, globe controls, dots and switches.
+
+Limitations: the welcome country is a time-zone proxy, not your physical location. Suggested routes are long-haul previews; a real nonstop service may not exist. Comparison links with many timed journeys can approach the URL length limit; agents can fall back to the itinerary-document link.
+
 ## 1.9.0 — 2026-11-06 — Brighter oceans, crisper twilight, language button, separate water names, motion choice, my location
 
 - **Brighter oceans by day.** The deep ocean in the NASA imagery was almost black, so it looked much the same by day as by night. The day texture now lifts the darkest water to a clear navy (most in the deep basins, least on the shelves, keeping every depth gradation in order); land, ice and lakes are unchanged. The texture files also got 7–9% smaller.

@@ -29,7 +29,10 @@ export function JourneyTabs({ list, active, onActivate, onAdd }: Props) {
         {list.map((entry, index) => {
           const airports = entry.journey.stops.map((stop) => airportCode(stop.airport));
           const label =
-            entry.label ?? (airports.length ? [airports[0], airports.at(-1)].join(' → ') : t('compare.chooseAirports'));
+            entry.label ??
+            (airports.length
+              ? (airports.length <= 3 ? airports : [airports[0], '…', airports.at(-1)]).join(' → ')
+              : t('compare.chooseAirports'));
           return (
             <button
               key={entry.id}
@@ -59,8 +62,7 @@ export function JourneyTabs({ list, active, onActivate, onAdd }: Props) {
                 document.getElementById(`journey-tab-${list[target].id}`)?.focus();
               }}
             >
-              <span className="journey-dot" />
-              <span className="journey-letter">{entry.id}</span>
+              <span className="journey-chip">{entry.id}</span>
               <span className="journey-tab__route">{label}</span>
             </button>
           );

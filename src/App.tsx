@@ -1466,25 +1466,34 @@ export default function App() {
                     onReverse={reverse}
                     onClear={clear}
                   />
-                  {!comparing && !isExample && legs.length > 0 && (
-                    <button type="button" className="compare-entry text-btn" onClick={addJourney}>
-                      <IconCompare size={17} />
-                      {t('compare.entry')}
-                    </button>
-                  )}
-                  {comparing && (
-                    <button
-                      type="button"
-                      className="compare-remove text-btn"
-                      onClick={() => {
-                        setEditing(null);
-                        compareDispatch({ type: 'remove', index: comparison.active });
-                        setCopiedDraft(null);
-                      }}
-                    >
-                      <IconTrash size={14} />
-                      {t('compare.remove', compared[comparison.active].id)}
-                    </button>
+                  {(comparing || (!isExample && legs.length > 0)) && (
+                    <div className="itinerary__actions">
+                      {comparing ? (
+                        <button
+                          type="button"
+                          className="row row--action compare-remove"
+                          onClick={() => {
+                            setEditing(null);
+                            compareDispatch({ type: 'remove', index: comparison.active });
+                            setCopiedDraft(null);
+                          }}
+                        >
+                          <span aria-hidden="true" />
+                          <span className="row__icon">
+                            <IconTrash size={16} />
+                          </span>
+                          <span>{t('compare.remove', compared[comparison.active].id)}</span>
+                        </button>
+                      ) : (
+                        <button type="button" className="row row--action compare-entry" onClick={addJourney}>
+                          <span aria-hidden="true" />
+                          <span className="row__icon">
+                            <IconCompare size={17} />
+                          </span>
+                          <span>{t('compare.entry')}</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </>
               )}
