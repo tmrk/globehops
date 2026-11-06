@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { Matrix3, PerspectiveCamera, SphereGeometry, Vector3 } from 'three';
 import { toVec3 } from '../lib/geo.ts';
-import { ecefToScene, latLngToVector3, sceneToEcef, slerpUnit, sunDirectionScene } from './math3d.ts';
+import {
+  ecefToScene,
+  latLngToVector3,
+  sceneToEcef,
+  slerpUnit,
+  sunDirectionScene,
+  projectToScreen,
+  surfaceFacing,
+} from './math3d.ts';
 
 const expectVector = (actual: Vector3, expected: Vector3) => {
   expect(actual.distanceTo(expected)).toBeLessThan(1e-12);
@@ -125,10 +133,45 @@ describe('slerpUnit', () => {
     },
   );
 
+  it('supports targets that alias either endpoint', () => {
+    for (const b of [latLngToVector3(-34, 151), latLngToVector3(55, 12).negate()]) {
+      const a = latLngToVector3(55, 12);
+      const expected = slerpUnit(a, b, 0.4);
+      const aliasedA = a.clone();
+      expectVector(slerpUnit(aliasedA, b, 0.4, aliasedA), expected);
+      const aliasedB = b.clone();
+      expectVector(slerpUnit(a, aliasedB, 0.4, aliasedB), expected);
+    }
+  });
+
   it('handles identical endpoints and writes into a supplied target', () => {
     const a = latLngToVector3(10, 20);
     const target = new Vector3();
     expect(slerpUnit(a, a, 0.5, target)).toBe(target);
     expectVector(target, a);
+  });
+});
+
+describe('screen-space geometry', () => {
+  it('writes pixel coordinates into the supplied buffer and rejects points past the far plane', () => {
+    const camera = new PerspectiveCamera(30, 1.6, 0.1, 100);
+    camera.position.set(5, 0, 0);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    const target = new Vector3();
+    expect(projectToScreen(new Vector3(1, 0, 0), camera, 1440, 900, target)).toBe(true);
+    expect(target.x).toBeCloseTo(720, 10);
+    expect(target.y).toBeCloseTo(450, 10);
+    expect(projectToScreen(new Vector3(-200, 0, 0), camera, 1440, 900, target)).toBe(false);
+  });
+
+  it('agrees with normalized sightlines for surface and lifted points', () => {
+    const camera = new Vector3(4, 2, 1);
+    for (const point of [latLngToVector3(40, 25), latLngToVector3(-20, 170, 1.1), new Vector3(0, 1, 0)]) {
+      const expected = point.clone().normalize().dot(camera.clone().sub(point).normalize());
+      expect(surfaceFacing(point, camera)).toBeCloseTo(expected, 14);
+    }
+    expect(surfaceFacing(new Vector3(), camera)).toBe(0);
+    expect(surfaceFacing(camera, camera)).toBe(0);
   });
 });

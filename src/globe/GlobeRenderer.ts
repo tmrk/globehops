@@ -19,13 +19,11 @@ import {
   AmbientLight,
   BackSide,
   Color,
-  type ColorSpace,
   DirectionalLight,
   Group,
   InterleavedBufferAttribute,
   Mesh,
   MeshLambertMaterial,
-  NoColorSpace,
   NotEqualStencilFunc,
   PerspectiveCamera,
   ReplaceStencilOp,
@@ -33,7 +31,6 @@ import {
   ShaderMaterial,
   SphereGeometry,
   SRGBColorSpace,
-  Texture,
   Vector3,
   WebGLRenderer,
 } from 'three';
@@ -52,19 +49,26 @@ import {
   profileFractions,
 } from '../lib/altitude.ts';
 import { countSegments, decodeBorders, densifyLine } from '../lib/borders.ts';
-import { enclosingCap, greatCircleDistanceKm, greatCirclePath, slerpVec, toVec3 } from '../lib/geo.ts';
+import { EARTH_RADIUS_KM, enclosingCap, greatCircleDistanceKm, greatCirclePath, slerpVec, toVec3 } from '../lib/geo.ts';
 import { SOLAR_SHADING_GLSL } from '../lib/sun.ts';
 import type { LatLng } from '../types.ts';
 import {
   clamp01,
+  LABEL_RADIUS,
+  LABEL_FADE_START,
   easeInOutCubic,
   ecefToScene,
   latLngToVector3,
   sceneToEcef,
   slerpUnit,
   sunDirectionScene,
+  projectToScreen,
+  surfaceFacing,
 } from './math3d.ts';
 import { CountryLabelLayer } from './countryLabels.ts';
+import { GlobeTextures } from './textures.ts';
+import { AirportLabelLayer } from './airportLabels.ts';
+import { setClass, setStyle } from './dom.ts';
 import { FOLLOW_APPROACH_MS, followBlend, followDistance, followLead } from './followCamera.ts';
 import type { AircraftView, FleetAircraft } from './simFeed.ts';
 import { routeGeometrySignature } from './routeGeometry.ts';
@@ -130,9 +134,14 @@ export interface GlobeRendererOptions {
 }
 
 const GLOBE_SEGMENTS = 128;
+const INSET_KEYS = ['top', 'right', 'bottom', 'left'] as const;
+const ILLUMINATION_FADE_MS = 360;
+const CAMERA_REPORT_INTERVAL_MS = 100;
+const LEG_HIT_TOLERANCE_PX = 18;
 /** Smaller-dimension field of view (degrees). Narrow FOV keeps the globe photographic. */
 const BASE_FOV = 30;
 const MIN_DISTANCE = 1.32;
+const CAMERA_POLE_CLEARANCE = 0.05;
 /** Arcs start just above the surface so their ends never sink into the tessellated sphere. */
 const ROUTE_LIFT = 0.0018;
 /** Highest point of any arc: cruising altitude (exaggerated) above the base lift. */
@@ -143,17 +152,15 @@ const BORDER_STEP_DEG = 0.5;
 /** Land borders read clearly; coastlines only outline the land so it stays legible at night. */
 const BORDER_OPACITY = 0.42;
 const COAST_OPACITY = 0.2;
-/** Brightness of the city lights on the night side once their texture has faded in. */
-const CITY_LIGHTS = 1.4;
-const CITY_LIGHTS_FADE_MS = 700;
 const ATMOSPHERE_RADIUS = 1.055;
-const LABEL_LIFT = 1.002;
 
 const ATMOSPHERE_COLOR = new Color('#7fb4ff');
 
 interface LegObject {
   key: string;
   muted: boolean;
+  angle: number;
+  profile: ReturnType<typeof altitudeProfile>;
   /** Fractions of the leg distance (0 … 1) at which ground/arc are sampled; denser in climb and descent. */
   fractions: number[];
   ground: Vector3[]; // unit vectors along the great circle
@@ -171,16 +178,6 @@ interface LegObject {
   segments: number;
   /** 0..1 reveal progress */
   progress: number;
-}
-
-interface MarkerObject {
-  key: string;
-  position: Vector3;
-  el: HTMLDivElement;
-  label: HTMLSpanElement;
-  labelWidth: number;
-  role: MarkerRole;
-  code: string;
 }
 
 interface CameraTween {
@@ -224,11 +221,12 @@ export class GlobeRenderer {
   private routeGeometry = '';
   private userLocationDot: HTMLDivElement;
   private userLocation: Vector3 | null = null;
-  private legs: LegObject[] = [];
-  private markers: MarkerObject[] = [];
+  private legs: (LegObject | undefined)[] = [];
+  private airportLabels: AirportLabelLayer;
   private borderLayers: { line: LineSegments2; material: LineMaterial }[] = [];
   private bordersState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
-  private textures: Texture[] = [];
+  private borderAbort = new AbortController();
+  private textures: GlobeTextures;
   private width = 1;
   private height = 1;
   private insets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -253,9 +251,6 @@ export class GlobeRenderer {
   private sunView = { value: new Vector3(1, 0, 0) };
   private dayNight = { value: 0 };
   private cityLights = { value: 0 };
-  private lightsFadeStart: number | null = null;
-  private lightsState: 'idle' | 'loading' | 'done' = 'idle';
-  private dayTextureSettled = false;
   private illuminationTween: { from: number; to: number; start: number } | null = null;
   private disposed = false;
   private resizeObserver: ResizeObserver;
@@ -263,6 +258,14 @@ export class GlobeRenderer {
   private lastFits: boolean | null = null;
   private tmp = new Vector3();
   private tmp2 = new Vector3();
+  private projected = new Vector3();
+  private projectedStart = new Vector3();
+  private projectedEnd = new Vector3();
+  private followTarget = new Vector3();
+  private followCurrent = new Vector3();
+  private followSample = new Vector3();
+  private followPrediction = { fraction: 0, response: 0 };
+  private contextLost = false;
 
   constructor(
     private container: HTMLElement,
@@ -291,10 +294,11 @@ export class GlobeRenderer {
     this.userLocationDot = document.createElement('div');
     this.userLocationDot.className = 'globe-user-location';
     this.userLocationDot.setAttribute('aria-hidden', 'true');
-    this.userLocationDot.style.display = 'none';
+    setStyle(this.userLocationDot, 'display', 'none');
     this.labelLayer.append(this.userLocationDot);
 
     this.plane = this.createPlane();
+    this.airportLabels = new AirportLabelLayer(this.labelLayer, this.plane, this.requestRender);
 
     // Lighting: a soft key light that travels with the camera keeps the visible hemisphere
     // daylit with a gentle falloff toward the lower-right limb.
@@ -399,8 +403,8 @@ export class GlobeRenderer {
     this.controls.zoomSpeed = 0.7;
     this.controls.rotateSpeed = 0.6;
     this.controls.minDistance = MIN_DISTANCE;
-    this.controls.minPolarAngle = 0.05;
-    this.controls.maxPolarAngle = Math.PI - 0.05;
+    this.controls.minPolarAngle = CAMERA_POLE_CLEARANCE;
+    this.controls.maxPolarAngle = Math.PI - CAMERA_POLE_CLEARANCE;
     this.controls.addEventListener('start', this.onControlsStart);
     this.controls.addEventListener('change', this.requestRender);
 
@@ -416,7 +420,17 @@ export class GlobeRenderer {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
-    this.loadTextures();
+    this.textures = new GlobeTextures({
+      material: this.earthMaterial,
+      capabilities: this.renderer.capabilities,
+      urls: options.textures,
+      cityLights: this.cityLights,
+      reducedMotion: () => this.options.reducedMotion,
+      illuminated: () => this.subsolar !== null,
+      requestRender: this.requestRender,
+      onReady: options.onTextureReady,
+    });
+    void this.textures.load();
     if (options.showBorders) this.ensureBorders();
   }
 
@@ -431,7 +445,7 @@ export class GlobeRenderer {
       sunDirectionScene(subsolar, this.sunScene);
       if (this.keyLight.parent !== this.scene) this.scene.add(this.keyLight);
       this.keyLight.position.copy(this.sunScene).multiplyScalar(5);
-      this.ensureCityLights();
+      this.textures.ensureCityLights();
     }
     if (toggled) {
       const to = subsolar ? 1 : 0;
@@ -464,14 +478,14 @@ export class GlobeRenderer {
       this.followApproachPending = this.followAircraft;
       this.followPagePending = this.followAircraft;
     }
-    this.plane.classList.toggle('is-ground', view?.kind === 'ground');
+    setClass(this.plane, 'is-ground', view?.kind === 'ground');
     // The next frame (or flush()) places a simulated aircraft; hiding it here would make it blink.
     if (view) this.planeAnim = null;
     else {
-      this.plane.style.opacity = '0';
+      setStyle(this.plane, 'opacity', '0');
       this.startSelectionPlane();
     }
-    for (const leg of this.legs) if (leg) this.applyProgress(leg);
+    this.applyAllProgress();
     this.requestRender();
   }
 
@@ -479,7 +493,7 @@ export class GlobeRenderer {
     if (index === this.highlightLeg) return;
     this.highlightLeg = index;
     this.applySelectionStyles();
-    for (const leg of this.legs) if (leg) this.applyProgress(leg);
+    this.applyAllProgress();
     if (this.follow && !this.followAircraft && index !== null && this.legs[index] && this.lastFits === false) {
       // Preserve the whole-route fit result while following individual legs.
       this.frameView(true, index, false);
@@ -495,25 +509,25 @@ export class GlobeRenderer {
       (fleet?.some((entry, i) => entry.highlightLeg !== previous?.[i]?.highlightLeg) ?? false);
     this.fleet = fleet;
     const size = fleet?.length ?? 0;
-    while (this.fleetPlanes.length > size) this.fleetPlanes.pop()!.remove();
+    while (this.fleetPlanes.length > size) this.fleetPlanes.pop()?.remove();
     while (this.fleetPlanes.length < size) this.fleetPlanes.push(this.createPlane(true));
-    for (let i = 0; i < size; i++) {
-      const entry = fleet![i];
+    for (let i = 0; fleet && i < fleet.length; i++) {
+      const entry = fleet[i];
       const plane = this.fleetPlanes[i];
       if (plane.style.getPropertyValue('--plane-color') !== entry.color)
         plane.style.setProperty('--plane-color', entry.color);
-      const badge = plane.lastElementChild!;
-      if (badge.textContent !== entry.tag) badge.textContent = entry.tag;
-      plane.classList.toggle('is-ground', entry.view.kind === 'ground');
+      const badge = plane.lastElementChild;
+      if (badge && badge.textContent !== entry.tag) badge.textContent = entry.tag;
+      setClass(plane, 'is-ground', entry.view.kind === 'ground');
     }
     if (size > 0) {
-      this.plane.style.opacity = '0';
+      setStyle(this.plane, 'opacity', '0');
       this.planeAnim = null;
     } else if (previous === null || previous.length > 0) {
       this.startSelectionPlane();
     }
     if (highlightsChanged) this.applySelectionStyles();
-    for (const leg of this.legs) if (leg) this.applyProgress(leg);
+    this.applyAllProgress();
     this.requestRender();
   }
 
@@ -568,24 +582,16 @@ export class GlobeRenderer {
         obj.material.color.set(leg.color);
         obj.remainingMaterial.color.set(leg.color);
       });
-      route.markers.forEach((marker, i) => {
-        const obj = this.markers[i];
-        obj.el.classList.remove(`globe-marker--${obj.role}`);
-        obj.el.classList.add(`globe-marker--${marker.role}`);
-        obj.role = marker.role;
-        obj.code = marker.code;
-        obj.label.textContent = marker.code;
-        obj.labelWidth = 0;
-      });
+      this.airportLabels.updateMarkers(route.markers);
       this.applySelectionStyles();
       this.requestRender();
       return;
     }
     this.routeGeometry = geometry;
-    const previousKeys = new Set(this.legs.map((l) => l.key));
+    const previousKeys = new Set<string>();
+    for (const leg of this.legs) if (leg) previousKeys.add(leg.key);
     this.clearLegs();
-    this.clearMarkers();
-    for (const plane of this.fleetPlanes) plane.style.opacity = '0';
+    for (const plane of this.fleetPlanes) setStyle(plane, 'opacity', '0');
 
     const toReveal: number[] = [];
     route.legs.forEach((leg, i) => {
@@ -601,9 +607,9 @@ export class GlobeRenderer {
       }
       this.applyProgress(obj);
     });
-    for (const m of route.markers) this.markers.push(this.buildMarker(m));
+    this.airportLabels.setMarkers(route.markers);
 
-    this.plane.style.opacity = '0';
+    setStyle(this.plane, 'opacity', '0');
     this.reveal = toReveal.length
       ? { queue: toReveal, current: 0, start: performance.now(), perLeg: Math.max(650, 1500 / toReveal.length) }
       : null;
@@ -634,8 +640,8 @@ export class GlobeRenderer {
   private frameView(animate: boolean, index: number | null, reportFit = true) {
     const points: Vector3[] = [];
     const legs = index !== null ? [this.legs[index]] : this.legs;
-    for (const leg of legs) if (leg) points.push(...leg.frame);
-    if (!points.length) for (const m of this.markers) points.push(m.position.clone().normalize());
+    for (const leg of legs) if (leg) for (const point of leg.frame) points.push(point);
+    if (!points.length) for (const m of this.airportLabels.markers) points.push(m.position);
     if (!points.length) {
       if (reportFit) this.notifyFit(true);
       return;
@@ -706,7 +712,7 @@ export class GlobeRenderer {
   }
 
   setUserLocation(position: LatLng | null) {
-    this.userLocation = position ? latLngToVector3(position.lat, position.lng, LABEL_LIFT) : null;
+    this.userLocation = position ? latLngToVector3(position.lat, position.lng, LABEL_RADIUS) : null;
     this.requestRender();
   }
 
@@ -725,9 +731,11 @@ export class GlobeRenderer {
   }
 
   dispose() {
+    if (this.disposed) return;
     this.disposed = true;
     cancelAnimationFrame(this.frame);
     this.resizeObserver.disconnect();
+    this.borderAbort.abort();
     this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.removeEventListener('change', this.requestRender);
     this.controls.dispose();
@@ -737,10 +745,11 @@ export class GlobeRenderer {
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.clearLegs();
-    this.clearMarkers();
     for (const plane of this.fleetPlanes) plane.remove();
     this.fleetPlanes = [];
     this.fleet = null;
+    this.plane.remove();
+    this.airportLabels.dispose();
     this.countryLabels.dispose();
     this.userLocationDot.remove();
     for (const layer of this.borderLayers) {
@@ -750,10 +759,13 @@ export class GlobeRenderer {
     }
     this.borderLayers = [];
     this.earth.geometry.dispose();
+    this.earthMaterial.onBeforeCompile = () => {};
     this.earthMaterial.dispose();
     this.atmosphere.geometry.dispose();
     (this.atmosphere.material as ShaderMaterial).dispose();
-    for (const t of this.textures) t.dispose();
+    this.textures.dispose();
+    this.keyLight.removeFromParent();
+    this.scene.clear();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
     this.canvas.remove();
@@ -764,7 +776,7 @@ export class GlobeRenderer {
   // Rendering loop
 
   requestRender = () => {
-    if (this.disposed || this.frame) return;
+    if (this.disposed || this.contextLost || this.frame) return;
     this.frame = requestAnimationFrame(this.renderFrame);
   };
 
@@ -781,7 +793,7 @@ export class GlobeRenderer {
 
   private renderFrame = (now: number) => {
     this.frame = 0;
-    if (this.disposed) return;
+    if (this.disposed || this.contextLost) return;
     let active = false;
 
     active = this.stepInsets() || active;
@@ -790,7 +802,7 @@ export class GlobeRenderer {
     active = this.stepReveal(now) || active;
     active = this.stepPlane(now) || active;
     active = this.stepIllumination(now) || active;
-    active = this.stepCityLights(now) || active;
+    active = this.textures.stepLights(now) || active;
     // OrbitControls.update() returns true while damping is still moving the camera.
     if (!this.cameraTween && !(this.followAircraft && this.aircraft))
       cameraMoving = this.controls.update() || cameraMoving;
@@ -798,10 +810,13 @@ export class GlobeRenderer {
     const motion = cameraMoving ? 'moving' : 'settled';
     if (this.container.dataset.cameraMotion !== motion) this.container.dataset.cameraMotion = motion;
     this.updateRotateSpeed();
-    this.maybeLoadLargeTexture();
+    this.textures.maybeUpgrade(this.camera.position.length());
 
     const distance = this.camera.position.length().toFixed(2);
-    if (distance !== this.reportedCameraDistance && (!cameraMoving || now - this.reportedCameraAt >= 100)) {
+    if (
+      distance !== this.reportedCameraDistance &&
+      (!cameraMoving || now - this.reportedCameraAt >= CAMERA_REPORT_INTERVAL_MS)
+    ) {
       this.container.dataset.cameraDistance = distance;
       this.reportedCameraDistance = distance;
       this.reportedCameraAt = now;
@@ -810,11 +825,13 @@ export class GlobeRenderer {
     // Recompute even for paused sunlight: orbit/damping changes the normals' view space every frame.
     this.sunView.value.copy(this.sunScene).transformDirection(this.camera.matrixWorldInverse);
     this.renderer.render(this.scene, this.camera);
+    this.airportLabels.measure();
+    this.countryLabels.measure(this.camera, this.height);
     this.updateUserLocation();
-    const reserved = this.updateLabels();
-    this.countryLabels.update({ camera: this.camera, width: this.width, height: this.height, reserved });
+    const reserved = this.airportLabels.update(this.camera, this.width, this.height);
+    this.countryLabels.update(this.camera, this.width, this.height, reserved);
     if (this.fleet?.length) {
-      this.plane.style.opacity = '0';
+      setStyle(this.plane, 'opacity', '0');
       for (let i = 0; i < this.fleet.length; i++) this.placeAircraft(this.fleetPlanes[i], this.fleet[i].view);
     } else if (this.fleet === null && this.aircraft) {
       const view = this.aircraft;
@@ -824,124 +841,10 @@ export class GlobeRenderer {
   };
 
   // ---------------------------------------------------------------------------------------------
-  // Textures
-
-  /**
-   * Progressive texture loading: a 1K placeholder appears almost instantly, then the 4K texture
-   * (or the placeholder alone on GPUs limited below 4096 px). The 8K texture (~2 MB download,
-   * ~170 MB of GPU memory with mipmaps) is fetched only when the user zooms in close on a
-   * capable non-touch device, where the extra detail is actually visible.
-   */
-  private async loadTextures() {
-    const preview = await this.loadTexture(this.options.textures.preview).catch(() => null);
-    if (this.disposed) return;
-    if (preview) {
-      this.applyTexture(preview);
-      this.options.onTextureReady?.('preview');
-    }
-    // A close-up first view may already have started the 8K texture; don't download both.
-    if (this.renderer.capabilities.maxTextureSize >= 4096 && this.largeTextureState !== 'loading') {
-      await this.loadMediumTexture(preview);
-    }
-    this.dayTextureSettled = true;
-    this.ensureCityLights();
-  }
-
-  /** Night lights matter only with day/night shading, so they load after the day texture, once needed. */
-  private ensureCityLights() {
-    if (this.lightsState !== 'idle' || this.disposed || !this.subsolar || !this.dayTextureSettled) return;
-    this.lightsState = 'loading';
-    const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-    const url =
-      this.renderer.capabilities.maxTextureSize >= 4096 && !coarse
-        ? this.options.textures.lightsLarge
-        : this.options.textures.lightsSmall;
-    this.loadTexture(url, NoColorSpace)
-      .then((lights) => {
-        if (this.disposed) return lights.dispose();
-        this.earthMaterial.emissiveMap = lights;
-        this.earthMaterial.needsUpdate = true;
-        this.cityLights.value = 0;
-        // Fade in from the next frame so the shader recompilation doesn't eat the transition.
-        if (this.options.reducedMotion) this.cityLights.value = CITY_LIGHTS;
-        else this.lightsFadeStart = performance.now() + 50;
-        this.requestRender();
-      })
-      // Decorative: without the mask the night side is simply dark.
-      .catch((error: unknown) => console.warn('City lights unavailable', error))
-      .finally(() => (this.lightsState = 'done'));
-  }
-
-  private async loadMediumTexture(previous: Texture | null) {
-    const full = await this.loadTexture(this.options.textures.medium).catch(() => null);
-    if (this.disposed || !full) return;
-    this.swapTexture(full, previous);
-    this.options.onTextureReady?.('full');
-  }
-
-  private largeTextureState: 'idle' | 'loading' | 'done' = 'idle';
-
-  private canUseLargeTexture(): boolean {
-    const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
-    return this.renderer.capabilities.maxTextureSize >= 8192 && !coarse && memory >= 4;
-  }
-
-  /** Called every rendered frame; cheap until the zoom threshold is crossed once. */
-  private maybeLoadLargeTexture() {
-    if (this.largeTextureState !== 'idle' || this.camera.position.length() > 2.2) return;
-    if (!this.canUseLargeTexture()) {
-      this.largeTextureState = 'done';
-      return;
-    }
-    this.largeTextureState = 'loading';
-    const current = this.earthMaterial.map;
-    this.loadTexture(this.options.textures.large)
-      .then((large) => {
-        if (this.disposed) return large.dispose();
-        this.swapTexture(large, current);
-        this.options.onTextureReady?.('full');
-      })
-      // Fall back to the 4K texture if the large one fails (e.g. out of memory or offline).
-      .catch(() => (this.earthMaterial.map === current ? this.loadMediumTexture(current ?? null) : undefined))
-      .finally(() => (this.largeTextureState = 'done'));
-  }
-
-  private swapTexture(next: Texture, previous: Texture | null) {
-    this.applyTexture(next);
-    if (!previous) return;
-    // Keep the previous texture alive until the new one has been uploaded on the next frame.
-    requestAnimationFrame(() => {
-      previous.dispose();
-      this.textures = this.textures.filter((t) => t !== previous);
-    });
-  }
-
-  private async loadTexture(url: string, colorSpace: ColorSpace = SRGBColorSpace): Promise<Texture> {
-    const img = new Image();
-    img.decoding = 'async';
-    img.src = url;
-    await img.decode();
-    const tex = new Texture(img);
-    tex.colorSpace = colorSpace;
-    tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
-    tex.needsUpdate = true;
-    this.textures.push(tex);
-    return tex;
-  }
-
-  private applyTexture(tex: Texture) {
-    this.earthMaterial.map = tex;
-    this.earthMaterial.color.set(0xffffff);
-    this.earthMaterial.needsUpdate = true;
-    this.requestRender();
-  }
-
-  // ---------------------------------------------------------------------------------------------
   // Country borders
 
   private async ensureBorders() {
-    if (this.bordersState !== 'idle') return;
+    if (this.disposed || this.bordersState !== 'idle') return;
     this.bordersState = 'loading';
     // Land borders and coastlines load in parallel; either one can fail without the other.
     const layers = [
@@ -950,7 +853,7 @@ export class GlobeRenderer {
     ];
     const results = await Promise.allSettled(
       layers.map(async (layer) => {
-        const response = await fetch(layer.url);
+        const response = await fetch(layer.url, { signal: this.borderAbort.signal });
         if (!response.ok) throw new Error(`HTTP ${response.status} loading ${layer.name.toLowerCase()}`);
         const lines = decodeBorders(await response.json());
         if (this.disposed) return;
@@ -963,7 +866,7 @@ export class GlobeRenderer {
     );
     // Borders are decorative: the globe and routes stay fully usable without them.
     results.forEach((result, i) => {
-      if (result.status === 'rejected') console.warn(`${layers[i].name} unavailable`, result.reason);
+      if (!this.disposed && result.status === 'rejected') console.warn(`${layers[i].name} unavailable`, result.reason);
     });
     this.bordersState = results.every((r) => r.status === 'rejected') ? 'failed' : 'ready';
   }
@@ -1025,6 +928,7 @@ export class GlobeRenderer {
       ecefToScene(p),
     );
     const n = ground.length - 1;
+    const followAngle = ground[0].angleTo(ground[n]);
     const arc = ground.map((g, i) =>
       g
         .clone()
@@ -1070,6 +974,8 @@ export class GlobeRenderer {
     this.routeGroup.add(casing, remaining, line);
     return {
       key: leg.key,
+      angle: followAngle,
+      profile: altitudeProfile(followAngle * EARTH_RADIUS_KM),
       muted: leg.muted ?? false,
       fractions,
       ground,
@@ -1085,6 +991,10 @@ export class GlobeRenderer {
       segments: n,
       progress: 1,
     };
+  }
+
+  private applyAllProgress() {
+    for (const leg of this.legs) if (leg) this.applyProgress(leg);
   }
 
   private applyProgress(leg: LegObject) {
@@ -1137,14 +1047,14 @@ export class GlobeRenderer {
     for (const index of highlighted) {
       const l = this.legs[index];
       if (!l) continue;
-      for (const m of this.markers) {
-        const p = m.position.clone().normalize();
+      for (const m of this.airportLabels.markers) {
+        const p = this.tmp.copy(m.position).normalize();
         if (p.angleTo(l.ground[0]) < 1e-5 || p.angleTo(l.ground[l.ground.length - 1]) < 1e-5) emph.add(m.key);
       }
     }
-    for (const m of this.markers) {
-      m.el.classList.toggle('is-dim', highlighted.size > 0 && !emph.has(m.key));
-      m.el.classList.toggle('is-emph', emph.has(m.key));
+    for (const m of this.airportLabels.markers) {
+      setClass(m.el, 'is-dim', highlighted.size > 0 && !emph.has(m.key));
+      setClass(m.el, 'is-emph', emph.has(m.key));
     }
   }
 
@@ -1163,33 +1073,6 @@ export class GlobeRenderer {
     this.stencilRef = 1;
   }
 
-  private buildMarker(m: GlobeMarker): MarkerObject {
-    const el = document.createElement('div');
-    el.className = `globe-marker globe-marker--${m.role}`;
-    const dot = document.createElement('span');
-    dot.className = 'globe-marker__dot';
-    const label = document.createElement('span');
-    label.className = 'globe-marker__label';
-    label.textContent = m.code;
-    el.append(dot, label);
-    el.style.opacity = '0';
-    this.labelLayer.insertBefore(el, this.plane);
-    return {
-      key: m.key,
-      position: latLngToVector3(m.lat, m.lng, LABEL_LIFT),
-      el,
-      label,
-      labelWidth: 0,
-      role: m.role,
-      code: m.code,
-    };
-  }
-
-  private clearMarkers() {
-    for (const m of this.markers) m.el.remove();
-    this.markers = [];
-  }
-
   // ---------------------------------------------------------------------------------------------
   // Animation steps
 
@@ -1201,20 +1084,12 @@ export class GlobeRenderer {
   private stepIllumination(now: number): boolean {
     const tween = this.illuminationTween;
     if (!tween) return false;
-    const t = clamp01((now - tween.start) / 360);
+    const t = clamp01((now - tween.start) / ILLUMINATION_FADE_MS);
     this.dayNight.value = tween.from + (tween.to - tween.from) * easeInOutCubic(t);
     if (t >= 1) {
       this.illuminationTween = null;
       if (!this.subsolar) this.restoreCameraLight();
     }
-    return t < 1;
-  }
-
-  private stepCityLights(now: number): boolean {
-    if (this.lightsFadeStart === null) return false;
-    const t = clamp01((now - this.lightsFadeStart) / CITY_LIGHTS_FADE_MS);
-    this.cityLights.value = CITY_LIGHTS * easeInOutCubic(t);
-    if (t >= 1) this.lightsFadeStart = null;
     return t < 1;
   }
 
@@ -1244,7 +1119,7 @@ export class GlobeRenderer {
       r.start = now;
       if (r.current >= r.queue.length) {
         this.reveal = null;
-        if (!this.hasSimulatedAircraft()) this.plane.style.opacity = '0';
+        if (!this.hasSimulatedAircraft()) setStyle(this.plane, 'opacity', '0');
         return true;
       }
     }
@@ -1263,7 +1138,7 @@ export class GlobeRenderer {
     if (t < 0) return true;
     if (t >= 1) {
       this.planeAnim = null;
-      this.plane.style.opacity = '0';
+      setStyle(this.plane, 'opacity', '0');
       return true;
     }
     this.placePlaneOnLeg(this.plane, leg, easeInOutCubic(t), true);
@@ -1281,7 +1156,7 @@ export class GlobeRenderer {
         true,
       );
     } else {
-      plane.style.opacity = '0';
+      setStyle(plane, 'opacity', '0');
     }
   }
 
@@ -1289,28 +1164,30 @@ export class GlobeRenderer {
     const pts = leg.arc;
     const { index: i, t } = locateFraction(leg.fractions, f);
     const pos = this.tmp.copy(pts[i]).lerp(pts[i + 1], t);
-    const a = this.project(pos);
+    const a = this.project(pos, this.projected) ? this.projected : null;
     // Heading from the current segment's direction on screen.
-    const s0 = this.project(pts[i]);
-    const s1 = this.project(this.tmp2.copy(pts[i + 1]));
+    const s0 = this.project(pts[i], this.projectedStart) ? this.projectedStart : null;
+    const s1 = this.project(pts[i + 1], this.projectedEnd) ? this.projectedEnd : null;
     const facing = this.facing(pos);
     // The lifted aircraft can still clear the horizon after its surface normal turns away.
     // Test the camera sightline against the unit sphere instead of fading it near the limb.
-    let hidden = facing < 0.02;
+    let hidden = facing < LABEL_FADE_START;
     if (simulated) {
       const toCamera = this.tmp2.copy(this.camera.position).sub(pos);
       const t = clamp01(-pos.dot(toCamera) / toCamera.lengthSq());
       hidden = toCamera.multiplyScalar(t).add(pos).lengthSq() < 1;
     }
     if (!a || !s0 || !s1 || hidden) {
-      plane.style.opacity = '0';
+      setStyle(plane, 'opacity', '0');
       return;
     }
     const angle = (Math.atan2(s1.y - s0.y, s1.x - s0.x) * 180) / Math.PI + 90;
     const fade = Math.min(1, f * 12, (1 - f) * 12);
-    plane.style.opacity = visible ? (simulated ? '1' : String(Math.min(fade, facing * 6))) : '0';
-    plane.style.transform = `translate3d(${a.x}px, ${a.y}px, 0) translate(-50%, -50%)`;
-    plane.style.setProperty('--plane-heading', `${angle}deg`);
+    setStyle(plane, 'opacity', visible ? (simulated ? '1' : String(Math.min(fade, facing * 6))) : '0');
+    setStyle(plane, 'transform', `translate3d(${a.x}px, ${a.y}px, 0) translate(-50%, -50%)`);
+    const heading = `${angle}deg`;
+    if (plane.style.getPropertyValue('--plane-heading') !== heading)
+      plane.style.setProperty('--plane-heading', heading);
   }
 
   /** Uses only origin-facing, north-up poses so OrbitControls can take over without a jump. */
@@ -1320,13 +1197,12 @@ export class GlobeRenderer {
     const leg = this.legs[view.leg];
     if (!leg) return false;
     const start = leg.ground[0];
-    const end = leg.ground[leg.ground.length - 1];
-    const angle = start.angleTo(end);
+    const angle = leg.angle;
     const fraction = view.kind === 'air' ? clamp01(view.fraction) : view.at === 'start' ? 0 : 1;
     const halfFov = this.availableHalfFov();
     const distance = Math.max(
       this.controls.minDistance,
-      Math.min(this.controls.maxDistance, followDistance(angle, fraction, view.kind === 'air', halfFov)),
+      Math.min(this.controls.maxDistance, followDistance(angle, fraction, view.kind === 'air', halfFov, leg.profile)),
     );
     const lead = followLead(
       angle,
@@ -1334,27 +1210,24 @@ export class GlobeRenderer {
       view.kind === 'air' && !this.options.reducedMotion ? (view.fractionPerSecond ?? 0) : 0,
       distance,
       halfFov,
+      this.followPrediction,
     );
     // Use the sampled track, including its deterministic choice of great circle at antipodes.
-    const sample = (f: number) => {
-      const { index, t } = locateFraction(leg.fractions, f);
-      return slerpUnit(leg.ground[index], leg.ground[index + 1], t);
-    };
-    const target = sample(view.kind === 'air' ? lead.fraction : fraction);
+    const target = this.sampleGround(leg, view.kind === 'air' ? lead.fraction : fraction, this.followTarget);
     // OrbitControls has a polar singularity: stay 0.05 radians away, keeping camera.up = +Y.
-    const maxY = Math.cos(0.05);
+    const maxY = Math.cos(CAMERA_POLE_CLEARANCE);
     if (Math.abs(target.y) > maxY) {
-      const horizontal = new Vector3(target.x, 0, target.z);
+      const horizontal = this.tmp.set(target.x, 0, target.z);
       if (horizontal.lengthSq() < 1e-12) horizontal.set(start.x, 0, start.z);
       if (horizontal.lengthSq() < 1e-12) horizontal.set(1, 0, 0);
-      horizontal.normalize().multiplyScalar(Math.sin(0.05));
+      horizontal.normalize().multiplyScalar(Math.sin(CAMERA_POLE_CLEARANCE));
       target.set(horizontal.x, Math.sign(target.y) * maxY, horizontal.z);
     }
     if (this.options.reducedMotion) {
       this.cameraTween = null;
-      const aircraft = sample(fraction);
+      const aircraft = this.sampleGround(leg, fraction, this.followSample);
       this.camera.updateMatrixWorld();
-      const projected = this.project(aircraft);
+      const projected = this.project(aircraft, this.projected) ? this.projected : null;
       const i = this.insets;
       const w = Math.max(80, this.width - i.left - i.right);
       const h = Math.max(80, this.height - i.top - i.bottom);
@@ -1382,7 +1255,7 @@ export class GlobeRenderer {
       this.cameraTween.toDist = distance;
       return true;
     }
-    const current = this.camera.position.clone().normalize();
+    const current = this.followCurrent.copy(this.camera.position).normalize();
     const angularError = current.angleTo(target);
     const distanceError = distance - this.camera.position.length();
     if (angularError < 0.00002 && Math.abs(distanceError) < 0.0001) {
@@ -1392,11 +1265,16 @@ export class GlobeRenderer {
       return false;
     }
     // Fast playback uses velocity prediction. Zoom responds more slowly than the ground track.
-    const direction = slerpUnit(current, target, followBlend(dt, lead.response));
+    const direction = slerpUnit(current, target, followBlend(dt, lead.response), this.tmp);
     const nextDistance = this.camera.position.length() + distanceError * followBlend(dt, 0.45);
     this.camera.position.copy(direction).multiplyScalar(nextDistance);
     this.camera.lookAt(0, 0, 0);
     return true;
+  }
+
+  private sampleGround(leg: LegObject, fraction: number, target: Vector3): Vector3 {
+    const { index, t } = locateFraction(leg.fractions, fraction);
+    return slerpUnit(leg.ground[index], leg.ground[index + 1], t, target);
   }
 
   private flyTo(dir: Vector3, distance: number, animate: boolean, durationOverride?: number) {
@@ -1460,10 +1338,9 @@ export class GlobeRenderer {
   private stepInsets(): boolean {
     const a = this.insets;
     const b = this.targetInsets;
-    const keys: (keyof Insets)[] = ['top', 'right', 'bottom', 'left'];
     let moving = false;
     let changed = false;
-    for (const k of keys) {
+    for (const k of INSET_KEYS) {
       const d = b[k] - a[k];
       if (d === 0) continue;
       changed = true;
@@ -1537,8 +1414,7 @@ export class GlobeRenderer {
     if (w === this.width && h === this.height) return;
     this.width = w;
     this.height = h;
-    const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 2 : 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(w, h, false);
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
@@ -1568,90 +1444,55 @@ export class GlobeRenderer {
   // ---------------------------------------------------------------------------------------------
   // Labels & picking
 
-  private project(p: Vector3): { x: number; y: number } | null {
-    const v = new Vector3().copy(p).project(this.camera);
-    if (v.z > 1) return null;
-    return { x: ((v.x + 1) / 2) * this.width, y: ((1 - v.y) / 2) * this.height };
+  private project(point: Vector3, target: Vector3): boolean {
+    return projectToScreen(point, this.camera, this.width, this.height, target);
   }
 
-  /** Cosine of the angle between the surface normal at p and the direction to the camera. */
-  private facing(p: Vector3): number {
-    const toCam = new Vector3().copy(this.camera.position).sub(p).normalize();
-    return new Vector3().copy(p).normalize().dot(toCam);
+  private facing(point: Vector3): number {
+    return surfaceFacing(point, this.camera.position);
   }
 
   private updateUserLocation() {
     const position = this.userLocation;
-    const projected = position ? this.project(position) : null;
-    if (!position || !projected || this.facing(position) <= 0.02) {
-      this.userLocationDot.style.display = 'none';
+    const projected = position && this.project(position, this.projected) ? this.projected : null;
+    if (!position || !projected || this.facing(position) <= LABEL_FADE_START) {
+      setStyle(this.userLocationDot, 'display', 'none');
       return;
     }
-    this.userLocationDot.style.display = '';
-    this.userLocationDot.style.transform = `translate3d(${projected.x}px, ${projected.y}px, 0) translate(-50%, -50%)`;
-  }
-
-  private updateLabels() {
-    // Endpoints get first pick of label positions, then transfers.
-    const order = [...this.markers].sort((a, b) => rolePriority(a.role) - rolePriority(b.role));
-    const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
-    const LABEL_H = 21;
-    for (const m of order) {
-      const s = this.project(m.position);
-      const f = this.facing(m.position);
-      const opacity = s ? clamp01((f - 0.02) / 0.12) : 0;
-      m.el.style.opacity = String(opacity);
-      m.el.style.visibility = opacity > 0 ? 'visible' : 'hidden';
-      if (!s || opacity <= 0) continue;
-      m.el.style.transform = `translate3d(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px, 0)`;
-      if (!m.labelWidth) m.labelWidth = m.label.offsetWidth || 36;
-      const w = m.labelWidth;
-      // Candidate offsets relative to the marker: above-right, above-left, below-right, below-left.
-      const candidates: [number, number][] = [
-        [9, -25],
-        [-9 - w, -25],
-        [9, 5],
-        [-9 - w, 5],
-      ];
-      let choice = candidates[0];
-      for (const c of candidates) {
-        const r = { x0: s.x + c[0] - 2, y0: s.y + c[1] - 2, x1: s.x + c[0] + w + 2, y1: s.y + c[1] + LABEL_H + 2 };
-        if (!placed.some((p) => r.x0 < p.x1 && r.x1 > p.x0 && r.y0 < p.y1 && r.y1 > p.y0)) {
-          choice = c;
-          break;
-        }
-      }
-      placed.push({ x0: s.x + choice[0], y0: s.y + choice[1], x1: s.x + choice[0] + w, y1: s.y + choice[1] + LABEL_H });
-      // Also reserve the dot itself so other labels avoid covering it.
-      placed.push({ x0: s.x - 7, y0: s.y - 7, x1: s.x + 7, y1: s.y + 7 });
-      m.label.style.transform = `translate(${choice[0]}px, ${choice[1]}px)`;
-    }
-    return placed;
+    setStyle(this.userLocationDot, 'display', '');
+    setStyle(
+      this.userLocationDot,
+      'transform',
+      `translate3d(${projected.x}px, ${projected.y}px, 0) translate(-50%, -50%)`,
+    );
   }
 
   private hitTestLeg(x: number, y: number): number | null {
     let best: number | null = null;
-    let bestDist = 18; // px tolerance, finger friendly
-    this.legs.forEach((leg, i) => {
-      if (!leg) return;
-      let prev: { x: number; y: number } | null = null;
+    let bestDist = LEG_HIT_TOLERANCE_PX;
+    for (let i = 0; i < this.legs.length; i++) {
+      const leg = this.legs[i];
+      if (!leg) continue;
+      let hasPrevious = false;
+      const previous = this.projectedStart;
+      const projected = this.projectedEnd;
       for (let k = 0; k < leg.arc.length; k += 2) {
-        const p = leg.arc[k];
-        if (this.facing(p) < 0) {
-          prev = null;
+        const point = leg.arc[k];
+        if (this.facing(point) < 0 || !this.project(point, projected)) {
+          hasPrevious = false;
           continue;
         }
-        const s = this.project(p);
-        if (s && prev) {
-          const d = distToSegment(x, y, prev, s);
-          if (d < bestDist) {
-            bestDist = d;
+        if (hasPrevious) {
+          const distance = distToSegment(x, y, previous, projected);
+          if (distance < bestDist) {
+            bestDist = distance;
             best = i;
           }
         }
-        prev = s;
+        previous.copy(projected);
+        hasPrevious = true;
       }
-    });
+    }
     return best;
   }
 
@@ -1677,18 +1518,16 @@ export class GlobeRenderer {
 
   private onContextLost = (e: Event) => {
     e.preventDefault();
+    this.contextLost = true;
     cancelAnimationFrame(this.frame);
     this.frame = 0;
   };
 
   private onContextRestored = () => {
-    for (const t of this.textures) t.needsUpdate = true;
+    this.contextLost = false;
+    this.textures.restore();
     this.requestRender();
   };
-}
-
-function rolePriority(role: MarkerRole): number {
-  return role === 'origin' || role === 'single' ? 0 : role === 'destination' ? 1 : 2;
 }
 
 function makeLine(points: Vector3[], material: LineMaterial, order: number): Line2 {
