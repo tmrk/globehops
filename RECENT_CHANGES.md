@@ -2,6 +2,10 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.8.1 — 2026-11-06 — Kilometres in Hungarian and Swedish
+
+- **Kilometres by default in Hungarian and Swedish.** Without a saved choice, the distance unit followed only the browser's region tag, so a Hungarian or Swedish interface in an `en-US` browser (common when the language is picked from the time zone) showed miles. Hungarian and Swedish now default to kilometres; English keeps miles for US, Liberian and Myanmar browsers. A saved choice or a `units` link parameter still wins.
+
 ## 1.8.0 — 2026-11-06 — Hungarian and Swedish, follow the aircraft, oceans and twilight
 
 - **Three languages.** Use GlobeHops in English, Magyar or Svenska, with translated controls, country names, dates, numbers and durations. Language is chosen from an explicit address, your saved choice, a browser time-zone country hint, then browser languages. Change it in Display or About; `/en/`, `/hu/` and `/sv/` have translated search/social metadata. Ordinary Share links let recipients use their own language.

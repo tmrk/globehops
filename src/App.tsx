@@ -92,7 +92,10 @@ const SUGGESTED_ROUTES = [
 ];
 const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
 
+/** Miles only for an English interface in a miles-using region; Hungarian and Swedish use kilometres. */
 function defaultUnit(): DistanceUnit {
+  // The i18n bootstrap sets <html lang> to the active locale before the first render.
+  if (!document.documentElement.lang.startsWith('en')) return 'km';
   const lang = navigator.language || '';
   return /-(US|LR|MM)$/i.test(lang) ? 'mi' : 'km';
 }
