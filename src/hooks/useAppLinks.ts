@@ -24,6 +24,7 @@ import { replaceUrl } from '../analytics.ts';
 import { visitLocaleAddress } from '../state/visitLocale.ts';
 import { parseLink, type LinkState } from '../state/link.ts';
 import { resolveRouteCodes } from '../state/url.ts';
+import { isNamedClock } from '../agent/contract.ts';
 import { loadLastRoute, loadLastJourney } from '../state/storage.ts';
 import type { CompareAction } from '../state/compare.ts';
 import type { RouteAction } from '../state/route.ts';
@@ -150,7 +151,7 @@ export function useAppLinks({
         void setVisitLocale(targetLocale);
         replaceUrl(visitLocaleAddress(window.location.href, import.meta.env.BASE_URL, targetLocale));
       }
-      const linkedClock = !['local', 'utc'].includes(link.view.clock)
+      const linkedClock = !isNamedClock(link.view.clock)
         ? resolveRouteCodes([link.view.clock], idx).stops[0]?.airport
         : undefined;
       resetPreferences({ ...link.view, clock: linkedClock ? airportCode(linkedClock) : link.view.clock }, search);

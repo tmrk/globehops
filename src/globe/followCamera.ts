@@ -3,7 +3,7 @@ import { EARTH_RADIUS_KM } from '../lib/geo.ts';
 import { clamp01 } from './math3d.ts';
 
 export const FOLLOW_APPROACH_MS = 1500;
-export const FOLLOW_RESPONSE_SECONDS = 0.35;
+const FOLLOW_RESPONSE_SECONDS = 0.35;
 
 /** Exponential response composes exactly across frame rates and cannot overshoot. */
 export function followBlend(deltaSeconds: number, responseSeconds = FOLLOW_RESPONSE_SECONDS): number {

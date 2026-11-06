@@ -1,9 +1,25 @@
 import { parseConsent, type AnalyticsConsent } from '../lib/analytics.ts';
 import type { DistanceUnit } from '../types.ts';
-import { MAX_STOPS } from '../agent/contract.ts';
+import { MAX_STOPS, isNamedClock } from '../agent/contract.ts';
 const UNIT_KEY = 'globehops:unit';
 const ROUTE_KEY = 'globehops:lastRoute';
 const MAX_JOURNEY_QUERY_LENGTH = 4000;
+
+/** Storage can be disabled, full or blocked in private modes; every access is best-effort. */
+function read(key: string): string | null {
+  try {
+    return globalThis.localStorage?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+function write(key: string, value: string): void {
+  try {
+    globalThis.localStorage?.setItem(key, value);
+  } catch {
+    /* Storage is optional. */
+  }
+}
 
 export function loadUnit(): DistanceUnit | null {
   const unit = read(UNIT_KEY);
@@ -48,20 +64,6 @@ export const { load: loadDayNight, save: saveDayNight } = booleanSetting('globeh
 
 const JOURNEY_KEY = 'globehops:lastJourney';
 const CLOCK_ZONE_KEY = 'globehops:clockZone';
-function read(key: string): string | null {
-  try {
-    return globalThis.localStorage?.getItem(key) ?? null;
-  } catch {
-    return null;
-  }
-}
-function write(key: string, value: string): void {
-  try {
-    globalThis.localStorage?.setItem(key, value);
-  } catch {
-    /* Storage is optional. */
-  }
-}
 export function loadLastJourney(): string | null {
   const query = read(JOURNEY_KEY);
   return query !== null && query.length <= MAX_JOURNEY_QUERY_LENGTH ? query : null;
@@ -76,7 +78,7 @@ export function saveLastJourney(query: string): void {
 }
 export function loadClockZone(): 'local' | 'utc' | null {
   const value = read(CLOCK_ZONE_KEY);
-  return value === 'local' || value === 'utc' ? value : null;
+  return value !== null && isNamedClock(value) ? value : null;
 }
 export function saveClockZone(zone: 'local' | 'utc'): void {
   write(CLOCK_ZONE_KEY, zone);

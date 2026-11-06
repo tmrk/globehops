@@ -11,6 +11,7 @@ import {
 } from '../state/viewPreferences.ts';
 import * as storage from '../state/storage.ts';
 import { useMediaQuery } from './useMediaQuery.ts';
+import { isNamedClock } from '../agent/contract.ts';
 
 function browserDefaultUnit() {
   // Bootstrap sets the active document language before App mounts.
@@ -79,7 +80,7 @@ export function useViewPreferences() {
     },
     changeClockZone(clockZone: string) {
       setVisit({ clockZone });
-      if (clockZone === 'local' || clockZone === 'utc') storage.saveClockZone(clockZone);
+      if (isNamedClock(clockZone)) storage.saveClockZone(clockZone);
     },
     toggleCountryNames() {
       const next = !values.showCountryNames;

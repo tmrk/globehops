@@ -2,7 +2,7 @@
 
 ## Architecture and entry points
 
-Read `src/App.tsx` first: it loads airports and time zones, builds search, initialises the route and orchestrates journey, timeline, clock, persistence and components. `src/main.tsx` resolves the locale, loads its catalogue, loads fonts/CSS and mounts React inside `I18nProvider`. `src/components/` owns accessible UI; `src/hooks/` handles browser media, viewport, toast and narrow clock subscriptions.
+Read `src/App.tsx` first: it composes the app from focused hooks — `useAppLinks` (airports, time zones, search and URL > remembered > example startup), `useViewPreferences` (saved preferences vs visit-only overrides), `useJourneyModel`, `useJourneyPlayback`, `useJourneyAddress` (URL/remembered journey), `usePickerHistory`, `usePanelInsets` and `useAppWebTools` — and keeps editing/playback handlers and layout. `src/main.tsx` resolves the locale, loads its catalogue, loads fonts/CSS and mounts React inside `I18nProvider`. `src/components/` owns accessible UI; `src/hooks/` handles browser media, viewport, toast and narrow clock subscriptions.
 
 Pure logic lives in `src/lib/` (geography, time-zone conversion, solar position, schedule propagation, flight progress, timeline and journey text), `src/state/` (route transitions, simulation clock/feed, links and safe storage), `src/data/` (dataset decoding, airport-to-zone lookup and search) and `src/agent/` (shared contract, itinerary schema/validation and planning). `mcp/` is the local stdio adapter over those same modules, not another calculation engine.
 

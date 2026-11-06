@@ -87,7 +87,7 @@ const TYPES: Record<string, string> = {
   heliport: 'H',
 };
 const RANK: Record<string, number> = { L: 5, M: 4, S: 3, W: 2, H: 1 };
-export const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const clean = (s: string) => s.trim().replace(/\s+/g, ' ');
 const code = (s: string, re: RegExp) => (re.test(s.trim().toUpperCase()) ? s.trim().toUpperCase() : '');
 

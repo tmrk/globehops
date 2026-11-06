@@ -1,5 +1,5 @@
 import { useI18n } from '../i18n/I18nProvider.tsx';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { airportCode } from '../data/airports.ts';
 
 import type { Journey, JourneyLeg } from '../lib/schedule.ts';
@@ -22,6 +22,12 @@ interface Props {
  */
 export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
   const { t, fmt } = useI18n();
+  const sectionRef = useRef<HTMLElement>(null);
+  // Reveal the whole editor when a flight opens; on phones it would otherwise start below the fold.
+  useEffect(() => {
+    const smooth = document.documentElement.dataset.motion !== 'reduce';
+    sectionRef.current?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
+  }, [leg.index]);
 
   const [now] = useState(Date.now);
   const rows = [
@@ -49,6 +55,7 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
   const entered = leg.departure?.provenance === 'entered' && leg.arrival?.provenance === 'entered';
   return (
     <section
+      ref={sectionRef}
       id={`leg-schedule-${leg.index}`}
       className="leg-schedule"
       aria-label={t('schedule.flightTimes', leg.index + 1)}

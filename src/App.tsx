@@ -1,52 +1,50 @@
-import { useJourneyAddress } from './hooks/useJourneyAddress.ts';
-import { useJourneyModel } from './hooks/useJourneyModel.ts';
-import { useJourneyPlayback, usePlaybackRange } from './hooks/useJourneyPlayback.ts';
-import { playInRange } from './state/playbackRange.ts';
-import { JourneyPanelHeader } from './components/JourneyPanelHeader.tsx';
-import { CollapsedJourneyPeek } from './components/CollapsedJourneyPeek.tsx';
-import { WelcomeSuggestions } from './components/WelcomeSuggestions.tsx';
-import { usePanelInsets } from './hooks/usePanelInsets.ts';
-import { usePickerHistory } from './hooks/usePickerHistory.ts';
-import { DESKTOP_MEDIA_QUERY } from './hooks/appMedia.ts';
-import { useAppLinks } from './hooks/useAppLinks.ts';
-import { useAppWebTools } from './hooks/useAppWebTools.ts';
-import { useI18n } from './i18n/I18nProvider.tsx';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+
 import { AboutDialog, type AboutDialogHandle } from './components/AboutDialog.tsx';
 import { AirportPicker, type AirportPickerHandle } from './components/AirportPicker.tsx';
 import { Brand, VersionTag } from './components/Brand.tsx';
+import { CollapsedJourneyPeek } from './components/CollapsedJourneyPeek.tsx';
+import { CompareSummary } from './components/CompareSummary.tsx';
+import { ConsentNotice } from './components/ConsentNotice.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { GlobeHud } from './components/GlobeHud.tsx';
 import { IconInfo, IconPlay, IconCompare, IconTrash } from './components/Icons.tsx';
+import { JourneyPanelHeader } from './components/JourneyPanelHeader.tsx';
+import { JourneyTabs } from './components/JourneyTabs.tsx';
 import { MapTools } from './components/MapTools.tsx';
 import { StopList } from './components/StopList.tsx';
 import { Summary } from './components/Summary.tsx';
 import { TimeBar } from './components/TimeBar.tsx';
 import { Toast } from './components/Toast.tsx';
-import { useGeolocation } from './hooks/useGeolocation.ts';
-import { useToast } from './hooks/useToast.ts';
-import { useBottomSheet } from './hooks/useBottomSheet.ts';
-
-import { comparisonGlobeRoute, localLegAt } from './lib/compareView.ts';
-import { compareReducer, createCompareState } from './state/compare.ts';
-import { CompareSummary } from './components/CompareSummary.tsx';
-import { JourneyTabs } from './components/JourneyTabs.tsx';
-import { journeyStateAt } from './lib/timeline.ts';
-
-import { createSimulationFeed, type SimulationContext } from './state/simulation.ts';
-import { useClockPhase } from './hooks/useClock.ts';
-import { airportCode } from './data/airports.ts';
-import type { GlobeRoute } from './globe/GlobeRenderer.ts';
-import { useMediaQuery } from './hooks/useMediaQuery.ts';
+import { WelcomeSuggestions } from './components/WelcomeSuggestions.tsx';
+import { DESKTOP_MEDIA_QUERY } from './hooks/appMedia.ts';
 import { useAnalyticsConsent } from './hooks/useAnalyticsConsent.ts';
-import { trackEvent } from './analytics.ts';
-import { ConsentNotice } from './components/ConsentNotice.tsx';
-import { useVisualViewportVars } from './hooks/useVisualViewport.ts';
-import { sumDurations } from './lib/flightTime.ts';
-
-import { hasEnteredTimes, type RouteAction } from './state/route.ts';
+import { useAppLinks } from './hooks/useAppLinks.ts';
+import { useAppWebTools } from './hooks/useAppWebTools.ts';
+import { useBottomSheet } from './hooks/useBottomSheet.ts';
+import { useClockPhase } from './hooks/useClock.ts';
+import { useGeolocation } from './hooks/useGeolocation.ts';
+import { useJourneyAddress } from './hooks/useJourneyAddress.ts';
+import { useJourneyModel } from './hooks/useJourneyModel.ts';
+import { useJourneyPlayback, usePlaybackRange } from './hooks/useJourneyPlayback.ts';
+import { useMediaQuery } from './hooks/useMediaQuery.ts';
+import { usePanelInsets } from './hooks/usePanelInsets.ts';
+import { usePickerHistory } from './hooks/usePickerHistory.ts';
+import { useToast } from './hooks/useToast.ts';
 import { useViewPreferences } from './hooks/useViewPreferences.ts';
+import { useVisualViewportVars } from './hooks/useVisualViewport.ts';
+import type { GlobeRoute } from './globe/GlobeRenderer.ts';
+import { useI18n } from './i18n/I18nProvider.tsx';
+import { trackEvent } from './analytics.ts';
+import { airportCode } from './data/airports.ts';
+import { comparisonGlobeRoute, localLegAt } from './lib/compareView.ts';
+import { sumDurations } from './lib/flightTime.ts';
+import { journeyStateAt } from './lib/timeline.ts';
+import { compareReducer, createCompareState } from './state/compare.ts';
+import { playInRange } from './state/playbackRange.ts';
+import { hasEnteredTimes, type RouteAction } from './state/route.ts';
+import { createSimulationFeed, type SimulationContext } from './state/simulation.ts';
 import type { Airport, LocalTimeInput } from './types.ts';
 
 const GlobeView = lazy(() => import('./globe/GlobeView.tsx'));
@@ -380,8 +378,9 @@ export default function App() {
     setCollapsed,
     reducedMotion,
   });
-  // Phones with the timeline docked: the totals scroll with the list so the stops keep some room.
-  const summaryInList = !isDesktop && timeOpen;
+  // On phones, a docked timeline or an open flight-times editor needs the sheet's room more than the
+  // totals do, so the totals scroll with the list instead of staying pinned beneath it.
+  const summaryInList = !isDesktop && (timeOpen || route.selectedLeg !== null);
   const activateJourney = (index: number) => {
     setEditing(null);
     compareDispatch({ type: 'activate', index });

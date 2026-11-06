@@ -183,7 +183,7 @@ const timeInfo = (p: TimePoint | null) =>
         provenance: p.provenance,
       }
     : null;
-export const ESTIMATE_NOTES = [
+const ESTIMATE_NOTES = [
   'Flight estimates use 850 km/h plus 30 minutes, rounded to 5 minutes; these are not airline schedules.',
   'Distances and positions follow a great circle on a spherical Earth; real routes differ.',
   'Altitude is illustrative, not aircraft tracking or an operational flight profile.',

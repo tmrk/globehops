@@ -7,6 +7,7 @@ import { useWebTools } from './useWebTools.ts';
 import { parseWebCommand } from '../agent/webTools.ts';
 import { createAgentContext, planItinerary, planComparison } from '../agent/plan.ts';
 import { linkStateToDocument } from '../agent/itinerary.ts';
+import { isNamedClock } from '../agent/contract.ts';
 import { replaceUrl } from '../analytics.ts';
 import { visitLocaleAddress } from '../state/visitLocale.ts';
 import { airportCode, type AirportDataset } from '../data/airports.ts';
@@ -154,7 +155,7 @@ export function useAppWebTools(options: AppWebToolsOptions) {
     }
     if (
       command.view.clock &&
-      !['local', 'utc'].includes(command.view.clock) &&
+      !isNamedClock(command.view.clock) &&
       !serializedJourneys.some((entry) => entry.stops.some((s) => airportCode(s.airport) === command.view.clock))
     )
       throw new TypeError('clock must name an airport in this route, local or utc.');

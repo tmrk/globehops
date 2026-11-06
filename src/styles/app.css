@@ -1868,20 +1868,16 @@ button.map-menu__item:hover {
   padding: 12px 14px;
 }
 
-/* Mobile: full-screen search above the keyboard */
+/* Mobile: full-screen search above the keyboard. The backdrop covers the whole layout viewport, so
+   the journey never shows through translucent browser chrome (iOS 26's floating address pill and
+   keyboard bar sit outside the visual viewport); the picker follows the visual viewport, so the
+   field and results stay above the keyboard. */
 .takeover {
   position: fixed;
-  left: 0;
-  right: 0;
-  top: var(--vv-top, 0px);
-  height: var(--vv-height, 100dvh);
+  inset: 0;
+  min-height: 100lvh;
   z-index: 60;
-  display: flex;
-  flex-direction: column;
-  background: rgba(5, 8, 14, 0.97);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  padding: var(--safe-top) var(--safe-right) 0 var(--safe-left);
+  background: var(--bg);
   animation: takeover-in 0.18s var(--ease);
 }
 
@@ -1893,9 +1889,13 @@ button.map-menu__item:hover {
 }
 
 .picker--takeover {
+  position: absolute;
+  inset-inline: 0;
+  top: var(--vv-top, 0px);
+  height: var(--vv-height, 100dvh);
   display: flex;
   flex-direction: column;
-  height: 100%;
+  padding: var(--safe-top) var(--safe-right) 0 var(--safe-left);
 }
 
 .picker--takeover .picker__bar {
@@ -2287,8 +2287,14 @@ button.map-menu__item:hover {
   align-items: stretch;
 }
 
+/* Departure and arrival share one pair of columns (subgrid), so their fields line up; the time
+   column fits its localized placeholder or value instead of truncating it. */
 .leg-schedule {
+  --schedule-columns: minmax(0, 1fr) minmax(88px, max-content);
   grid-column: 2 / -1;
+  display: grid;
+  grid-template-columns: var(--schedule-columns);
+  column-gap: 8px;
   margin: 2px -8px 8px;
   padding: 12px;
   border: 1px solid var(--line);
@@ -2302,6 +2308,17 @@ button.map-menu__item:hover {
     opacity: 0;
     transform: translateY(-4px);
   }
+}
+
+.leg-schedule > *,
+.when > * {
+  grid-column: 1 / -1;
+}
+
+.when {
+  display: grid;
+  grid-template-columns: var(--schedule-columns);
+  grid-template-columns: subgrid;
 }
 
 .when + .when {
@@ -2354,10 +2371,10 @@ button.map-menu__item:hover {
   white-space: nowrap;
 }
 
-/* Date and time line up in the same two columns for departure and arrival. */
 .when__fields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 96px;
+  grid-template-columns: var(--schedule-columns);
+  grid-template-columns: subgrid;
   align-items: center;
   gap: 8px;
 }
@@ -2906,6 +2923,20 @@ button.map-menu__item:hover {
   .time-bar__foot {
     gap: 6px;
   }
+  /* The docked clock gets its own line instead of wrapping word by word beside the controls. */
+  .time-bar--docked .time-bar__foot {
+    flex-wrap: wrap;
+  }
+  .time-bar--docked .time-bar__clock {
+    flex-basis: 100%;
+    margin-right: 0;
+  }
+  .time-bar--docked .time-bar__readout {
+    white-space: nowrap;
+  }
+  .time-bar--docked .time-bar__speed {
+    margin-left: auto;
+  }
   .time-bar__menu {
     padding-inline: 10px 8px;
     font-size: 10.5px;
@@ -2913,8 +2944,11 @@ button.map-menu__item:hover {
   .time-bar__steps button {
     width: 34px;
   }
-  .when__fields {
-    grid-template-columns: minmax(0, 1fr) 80px;
+  .leg-schedule {
+    --schedule-columns: minmax(0, 1fr) minmax(76px, max-content);
+  }
+  .dt-field.is-empty {
+    font-size: var(--text-sm);
   }
   .dt-field {
     padding-inline: 10px;

@@ -1,6 +1,6 @@
 import { isLocale, type Locale } from './locales.ts';
 
-export function normalizedBase(base: string): string {
+function normalizedBase(base: string): string {
   const path = base.split('/').filter(Boolean).join('/');
   return path ? `/${path}/` : '/';
 }

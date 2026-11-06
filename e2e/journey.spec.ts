@@ -412,6 +412,28 @@ test('narrow airport dialog contains keyboard focus while editing', async ({ pag
   await page.screenshot({ path: info.outputPath('narrow-edited-route.png'), animations: 'disabled' });
 });
 
+test('phone flight times get the sheet and search covers the screen above a keyboard', async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('./?route=TPE-APP&leg=1');
+  const schedule = page.locator('.leg-schedule');
+  // The totals scroll with the list while a flight's times are open, so the whole editor shows.
+  await expect(page.locator('.panel__scroll .summary')).toHaveCount(1);
+  await expect(schedule).toBeInViewport({ ratio: 0.99 });
+  for (const face of await schedule.locator('.dt-field__face').all())
+    expect(await face.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('narrow-flight-times.png'), animations: 'disabled' });
+
+  await stopButtons(page).first().click();
+  // A shrunken visual viewport stands in for the on-screen keyboard: the picker follows it, while
+  // the backdrop still covers the whole layout viewport so the journey cannot show through.
+  await page.evaluate(() => document.documentElement.style.setProperty('--vv-height', '300px'));
+  await expect(page.locator('.picker--takeover')).toHaveCSS('height', '300px');
+  const backdrop = await page.locator('.takeover').boundingBox();
+  expect(backdrop).toMatchObject({ x: 0, y: 0, width: 320 });
+  expect(backdrop?.height).toBeGreaterThanOrEqual(640);
+});
+
 test('connections get a default layover that can be changed, totalled, shared and restored', async ({ page }) => {
   await page.goto('./?route=CPH-LHR-JFK');
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
