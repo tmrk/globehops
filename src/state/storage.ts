@@ -1,3 +1,4 @@
+import { parseConsent, type AnalyticsConsent } from '../lib/analytics.ts';
 import type { DistanceUnit } from '../types.ts';
 const UNIT_KEY = 'globehops:unit',
   ROUTE_KEY = 'globehops:lastRoute',
@@ -102,4 +103,13 @@ export function loadCountryNames(): boolean | null {
 }
 export function saveCountryNames(visible: boolean): void {
   write('globehops:countryNames', visible ? 'on' : 'off');
+}
+
+const ANALYTICS_KEY = 'globehops:analytics';
+/** The visitor's analytics decision; null until they choose. */
+export function loadAnalyticsConsent(): AnalyticsConsent | null {
+  return parseConsent(read(ANALYTICS_KEY));
+}
+export function saveAnalyticsConsent(consent: AnalyticsConsent): void {
+  write(ANALYTICS_KEY, consent);
 }

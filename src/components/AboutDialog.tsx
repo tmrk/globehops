@@ -1,5 +1,6 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import type { DatasetMeta } from '../data/airports.ts';
+import type { AnalyticsConsentState } from '../hooks/useAnalyticsConsent.ts';
 import { ALTITUDE_EXAGGERATION, DEFAULT_ALTITUDE_MODEL } from '../lib/altitude.ts';
 import { DEFAULT_FLIGHT_TIME_MODEL } from '../lib/flightTime.ts';
 import { DEFAULT_LAYOVER_MIN, formatLayover } from '../lib/layover.ts';
@@ -7,17 +8,29 @@ import { LogoMark } from './Brand.tsx';
 import { IconClose } from './Icons.tsx';
 
 export interface AboutDialogHandle {
-  open: () => void;
+  /** Opens the dialog, optionally scrolled to the privacy section. */
+  open: (section?: 'privacy') => void;
 }
 
 const REPO_URL = 'https://github.com/tmrk/globehops';
 
-export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | null }>(function AboutDialog(
-  { meta },
+interface AboutDialogProps {
+  meta: DatasetMeta | null;
+  analytics: AnalyticsConsentState;
+}
+
+export const AboutDialog = forwardRef<AboutDialogHandle, AboutDialogProps>(function AboutDialog(
+  { meta, analytics },
   ref,
 ) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  useImperativeHandle(ref, () => ({ open: () => dialogRef.current?.showModal() }));
+  const privacyRef = useRef<HTMLHeadingElement>(null);
+  useImperativeHandle(ref, () => ({
+    open: (section) => {
+      dialogRef.current?.showModal();
+      if (section === 'privacy') privacyRef.current?.scrollIntoView({ block: 'start' });
+    },
+  }));
   const updated = meta?.generatedAt
     ? new Date(meta.generatedAt).toLocaleDateString('en-GB', { dateStyle: 'medium' })
     : null;
@@ -77,8 +90,10 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
         <ul>
           <li>
             Earth imagery: <strong>Blue Marble Next Generation</strong> (July 2004 composite, with topography and
-            bathymetry) by NASA Earth Observatory / Reto Stöckli, NASA Goddard Space Flight Center. A cloud-free
-            composite of satellite imagery — not a live view. GlobeHops is not affiliated with or endorsed by NASA.
+            bathymetry) by NASA Earth Observatory / Reto Stöckli, NASA Goddard Space Flight Center. City lights:{' '}
+            <strong>Black Marble 2016</strong> by NASA Earth Observatory / Joshua Stevens, using Suomi NPP VIIRS data
+            from Miguel Román, NASA Goddard Space Flight Center. Cloud-free composites of satellite imagery — not a live
+            view. GlobeHops is not affiliated with or endorsed by NASA.
           </li>
           <li>
             Airport data:{' '}
@@ -93,8 +108,8 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
             <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">
               Natural Earth
             </a>{' '}
-            1:50m boundary lines and country names (public domain). They show de facto boundaries and imply no position
-            on territorial disputes.
+            1:50m boundary lines, coastlines and country names (public domain). They show de facto boundaries and imply
+            no position on territorial disputes.
           </li>
           <li>
             Time zones:{' '}
@@ -119,9 +134,26 @@ export const AboutDialog = forwardRef<AboutDialogHandle, { meta: DatasetMeta | n
             .
           </li>
         </ul>
+        <h3 ref={privacyRef} id="about-privacy">
+          Privacy
+        </h3>
         <p className="about__privacy">
-          No accounts, no tracking. Your route lives only in the page address and this browser.
+          No accounts. Your route and times live only in the page address and this browser. If you allow it, Google
+          Analytics counts visits and a few actions, such as sharing or playing a journey, using cookies. It never
+          receives your airports, dates or times, and it is never asked when your browser sends Global Privacy Control
+          or Do Not Track.
         </p>
+        {analytics.available ? (
+          <button
+            type="button"
+            className="about__toggle"
+            aria-pressed={analytics.consent === 'granted'}
+            onClick={() => analytics.choose(analytics.consent === 'granted' ? 'denied' : 'granted')}
+          >
+            <span>Share usage statistics</span>
+            <span className="switch" aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
     </dialog>
   );

@@ -11,18 +11,21 @@
  * - Translucent lines use the stencil buffer so each pixel blends once: overlapping segment joints
  *   never form brighter beads, and every line reads as one smooth stroke.
  * - Airport labels are HTML elements projected from 3D and hidden on the far side of the globe.
- * - Country borders (Natural Earth) are fetched only when first shown.
+ * - Country borders and fainter coastlines (Natural Earth) are fetched only when first shown.
+ * - The night side shows city lights (NASA Black Marble), fetched after the day texture.
  */
 import {
   AdditiveBlending,
   AmbientLight,
   BackSide,
   Color,
+  type ColorSpace,
   DirectionalLight,
   Group,
   InterleavedBufferAttribute,
   Mesh,
   MeshLambertMaterial,
+  NoColorSpace,
   NotEqualStencilFunc,
   PerspectiveCamera,
   ReplaceStencilOp,
@@ -97,12 +100,17 @@ export interface TextureSet {
   preview: string;
   medium: string;
   large: string;
+  /** Night-light masks: `small` for GPUs below 4096 px and coarse pointers, `large` otherwise. */
+  lightsSmall: string;
+  lightsLarge: string;
 }
 
 export interface GlobeRendererOptions {
   textures: TextureSet;
   /** URL of the generated country-border dataset. */
   bordersUrl: string;
+  /** URL of the generated coastline dataset, shown with the borders. */
+  coastlinesUrl: string;
   showBorders: boolean;
   countryLabelsUrl: string;
   showCountryLabels: boolean;
@@ -123,10 +131,21 @@ const ARC_PEAK = ROUTE_LIFT + exaggeratedLift(DEFAULT_ALTITUDE_MODEL.cruiseAltit
 /** Borders sit just above the sphere's flat facets. */
 const BORDER_RADIUS = 1.0004;
 const BORDER_STEP_DEG = 0.5;
+/** Land borders read clearly; coastlines only outline the land so it stays legible at night. */
+const BORDER_OPACITY = 0.42;
+const COAST_OPACITY = 0.2;
+/** Brightness of the city lights on the night side once their texture has faded in. */
+const CITY_LIGHTS = 1.4;
+const CITY_LIGHTS_FADE_MS = 700;
 const ATMOSPHERE_RADIUS = 1.055;
 const LABEL_LIFT = 1.002;
 
 const ATMOSPHERE_COLOR = new Color('#7fb4ff');
+/**
+ * Sine of the solar elevation (cosine of the zenith angle) over which the surface and atmosphere blend
+ * from night to day: about −4° … +3.4°. GLSL literals, shared by both shaders.
+ */
+const DAY_EDGE = { night: '-0.07', day: '0.06' };
 
 interface LegObject {
   key: string;
@@ -197,7 +216,7 @@ export class GlobeRenderer {
   private plane: HTMLDivElement;
   private legs: LegObject[] = [];
   private markers: MarkerObject[] = [];
-  private borders: { line: LineSegments2; material: LineMaterial } | null = null;
+  private borderLayers: { line: LineSegments2; material: LineMaterial }[] = [];
   private bordersState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
   private textures: Texture[] = [];
   private width = 1;
@@ -217,6 +236,10 @@ export class GlobeRenderer {
   private sunScene = new Vector3(1, 0, 0);
   private sunView = { value: new Vector3(1, 0, 0) };
   private dayNight = { value: 0 };
+  private cityLights = { value: 0 };
+  private lightsFadeStart: number | null = null;
+  private lightsState: 'idle' | 'loading' | 'done' = 'idle';
+  private dayTextureSettled = false;
   private illuminationTween: { from: number; to: number; start: number } | null = null;
   private disposed = false;
   private resizeObserver: ResizeObserver;
@@ -262,27 +285,38 @@ export class GlobeRenderer {
     this.camera.add(this.keyLight);
     this.scene.add(this.camera);
 
-    this.earthMaterial = new MeshLambertMaterial({ color: 0xffffff });
+    // Black emissive: the night-light mask rides on emissiveMap but is applied by the custom shader.
+    this.earthMaterial = new MeshLambertMaterial({ color: 0xffffff, emissive: 0x000000 });
     this.earthMaterial.onBeforeCompile = (shader) => {
       shader.uniforms.uAtmo = { value: ATMOSPHERE_COLOR };
       shader.uniforms.uSunView = this.sunView;
       shader.uniforms.uDayNight = this.dayNight;
+      shader.uniforms.uCityLights = this.cityLights;
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nuniform vec3 uAtmo;\nuniform vec3 uSunView;\nuniform float uDayNight;',
+          '#include <common>\nuniform vec3 uAtmo;\nuniform vec3 uSunView;\nuniform float uDayNight;\nuniform float uCityLights;',
         )
         .replace(
           '#include <opaque_fragment>',
           `#include <opaque_fragment>
           {
+            // mu: cosine of the solar zenith angle. The day/night blend spans about −4° … +3.5°
+            // of sun elevation, so the terminator reads crisply while twilight stays soft.
             float mu = dot(normalize(normal), uSunView);
-            float day = smoothstep(-0.12, 0.10, mu);
-            vec3 nightTint = vec3(0.88, 0.94, 1.08);
+            float day = smoothstep(${DAY_EDGE.night}, ${DAY_EDGE.day}, mu);
+            vec3 nightTint = vec3(0.86, 0.93, 1.1);
             vec3 lit = gl_FragColor.rgb;
-            vec3 timed = lit * mix(0.13 * nightTint, vec3(1.0), day);
-            float twilight = (1.0 - smoothstep(0.0, 0.18, abs(mu))) * 0.045;
+            vec3 timed = lit * mix(0.06 * nightTint, vec3(1.0), day);
+            float twilight = (1.0 - smoothstep(0.0, 0.12, abs(mu))) * 0.04;
             timed += diffuseColor.rgb * vec3(1.0, 0.38, 0.12) * twilight;
+            #ifdef USE_EMISSIVEMAP
+              // The emissive colour is black, so three.js adds nothing itself; the map is only a
+              // convenient carrier for the night-light mask and its UVs. Lights come on at dusk.
+              float city = texture2D(emissiveMap, vEmissiveMapUv).r;
+              float dusk = 1.0 - smoothstep(-0.09, 0.015, mu);
+              timed += vec3(1.0, 0.66, 0.32) * (city * city * 0.55 + city * 0.45) * dusk * uCityLights;
+            #endif
             gl_FragColor.rgb = mix(lit, timed, uDayNight);
             float facing = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
             float fres = pow(1.0 - facing, 3.0);
@@ -328,7 +362,7 @@ export class GlobeRenderer {
             float d = -dot(normalize(vNormal), normalize(vView));
             float t = clamp(d / uLimb, 0.0, 1.0);
             float glow = pow(t, 3.2) * 0.85;
-            float day = smoothstep(-0.12, 0.10, dot(normalize(vNormal), uSunView));
+            float day = smoothstep(${DAY_EDGE.night}, ${DAY_EDGE.day}, dot(normalize(vNormal), uSunView));
             glow *= mix(1.0, mix(0.16, 1.0, day), uDayNight);
             gl_FragColor = vec4(uColor * glow, glow);
           }`,
@@ -375,6 +409,7 @@ export class GlobeRenderer {
       sunDirectionScene(subsolar, this.sunScene);
       if (this.keyLight.parent !== this.scene) this.scene.add(this.keyLight);
       this.keyLight.position.copy(this.sunScene).multiplyScalar(5);
+      this.ensureCityLights();
     }
     if (toggled) {
       const to = subsolar ? 1 : 0;
@@ -525,7 +560,7 @@ export class GlobeRenderer {
   setBordersVisible(visible: boolean) {
     this.options.showBorders = visible;
     if (visible) this.ensureBorders();
-    if (this.borders) this.borders.line.visible = visible;
+    for (const layer of this.borderLayers) layer.line.visible = visible;
     this.requestRender();
   }
 
@@ -561,12 +596,12 @@ export class GlobeRenderer {
     this.clearLegs();
     this.clearMarkers();
     this.countryLabels.dispose();
-    if (this.borders) {
-      this.scene.remove(this.borders.line);
-      this.borders.line.geometry.dispose();
-      this.borders.material.dispose();
-      this.borders = null;
+    for (const layer of this.borderLayers) {
+      this.scene.remove(layer.line);
+      layer.line.geometry.dispose();
+      layer.material.dispose();
     }
+    this.borderLayers = [];
     this.earth.geometry.dispose();
     this.earthMaterial.dispose();
     this.atmosphere.geometry.dispose();
@@ -607,6 +642,7 @@ export class GlobeRenderer {
     active = this.stepReveal(now) || active;
     active = this.stepPlane(now) || active;
     active = this.stepIllumination(now) || active;
+    active = this.stepCityLights(now) || active;
     // OrbitControls.update() returns true while damping is still moving the camera.
     if (!this.cameraTween) active = this.controls.update() || active;
     this.updateRotateSpeed();
@@ -648,10 +684,37 @@ export class GlobeRenderer {
       this.applyTexture(preview);
       this.options.onTextureReady?.('preview');
     }
-    if (this.renderer.capabilities.maxTextureSize < 4096) return;
     // A close-up first view may already have started the 8K texture; don't download both.
-    if (this.largeTextureState === 'loading') return;
-    await this.loadMediumTexture(preview);
+    if (this.renderer.capabilities.maxTextureSize >= 4096 && this.largeTextureState !== 'loading') {
+      await this.loadMediumTexture(preview);
+    }
+    this.dayTextureSettled = true;
+    this.ensureCityLights();
+  }
+
+  /** Night lights matter only with day/night shading, so they load after the day texture, once needed. */
+  private ensureCityLights() {
+    if (this.lightsState !== 'idle' || this.disposed || !this.subsolar || !this.dayTextureSettled) return;
+    this.lightsState = 'loading';
+    const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+    const url =
+      this.renderer.capabilities.maxTextureSize >= 4096 && !coarse
+        ? this.options.textures.lightsLarge
+        : this.options.textures.lightsSmall;
+    this.loadTexture(url, NoColorSpace)
+      .then((lights) => {
+        if (this.disposed) return lights.dispose();
+        this.earthMaterial.emissiveMap = lights;
+        this.earthMaterial.needsUpdate = true;
+        this.cityLights.value = 0;
+        // Fade in from the next frame so the shader recompilation doesn't eat the transition.
+        if (this.options.reducedMotion) this.cityLights.value = CITY_LIGHTS;
+        else this.lightsFadeStart = performance.now() + 50;
+        this.requestRender();
+      })
+      // Decorative: without the mask the night side is simply dark.
+      .catch((error: unknown) => console.warn('City lights unavailable', error))
+      .finally(() => (this.lightsState = 'done'));
   }
 
   private async loadMediumTexture(previous: Texture | null) {
@@ -699,13 +762,13 @@ export class GlobeRenderer {
     });
   }
 
-  private async loadTexture(url: string): Promise<Texture> {
+  private async loadTexture(url: string, colorSpace: ColorSpace = SRGBColorSpace): Promise<Texture> {
     const img = new Image();
     img.decoding = 'async';
     img.src = url;
     await img.decode();
     const tex = new Texture(img);
-    tex.colorSpace = SRGBColorSpace;
+    tex.colorSpace = colorSpace;
     tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     tex.needsUpdate = true;
     this.textures.push(tex);
@@ -725,21 +788,32 @@ export class GlobeRenderer {
   private async ensureBorders() {
     if (this.bordersState !== 'idle') return;
     this.bordersState = 'loading';
-    try {
-      const response = await fetch(this.options.bordersUrl);
-      if (!response.ok) throw new Error(`HTTP ${response.status} loading country borders`);
-      const lines = decodeBorders(await response.json());
-      if (this.disposed) return;
-      this.buildBorders(lines.map((line) => densifyLine(line, BORDER_STEP_DEG)));
-      this.bordersState = 'ready';
-    } catch (error) {
-      // Borders are decorative: the globe and routes stay fully usable without them.
-      this.bordersState = 'failed';
-      console.warn('Country borders unavailable', error);
-    }
+    // Land borders and coastlines load in parallel; either one can fail without the other.
+    const layers = [
+      { url: this.options.bordersUrl, opacity: BORDER_OPACITY, order: 0.5, name: 'Country borders' },
+      { url: this.options.coastlinesUrl, opacity: COAST_OPACITY, order: 0.51, name: 'Coastlines' },
+    ];
+    const results = await Promise.allSettled(
+      layers.map(async (layer) => {
+        const response = await fetch(layer.url);
+        if (!response.ok) throw new Error(`HTTP ${response.status} loading ${layer.name.toLowerCase()}`);
+        const lines = decodeBorders(await response.json());
+        if (this.disposed) return;
+        this.buildBorderLayer(
+          lines.map((line) => densifyLine(line, BORDER_STEP_DEG)),
+          layer.opacity,
+          layer.order,
+        );
+      }),
+    );
+    // Borders are decorative: the globe and routes stay fully usable without them.
+    results.forEach((result, i) => {
+      if (result.status === 'rejected') console.warn(`${layers[i].name} unavailable`, result.reason);
+    });
+    this.bordersState = results.every((r) => r.status === 'rejected') ? 'failed' : 'ready';
   }
 
-  private buildBorders(lines: LatLng[][]) {
+  private buildBorderLayer(lines: LatLng[][], opacity: number, renderOrder: number) {
     const positions = new Float32Array(countSegments(lines) * 6);
     const p = new Vector3();
     let o = 0;
@@ -759,10 +833,11 @@ export class GlobeRenderer {
       color: 0xf4f1ea,
       linewidth: 0.9,
       transparent: true,
-      opacity: 0.42,
+      opacity,
       worldUnits: false,
       depthWrite: false,
       // Each pixel is drawn at most once, so overlapping segment ends don't form brighter beads.
+      // Borders and coastlines share the stencil value; where they meet, the border (drawn first) wins.
       stencilWrite: true,
       stencilRef: 1,
       stencilFunc: NotEqualStencilFunc,
@@ -770,11 +845,11 @@ export class GlobeRenderer {
     });
     material.resolution.set(this.width, this.height);
     const line = new LineSegments2(geometry, material);
-    line.renderOrder = 0.5;
+    line.renderOrder = renderOrder;
     line.frustumCulled = false;
     line.visible = this.options.showBorders;
     this.scene.add(line);
-    this.borders = { line, material };
+    this.borderLayers.push({ line, material });
     this.requestRender();
   }
 
@@ -956,6 +1031,14 @@ export class GlobeRenderer {
       this.illuminationTween = null;
       if (!this.subsolar) this.restoreCameraLight();
     }
+    return t < 1;
+  }
+
+  private stepCityLights(now: number): boolean {
+    if (this.lightsFadeStart === null) return false;
+    const t = clamp01((now - this.lightsFadeStart) / CITY_LIGHTS_FADE_MS);
+    this.cityLights.value = CITY_LIGHTS * easeInOutCubic(t);
+    if (t >= 1) this.lightsFadeStart = null;
     return t < 1;
   }
 
@@ -1191,7 +1274,7 @@ export class GlobeRenderer {
       if (!leg) continue;
       for (const m of [leg.material, leg.casingMaterial, leg.remainingMaterial]) m.resolution.set(w, h);
     }
-    this.borders?.material.resolution.set(w, h);
+    for (const layer of this.borderLayers) layer.material.resolution.set(w, h);
     this.updateProjection();
     this.requestRender();
   }

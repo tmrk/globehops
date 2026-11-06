@@ -35,6 +35,9 @@ import {
 import { buildSearchIndex, type SearchIndex } from './data/search.ts';
 import type { GlobeRoute, Insets } from './globe/GlobeRenderer.ts';
 import { useMediaQuery } from './hooks/useMediaQuery.ts';
+import { useAnalyticsConsent } from './hooks/useAnalyticsConsent.ts';
+import { pushUrl, replaceUrl, trackEvent } from './analytics.ts';
+import { ConsentNotice } from './components/ConsentNotice.tsx';
 import { useVisualViewportVars } from './hooks/useVisualViewport.ts';
 import { formatDuration, sumDurations } from './lib/flightTime.ts';
 import { legColor } from './lib/legColors.ts';
@@ -151,6 +154,7 @@ export default function App() {
   const panelRef = useRef<HTMLElement>(null);
   const takeoverRef = useRef<AirportPickerHandle>(null);
   const aboutRef = useRef<AboutDialogHandle>(null);
+  const analytics = useAnalyticsConsent();
   const indexRef = useRef<SearchIndex | null>(null);
 
   const lookup = useCallback((id: number) => dataset?.byId.get(id), [dataset]);
@@ -292,13 +296,13 @@ export default function App() {
       if (ignoreNextPop.current) {
         // We stepped back over the picker entry ourselves; keep the current route in the URL.
         ignoreNextPop.current = false;
-        window.history.replaceState(null, '', shareUrlRef.current);
+        replaceUrl(shareUrlRef.current, null);
         return;
       }
       if (pickerEntry.current) {
         pickerEntry.current = false;
         closeEditorRef.current();
-        window.history.replaceState(null, '', shareUrlRef.current);
+        replaceUrl(shareUrlRef.current, null);
         return;
       }
       const idx = indexRef.current;
@@ -405,7 +409,7 @@ export default function App() {
   useEffect(() => {
     shareUrlRef.current = shareUrl;
     if (!initialized) return;
-    if (shareUrl !== window.location.href) window.history.replaceState(window.history.state, '', shareUrl);
+    if (shareUrl !== window.location.href) replaceUrl(shareUrl);
     saveLastJourney(serializeLink(filledStops, { speed, clock: clockZone, dayNight }));
     document.title = filledStops.length
       ? `${filledStops.map((s) => airportCode(s.airport)).join(' → ')} · GlobeHops`
@@ -483,7 +487,7 @@ export default function App() {
     if (isDesktop) return;
     if (!pickerEntry.current) {
       pickerEntry.current = true;
-      window.history.pushState({ globehopsPicker: true }, '', window.location.href);
+      pushUrl(window.location.href, { globehopsPicker: true });
     }
     takeoverRef.current?.reset();
     // Focus synchronously inside the user gesture so iOS raises the keyboard.
@@ -577,6 +581,7 @@ export default function App() {
     if (coarse && navigator.share) {
       try {
         await navigator.share({ title: `${title} · GlobeHops`, url });
+        trackEvent('share', { method: 'share_sheet', content_type: 'journey' });
         return;
       } catch (e) {
         if ((e as DOMException)?.name === 'AbortError') return;
@@ -585,6 +590,7 @@ export default function App() {
     try {
       await navigator.clipboard.writeText(url);
       showToast('Link copied');
+      trackEvent('share', { method: 'copy_link', content_type: 'journey' });
     } catch {
       showToast('Copy this link', url);
     }
@@ -610,6 +616,7 @@ export default function App() {
     clock.goLive();
   };
   const togglePlayback = () => {
+    if (!timeOpen || !clock.getSnapshot().playing) trackEvent('play_journey', { flights: legs.length });
     if (!timeOpen) {
       openTime();
       pendingExplicitPlay.current = true;
@@ -775,6 +782,10 @@ export default function App() {
           <IconInfo />
         </button>
       </header>
+
+      {initialized && analytics.available && analytics.consent === null && (
+        <ConsentNotice onChoose={analytics.choose} onDetails={() => aboutRef.current?.open('privacy')} />
+      )}
 
       {initialized && (
         <MapTools
@@ -975,7 +986,7 @@ export default function App() {
         {activeState ? describeState(journey, activeState).title : ''}
       </p>
       <Toast toast={toast} />
-      <AboutDialog ref={aboutRef} meta={dataset?.meta ?? null} />
+      <AboutDialog ref={aboutRef} meta={dataset?.meta ?? null} analytics={analytics} />
     </div>
   );
 }

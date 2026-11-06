@@ -14,6 +14,8 @@ import {
   saveDayNight,
   loadClockZone,
   saveClockZone,
+  loadAnalyticsConsent,
+  saveAnalyticsConsent,
 } from './storage.ts';
 describe('safe storage', () => {
   it('round trips preferences with route caps and rejects malformed stored data', () => {
@@ -25,6 +27,13 @@ describe('safe storage', () => {
     try {
       expect(loadUnit()).toBeNull();
       expect(loadLastRoute()).toBeNull();
+      expect(loadAnalyticsConsent()).toBeNull();
+      saveAnalyticsConsent('granted');
+      expect(loadAnalyticsConsent()).toBe('granted');
+      saveAnalyticsConsent('denied');
+      expect(data.get('globehops:analytics')).toBe('denied');
+      data.set('globehops:analytics', 'maybe');
+      expect(loadAnalyticsConsent()).toBeNull();
       saveUnit('mi');
       expect(loadUnit()).toBe('mi');
       saveUnit('km');

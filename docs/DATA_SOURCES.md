@@ -10,6 +10,14 @@ NASA-produced imagery is generally not subject to copyright in the United States
 
 `scripts/build-textures.ts` resamples with Lanczos3 to 8192 × 4096, 4096 × 2048 and 1024 × 512 and encodes WebP (quality 80, 82 and 72 respectively). There are no colour edits or content changes. Only the generated WebP files are committed. The imagery is a historical, cloud-free composite, not current satellite coverage.
 
+## City lights
+
+Source: NASA Earth Observatory [Earth at Night (Black Marble) 2016 colour maps](https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/), `BlackMarble_2016_3km.jpg`, a 13,500 × 6,750 equirectangular JPEG composited from Suomi NPP VIIRS day/night band data. [Direct download](https://assets.science.nasa.gov/content/dam/science/esd/eo/images/imagerecords/144000/144898/BlackMarble_2016_3km.jpg) (SHA-256 `230aac448ae68c358be433dd518888cccb3a85ccf66f7b44326441c324ad6725` as downloaded on 2026-11-06).
+
+Credit: **NASA Earth Observatory images by Joshua Stevens, using Suomi NPP VIIRS data from Miguel Román, NASA's Goddard Space Flight Center.** The same NASA imagery terms as above apply.
+
+`scripts/build-textures.ts` resamples with Lanczos3 to 4096 × 2048 and 2048 × 1024, then `scripts/lib/lights.ts` turns each RGB pixel into a single light value: red minus 0.55 × blue, minus 2, scaled so that 110 is full brightness. This removes the bluish moonlit land, ice and ocean of the composite and keeps the warm-white lights. The masks are WebP (`lights-4k.webp` quality 75, about 143 KB; `lights-2k.webp` quality 80, about 44 KB). The globe shader tints them warm and shows them only on the night side. Lights reflect 2016 and are not live.
+
 ## Airport data
 
 [OurAirports downloads](https://ourairports.com/data/) are released to the public domain without accuracy guarantees. Source repository: [davidmegginson/ourairports-data](https://github.com/davidmegginson/ourairports-data); [data dictionary](https://ourairports.com/help/data-dictionary.html).
@@ -58,9 +66,13 @@ Independent tests use MIT-licensed [astronomy-engine](https://github.com/cosinek
 
 Source: [Natural Earth](https://www.naturalearthdata.com/downloads/50m-cultural-vectors/50m-admin-0-boundary-lines/) 1:50m Cultural Vectors, **Admin 0 – Boundary Lines (land)**, version 5.1.2, read as GeoJSON from the pinned [natural-earth-vector v5.1.2 tag](https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_50m_admin_0_boundary_lines_land.geojson).
 
-Natural Earth vector and raster data are in the **public domain** ([terms of use](https://www.naturalearthdata.com/about/terms-of-use/)); no permission is needed and credit is appreciated. Natural Earth depicts de facto boundaries. GlobeHops shows them as a visual reference only and takes no position on territorial disputes. Coastlines come from the Earth imagery, not from this layer.
+Natural Earth vector and raster data are in the **public domain** ([terms of use](https://www.naturalearthdata.com/about/terms-of-use/)); no permission is needed and credit is appreciated. Natural Earth depicts de facto boundaries. GlobeHops shows them as a visual reference only and takes no position on territorial disputes.
 
 `scripts/lib/borders.ts` keeps every LineString and MultiLineString part in source order, rounds coordinates to 0.01° (about 1.1 km, finer than the 1:50m source accuracy), drops consecutive duplicate points and delta-encodes each line. Validation rejects out-of-range or non-integer coordinates and requires at least 200 lines and 10,000 points. The committed `src/data/generated/borders.json` holds 392 lines and 19,735 points (about 109 KB, 35 KB gzipped). The browser downloads it only while borders are shown, subdivides steps longer than 0.5° in latitude/longitude (so borders along parallels keep following them) and draws the lines just above the globe surface.
+
+## Coastlines
+
+Source: Natural Earth 1:50m Physical Vectors, **Coastline**, version 5.1.2, from the pinned [GeoJSON](https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_50m_coastline.geojson); public domain like the borders. The same `npm run borders:build` run simplifies each line with Douglas–Peucker at 0.02° (about 2 km, below a pixel at the closest zoom) before the same quantisation and delta encoding. Validation requires at least 1,000 lines and 25,000 points. The committed `src/data/generated/coastlines.json` holds 1,427 lines and 35,180 points (about 219 KB, 79 KB gzipped). It is shown and hidden with the borders, drawn fainter.
 
 ## Country names
 

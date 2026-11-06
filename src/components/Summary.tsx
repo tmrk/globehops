@@ -38,30 +38,48 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
       ? `${DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm} km`
       : `${Math.round((DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm * 3280.84) / 1000) * 1000} ft`;
 
-  const note =
-    flights === 0
-      ? 'Choose two airports to see the great-circle route.'
-      : layovers.length
-        ? `${flights} flights · ${formatDuration(flightMin)} flying · ${formatDuration(groundMin)} ${
-            layovers.length === 1 ? 'layover' : 'in layovers'
-          }`
-        : `${flights} flight${flights === 1 ? '' : 's'} · shortest great-circle distance`;
+  const timeLabel = journey.dated ? 'Journey time' : layovers.length ? 'Total time' : 'Flight time';
+  const flightsText = flights === 1 ? 'Great-circle route' : `${flights} flights`;
+  // Each part stays whole, so a narrow column breaks only between flying and ground time.
+  const breakdown = layovers.length ? (
+    <>
+      <span className="nowrap">{formatDuration(flightMin)} flying</span> ·{' '}
+      <span className="nowrap">
+        {formatDuration(groundMin)} {layovers.length === 1 ? 'layover' : 'in layovers'}
+      </span>
+    </>
+  ) : estimated ? (
+    'Estimated'
+  ) : (
+    'From entered times'
+  );
+  const dates =
+    journey.dated && journey.start && journey.end
+      ? {
+          departs: `Departs ${formatClock(journey.start.epochMs, journey.start.zone, { weekday: true, date: true }).replace(',', '')} ${airportCode(journey.stops[0].airport)}`,
+          arrives: `Arrives ${formatClock(journey.end.epochMs, journey.end.zone)} ${airportCode(journey.stops.at(-1)!.airport)}`,
+        }
+      : null;
   const issue = journey.issues.find((i) => i.severity === 'error');
   const issueLeg = issue?.leg ?? (issue?.field === 'arrival' ? Math.max(0, (issue.stop ?? 1) - 1) : (issue?.stop ?? 0));
 
+  // Justified like the total on a ticket: distance flush left and time flush right, or, beside Play,
+  // two even columns. Each stat stays one group in reading order; CSS places its parts on shared
+  // label, value and detail rows, with departure and arrival spread across the full width below.
   return (
     <section className="summary" aria-label="Journey totals">
-      <div className="summary__row">
+      <div className={`summary__grid${action ? ' has-action' : ''}`}>
         <div className="stat">
           <span className="stat__label">{flights > 1 ? 'Total distance' : 'Distance'}</span>
           <span className="stat__value">
             {flights ? formatDistanceNumber(totalKm, unit) : '—'}
             <span className="stat__unit">{unit}</span>
           </span>
+          <span className="stat__detail">{flights ? flightsText : 'Choose two airports'}</span>
         </div>
-        <div className="stat">
+        <div className="stat stat--end">
           <span className="stat__label">
-            {journey.dated ? 'Journey time' : layovers.length ? 'Total time' : 'Flight time'}
+            {timeLabel}
             <button
               type="button"
               className="info-btn"
@@ -76,21 +94,15 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
           <span className="stat__value">
             {flights && totalMin ? `${estimated ? '≈ ' : ''}${formatDuration(totalMin)}` : '—'}
           </span>
+          <span className="stat__detail">{breakdown}</span>
         </div>
-        {action}
-      </div>
-      <p className="summary__note">
-        {journey.dated && journey.start && journey.end ? (
-          <>
-            Departs{' '}
-            {formatClock(journey.start.epochMs, journey.start.zone, { weekday: true, date: true }).replace(',', '')}{' '}
-            {airportCode(journey.stops[0].airport)} · arrives {formatClock(journey.end.epochMs, journey.end.zone)}{' '}
-            {airportCode(journey.stops.at(-1)!.airport)}
-            <br />
-          </>
+        {action ? <div className="summary__action">{action}</div> : null}
+        {dates ? (
+          <p className="summary__dates">
+            <span>{dates.departs}</span> <span>{dates.arrives}</span>
+          </p>
         ) : null}
-        {note}
-      </p>
+      </div>
       {issue ? (
         <button type="button" className="text-btn schedule-error" onClick={() => onCheckLeg(issueLeg)}>
           Check flight {issueLeg + 1} times

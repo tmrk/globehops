@@ -17,7 +17,8 @@ Pure logic lives in `src/lib/` (geography, time-zone conversion, solar position,
 - Put CSS in `src/styles/app.css`; use its existing tokens and responsive layout conventions. Corners use only the `--radius-*` role tokens (see [CODE.md](CODE.md) “Design language”); never add literal radii.
 - Prioritise simplicity, mobile usability, a prominent globe, restrained motion and accessibility. Use semantic roles, labels and keyboard controls.
 - Preserve reduced-motion behaviour, touch targets, focus and useful route editing without WebGL.
-- No proprietary maps, tiles, APIs, API keys, backends or analytics. Every asset must be openly licensed and documented in `docs/DATA_SOURCES.md` and `THIRD_PARTY_NOTICES.md`.
+- No proprietary maps, tiles, APIs, API keys or backends. Every asset must be openly licensed and documented in `docs/DATA_SOURCES.md` and `THIRD_PARTY_NOTICES.md`.
+- The one exception is the owner-requested, consent-gated Google Analytics 4 in `src/analytics.ts` (rules in `src/lib/analytics.ts`): nothing loads before consent, only on `tmrk.github.io`, never with GPC/DNT. Never send airports, dates, times, the query string or the document title; route address writes through `replaceUrl`/`pushUrl`. Add no other trackers.
 
 ## Commands and verification
 

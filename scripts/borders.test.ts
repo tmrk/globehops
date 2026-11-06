@@ -6,9 +6,14 @@ import {
   BORDER_PRECISION,
   BORDER_SOURCE,
   BORDER_SOURCE_URL,
+  COAST_LAYER,
+  COAST_SIMPLIFY_DEG,
+  COAST_SOURCE,
+  COAST_SOURCE_URL,
   MIN_BORDER_LINES,
   MIN_BORDER_POINTS,
   buildBorders,
+  simplifyLine,
   validateBorders,
 } from './lib/borders.ts';
 
@@ -245,4 +250,70 @@ describe('validateBorders', () => {
       expect(() => validateBorders({ ...fixture(), lines: [encoded] }, smallValidation)).toThrow(/Border line 0/);
     },
   );
+});
+
+describe('simplifyLine', () => {
+  it('keeps ends and points beyond the tolerance, drops near-collinear points', () => {
+    const points = [
+      [0, 0],
+      [1, 0.17],
+      [2, 0.33],
+      [3, 0.5],
+      [4, 0],
+    ];
+    expect(simplifyLine(points, 0.02)).toEqual([
+      [0, 0],
+      [3, 0.5],
+      [4, 0],
+    ]);
+    expect(simplifyLine(points, 0)).toEqual(points);
+    expect(simplifyLine(points.slice(0, 2), 1)).toEqual(points.slice(0, 2));
+  });
+
+  it('keeps closed rings closed and does not modify its input', () => {
+    const ring = [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+      [0, 0],
+    ];
+    const copy = structuredClone(ring);
+    expect(simplifyLine(ring, 0.1)).toEqual(ring);
+    expect(ring).toEqual(copy);
+  });
+});
+
+describe('coastline layer', () => {
+  it('records its own source and simplifies before quantisation', () => {
+    const dataset = buildBorders(
+      collection(
+        line([
+          [10, 50],
+          [10.5, 50.001],
+          [11, 50],
+          [11, 51],
+        ]),
+      ),
+      COAST_LAYER,
+    );
+    expect(dataset).toMatchObject({ source: COAST_SOURCE, url: COAST_SOURCE_URL, precision: BORDER_PRECISION });
+    expect(dataset.lines).toEqual([[1000, 5000, 100, 0, 0, 100]]);
+    expect(COAST_LAYER.simplifyDeg).toBe(COAST_SIMPLIFY_DEG);
+  });
+
+  it('still reports malformed coordinates precisely', () => {
+    expect(() =>
+      buildBorders(
+        collection(
+          line([
+            [1, 2],
+            ['x', 3],
+            [4, 5],
+          ]),
+        ),
+        COAST_LAYER,
+      ),
+    ).toThrow(/point 1/);
+  });
 });

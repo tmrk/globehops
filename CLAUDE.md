@@ -3,7 +3,7 @@ See [AGENTS.md](AGENTS.md).
 - Preserve the mobile-first interface, accessibility, reduced motion and the globe’s prominence.
 - Use strict TypeScript and the existing Prettier/CSS token conventions.
 - Keep pure logic tested in `src/lib/`, `src/state/`, `src/data/` and `src/agent/`; imperative Three.js stays in `src/globe/`.
-- Use only openly licensed, documented assets; no proprietary services, keys, backend or analytics.
+- Use only openly licensed, documented assets; no proprietary services, keys or backend. The only exception is consent-gated GA4 (`src/analytics.ts`): never send route data; write the URL via `replaceUrl`/`pushUrl`.
 - Preserve `/globehops/` asset paths and URL > remembered > example route precedence.
 - Request a render after scene changes; dispose Three.js resources. Preserve synchronous iOS tap-to-focus.
 - Run lint, unit tests and build; run only the E2E specs affected by the change (`-g`/file filter), in Chromium unless the change is WebKit-sensitive. Keep the full four-project E2E run for broad UI changes or when asked; the deploy workflow only runs lint, unit tests, build and three `@smoke` E2E tests (desktop Chromium). Review mobile/desktop screenshots and update docs plus `RECENT_CHANGES.md`.

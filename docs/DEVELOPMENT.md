@@ -17,11 +17,11 @@ Use Node 22.18+ (CI: Node 24). Run `npm install`, then `npm run dev` and open th
 | `npm run data:update`     | Download, validate and regenerate airport data if content changes.               |
 | `npm run data:check`      | Validate a fresh download without writing files; report whether it would change. |
 | `npm run labels:build`    | Build country names/label points from pinned Natural Earth countries.            |
-| `npm run borders:build`   | Build the country-border dataset from the pinned Natural Earth GeoJSON.          |
+| `npm run borders:build`   | Build country borders and coastlines from the pinned Natural Earth GeoJSON.      |
 | `npm run timezones:build` | Build the separate airport-to-zone table from pinned TBB boundaries.             |
 | `npm run agent:build`     | Regenerate static agent capabilities, schema and worked examples.                |
 | `npm run mcp`             | Run the local MCP stdio server (not an HTTP listener).                           |
-| `npm run textures:build`  | Build WebP textures from a separately downloaded NASA source image.              |
+| `npm run textures:build`  | Build day and night-light WebP textures from downloaded NASA source images.      |
 | `npm run icons:build`     | Generate PNG app icons from the SVG sources in `public/`.                        |
 
 Useful focused commands:
@@ -84,17 +84,19 @@ The generator verifies the pinned TBB 2026f ZIP SHA-256, performs polygon/neares
 
 Agent files: `npm run agent:build` writes `public/agent/capabilities.json`, `itinerary.schema.json` and `examples.json` from the shared contract/schema and real planning functions. Run it after contract, calculation or dataset changes; never hand-edit those JSON files. `npm test -- scripts/agent-files.test.ts` fails on byte drift and checks schema validity and URL round-trips. Example issues use a fixed reference clock for reproducibility. Vite separately serves/emits `agent/dataset.json` from current airport/time-zone metadata; no checked-in freshness file needs updating. `public/llms.txt` is maintained prose, not generator output.
 
-Country borders: `npm run borders:build` reads `.cache/naturalearth/ne_50m_admin_0_boundary_lines_land.geojson`, downloading the pinned Natural Earth v5.1.2 file first if the cache is missing. `-- --refresh` always downloads, `-- --offline` requires the cache, and a positional path reads another GeoJSON file. The build quantises coordinates to 0.01°, delta-encodes each line, validates ranges and minimum line/point counts, then atomically writes `src/data/generated/borders.json`. To move to a newer Natural Earth release, change the pinned URL in `scripts/lib/borders.ts`, rebuild and review the line/point counts it prints.
+Country borders and coastlines: `npm run borders:build` reads `.cache/naturalearth/ne_50m_admin_0_boundary_lines_land.geojson` and `.cache/naturalearth/ne_50m_coastline.geojson`, downloading the pinned Natural Earth v5.1.2 files first if the cache is missing. `-- --refresh` always downloads, `-- --offline` requires the cache, and a positional path replaces the border source only. The build simplifies coastlines to 0.02°, quantises coordinates to 0.01°, delta-encodes each line, validates ranges and minimum line/point counts for both layers, then atomically writes `src/data/generated/borders.json` and `coastlines.json`. Never hand-edit either. To move to a newer Natural Earth release, change the pinned URL in `scripts/lib/borders.ts`, rebuild and review the line/point counts it prints.
 
 Country names: `npm run labels:build` reads `.cache/naturalearth/ne_50m_admin_0_countries.geojson`, downloading the pinned Natural Earth v5.1.2 source if absent. `-- --offline` requires the cache, `-- --refresh` downloads again, and an optional positional path reads a local source. Extraction keeps short names, label points, minimum zooms and ranks, validates the complete dataset, then atomically writes `src/data/generated/country-labels.json`. Never hand-edit that generated file. Change the pinned URL/version in `scripts/lib/countryLabels.ts` and rebuild to update the source. Focused tests: `npm test -- scripts/countryLabels.test.ts src/lib/countryLabels.test.ts`.
 
-Textures: download the [NASA source JPEG](https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x21600x10800.jpg) to `.cache/bmng/world.topo.bathy.200407.3x21600x10800.jpg` (create the directory first), then run `npm run textures:build`. An explicit input works with `npm run textures:build -- /path/to/source.jpg`. The source must be a 2:1 image; commit generated WebP outputs, never the source/cache.
+Textures: download the [NASA Blue Marble JPEG](https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x21600x10800.jpg) to `.cache/bmng/world.topo.bathy.200407.3x21600x10800.jpg` and the [Black Marble 2016 3 km JPEG](https://assets.science.nasa.gov/content/dam/science/esd/eo/images/imagerecords/144000/144898/BlackMarble_2016_3km.jpg) to `.cache/blackmarble/BlackMarble_2016_3km.jpg` (create the directories first), then run `npm run textures:build`. `-- --day-only` or `-- --night-only` builds one set; explicit inputs work with `npm run textures:build -- /path/to/day.jpg /path/to/night.jpg`. Sources must be 2:1 images; a missing source is reported and the other set still builds. The night build writes single-channel light masks (`lights-2k.webp`, `lights-4k.webp`; rules in `scripts/lib/lights.ts`). Commit generated WebP outputs, never the sources/cache.
 
 Icons: `npm run icons:build` renders favicon, Apple touch, standard app and maskable PNG icons from `public/favicon.svg` and `public/logo.svg`, using installed Playwright Chromium. The UI SVGs live in `src/components/Icons.tsx` and `Brand.tsx`. To regenerate `public/og-image.png` too, first build and start preview, then run:
 
 ```sh
 npm run icons:build -- --og http://localhost:4173/globehops/
 ```
+
+Analytics: Google Analytics runs only on `tmrk.github.io` production builds after consent, so `npm run dev`, `npm run preview` and E2E runs never show the notice or contact Google. To review the notice locally, serve the production build and route `https://tmrk.github.io/globehops/**` to the preview in a Playwright script (abort `googletagmanager.com` requests so tests never reach the real property). Never pass airports, dates, times or URLs to `trackEvent`.
 
 ## Local MCP development
 

@@ -13,11 +13,17 @@ The GlobeHops code is MIT licensed; bundled libraries, fonts and source content 
 
 Earth textures derive from NASA Blue Marble Next Generation, July 2004, with topography and bathymetry. Credit: **NASA Earth Observatory (Reto Stöckli, NASA GSFC)**. NASA imagery is generally not subject to US copyright; acknowledgement is requested and no NASA endorsement is implied. See the [NASA source](https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-topography-bathymetry/) and [media guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media/).
 
-Country borders derive from [Natural Earth](https://www.naturalearthdata.com/) 1:50m Admin 0 boundary lines (land), v5.1.2, which is in the public domain ([terms of use](https://www.naturalearthdata.com/about/terms-of-use/)). Made with Natural Earth.
+City lights derive from NASA Earth Observatory's Earth at Night (Black Marble) 2016 colour composite (`BlackMarble_2016_3km.jpg`). Credit: **NASA Earth Observatory images by Joshua Stevens, using Suomi NPP VIIRS data from Miguel Román, NASA's Goddard Space Flight Center**. The same NASA imagery terms apply; see the [NASA source](https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/). GlobeHops converts it to a night-light mask (see [data sources](docs/DATA_SOURCES.md)).
+
+Country borders and coastlines derive from [Natural Earth](https://www.naturalearthdata.com/) 1:50m Admin 0 boundary lines (land) and 1:50m coastline, v5.1.2, which are in the public domain ([terms of use](https://www.naturalearthdata.com/about/terms-of-use/)). Made with Natural Earth.
 
 Country names derive from Natural Earth 1:50m **Admin 0 – Countries**, v5.1.2, from the pinned [GeoJSON](https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_50m_admin_0_countries.geojson), in the **public domain** ([terms of use](https://www.naturalearthdata.com/about/terms-of-use/)). The generated layer extracts cartographic short names, label coordinates, minimum zooms and label ranks; “United States of America” is shortened to “United States”. It contains 242 labels (7,621 bytes; 3,628 bytes gzipped). Made with Natural Earth.
 
 Airport content derives from [OurAirports](https://ourairports.com/data/), released to the public domain without an accuracy guarantee. Source provenance, cleaning rules and texture modifications are documented in [DATA_SOURCES.md](docs/DATA_SOURCES.md). Local UI icons and logo are drawn in the project’s SVG components.
+
+## Optional usage statistics
+
+With the visitor's consent only, the deployed site loads Google Analytics 4 (`gtag.js`) from `www.googletagmanager.com`, a service of Google LLC under the [Google Analytics Terms of Service](https://marketingplatform.google.com/about/analytics/terms/us/) and [Google's privacy policy](https://policies.google.com/privacy). It is not bundled, contains no GlobeHops data beyond the bare page address, and never runs on local builds or forks. See [README › Privacy](README.md#privacy).
 
 ## Time-zone database
 

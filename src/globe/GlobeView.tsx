@@ -2,8 +2,11 @@ import { useEffect, useRef } from 'react';
 import previewUrl from '../assets/textures/earth-1k.webp';
 import mediumUrl from '../assets/textures/earth-4k.webp';
 import largeUrl from '../assets/textures/earth-8k.webp';
+import lightsSmallUrl from '../assets/textures/lights-2k.webp';
+import lightsLargeUrl from '../assets/textures/lights-4k.webp';
 import countryLabelsUrl from '../data/generated/country-labels.json?url';
 import bordersUrl from '../data/generated/borders.json?url';
+import coastlinesUrl from '../data/generated/coastlines.json?url';
 import { GlobeRenderer, type GlobeRoute, type Insets } from './GlobeRenderer.ts';
 import type { SimulationFeed } from './simFeed.ts';
 
@@ -40,8 +43,15 @@ export default function GlobeView(props: GlobeViewProps) {
     let renderer: GlobeRenderer;
     try {
       renderer = new GlobeRenderer(el, {
-        textures: { preview: previewUrl, medium: mediumUrl, large: largeUrl },
+        textures: {
+          preview: previewUrl,
+          medium: mediumUrl,
+          large: largeUrl,
+          lightsSmall: lightsSmallUrl,
+          lightsLarge: lightsLargeUrl,
+        },
         bordersUrl,
+        coastlinesUrl,
         countryLabelsUrl,
         showCountryLabels: latest.current.showCountryNames,
         showBorders: latest.current.showBorders,
