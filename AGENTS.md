@@ -77,3 +77,5 @@ GlobeHops uses [semantic versioning](https://semver.org/). `package.json` is the
 ## Definition of done
 
 Lint, unit tests and production build pass, and the E2E specs affected by the change pass (Chromium by default; add WebKit for touch, date input, font or Safari-specific changes). The full four-project suite takes several minutes: run it only for broad UI changes or when asked; CI runs only the three `@smoke` E2E tests (desktop Chromium) before every deployment. Review mobile and desktop screenshots. Bump the version and add its `RECENT_CHANGES.md` entry; update relevant documentation; record genuine application bugs and limitations precisely. Keep changes within the user’s authorised scope.
+
+- Compare invariants: journey ids A–D are positional; alternatives use `b.*`/`c.*`/`d.*` link parameters while single-journey links stay unchanged; one UTC clock drives the fleet, with the active journey primary for camera follow.

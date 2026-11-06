@@ -21,6 +21,7 @@
 | `src/components/AirportPicker.tsx`                                                | Inline/mobile combobox, suggestions and keyboard interaction.                                                      |
 | `src/components/StopList.tsx`                                                     | Itinerary grid: stops, flights, layovers, route line; edit mode for insert/remove/reorder/reverse.                 |
 | `src/components/Summary.tsx`                                                      | Justified totals (distance/flights, time/breakdown, dates), the Play action and the time explanation.              |
+| `src/components/{JourneyTabs,CompareSummary,ComparisonStrip,ComparisonLanes}.tsx` | Comparison tabs, shared-axis ticket bars and live fleet status lanes.                                              |
 | `src/components/GlobeHud.tsx`                                                     | Flight stepper over the globe for wide routes and selected flights.                                                |
 | `src/components/MapTools.tsx`                                                     | Display menu (layers, location, units, motion, clock), separate language menu and re-centre.                       |
 | `src/components/AboutDialog.tsx`                                                  | Method, credits, language selector and privacy/usage-statistics switch.                                            |
@@ -32,6 +33,7 @@
 | `src/components/ConsentNotice.tsx`                                                | One-time modal Google Analytics consent sheet (Allow / Deny).                                                      |
 | `src/hooks/`                                                                      | Media-query, visual-viewport and toast hooks.                                                                      |
 | `src/state/route.ts`                                                              | Ten-stop reducer, stop-based local times/layovers and legacy derived geometry.                                     |
+| `src/state/compare.ts`, `src/lib/{compare,compareView}.ts`                        | Positional journey drafts, schedule alignment/metrics, globe leg mapping and shared-axis segments.                 |
 | `src/state/clock.ts`                                                              | UTC simulation clock, live time and playback rates.                                                                |
 | `src/state/link.ts`                                                               | Readable schedule/view links, including follow, language, map layers and one-based flight selection.               |
 | `src/state/simulation.ts`                                                         | Imperative clock-to-renderer feed, aircraft velocity and separate active-leg follow transitions.                   |
@@ -120,6 +122,8 @@
 | `e2e/agent.spec.ts`                                                               | Production link/view overrides, preference preservation and modern/legacy browser-tool lifecycle.                  |
 | `playwright.config.ts`                                                            | Four browser projects, en-GB locale and configurable E2E_PORT production preview.                                  |
 | `.github/workflows/`                                                              | Pages deployment, release tagging and daily airport/time-zone refresh.                                             |
+
+Comparison editing uses `src/state/compare.ts`: one to four journey drafts with stable React keys and positional letters A–D. App delegates existing route actions to the active draft, computes every journey with `lib/compare.ts`, and serializes A with the classic parameters and alternatives with `b.`, `c.` and `d.` prefixes. `lib/compareView.ts` owns shared-axis bar segments, deduplicated globe routes and local/global leg mapping. `JourneyTabs` provides keyboard tab navigation; `CompareSummary` and `ComparisonStrip` present the ticket. `ComparisonLanes` renders the live statuses. `TimeBar` subscribes narrowly to the one clock and shows each journey's live lane; its range, flight jumps and clock menu cover all journeys. The fleet feed keeps the active journey primary for camera follow. Link/view flight numbers refer to A; live `select_flight` targets the active journey. Single-journey editing and links retain their existing behaviour.
 
 ## Conventions
 

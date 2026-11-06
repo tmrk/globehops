@@ -6,17 +6,16 @@ TBB 2026f ZIP + overrides + airports.json → build-timezones → timezones.json
   ↓ decodeDataset / decodeTimeZones
   airport lookup + search index + airport-ID → IANA zone lookup
   ↓
-URL / remembered journey / example → routeReducer → filled stops + local times + layovers
-  ↓                                                 ↓
-computeLegs → precomputed globe route geometry     computeJourney → Journey + issues/provenance
-                                                    ↓
-                                                 buildTimeline → UTC flight/ground segments
-                                                    ↓
+URL / remembered journeys / example → compareReducer → active routeReducer + journey drafts A–D
+  ↓
+computeComparison → Journey + issues/provenance + UTC flight/ground timeline per journey
+  → compareView → flattened globe legs + shared-axis summary bars
+  ↓
 SimulationClock (one UTC instant; live / paused / playing)
-  → createSimulationFeed (journeyStateAt + subsolarPoint) → GlobeView → GlobeRenderer
+  → createSimulationFeed (fleet journeyStateAt + subsolarPoint) → GlobeView → GlobeRenderer
   → scoped clock subscriptions → timeline/readouts/status UI
-Journey → leg time editor + endpoint labels + summary
-Filled stops + paused view → serializeLink → replaceState + safe storage
+Active journey → leg time editor + endpoint labels; comparison → tabs + summary + live lanes
+All drafts + paused view → serializeLink → replaceState + safe storage
 
 src/agent/{contract,itinerary,schema,plan}
   → reuse decoding/search/schedule/timeline/sun/link modules
@@ -42,6 +41,14 @@ Airport and time-zone JSON are imported as asset URLs and fetched independently 
 The only third-party request is optional: with the visitor's consent, `src/analytics.ts` loads Google Analytics 4 (see “Analytics” below).
 
 React owns editing and interface state and memoises the journey/timeline when inputs change. The clock is an external store: its imperative feed updates the renderer without an App render per playback frame. App subscribes to phase/leg changes, the display menu's globe clock to whole minutes, and TimeBar to full clock snapshots during playback. URL > remembered journey (legacy route fallback) > example determines startup; only paused view time is debounced into history. See [time and simulation](TIME_AND_SIMULATION.md). First-visit examples alone wait for the airport time-zone table to finish loading (success or failure). `src/data/suggestions.ts` uses the browser’s IANA zone as a home-country proxy, resolves a likely gateway (LHR fallback), and offers three deterministic single-leg long-haul previews to familiar hubs, favouring region diversity. Estimates target at least 12 hours within 16,500 km; a sparse dataset may require shorter flights. Selecting a suggestion retains the welcome; route edits dismiss it. The mobile welcome keeps Add stop under Edit so the three 44 px suggestion rows fit the 390 × 844 reference sheet without increasing its height. Shorter screens can scroll the list. No runtime backend or remote map service is involved.
+
+## Comparison UI and orchestration
+
+`App` owns a `CompareState` reducer. Its `route` and route dispatch remain aliases for the active journey, so the same StopList, airport picker and schedule editor serve single and compare modes. Adding an option copies only the active journey's filled endpoints; removing an option re-letters positions A–D. Tabs, summary rows, time-bar lanes and globe leg clicks all activate the same draft. `lib/compareView.ts` maps journey-local leg indices to the flattened globe legs, deduplicates airport markers (origin before destination before transfer) and computes bar segments on a shared axis.
+
+`computeComparison` preserves entered schedules and anchors undated alternatives to the earliest dated departure, or an example departure while the timeline is open. App supplies every journey and its global leg offset to the simulation fleet; the active journey remains primary for aircraft follow. One clock spans the earliest departure minus the lead-in through the latest arrival. TimeBar alone renders live lane statuses from ticks; App still observes only phase changes. Summary bars share the comparison range, while lane strips include the same lead-in and thumb gutters as the scrubber. Undated summaries use a common duration axis until a timeline exists.
+
+Share, remembered journeys, back/forward and WebMCP all use the same link representation: A's original parameters plus optional label, then `b.*`–`d.*`. A single route load replaces the comparison with one draft. Agent `get_journey` keeps the active journey fields and adds a comparison object with journeys, metrics and the full share URL. Visit-only view overrides keep saved preferences intact. Only paused scrubs are debounced into the address; playback frames never write it.
 
 ## Internationalisation and view overrides
 

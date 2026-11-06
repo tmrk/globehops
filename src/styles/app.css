@@ -3085,3 +3085,249 @@ button.map-menu__item:hover {
     opacity: 0.28;
   }
 }
+
+/* Comparisons use the same ticket and stop editor, with one colour per journey. */
+.compare-entry,
+.compare-remove {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 var(--pad) 6px;
+  font-size: var(--text-sm);
+}
+.compare-entry {
+  color: var(--text-2);
+}
+.compare-remove {
+  color: var(--danger);
+  opacity: 0.8;
+}
+.compare-hint {
+  margin: 4px var(--pad) 10px;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+.journey-tabs-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 var(--pad) 8px;
+  flex: none;
+}
+.journey-tabs {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.journey-tabs::-webkit-scrollbar {
+  display: none;
+}
+.journey-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  max-width: 190px;
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border-bottom: 2px solid transparent;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.journey-tab[aria-selected='true'] {
+  background: var(--surface-raised);
+  border-bottom-color: var(--journey-color);
+  color: var(--text);
+}
+.journey-tab__route {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.journey-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: var(--radius-full);
+  background: var(--journey-color);
+}
+.journey-letter {
+  font: 600 var(--text-xs) var(--mono);
+  font-stretch: var(--mono-stretch);
+}
+.journey-chip {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--journey-color);
+  background: color-mix(in srgb, var(--journey-color) 14%, transparent);
+  border-radius: var(--radius-xs);
+  font: 600 var(--text-xs) var(--mono);
+  font-stretch: var(--mono-stretch);
+}
+.compare-summary {
+  /* Keep Chromium's text painting separate from the scrolling list under the glass panel. */
+  contain: paint;
+  padding-block: 10px calc(10px + var(--safe-bottom));
+}
+.compare-summary__rows {
+  display: grid;
+  padding-inline: 8px;
+  grid-template-columns: 20px minmax(0, 1fr) max-content;
+  column-gap: 8px;
+}
+.compare-summary__row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 6px;
+  width: 100%;
+  padding: 9px 0;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+.compare-summary__row[aria-pressed='true'] {
+  background: var(--hover);
+}
+.compare-summary__row:hover {
+  background: var(--press);
+}
+.compare-summary__route {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 500 var(--text-xs) var(--mono);
+  font-stretch: var(--mono-stretch);
+}
+.compare-summary__label {
+  color: var(--text-2);
+  font-family: var(--font);
+}
+.compare-summary__duration {
+  font: 500 var(--text-sm) var(--mono);
+  font-stretch: var(--mono-stretch);
+  white-space: nowrap;
+}
+.compare-summary__row > .comparison-strip {
+  grid-column: 2;
+}
+.compare-summary__awards {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 5px;
+  min-height: 18px;
+}
+.compare-badge {
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: var(--radius-full);
+  padding: 1px 6px;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.compare-badge--arrival {
+  color: var(--text-2);
+  border-color: var(--line-strong);
+}
+.compare-delta {
+  color: var(--text-2);
+  font: var(--text-xs) var(--mono);
+  font-stretch: var(--mono-stretch);
+}
+.comparison-strip {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--line);
+}
+.comparison-strip > span {
+  position: absolute;
+  height: 100%;
+  top: 0;
+}
+.comparison-strip__flight {
+  background: var(--journey-color);
+}
+.comparison-strip__ground {
+  opacity: 0.5;
+  background: repeating-linear-gradient(to right, var(--journey-color) 0 2px, transparent 2px 5px);
+}
+.compare-summary__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.compare-summary__note {
+  flex: 1;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
+.compare-summary__foot .play-btn {
+  flex: none;
+}
+.comparison-lanes {
+  margin-top: 8px;
+}
+.comparison-lane {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  padding: 3px 14px;
+  min-height: 36px;
+  text-align: left;
+  border-radius: var(--radius-xs);
+}
+.comparison-lane[aria-pressed='true'] {
+  background: var(--hover);
+}
+.comparison-lane__status {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+.comparison-lane__status > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comparison-lane .journey-chip {
+  width: 16px;
+  height: 16px;
+}
+.comparison-lane > .comparison-strip {
+  height: 4px;
+}
+
+/* Three or four tickets still leave a useful scroll area for the active stop editor. */
+.layout-mobile .panel.has-many-journeys:not(.has-timeline) {
+  max-height: min(62dvh, calc(100dvh - 190px));
+}
+.layout-mobile .compare-summary__row {
+  padding-block: 5px;
+  row-gap: 2px;
+}
+
+@media (pointer: coarse) {
+  .comparison-lane,
+  .compare-entry,
+  .compare-remove {
+    min-height: 44px;
+  }
+}

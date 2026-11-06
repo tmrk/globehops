@@ -1,3 +1,5 @@
+import { compareMetrics, comparisonRange, type ComparedJourney } from '../lib/compare.ts';
+import { ComparisonLanes } from './ComparisonLanes.tsx';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { airportCode } from '../data/airports.ts';
 import { useClock } from '../hooks/useClock.ts';
@@ -26,6 +28,10 @@ import {
   IconPlay,
 } from './Icons.tsx';
 interface Props {
+  comparison?: ComparedJourney[];
+  active?: number;
+  onActivate?: (index: number) => void;
+  onEditJourneyLeg?: (index: number, leg: number) => void;
   clock: SimulationClock;
   journey: Journey;
   timeline: Timeline | null;
@@ -41,6 +47,10 @@ interface Props {
 }
 export function TimeBar({
   clock,
+  comparison,
+  active,
+  onActivate,
+  onEditJourneyLeg,
   journey,
   timeline,
   clockZone,
@@ -56,12 +66,16 @@ export function TimeBar({
 
   const snapshot = useClock(clock);
   const browserZone = browserTimeZone();
+  const allJourneys = comparison?.map((entry) => entry.journey) ?? [journey];
+  const sharedRange = comparison ? comparisonRange(comparison) : timeline;
+  const metrics = comparison ? compareMetrics(comparison) : null;
   const requestedZone =
     clockZone === 'local'
       ? browserZone
       : clockZone === 'utc'
         ? 'UTC'
-        : (journey.stops.find((s) => airportCode(s.airport) === clockZone)?.zone ?? browserZone);
+        : (allJourneys.flatMap((entry) => entry.stops).find((s) => airportCode(s.airport) === clockZone)?.zone ??
+          browserZone);
   const zone = isSupportedTimeZone(requestedZone) ? requestedZone : browserZone;
   const state = timeline ? journeyStateAt(journey, timeline, snapshot.time) : null;
   const text = state
@@ -69,11 +83,34 @@ export function TimeBar({
     : { title: t('timebar.dayAndNight'), detail: t('timebar.exploreSunlightAroundTheWorld') };
   if (state?.phase === 'before')
     text.detail = t('timebar.departsIn', fmt.duration((state.nextDeparture - snapshot.time) / 60000));
-  const error = journey.issues.find((i) => i.severity === 'error');
+  if (comparison && metrics) {
+    const arrival = metrics.firstArrival ? comparison.find((entry) => entry.id === metrics.firstArrival) : null;
+    const fastest = metrics.fastest;
+    text.title = arrival
+      ? t('compare.firstTitle', arrival.id)
+      : fastest
+        ? t('compare.fastestTitle', fastest)
+        : t('compare.comparing', comparison.length);
+    text.detail = arrival
+      ? comparison
+          .filter((entry) => entry.id !== arrival.id && entry.journey.end)
+          .map((entry) =>
+            t(
+              'compare.before',
+              fmt.duration((entry.journey.end!.epochMs - arrival.journey.end!.epochMs) / 60000),
+              entry.id,
+            ),
+          )
+          .join(' · ')
+      : t('compare.sharedClock');
+  }
+  const errorJourney = allJourneys.findIndex((entry) => entry.issues.some((issue) => issue.severity === 'error'));
+  const error = allJourneys[errorJourney]?.issues.find((i) => i.severity === 'error');
+  const editError = () => (comparison ? onEditJourneyLeg?.(errorJourney, errorLeg) : onEditLeg(errorLeg));
   const errorLeg = error?.leg ?? (error?.field === 'arrival' ? Math.max(0, (error.stop ?? 1) - 1) : (error?.stop ?? 0));
   if (error) {
     text.title = t('timebar.fixTimes', errorLeg + 1);
-    text.detail = t('timebar.checkTheLocalDatesAndTimes');
+    text.detail = `${comparison ? `${comparison[errorJourney].id} · ` : ''}${t('timebar.checkTheLocalDatesAndTimes')}`;
   }
   const date = formatLocalDateTime(utcToLocal(zone, snapshot.time)).slice(0, 10);
   const midnight = parseLocalDateTime(`${date}T00:00`)!;
@@ -84,22 +121,30 @@ export function TimeBar({
       : resolution.kind === 'ambiguous'
         ? resolution.options[0].epochMs
         : resolution.after.epochMs;
-  const start = timeline ? (snapshot.start ?? timeline.start - 30 * 60000) : dayStart;
-  const end = timeline ? (snapshot.end ?? timeline.end) : dayStart + 24 * 3600000;
+  const start = sharedRange ? (snapshot.start ?? sharedRange.start - 30 * 60000) : dayStart;
+  const end = sharedRange ? (snapshot.end ?? sharedRange.end) : dayStart + 24 * 3600000;
   const readout = `${fmt.clock(snapshot.time, zone, { weekday: true, date: true })} ${zoneAbbreviation(zone, snapshot.time)}`;
   const seek = (time: number) => {
     clock.pause();
     clock.seek(time);
   };
   const step = (direction: number) => {
-    const departures = journey.legs.flatMap((l) => (l.departure ? [l.departure.epochMs] : []));
+    const departures = [
+      ...new Set(
+        allJourneys.flatMap((entry) => entry.legs.flatMap((leg) => (leg.departure ? [leg.departure.epochMs] : []))),
+      ),
+    ].sort((a, b) => a - b);
     const target =
       direction > 0
         ? departures.find((t) => t > snapshot.time + 1000)
         : departures.findLast((t) => t < snapshot.time - 1000);
     seek(target ?? (direction > 0 ? departures.at(-1) : departures[0]) ?? snapshot.time);
   };
-  const options = fmt.clockZoneOptions(journey, browserZone);
+  const options = [
+    ...new Map(
+      allJourneys.flatMap((entry) => fmt.clockZoneOptions(entry, browserZone)).map((option) => [option.value, option]),
+    ).values(),
+  ];
   if (!options.some((o) => o.value === clockZone))
     options.push({ value: clockZone, label: t('timebar.placeTime', clockZone) });
   return (
@@ -115,7 +160,7 @@ export function TimeBar({
             !(e.target instanceof HTMLInputElement && e.target.type !== 'range'))
         ) {
           e.preventDefault();
-          if (timeline) onToggle();
+          if (sharedRange && !error) onToggle();
         }
       }}
     >
@@ -123,8 +168,10 @@ export function TimeBar({
         <button
           type="button"
           className="time-bar__play"
-          aria-label={snapshot.playing ? t('timebar.pausePlayback') : t('timebar.playJourney')}
-          disabled={!timeline}
+          aria-label={
+            snapshot.playing ? t('timebar.pausePlayback') : comparison ? t('compare.playAll') : t('timebar.playJourney')
+          }
+          disabled={!sharedRange || !!error}
           onClick={onToggle}
         >
           {snapshot.playing ? <IconPause /> : <IconPlay />}
@@ -132,7 +179,7 @@ export function TimeBar({
         <div className="time-bar__status">
           <div className="time-bar__title">
             {error ? (
-              <button type="button" className="schedule-error" onClick={() => onEditLeg(errorLeg)}>
+              <button type="button" className="schedule-error" onClick={editError}>
                 {text.title}
               </button>
             ) : (
@@ -140,7 +187,7 @@ export function TimeBar({
             )}
           </div>
           <div className="time-bar__detail">
-            {!journey.dated && timeline && snapshot.time <= timeline.start + 60000 ? (
+            {!comparison && !journey.dated && timeline && snapshot.time <= timeline.start + 60000 ? (
               <>
                 {t('timebar.exampleDeparture')} ·{' '}
                 <button type="button" className="text-btn" onClick={() => onEditLeg(0)}>
@@ -161,19 +208,30 @@ export function TimeBar({
           <IconClose size={18} />
         </button>
       </div>
+      {comparison && (
+        <ComparisonLanes
+          list={comparison}
+          active={active}
+          onActivate={onActivate}
+          time={snapshot.time}
+          zone={zone}
+          range={{ start, end }}
+        />
+      )}
       <div className="time-bar__scrubber">
         <div className="time-bar__track" aria-hidden="true">
-          {timeline?.segments.map((segment, index) => (
-            <span
-              key={index}
-              className={`time-bar__segment time-bar__segment--${segment.kind}`}
-              style={{
-                left: `${(100 * (segment.start - start)) / (end - start)}%`,
-                width: `${(100 * (segment.end - segment.start)) / (end - start)}%`,
-                backgroundColor: segment.kind === 'flight' ? legColor(segment.leg ?? 0) : undefined,
-              }}
-            />
-          ))}
+          {!comparison &&
+            timeline?.segments.map((segment, index) => (
+              <span
+                key={index}
+                className={`time-bar__segment time-bar__segment--${segment.kind}`}
+                style={{
+                  left: `${(100 * (segment.start - start)) / (end - start)}%`,
+                  width: `${(100 * (segment.end - segment.start)) / (end - start)}%`,
+                  backgroundColor: segment.kind === 'flight' ? legColor(segment.leg ?? 0) : undefined,
+                }}
+              />
+            ))}
         </div>
         <input
           aria-label={t('timebar.journeyTime')}
@@ -202,7 +260,7 @@ export function TimeBar({
             ))}
           </select>
         </label>
-        {timeline ? (
+        {sharedRange ? (
           <>
             {onFollowAircraft && (
               <button

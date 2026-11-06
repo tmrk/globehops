@@ -1,0 +1,228 @@
+import type { Page } from '@playwright/test';
+import { test, expect, chooseAirport, startEditing, stopButtons, airportField } from './fixtures.ts';
+import { installTools, invoke, ready } from './webTools.ts';
+
+const dated =
+  '?route=BUD-JFK&dep1=2026-11-20T08:00&arr2=2026-11-20T12:00&b.route=BUD-LHR-JFK&b.dep1=2026-11-20T07:00&b.arr2=2026-11-20T08:30&b.dep2=2026-11-20T10:00&b.arr3=2026-11-20T13:00&clock=utc';
+const bar = (page: Page) => page.getByRole('region', { name: 'Timeline', exact: true });
+
+async function settlePaint(page: Page) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
+}
+
+test.beforeEach(async ({ page, isMobile }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  if (isMobile) await page.setViewportSize({ width: 390, height: 844 });
+});
+
+test('add, edit, share and remove an alternative without changing journey A', async ({ page }, info) => {
+  await page.goto('./?route=BUD-JFK');
+  await page.getByRole('button', { name: 'Compare with another journey' }).click();
+  await expect(page.getByRole('heading', { name: 'Compare journeys' })).toBeVisible();
+  const a = page.getByRole('tab', { name: 'A BUD → JFK' });
+  const b = page.getByRole('tab', { name: 'B BUD → JFK' });
+  await expect(b).toHaveAttribute('aria-selected', 'true');
+  await expect(stopButtons(page)).toHaveCount(2);
+  await expect(page.getByRole('tabpanel')).toContainText('Journey B starts with the same airports');
+  await b.focus();
+  await b.press('Home');
+  await expect(a).toBeFocused();
+  await a.press('ArrowRight');
+  await expect(b).toBeFocused();
+  await startEditing(page);
+  await page.getByRole('button', { name: 'Add a stop after Budapest', exact: true }).click();
+  await chooseAirport(page, 'LHR', 'LHR');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  const summary = page.getByRole('region', { name: 'Journey comparison' });
+  await expect(summary.locator('.compare-summary__row')).toHaveCount(2);
+  await expect(summary.locator('.compare-summary__row').nth(0)).toContainText('Fastest');
+  await expect(summary.locator('.compare-summary__row').nth(1)).toContainText(/\+\d+h/);
+  await expect(page).toHaveURL(/b.route=BUD-LHR-JFK/);
+  const strips = await summary
+    .locator('.comparison-strip')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => ({ left: node.getBoundingClientRect().left, width: node.getBoundingClientRect().width })),
+    );
+  expect(strips[0]).toEqual(strips[1]);
+  await expect(page).toHaveTitle('Compare: BUD → JFK, BUD → LHR → JFK · GlobeHops');
+  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await settlePaint(page);
+  await page.screenshot({ path: `test-results/compare-editing-${info.project.name}.png`, animations: 'disabled' });
+  // The picker must remain usable with the taller comparison ticket.
+  await stopButtons(page).nth(1).click();
+  await airportField(page).fill('LHR');
+  await expect(page.getByRole('option', { name: /^LHR\b/ })).toBeVisible();
+  await settlePaint(page);
+  await page.screenshot({ path: `test-results/compare-picker-${info.project.name}.png`, animations: 'disabled' });
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(airportField(page)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Remove journey B' }).click();
+  await expect(page.getByRole('heading', { name: 'Your journey', exact: true })).toBeVisible();
+  await expect(page.getByRole('tablist')).toHaveCount(0);
+  await expect(page).toHaveURL(/\?route=BUD-JFK$/);
+  await expect(page.getByRole('region', { name: 'Journey totals' })).toBeVisible();
+});
+
+test('all journeys play on one axis with live lanes and overlapping aircraft', async ({ page, isMobile }, info) => {
+  await page.goto(`./${dated}`);
+  await expect(bar(page)).toBeVisible();
+  // Close the auto-open timetable to start through the primary ticket action.
+  await bar(page).getByRole('button', { name: 'Close timeline' }).click();
+  await page.getByRole('button', { name: 'Play all', exact: true }).click();
+  await expect(bar(page).getByRole('button', { name: 'Pause playback' })).toBeVisible();
+  await bar(page).getByRole('button', { name: 'Pause playback' }).click();
+  const lanes = bar(page).locator('.comparison-lane');
+  await expect(lanes).toHaveCount(2);
+  const slider = bar(page).getByRole('slider', { name: 'Journey time' });
+  await slider.focus();
+  await slider.press('Home');
+  await expect(lanes.nth(0)).toContainText('Departs in 1h 30m');
+  await expect(lanes.nth(1)).toContainText('Departs in 30m');
+  await bar(page).getByRole('button', { name: 'Next flight' }).click();
+  await expect(lanes.nth(1)).toContainText('Flying to London');
+  await slider.focus();
+  await slider.press('ArrowRight');
+  // At the next departure A flies while B is still flying its first leg.
+  await bar(page).getByRole('button', { name: 'Next flight' }).click();
+  await expect(lanes.nth(0)).toContainText('Flying to New York');
+  await expect(lanes.nth(1)).toContainText('Flying to London');
+  await expect(page.locator('.globe-plane:has(.globe-plane__tag)')).toHaveCount(2);
+  await expect
+    .poll(() =>
+      page
+        .locator('.globe-plane')
+        .evaluateAll(
+          (nodes) =>
+            nodes.filter((node) => getComputedStyle(node).opacity === '1' && getComputedStyle(node).display !== 'none')
+              .length,
+        ),
+    )
+    .toBeGreaterThanOrEqual(2);
+  await bar(page).getByRole('button', { name: 'Next flight' }).click();
+  await slider.focus();
+  await slider.press('ArrowLeft');
+  await expect(lanes.nth(1)).toContainText('Layover in London');
+  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await settlePaint(page);
+  await page.screenshot({ path: `test-results/compare-playback-${info.project.name}.png`, animations: 'disabled' });
+  if (isMobile) {
+    const bounds = await page.locator('.panel').boundingBox();
+    expect(bounds!.y).toBeGreaterThan(844 * 0.45);
+  }
+  await slider.focus();
+  await slider.press('End');
+  await expect(bar(page)).toContainText('A arrives first');
+  await expect(lanes.nth(0)).toContainText('Landed in New York · 17:00');
+  await expect(lanes.nth(1)).toContainText('Landed in New York · 18:00');
+  await lanes.nth(1).click();
+  await expect(lanes.nth(1)).toHaveAttribute('aria-pressed', 'true');
+  // All route airports appear in the clock menu, even with journey B active.
+  await expect(
+    bar(page).getByRole('combobox', { name: 'Clock time zone' }).getByRole('option', { name: 'London time' }),
+  ).toHaveCount(1);
+  // A visit, reload and back/forward retain both journeys and their schedules.
+  await expect(page).toHaveURL(/b.route=BUD-LHR-JFK/);
+  await page.reload();
+  await expect(page.getByRole('tablist').getByRole('tab')).toHaveCount(2);
+  await page.goto('./');
+  await expect(page.getByRole('tablist').getByRole('tab')).toHaveCount(2);
+  await expect(page).toHaveURL(/b.dep2=2026-11-20T10:00/);
+  await page.evaluate(() => {
+    history.pushState(null, '', '?route=CPH-JFK');
+    dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await expect(page.getByRole('tablist')).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByRole('tablist').getByRole('tab')).toHaveCount(2);
+  await page.goForward();
+  await expect(page.getByRole('heading', { name: 'Your journey', exact: true })).toBeVisible();
+});
+
+test('WebMCP applies labelled comparisons, reports them, shares them and resets to a single route', async ({
+  page,
+}) => {
+  await installTools(page);
+  await page.goto('./?route=CPH-JFK');
+  await ready(page);
+  await invoke(page, 'compare_journeys', {
+    journeys: [
+      {
+        label: 'Direct',
+        stops: [
+          { airport: 'BUD', departure: '2026-11-20T08:00' },
+          { airport: 'JFK', arrival: '2026-11-20T12:00' },
+        ],
+      },
+      { label: 'Via London', stops: [{ airport: 'BUD' }, { airport: 'LHR' }, { airport: 'JFK' }] },
+    ],
+    view: { clock: 'LHR' },
+  });
+  await expect(page.getByRole('tab', { name: 'A Direct' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'B Via London' })).toBeVisible();
+  await expect(bar(page).locator('.comparison-lane')).toHaveCount(2);
+  const state = await invoke<{
+    comparison: { journeys: { id: string; anchor: string }[]; comparison: { fastest: string }; url: string };
+  }>(page, 'get_journey');
+  expect(state.comparison.journeys).toMatchObject([
+    { id: 'A', anchor: 'entered' },
+    { id: 'B', anchor: 'assumed' },
+  ]);
+  const shared = await invoke<{ url: string }>(page, 'get_share_link');
+  expect(shared.url).toContain('b.route=BUD-LHR-JFK');
+  expect(shared.url).toContain('b.label=Via%20London');
+  await invoke(page, 'set_view', { clock: 'LHR' });
+  await page.getByRole('tab', { name: 'B Via London' }).click();
+  await invoke(page, 'select_flight', { leg: 2 });
+  await expect(page.getByRole('region', { name: 'Flight 2 times' })).toBeVisible();
+  const active = await invoke<{ valid: boolean; legs: { departure: { utc: string } }[] }>(page, 'get_journey');
+  expect(active.valid).toBe(true);
+  expect(active.legs[0].departure.utc).toBe('2026-11-20T07:00Z');
+  await invoke(page, 'set_view', { leg: 1 });
+  await expect(page.getByRole('tab', { name: 'A Direct' })).toHaveAttribute('aria-selected', 'true');
+  const framed = await invoke<{ url: string }>(page, 'get_share_link');
+  expect(new URL(framed.url).searchParams.get('leg')).toBe('1');
+  await invoke(page, 'set_route', { route: 'CPH-JFK' });
+  await expect(page.getByRole('tablist')).toHaveCount(0);
+  await expect(page).toHaveURL(/\?route=CPH-JFK$/);
+});
+
+test('four journeys keep the phone globe visible and tabs reachable', async ({ page, isMobile }, info) => {
+  await page.goto('./?route=BUD-JFK&b.route=BUD-LHR-JFK&c.route=BUD-FRA-JFK&d.route=BUD-CDG-JFK');
+  await expect(page.getByRole('tab')).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'Add another journey' })).toHaveCount(0);
+  await page.getByRole('tab').first().focus();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab').last()).toBeFocused();
+  // WebKit rounds the scroll edge to device pixels.
+  await expect(page.getByRole('tab').last()).toBeInViewport({ ratio: 0.99 });
+  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await settlePaint(page);
+  await page.screenshot({ path: `test-results/compare-four-editing-${info.project.name}.png`, animations: 'disabled' });
+  if (isMobile) {
+    const scroll = await page.locator('.panel__scroll').boundingBox();
+    expect(scroll!.height).toBeGreaterThan(100);
+  }
+  await page.getByRole('button', { name: 'Play all' }).click();
+  await expect(bar(page).locator('.comparison-lane')).toHaveCount(4);
+  await bar(page).getByRole('button', { name: 'Pause playback' }).click();
+  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await settlePaint(page);
+  await page.screenshot({ path: `test-results/compare-four-${info.project.name}.png`, animations: 'disabled' });
+  if (isMobile) {
+    const bounds = await page.locator('.panel').boundingBox();
+    expect(bounds!.y).toBeGreaterThan(844 * 0.45);
+  }
+});
+
+test('an invalid alternative points to its own flight editor and blocks playback', async ({ page }) => {
+  await page.goto('./?route=BUD-JFK&dep1=2026-11-20T08:00&b.route=JFK-LHR&b.dep1=2026-03-08T02:30');
+  await expect(page.getByRole('tab').first()).toHaveAttribute('aria-selected', 'true');
+  await expect(bar(page).getByRole('button', { name: 'Play all' })).toBeDisabled();
+  await bar(page).getByRole('button', { name: "Fix flight 1's times to play" }).click();
+  await expect(page.getByRole('tab').nth(1)).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('region', { name: 'Flight 1 times' })).toContainText(/doesn.t exist/);
+});

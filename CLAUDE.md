@@ -21,3 +21,5 @@ See [AGENTS.md](AGENTS.md).
 - City exonyms load lazily for hu/sv; locale-aware search reuses the English index until ready. Keep the compatible `globehops:countryNames` key for “Country names” (`globehops:waterNames` inherits it).
 - Keep the ODbL time-zone database and its notices separate from public-domain airports; commit generated time zones with their build record.
 - `docs/AGENT_INTEGRATION.md` is for external agents using GlobeHops, not contributors; follow `AGENTS.md` for codebase work.
+
+- Compare invariants: journey ids A–D are positional; alternatives use `b.*`/`c.*`/`d.*` link parameters while single-journey links stay unchanged; one UTC clock drives the fleet, with the active journey primary for camera follow.

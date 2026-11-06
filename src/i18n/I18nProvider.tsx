@@ -53,7 +53,7 @@ export function I18nProvider({
       replaceUrl(address.href);
     }
     document.documentElement.lang = locale;
-    document.title = messages['common.documentTitle'];
+    // App owns the route-aware title, including same-locale picker history changes.
     setCurrent({ locale, messages });
   }, []);
   const setLocale = useCallback((locale: Locale) => switchLocale(locale, true), [switchLocale]);

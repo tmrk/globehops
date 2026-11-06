@@ -16,6 +16,7 @@ import { CodeBadge } from './CodeBadge.tsx';
 import { IconChevronDown, IconClock, IconClose, IconGrip, IconPlane, IconPlus, IconSwap, IconTrash } from './Icons.tsx';
 
 export interface StopListProps {
+  journeyColor?: string;
   journey: Journey;
   activeLeg: number | null;
   activeStop: number | null;
@@ -151,7 +152,7 @@ export function StopList(props: StopListProps) {
           if (dragging) style.transform = `translateY(${drag.dy}px)`;
           const showDropAbove = drag && drag.target === i && drag.target < drag.index;
           const showDropBelow = drag && drag.target === i && drag.target > drag.index;
-          const color = leg ? legColor(leg.index) : undefined;
+          const color = leg ? (props.journeyColor ?? legColor(leg.index)) : undefined;
           const layover = layoverByStop.get(i);
           const journeyLeg = leg ? props.journey.legs[leg.index] : null;
           const legTimes = journeyLeg && props.journey.dated ? formatLegTimes(journeyLeg) : null;
@@ -185,7 +186,7 @@ export function StopList(props: StopListProps) {
                 <Rail
                   top={top}
                   bottom={bottom}
-                  topColor={prevLeg ? legColor(prevLeg.index) : undefined}
+                  topColor={prevLeg ? (props.journeyColor ?? legColor(prevLeg.index)) : undefined}
                   bottomColor={color}
                   node
                 />

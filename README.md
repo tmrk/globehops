@@ -27,6 +27,10 @@ On your first visit, try one of three long-haul journeys from a likely home airp
 - **Switch kilometres and miles** in the display menu. The journey totals at the bottom of the panel show the total distance and number of flights on the left, and the overall journey time with its flying and layover time on the right.
 - **Share the journey.** The page address always holds the current route, so you can bookmark it or send it to someone. The Share button copies it or opens your device’s share sheet. Shared links let the recipient use their own language.
 
+### Compare journeys
+
+Choose **Compare with another journey** below your stops to try up to four flight options. Each journey has its own colour and tab; the new option starts with the same departure and destination airports, ready for a different connection or timetable. The ticket compares total time, marks the fastest option and shows which arrives first. **Play all** runs every journey on one shared clock, including layovers, with a live status lane for each. Share keeps all the options together. Journeys without times use a common example departure when you play them.
+
 ### Choose your language
 
 GlobeHops speaks **English, Magyar and Svenska**. It chooses automatically using your country (inferred from the browser’s time zone) and browser languages; this is a rough country hint, not your physical location. Change language with the language button or in About (ⓘ) and your choice is remembered. You can also open [English (`/en/`)](https://tmrk.github.io/globehops/en/), [Magyar (`/hu/`)](https://tmrk.github.io/globehops/hu/) or [Svenska (`/sv/`)](https://tmrk.github.io/globehops/sv/), or use `?lang=en`, `?lang=hu` or `?lang=sv`. An explicit language address wins over your saved choice.

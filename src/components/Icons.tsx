@@ -206,3 +206,9 @@ export const IconLocate = (p: IconProps) => (
     <path d="M10 2v2M10 16v2M2 10h2M16 10h2" />
   </Icon>
 );
+
+export const IconCompare = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3 7c4-5 10-5 14 0M3 15c4-5 10-5 14 0M14 4l3 3-3 2M14 12l3 3-3 2" />
+  </Icon>
+);

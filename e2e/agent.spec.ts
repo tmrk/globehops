@@ -1,25 +1,10 @@
 import { readFileSync } from 'node:fs';
-import type { Page } from '@playwright/test';
+import { installTools, invoke, ready } from './webTools.ts';
 import { test, expect, openDisplay, airportField } from './fixtures.ts';
 import { handleTool } from '../mcp/tools.ts';
 import { context } from '../mcp/data.ts';
 import type { ItineraryDocument } from '../src/agent/itinerary.ts';
 
-interface ToolResult {
-  content: { text: string }[];
-  isError?: boolean;
-}
-interface Tool {
-  name: string;
-  execute: (args: unknown) => Promise<ToolResult>;
-}
-declare global {
-  interface Window {
-    globeAgentTools: Record<string, Tool>;
-    globeAgentRegistrations: number;
-    globeAgentRemovals: number;
-  }
-}
 interface Snapshot {
   stops: { code: string }[];
   legs: {
@@ -46,54 +31,9 @@ interface Snapshot {
     leg: number | null;
   };
 }
-async function installTools(page: Page, mode: 'legacy' | 'modern' | 'provide' | 'broken' = 'legacy') {
-  await page.addInitScript((mode) => {
-    window.globeAgentTools = {};
-    window.globeAgentRegistrations = 0;
-    window.globeAgentRemovals = 0;
-    const api =
-      mode === 'provide'
-        ? {
-            provideContext: ({ tools }: { tools: Tool[] }) => {
-              window.globeAgentTools = Object.fromEntries(tools.map((tool) => [tool.name, tool]));
-            },
-          }
-        : {
-            registerTool: (tool: Tool, options?: { signal: AbortSignal }) => {
-              if (mode === 'broken' && tool.name === 'set_route') throw new Error('Experimental API failure');
-              if (window.globeAgentTools[tool.name]) throw new Error('Duplicate tool');
-              window.globeAgentTools[tool.name] = tool;
-              window.globeAgentRegistrations++;
-              options?.signal.addEventListener('abort', () => {
-                delete window.globeAgentTools[tool.name];
-              });
-            },
-            ...(mode !== 'modern'
-              ? {
-                  unregisterTool: (name: string) => {
-                    delete window.globeAgentTools[name];
-                    window.globeAgentRemovals++;
-                  },
-                }
-              : {}),
-          };
-    Object.defineProperty(mode === 'modern' ? document : navigator, 'modelContext', { value: api, configurable: true });
-  }, mode);
-}
-async function invoke<T>(page: Page, name: string, args: unknown = {}): Promise<T> {
-  const result = await page.evaluate(async ({ name, args }) => window.globeAgentTools[name].execute(args), {
-    name,
-    args,
-  });
-  expect(result.isError, result.content[0].text).not.toBe(true);
-  return JSON.parse(result.content[0].text) as T;
-}
-async function ready(page: Page) {
-  await expect.poll(() => page.evaluate(() => Object.keys(window.globeAgentTools).length)).toBe(5);
-}
 const examples = JSON.parse(readFileSync(new URL('../public/agent/examples.json', import.meta.url), 'utf8')) as {
   title: string;
-  itinerary: ItineraryDocument;
+  itinerary: ItineraryDocument & { stops: NonNullable<ItineraryDocument['stops']> };
   url: string;
   itineraryParamUrl: string;
 }[];
@@ -263,7 +203,7 @@ test('live tools validate atomically, patch state, preserve preferences and expo
   await invoke(page, 'set_view', { play: true });
   await expect.poll(async () => (await invoke<Snapshot>(page, 'get_journey')).view.play).toBe(true);
   await invoke(page, 'set_view', { play: false });
-  expect(await page.evaluate(() => window.globeAgentRegistrations)).toBe(5);
+  expect(await page.evaluate(() => window.globeAgentRegistrations)).toBe(6);
   await page.screenshot({ path: info.outputPath('agent-edited-desktop.png'), animations: 'disabled' });
   await page.setViewportSize({ width: 412, height: 915 });
   await expect(page.getByRole('application')).toBeVisible();
@@ -310,7 +250,7 @@ test('static discovery describes the deployed locale pages, schema, examples and
   expect(capabilities.visualisationOptions).toEqual(
     expect.arrayContaining(['follow', 'lang', 'names', 'borders', 'leg']),
   );
-  expect(capabilities.webMcp.tools).toHaveLength(5);
+  expect(capabilities.webMcp.tools).toHaveLength(6);
   expect(capabilities.mcp.resources).toHaveLength(4);
   const schema = (await (await request.get('/globehops/agent/itinerary.schema.json')).json()) as {
     properties: { view: { properties: object } };

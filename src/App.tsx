@@ -1,6 +1,6 @@
 import { useWebTools } from './hooks/useWebTools.ts';
 import { parseWebCommand } from './agent/webTools.ts';
-import { createAgentContext, planItinerary } from './agent/plan.ts';
+import { createAgentContext, planItinerary, planComparison } from './agent/plan.ts';
 import { linkStateToDocument, decodeItineraryParam } from './agent/itinerary.ts';
 import { useI18n } from './i18n/I18nProvider.tsx';
 import { localizedPath, localeFromPath } from './i18n/detect.ts';
@@ -22,7 +22,17 @@ import { AirportPicker, type AirportPickerHandle } from './components/AirportPic
 import { Brand, VersionTag } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { GlobeHud } from './components/GlobeHud.tsx';
-import { IconCheck, IconChevronUp, IconInfo, IconPencil, IconShare, IconPlay, IconPlane } from './components/Icons.tsx';
+import {
+  IconCheck,
+  IconChevronUp,
+  IconInfo,
+  IconPencil,
+  IconShare,
+  IconPlay,
+  IconPlane,
+  IconCompare,
+  IconTrash,
+} from './components/Icons.tsx';
 import { MapTools } from './components/MapTools.tsx';
 import { StopList } from './components/StopList.tsx';
 import { Summary } from './components/Summary.tsx';
@@ -35,8 +45,12 @@ import { useBottomSheet } from './hooks/useBottomSheet.ts';
 
 import timezonesUrl from './data/generated/timezones.json?url';
 import { loadTimeZones, zoneForAirport, type TimeZoneTable } from './data/timezones.ts';
-import { computeJourney } from './lib/schedule.ts';
-import { buildTimeline, journeyStateAt } from './lib/timeline.ts';
+import { computeComparison, compareMetrics, comparisonRange, JOURNEY_IDS } from './lib/compare.ts';
+import { comparisonGlobeRoute, journeyLegOffsets, localLegAt } from './lib/compareView.ts';
+import { compareReducer, createCompareState } from './state/compare.ts';
+import { CompareSummary } from './components/CompareSummary.tsx';
+import { JourneyTabs } from './components/JourneyTabs.tsx';
+import { journeyStateAt } from './lib/timeline.ts';
 
 import { SimulationClock } from './state/clock.ts';
 import { createSimulationFeed, type SimulationContext } from './state/simulation.ts';
@@ -50,9 +64,9 @@ import {
   type SerializableLinkStop,
 } from './state/link.ts';
 import airportsUrl from './data/generated/airports.json?url';
-import { airportCode, displayCode, loadAirports, type AirportDataset } from './data/airports.ts';
+import { airportCode, loadAirports, type AirportDataset } from './data/airports.ts';
 import { homeAirport, welcomeSuggestions, FALLBACK_HOME } from './data/suggestions.ts';
-import { browserTimeZone } from './lib/timezone.ts';
+import { browserTimeZone, formatIsoInstant } from './lib/timezone.ts';
 import { localizedCity } from './data/placeNames.ts';
 import { buildSearchIndex, type SearchIndex } from './data/search.ts';
 import type { GlobeRoute, Insets } from './globe/GlobeRenderer.ts';
@@ -62,9 +76,8 @@ import { pushUrl, replaceUrl, trackEvent } from './analytics.ts';
 import { ConsentNotice } from './components/ConsentNotice.tsx';
 import { useVisualViewportVars } from './hooks/useVisualViewport.ts';
 import { sumDurations } from './lib/flightTime.ts';
-import { legColor } from './lib/legColors.ts';
 
-import { computeLayovers, computeLegs, createRouteState, routeReducer, hasEnteredTimes } from './state/route.ts';
+import { computeLayovers, computeLegs, hasEnteredTimes, type RouteAction } from './state/route.ts';
 import {
   loadWaterNames,
   saveWaterNames,
@@ -170,7 +183,12 @@ export default function App() {
   }, [baseIndex, cityNames, locale]);
   const suggestions = useMemo(() => (index ? suggestionsFor(index, zones) : []), [index, zones]);
   const [dataError, setDataError] = useState(false);
-  const [route, dispatch] = useReducer(routeReducer, undefined, () => createRouteState());
+  const [comparison, compareDispatch] = useReducer(compareReducer, undefined, createCompareState);
+  const route = comparison.journeys[comparison.active].route;
+  const comparing = comparison.journeys.length > 1;
+  const dispatch = useCallback((action: RouteAction) => compareDispatch({ type: 'route', action }), []);
+  // Only a newly added, unedited draft gets the copied-airports hint.
+  const [copiedDraft, setCopiedDraft] = useState<{ index: number; airportIds: (number | null)[] } | null>(null);
   const routeStopCount = useRef(0);
   useLayoutEffect(() => {
     routeStopCount.current = route.stops.filter((stop) => stop.airportId !== null).length;
@@ -220,10 +238,9 @@ export default function App() {
     (codes: string[], idx: SearchIndex, opts: { example?: boolean } = {}) => {
       const { stops, missing } = resolveRouteCodes(codes, idx);
       routeStopCount.current = stops.length;
-      dispatch({
+      compareDispatch({
         type: 'load',
-        airportIds: stops.map((s) => s.airport.id),
-        layovers: stops.map((s) => s.layoverMin),
+        journeys: [{ airportIds: stops.map((s) => s.airport.id), layovers: stops.map((s) => s.layoverMin) }],
       });
       setIsExample(!!opts.example);
       if (missing.length) {
@@ -243,22 +260,27 @@ export default function App() {
       const notices = locale === 'en' ? [...link.issues] : link.issues.length ? [t('errors.invalidLink')] : [];
       if (link.stops !== null) {
         const missing: string[] = [];
-        const resolved = link.stops.flatMap((stop) => {
-          const result = resolveRouteCodes([stop.code], idx);
-          if (!result.stops.length) {
-            missing.push(stop.code);
-            return [];
-          }
-          return [{ ...stop, airport: result.stops[0].airport }];
+        const journeys = [{ label: link.label, stops: link.stops }, ...(link.compare ?? [])].map((entry) => {
+          const resolved = entry.stops.flatMap((stop) => {
+            const result = resolveRouteCodes([stop.code], idx);
+            if (!result.stops.length) {
+              missing.push(stop.code);
+              return [];
+            }
+            return [{ ...stop, airport: result.stops[0].airport }];
+          });
+          return {
+            label: entry.label,
+            airportIds: resolved.map((s) => s.airport.id),
+            layovers: resolved.map((s) => s.layoverMin),
+            arrivals: resolved.map((s) => s.arrival),
+            departures: resolved.map((s) => s.departure),
+          };
         });
-        stopCount = routeStopCount.current = resolved.length;
-        dispatch({
-          type: 'load',
-          airportIds: resolved.map((s) => s.airport.id),
-          layovers: resolved.map((s) => s.layoverMin),
-          arrivals: resolved.map((s) => s.arrival),
-          departures: resolved.map((s) => s.departure),
-        });
+        stopCount = routeStopCount.current = journeys[0].airportIds.length;
+        compareDispatch({ type: 'load', journeys });
+        setCopiedDraft(null);
+        setEditing(null);
         setIsExample(false);
         if (missing.length)
           notices.unshift(
@@ -306,7 +328,13 @@ export default function App() {
       );
       setUnit(link.view.units ?? loadUnit() ?? defaultUnit());
       setLinkUnits(link.view.units);
-      const open = !!(link.view.time !== null || link.view.play || link.stops?.some((s) => s.arrival || s.departure));
+      const open = !!(
+        link.view.time !== null ||
+        link.view.play ||
+        [...(link.stops ?? []), ...(link.compare ?? []).flatMap((entry) => entry.stops)].some(
+          (s) => s.arrival || s.departure,
+        )
+      );
       setTimeOpen(open);
       if (
         link.view.play &&
@@ -324,7 +352,7 @@ export default function App() {
       pendingExplicitPlay.current = false;
       if (!open) clock.goLive();
     },
-    [clock, showToast, t, locale, setVisitLocale],
+    [clock, showToast, t, locale, setVisitLocale, dispatch],
   );
 
   const zoneLoadError = useEffectEvent(() => showToast(t('toasts.zonesUnavailable')));
@@ -425,25 +453,60 @@ export default function App() {
 
   const legs = useMemo(() => (dataset ? computeLegs(route.stops, lookup) : []), [route.stops, dataset, lookup]);
   const layovers = useMemo(() => computeLayovers(route.stops, legs), [route.stops, legs]);
-  const filledStops = useMemo(
+  const serializedJourneys = useMemo(
     () =>
-      route.stops.flatMap<SerializableLinkStop>((s) => {
-        const airport = s.airportId !== null ? lookup(s.airportId) : undefined;
-        return airport ? [{ airport, layoverMin: s.layoverMin, arrival: s.arrival, departure: s.departure }] : [];
-      }),
-    [route.stops, lookup],
+      comparison.journeys.map((draft) => ({
+        label: draft.label,
+        stops: draft.route.stops.flatMap<SerializableLinkStop>((stop) => {
+          const airport = stop.airportId !== null ? lookup(stop.airportId) : undefined;
+          return airport
+            ? [{ airport, layoverMin: stop.layoverMin, arrival: stop.arrival, departure: stop.departure }]
+            : [];
+        }),
+      })),
+    [comparison.journeys, lookup],
+  );
+  const filledStops = serializedJourneys[comparison.active].stops;
+  const primaryStops = serializedJourneys[0].stops;
+  const linkExtra = useMemo(
+    () => ({ label: serializedJourneys[0].label, compare: serializedJourneys.slice(1) }),
+    [serializedJourneys],
   );
   const filledAirports = useMemo(() => filledStops.map((s) => s.airport), [filledStops]);
-
-  const journey = useMemo(
+  const compared = useMemo(
     () =>
-      computeJourney(
-        { id: 'A', stops: filledStops.map((s) => ({ ...s, zone: zoneForAirport(zones, s.airport) })) },
-        { assumedStart: timeOpen && !filledStops.some((s) => s.arrival || s.departure) ? assumedStart : null },
+      computeComparison(
+        serializedJourneys.map((entry, i) => ({
+          label: entry.label,
+          input: {
+            id: JOURNEY_IDS[i],
+            stops: entry.stops.map((stop) => ({ ...stop, zone: zoneForAirport(zones, stop.airport) })),
+          },
+        })),
+        { assumedStart: timeOpen ? assumedStart : null },
       ),
-    [filledStops, zones, timeOpen, assumedStart],
+    [serializedJourneys, zones, timeOpen, assumedStart],
   );
-  const timeline = useMemo(() => buildTimeline(journey), [journey]);
+  const metrics = useMemo(() => compareMetrics(compared), [compared]);
+  const scheduleErrors = compared.some((entry) => entry.journey.issues.some((issue) => issue.severity === 'error'));
+  const journey = compared[comparison.active].journey;
+  const timeline = compared[comparison.active].timeline;
+  const range = useMemo(() => comparisonRange(compared), [compared]);
+  const playbackRange = comparing ? range : timeline;
+  const legOffsets = useMemo(() => journeyLegOffsets(compared), [compared]);
+  const fleet = useMemo(
+    () =>
+      comparing
+        ? compared.map((entry, i) => ({
+            journey: entry.journey,
+            timeline: entry.timeline,
+            legOffset: legOffsets[i],
+            color: entry.color,
+            tag: entry.id,
+          }))
+        : undefined,
+    [compared, comparing, legOffsets],
+  );
   const phaseKey = useClockPhase(clock, journey, timeline, timeOpen);
   const playing = phaseKey.startsWith('playing:');
   const activeState = timeOpen && timeline ? journeyStateAt(journey, timeline, clock.getSnapshot().time) : null;
@@ -460,28 +523,36 @@ export default function App() {
   });
   const sim = simulation.feed;
   useLayoutEffect(() => {
-    simulation.updateContext({ journey, timeline, open: timeOpen, dayNight, follow: !reducedMotion });
-  }, [simulation, journey, timeline, timeOpen, dayNight, reducedMotion]);
+    simulation.updateContext({
+      journey,
+      timeline,
+      open: timeOpen,
+      dayNight,
+      follow: !reducedMotion,
+      fleet,
+      primary: comparison.active,
+    });
+  }, [simulation, journey, timeline, timeOpen, dayNight, reducedMotion, fleet, comparison.active]);
   useEffect(() => {
     if (!timeOpen || !zonesLoaded) return;
-    if (!timeline) clock.pause();
+    if (!playbackRange || scheduleErrors) clock.pause();
     clock.setRange(
-      timeline ? Math.min(timeline.start - 30 * 60000, linkedTime ?? Infinity) : null,
-      timeline ? Math.max(timeline.end, linkedTime ?? -Infinity) : null,
+      playbackRange ? Math.min(playbackRange.start - 30 * 60000, linkedTime ?? Infinity) : null,
+      playbackRange ? Math.max(playbackRange.end, linkedTime ?? -Infinity) : null,
     );
     const view = pendingView.current;
     if (view) {
       pendingView.current = null;
-      clock.seek(view.time ?? timeline?.start ?? Date.now());
+      clock.seek(view.time ?? playbackRange?.start ?? Date.now());
       const shouldPlay = view.play && (pendingExplicitPlay.current || !reducedMotionRef.current);
       pendingExplicitPlay.current = false;
-      if (shouldPlay && timeline) {
-        if (clock.getSnapshot().time >= timeline.end) clock.seek(timeline.start);
-        clock.setRange(Math.min(timeline.start - 30 * 60000, linkedTime ?? Infinity), timeline.end);
+      if (shouldPlay && playbackRange && !scheduleErrors) {
+        if (clock.getSnapshot().time >= playbackRange.end) clock.seek(playbackRange.start);
+        clock.setRange(Math.min(playbackRange.start - 30 * 60000, linkedTime ?? Infinity), playbackRange.end);
         clock.play();
       }
-    } else if (clock.getSnapshot().live) clock.seek(timeline?.start ?? Date.now());
-  }, [clock, timeline, timeOpen, zonesLoaded, linkedTime]);
+    } else if (clock.getSnapshot().live) clock.seek(playbackRange?.start ?? Date.now());
+  }, [clock, playbackRange, timeOpen, zonesLoaded, linkedTime, scheduleErrors]);
   // Debounce paused scrubs. Playback frames never cause App state updates or URL writes.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -504,7 +575,7 @@ export default function App() {
   const query = useMemo(
     () =>
       serializeLink(
-        filledStops,
+        primaryStops,
         {
           time: timeOpen && !playing ? pausedTime : null,
           speed,
@@ -514,12 +585,18 @@ export default function App() {
           follow: followAircraft,
           names: linkLayers.names !== undefined ? showCountryNames : undefined,
           borders: linkLayers.borders !== undefined ? showBorders : undefined,
-          leg: route.selectedLeg !== null ? route.selectedLeg + 1 : undefined,
+          leg:
+            comparison.journeys[0].route.selectedLeg !== null
+              ? comparison.journeys[0].route.selectedLeg + 1
+              : undefined,
         },
         explicitDefaults,
+        linkExtra,
       ),
     [
-      filledStops,
+      primaryStops,
+      linkExtra,
+      comparison.journeys,
       timeOpen,
       playing,
       pausedTime,
@@ -531,7 +608,6 @@ export default function App() {
       linkLayers,
       showCountryNames,
       showBorders,
-      route.selectedLeg,
       explicitDefaults,
     ],
   );
@@ -541,11 +617,32 @@ export default function App() {
     shareUrlRef.current = addressUrl;
     if (!initialized) return;
     if (addressUrl !== window.location.href) replaceUrl(addressUrl);
-    saveLastJourney(serializeLink(filledStops, { speed }));
-    document.title = filledStops.length
-      ? t('panel.routeTitle', filledStops.map((s) => airportCode(s.airport)).join(' → '))
-      : t('common.documentTitle');
-  }, [addressUrl, filledStops, initialized, speed, clockZone, dayNight, followAircraft, locale, t]);
+    saveLastJourney(serializeLink(primaryStops, { speed }, false, linkExtra));
+    document.title = comparing
+      ? t(
+          'compare.documentTitle',
+          serializedJourneys
+            .map((entry) => entry.stops.map((stop) => airportCode(stop.airport)).join(' → '))
+            .join(', '),
+        )
+      : filledStops.length
+        ? t('panel.routeTitle', filledStops.map((s) => airportCode(s.airport)).join(' → '))
+        : t('common.documentTitle');
+  }, [
+    addressUrl,
+    filledStops,
+    primaryStops,
+    linkExtra,
+    comparing,
+    serializedJourneys,
+    initialized,
+    speed,
+    clockZone,
+    dayNight,
+    followAircraft,
+    locale,
+    t,
+  ]);
 
   const getAgentContext = useMemo(() => {
     let cached: ReturnType<typeof createAgentContext> | null = null;
@@ -559,7 +656,11 @@ export default function App() {
         : null);
   }, [dataset, zones]);
   useWebTools(initialized && zonesLoaded && !!dataset, async (name, args) => {
-    const command = parseWebCommand(name, args, journey.legs.length);
+    const command = parseWebCommand(
+      name,
+      args,
+      name === 'set_view' ? compared[0].journey.legs.length : journey.legs.length,
+    );
     const snapshot = clock.getSnapshot();
     const currentView: LinkView = {
       time: timeOpen ? snapshot.time : null,
@@ -576,20 +677,46 @@ export default function App() {
     };
     const currentLink = () => {
       const url = new URL(localizedPath(import.meta.env.BASE_URL, locale), window.location.origin);
-      url.search = serializeLink(filledStops, { ...currentView, lang: undefined }, true);
+      url.search = serializeLink(
+        primaryStops,
+        {
+          ...currentView,
+          lang: undefined,
+          leg:
+            comparison.journeys[0].route.selectedLeg !== null
+              ? comparison.journeys[0].route.selectedLeg! + 1
+              : undefined,
+        },
+        true,
+        linkExtra,
+      );
       // An explicit empty route must not reload the remembered journey.
-      if (!filledStops.length) url.searchParams.set('route', '');
+      if (!primaryStops.length) url.searchParams.set('route', '');
       return url.href;
     };
     if (command.type === 'get_share_link') return { url: currentLink() };
     if (command.type === 'get_journey') {
-      const doc = linkStateToDocument(parseLink(serializeLink(filledStops, currentView)));
+      const doc = linkStateToDocument(
+        parseLink(serializeLink(primaryStops, { ...currentView, leg: undefined }, false, linkExtra)),
+      );
+      const assumption = timeOpen ? { assumeDeparture: formatIsoInstant(assumedStart ?? snapshot.time) } : {};
+      const comparisonPlan = comparing ? planComparison(getAgentContext()!, doc, assumption) : null;
+      const activeDoc = { version: 1 as const, stops: (doc.journeys?.[comparison.active]?.stops ?? doc.stops)! };
       const plan = planItinerary(
         getAgentContext()!,
-        doc,
-        !journey.dated && timeOpen ? { assumeDeparture: new Date(assumedStart ?? snapshot.time).toISOString() } : {},
+        activeDoc,
+        !journey.dated && journey.start ? { assumeDeparture: formatIsoInstant(journey.start.epochMs) } : {},
       );
       return {
+        ...(comparisonPlan
+          ? {
+              comparison: {
+                journeys: comparisonPlan.journeys,
+                comparison: comparisonPlan.comparison,
+                url: currentLink(),
+              },
+            }
+          : {}),
         contractVersion: plan.contractVersion,
         stops: plan.stops,
         legs: plan.legs,
@@ -615,7 +742,10 @@ export default function App() {
     }
     if (command.type === 'set_route') {
       const plan = command.link.stops?.length
-        ? planItinerary(getAgentContext()!, linkStateToDocument(command.link))
+        ? (command.link.compare?.length ? planComparison : planItinerary)(
+            getAgentContext()!,
+            linkStateToDocument(command.link),
+          )
         : null;
       if (plan && !plan.valid)
         throw new TypeError(
@@ -636,10 +766,14 @@ export default function App() {
     if (
       command.view.clock &&
       !['local', 'utc'].includes(command.view.clock) &&
-      !filledStops.some((s) => airportCode(s.airport) === command.view.clock)
+      !serializedJourneys.some((entry) => entry.stops.some((s) => airportCode(s.airport) === command.view.clock))
     )
       throw new TypeError('clock must name an airport in this route, local or utc.');
-    if (command.view.play && (!journey.legs.length || journey.issues.some((issue) => issue.severity === 'error')))
+    if (
+      command.view.play &&
+      (!compared.some((entry) => entry.journey.legs.length) ||
+        compared.some((entry) => entry.journey.issues.some((issue) => issue.severity === 'error')))
+    )
       throw new TypeError('Playback requires at least one flight and a valid schedule.');
     const patch = command.view;
     flushSync(() => {
@@ -662,7 +796,9 @@ export default function App() {
       if (patch.speed !== undefined) clock.setSpeed(patch.speed);
       if (patch.leg !== undefined) {
         if (patch.follow === undefined) setFollowAircraft(false);
-        dispatch({ type: 'selectLeg', leg: patch.leg - 1 });
+        compareDispatch({ type: 'activate', index: 0 });
+        compareDispatch({ type: 'route', index: 0, action: { type: 'selectLeg', leg: patch.leg - 1 } });
+        setEditing(null);
       }
       setExplicitDefaults((previous) => [
         ...new Set([
@@ -687,8 +823,8 @@ export default function App() {
           pendingView.current = null;
           if (patch.time !== undefined && patch.time !== null) {
             clock.setRange(
-              Math.min(timeline?.start ?? Infinity, patch.time),
-              Math.max(timeline?.end ?? -Infinity, patch.time),
+              Math.min(playbackRange?.start ?? Infinity, patch.time),
+              Math.max(playbackRange?.end ?? -Infinity, patch.time),
             );
             clock.seek(patch.time);
           }
@@ -707,42 +843,10 @@ export default function App() {
   });
 
   // ---- Globe data ----
-  const globeRoute = useMemo<GlobeRoute>(() => {
-    const markers: GlobeRoute['markers'] = [];
-    const seen = new Map<number, number>();
-    filledAirports.forEach((a, i) => {
-      const role =
-        filledAirports.length === 1
-          ? 'single'
-          : i === 0
-            ? 'origin'
-            : i === filledAirports.length - 1
-              ? 'destination'
-              : 'transfer';
-      const existing = seen.get(a.id);
-      if (existing !== undefined) {
-        // Round trips: keep one marker; origin wins over destination.
-        if (markers[existing].role === 'transfer') markers[existing].role = role;
-        return;
-      }
-      seen.set(a.id, markers.length);
-      markers.push({
-        key: String(a.id),
-        code: displayCode(a) ?? (fmt.city(a).length > 16 ? `${fmt.city(a).slice(0, 15)}…` : fmt.city(a)),
-        lat: a.lat,
-        lng: a.lng,
-        role,
-      });
-    });
-    const counts = new Map<string, number>();
-    const globeLegs = legs.map((l, i) => {
-      const base = `${l.from.id}>${l.to.id}`;
-      const n = (counts.get(base) ?? 0) + 1;
-      counts.set(base, n);
-      return { key: `${base}#${n}`, from: l.from, to: l.to, color: legColor(i) };
-    });
-    return { markers, legs: globeLegs };
-  }, [filledAirports, legs, fmt]);
+  const globeRoute = useMemo<GlobeRoute>(
+    () => comparisonGlobeRoute(compared, comparison.active, timeOpen, fmt.city),
+    [compared, comparison.active, timeOpen, fmt],
+  );
 
   // ---- Layout insets: tell the globe which parts of the screen are covered by UI ----
   useLayoutEffect(() => {
@@ -924,7 +1028,7 @@ export default function App() {
       openTime();
       pendingExplicitPlay.current = true;
       pendingView.current = {
-        time: journey.start?.epochMs ?? null,
+        time: playbackRange?.start ?? null,
         play: true,
         speed,
         clock: clockZone,
@@ -932,13 +1036,14 @@ export default function App() {
         dayNight,
         follow: followAircraft,
       };
-    } else if (timeline) {
-      if (!clock.getSnapshot().playing && clock.getSnapshot().time >= timeline.end) clock.seek(timeline.start);
+    } else if (playbackRange && !scheduleErrors) {
+      if (!clock.getSnapshot().playing && clock.getSnapshot().time >= playbackRange.end)
+        clock.seek(playbackRange.start);
       if (!clock.getSnapshot().playing)
-        clock.setRange(Math.min(timeline.start - 30 * 60000, linkedTime ?? Infinity), timeline.end);
+        clock.setRange(Math.min(playbackRange.start - 30 * 60000, linkedTime ?? Infinity), playbackRange.end);
       clock.toggle();
     }
-    if (!isDesktop && !playing && (!timeOpen || timeline) && !collapsed) {
+    if (!isDesktop && !playing && (!timeOpen || playbackRange) && !collapsed) {
       refitAfterLayout.current = !followAircraft;
       setCollapsed(true);
     }
@@ -980,6 +1085,15 @@ export default function App() {
     closeEditorRef.current = () => setEditing(null);
   });
 
+  const fastestJourney = compared.find((entry) => entry.id === metrics.fastest);
+  const comparisonAnnouncement = fastestJourney
+    ? t(
+        'compare.announcement',
+        compared.length,
+        fastestJourney.id,
+        fmt.duration(fastestJourney.journey.totals.journeyMin),
+      )
+    : t('compare.comparing', compared.length);
   const totalKm = legs.reduce((s, l) => s + l.distanceKm, 0);
   const flightMin = journey.dated ? journey.totals.flightMin : sumDurations(legs.map((l) => l.durationMin));
   const totalMin = journey.dated
@@ -999,22 +1113,52 @@ export default function App() {
   });
   // Phones with the timeline docked: the totals scroll with the list so the stops keep some room.
   const summaryInList = !isDesktop && timeOpen;
-  const summary = legs.length > 0 && (
-    <Summary
-      journey={journey}
-      onCheckLeg={editLeg}
-      legs={legs}
-      layovers={layovers}
-      unit={unit}
-      action={
-        timeOpen ? null : (
-          <button type="button" className="play-btn" aria-label={t('panel.play')} onClick={togglePlayback}>
-            <IconPlay size={18} />
-            <span>{t('panel.play')}</span>
-          </button>
-        )
-      }
+  const activateJourney = (index: number) => {
+    setEditing(null);
+    compareDispatch({ type: 'activate', index });
+  };
+  const addJourney = () => {
+    setEditing(null);
+    setIsExample(false);
+    compareDispatch({ type: 'add' });
+    setCopiedDraft({
+      index: comparison.journeys.length,
+      airportIds: [filledAirports[0]?.id ?? null, filledAirports.at(-1)?.id ?? null],
+    });
+    trackEvent('compare_journeys');
+  };
+  const showCopiedHint =
+    copiedDraft?.index === comparison.active &&
+    route.stops.length === 2 &&
+    !hasEnteredTimes(route.stops) &&
+    route.stops.every((stop, i) => stop.airportId !== null && stop.airportId === copiedDraft.airportIds[i]);
+  const summary = comparing ? (
+    <CompareSummary
+      list={compared}
+      metrics={metrics}
+      active={comparison.active}
+      onActivate={activateJourney}
+      onPlay={togglePlayback}
+      timeOpen={timeOpen}
     />
+  ) : (
+    legs.length > 0 && (
+      <Summary
+        journey={journey}
+        onCheckLeg={editLeg}
+        legs={legs}
+        layovers={layovers}
+        unit={unit}
+        action={
+          timeOpen ? null : (
+            <button type="button" className="play-btn" aria-label={t('panel.play')} onClick={togglePlayback}>
+              <IconPlay size={18} />
+              <span>{t('panel.play')}</span>
+            </button>
+          )
+        }
+      />
+    )
   );
   const canArrange = filledAirports.length > 0 || route.stops.length > 2;
   const timeBar = (docked: boolean) => (
@@ -1022,6 +1166,14 @@ export default function App() {
       clock={clock}
       journey={journey}
       timeline={timeline}
+      comparison={comparing ? compared : undefined}
+      active={comparison.active}
+      onActivate={activateJourney}
+      onEditJourneyLeg={(index, leg) => {
+        activateJourney(index);
+        compareDispatch({ type: 'route', index, action: { type: 'selectLeg', leg } });
+        setCollapsed(false);
+      }}
       clockZone={clockZone}
       docked={docked}
       followAircraft={followAircraft}
@@ -1057,7 +1209,7 @@ export default function App() {
                 followAircraft={followAircraft}
                 onFollowAircraftChange={changeFollowAircraft}
                 route={globeRoute}
-                selectedLeg={route.selectedLeg}
+                selectedLeg={route.selectedLeg === null ? null : legOffsets[comparison.active] + route.selectedLeg}
                 insets={insets}
                 showBorders={showBorders}
                 showCountryNames={showCountryNames}
@@ -1066,7 +1218,23 @@ export default function App() {
                 locale={locale}
                 reducedMotion={reducedMotion}
                 fitNonce={fitNonce}
-                onLegClick={(leg) => selectLeg(route.selectedLeg === leg ? null : leg)}
+                onLegClick={(globalLeg) => {
+                  const target = localLegAt(compared, globalLeg);
+                  if (!target) return;
+                  if (target.index === comparison.active)
+                    selectLeg(route.selectedLeg === target.leg ? null : target.leg);
+                  else {
+                    activateJourney(target.index);
+                    if (followAircraft) changeFollowAircraft(false);
+                    compareDispatch({
+                      type: 'route',
+                      index: target.index,
+                      action: { type: 'selectLeg', leg: target.leg },
+                    });
+                    const departure = compared[target.index].journey.legs[target.leg]?.departure;
+                    if (timeOpen && departure) clock.seek(departure.epochMs);
+                  }
+                }}
                 onFitChange={setFits}
                 onReady={() => setGlobeReady(true)}
                 onError={(e) => {
@@ -1161,7 +1329,7 @@ export default function App() {
 
       <main
         ref={panelRef}
-        className={`panel${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && timeOpen ? ' has-timeline' : ''}`}
+        className={`panel${comparison.journeys.length >= 3 ? ' has-many-journeys' : ''}${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && timeOpen ? ' has-timeline' : ''}`}
         aria-label={t('panel.journeyPlanner')}
       >
         {!isDesktop && (
@@ -1202,7 +1370,9 @@ export default function App() {
           <>
             <div className="panel__head">
               <h2 className="panel__title">
-                {isExample ? (
+                {comparing ? (
+                  t('compare.title')
+                ) : isExample ? (
                   <>
                     {t('panel.exampleJourney')}
                     <span className="panel__hint">{t('panel.chooseAnyAirportToChangeIt')}</span>
@@ -1234,56 +1404,91 @@ export default function App() {
               </div>
             </div>
 
-            <div className={`panel__scroll${isExample && !arranging ? ' suggestions--welcome' : ''}`}>
+            {comparing && (
+              <JourneyTabs list={compared} active={comparison.active} onActivate={activateJourney} onAdd={addJourney} />
+            )}
+            <div
+              role={comparing ? 'tabpanel' : undefined}
+              id={comparing ? 'journey-panel' : undefined}
+              aria-labelledby={comparing ? `journey-tab-${compared[comparison.active].id}` : undefined}
+              className={`panel__scroll${isExample && !arranging ? ' suggestions--welcome' : ''}`}
+            >
               {dataError ? (
                 <p className="panel__error" role="alert">
                   {t('errors.airportsUnavailable')}
                 </p>
               ) : (
-                <StopList
-                  journey={journey}
-                  activeLeg={activeState?.phase === 'flight' ? activeState.leg : null}
-                  activeStop={activeState?.phase === 'transfer' ? activeState.stop : null}
-                  onTimeChange={changeTime}
-                  stops={route.stops}
-                  legs={legs}
-                  layovers={layovers}
-                  lookup={lookup}
-                  unit={unit}
-                  selectedLeg={route.selectedLeg}
-                  editing={isDesktop ? editing : null}
-                  arranging={arranging}
-                  renderPicker={(i) => (
-                    <AirportPicker
-                      key={route.stops[i].key}
-                      variant="inline"
-                      index={index}
-                      {...pickerText(i)}
-                      onSelect={onSelectAirport}
-                      onCancel={cancelEditor}
-                    />
+                <>
+                  {comparing && showCopiedHint && (
+                    <p className="compare-hint">{t('compare.copiedHint', compared[comparison.active].id)}</p>
                   )}
-                  onEdit={openEditor}
-                  onRemove={(i) => {
-                    dispatch({ type: 'removeStop', index: i });
-                    setIsExample(false);
-                  }}
-                  onInsert={(i) => addStop(i)}
-                  onAdd={() => addStop()}
-                  onMove={(from, to) => {
-                    dispatch({ type: 'moveStop', from, to });
-                    setIsExample(false);
-                  }}
-                  onLayoverChange={(index, minutes) => {
-                    dispatch({ type: 'setLayover', index, minutes });
-                    setIsExample(false);
-                  }}
-                  onSelectLeg={selectLeg}
-                  onReverse={reverse}
-                  onClear={clear}
-                />
+                  <StopList
+                    key={comparison.journeys[comparison.active].key}
+                    journeyColor={comparing ? compared[comparison.active].color : undefined}
+                    journey={journey}
+                    activeLeg={activeState?.phase === 'flight' ? activeState.leg : null}
+                    activeStop={activeState?.phase === 'transfer' ? activeState.stop : null}
+                    onTimeChange={changeTime}
+                    stops={route.stops}
+                    legs={legs}
+                    layovers={layovers}
+                    lookup={lookup}
+                    unit={unit}
+                    selectedLeg={route.selectedLeg}
+                    editing={isDesktop ? editing : null}
+                    arranging={arranging}
+                    renderPicker={(i) => (
+                      <AirportPicker
+                        key={route.stops[i].key}
+                        variant="inline"
+                        index={index}
+                        {...pickerText(i)}
+                        onSelect={onSelectAirport}
+                        onCancel={cancelEditor}
+                      />
+                    )}
+                    onEdit={openEditor}
+                    onRemove={(i) => {
+                      dispatch({ type: 'removeStop', index: i });
+                      setIsExample(false);
+                    }}
+                    onInsert={(i) => addStop(i)}
+                    onAdd={() => addStop()}
+                    onMove={(from, to) => {
+                      dispatch({ type: 'moveStop', from, to });
+                      setIsExample(false);
+                    }}
+                    onLayoverChange={(index, minutes) => {
+                      dispatch({ type: 'setLayover', index, minutes });
+                      setIsExample(false);
+                    }}
+                    onSelectLeg={selectLeg}
+                    onReverse={reverse}
+                    onClear={clear}
+                  />
+                  {!comparing && !isExample && legs.length > 0 && (
+                    <button type="button" className="compare-entry text-btn" onClick={addJourney}>
+                      <IconCompare size={17} />
+                      {t('compare.entry')}
+                    </button>
+                  )}
+                  {comparing && (
+                    <button
+                      type="button"
+                      className="compare-remove text-btn"
+                      onClick={() => {
+                        setEditing(null);
+                        compareDispatch({ type: 'remove', index: comparison.active });
+                        setCopiedDraft(null);
+                      }}
+                    >
+                      <IconTrash size={14} />
+                      {t('compare.remove', compared[comparison.active].id)}
+                    </button>
+                  )}
+                </>
               )}
-              {initialized && (isExample || filledAirports.length === 0) && (
+              {initialized && !comparing && (isExample || filledAirports.length === 0) && (
                 <div className="suggestions">
                   <p className="suggestions__title" id="welcome-suggestions-title">
                     {t(isExample ? 'panel.tryOneOfThese' : 'panel.orTryOneOfThese')}
@@ -1342,7 +1547,7 @@ export default function App() {
       )}
 
       <p className="sr-only" aria-live="polite">
-        {initialized ? fmt.describeRoute(legs, layovers, unit) : ''}
+        {initialized ? (comparing ? comparisonAnnouncement : fmt.describeRoute(legs, layovers, unit)) : ''}
       </p>
       <p className="sr-only" aria-live="polite">
         {activeState ? fmt.describeState(journey, activeState).title : ''}
