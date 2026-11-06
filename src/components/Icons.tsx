@@ -174,3 +174,11 @@ export const IconCheck = (p: IconProps) => (
     <path d="M4.5 10.5l3.6 3.6 7.4-8.2" />
   </Icon>
 );
+
+export const IconFollow = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="10" cy="10" r="5.5" />
+    <circle cx="10" cy="10" r="1.5" />
+    <path d="M10 2v3M10 15v3M2 10h3M15 10h3" />
+  </Icon>
+);

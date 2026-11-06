@@ -33,6 +33,7 @@ The guide is at the project path `/globehops/llms.txt`, not the domain-root `/ll
 | `speed`        | Auto or simulation seconds per real second                             | `auto`, `1800`, `3600`, `7200` |
 | `clock`        | Timeline display zone; airport code must be on the route               | `local`, `utc`, `JFK`          |
 | `units`        | Distance display override                                              | `km`, `mi`                     |
+| `follow`       | Aircraft camera; off by default, user camera input exits               | `1` to enable                  |
 | `daynight`     | Day/night shading, enabled by default                                  | `0` to disable                 |
 | `itinerary`    | Alternative complete base64url UTF-8 JSON document                     | See examples file              |
 
@@ -60,7 +61,7 @@ Instants (`t`, timeline `at`, `assumeDeparture`) use ISO date/time with `Z` or `
 }
 ```
 
-Validate with the [draft 2020-12 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json). `version` and `stops` are required. Each stop requires `airport`; optional fields are `arrival`, `departure`, `layoverMinutes`. Layovers are integers 0–10080 and apply only to transfer stops. All view fields are optional: `time`, `play` (boolean), `speed` (`"auto"` or numeric 1800/3600/7200), `clock`, `units`, `dayNight` (boolean). Unknown properties are rejected at every level; a top-level string `$schema` is allowed.
+Validate with the [draft 2020-12 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json). `version` and `stops` are required. Each stop requires `airport`; optional fields are `arrival`, `departure`, `layoverMinutes`. Layovers are integers 0–10080 and apply only to transfer stops. All view fields are optional: `time`, `play` (boolean), `speed` (`"auto"` or numeric 1800/3600/7200), `clock`, `units`, `dayNight` (boolean), `follow` (boolean, default false). Unknown properties are rejected at every level; a top-level string `$schema` is allowed.
 
 Encode compact JSON as base64url UTF-8 without padding, then append `?itinerary=<encoded>`. JSON documents must contain 1–10 stops; one stop shows a single airport. Do not encode private information into links you share.
 

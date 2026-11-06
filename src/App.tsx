@@ -44,6 +44,8 @@ import { legColor } from './lib/legColors.ts';
 import { formatDistance } from './lib/units.ts';
 import { computeLayovers, computeLegs, createRouteState, routeReducer, hasEnteredTimes } from './state/route.ts';
 import {
+  loadFollowAircraft,
+  saveFollowAircraft,
   loadBorders,
   loadCountryNames,
   loadLastRoute,
@@ -115,6 +117,8 @@ export default function App() {
   const [zonesLoaded, setZonesLoaded] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
   const [assumedStart, setAssumedStart] = useState<number | null>(null);
+  const [followAircraft, setFollowAircraft] = useState(() => loadFollowAircraft() ?? false);
+  useEffect(() => saveFollowAircraft(followAircraft), [followAircraft]);
   const [dayNight, setDayNight] = useState(() => loadDayNight() ?? true);
   const [clockZone, setClockZone] = useState<string>(() => loadClockZone() ?? 'local');
   const [linkUnits, setLinkUnits] = useState<DistanceUnit | null>(null);
@@ -211,6 +215,7 @@ export default function App() {
       if (notices.length) showToast(notices.join(' '));
       const params = new URLSearchParams(search.toLowerCase());
       const itinerary = params.has('itinerary');
+      setFollowAircraft(params.has('follow') || itinerary ? link.view.follow : (loadFollowAircraft() ?? false));
       setDayNight(params.has('daynight') || itinerary ? link.view.dayNight : (loadDayNight() ?? true));
       setClockZone(params.has('clock') || itinerary ? link.view.clock : (loadClockZone() ?? 'local'));
       setUnit(link.view.units ?? loadUnit() ?? defaultUnit());
@@ -402,19 +407,20 @@ export default function App() {
         clock: clockZone,
         units: linkUnits,
         dayNight,
+        follow: followAircraft,
       }),
-    [filledStops, timeOpen, playing, pausedTime, speed, clockZone, linkUnits, dayNight],
+    [filledStops, timeOpen, playing, pausedTime, speed, clockZone, linkUnits, dayNight, followAircraft],
   );
   const shareUrl = window.location.origin + window.location.pathname + query;
   useEffect(() => {
     shareUrlRef.current = shareUrl;
     if (!initialized) return;
     if (shareUrl !== window.location.href) replaceUrl(shareUrl);
-    saveLastJourney(serializeLink(filledStops, { speed, clock: clockZone, dayNight }));
+    saveLastJourney(serializeLink(filledStops, { speed, clock: clockZone, dayNight, follow: followAircraft }));
     document.title = filledStops.length
       ? `${filledStops.map((s) => airportCode(s.airport)).join(' → ')} · GlobeHops`
       : 'GlobeHops — your journey on a 3D globe';
-  }, [shareUrl, filledStops, initialized, speed, clockZone, dayNight]);
+  }, [shareUrl, filledStops, initialized, speed, clockZone, dayNight, followAircraft]);
 
   // ---- Globe data ----
   const globeRoute = useMemo<GlobeRoute>(() => {
@@ -627,6 +633,7 @@ export default function App() {
         clock: clockZone,
         units: linkUnits,
         dayNight,
+        follow: followAircraft,
       };
     } else if (timeline) {
       if (!clock.getSnapshot().playing && clock.getSnapshot().time >= timeline.end) clock.seek(timeline.start);
@@ -635,7 +642,7 @@ export default function App() {
       clock.toggle();
     }
     if (!isDesktop && !playing && (!timeOpen || timeline) && !collapsed) {
-      refitAfterLayout.current = true;
+      refitAfterLayout.current = !followAircraft;
       setCollapsed(true);
     }
   };
@@ -719,6 +726,8 @@ export default function App() {
       timeline={timeline}
       clockZone={clockZone}
       docked={docked}
+      followAircraft={followAircraft}
+      onFollowAircraft={globeFailed ? undefined : setFollowAircraft}
       onClockZone={(value) => {
         setClockZone(value);
         if (value === 'local' || value === 'utc') saveClockZone(value);
@@ -750,6 +759,8 @@ export default function App() {
             <Suspense fallback={null}>
               <GlobeView
                 sim={sim}
+                followAircraft={followAircraft}
+                onFollowAircraftChange={setFollowAircraft}
                 route={globeRoute}
                 selectedLeg={route.selectedLeg}
                 insets={insets}

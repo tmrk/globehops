@@ -23,6 +23,7 @@ export interface LinkView {
   clock: 'local' | 'utc' | string;
   units: DistanceUnit | null;
   dayNight: boolean;
+  follow: boolean;
 }
 export interface LinkState {
   stops: LinkStop[] | null;
@@ -32,7 +33,7 @@ export interface LinkState {
 export function parseLink(search: string): LinkState {
   const state: LinkState = {
     stops: null,
-    view: { time: null, play: false, speed: 'auto', clock: 'local', units: null, dayNight: true },
+    view: { time: null, play: false, speed: 'auto', clock: 'local', units: null, dayNight: true, follow: false },
     issues: [],
   };
   if (search.length > MAX_URL_LENGTH) {
@@ -101,6 +102,9 @@ export function parseLink(search: string): LinkState {
       if (value.toLowerCase() === 'km' || value.toLowerCase() === 'mi')
         state.view.units = value.toLowerCase() as DistanceUnit;
       else invalid(key);
+    } else if (key === P.follow) {
+      if (value === '0' || value === '1') state.view.follow = value === '1';
+      else invalid(key);
     } else if (key === P.dayNight) {
       if (value === '0' || value === '1') state.view.dayNight = value !== '0';
       else invalid(key);
@@ -129,6 +133,7 @@ export function serializeLink(stops: SerializableLinkStop[], view: Partial<LinkV
   if (view.clock && view.clock !== 'local') params.push([P.clock, view.clock]);
   if (view.units) params.push([P.units, view.units]);
   if (view.dayNight === false) params.push([P.dayNight, '0']);
+  if (view.follow) params.push([P.follow, '1']);
   const query = params.length
     ? `?${params.map(([key, value]) => `${key}=${encodeURIComponent(value).replace(/%3A/gi, ':')}`).join('&')}`
     : '';
