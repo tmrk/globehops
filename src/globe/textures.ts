@@ -23,7 +23,12 @@ interface TextureContext {
   onReady: GlobeRendererOptions['onTextureReady'];
 }
 
-/** Owns progressive day textures, lazy night lights and every texture's lifetime. */
+/**
+ * Owns progressive day textures, lazy night lights and every texture's lifetime. A 1K preview appears
+ * almost instantly, then 4K (unless the GPU is limited below 4096 px). The 8K texture (~2 MB download,
+ * ~170 MB of GPU memory with mipmaps) loads only when a capable non-touch device zooms in close, where
+ * the extra detail is visible. Night lights matter only with day/night shading, so they load last.
+ */
 export class GlobeTextures {
   private textures = new Set<Texture>();
   private retired = new Set<Texture>();
