@@ -75,3 +75,32 @@ describe('real airport search', () => {
     expect(performance.now() - start).toBeLessThan(50);
   });
 });
+
+describe('optional extra city names', () => {
+  it('indexes exonyms with city weight while retaining existing codes and English names', () => {
+    const localized = buildSearchIndex(airports, {
+      extraNames: (airport) => (airport.iata === 'VIE' ? ['Bécs'] : airport.iata === 'CPH' ? ['Köpenhamn'] : []),
+    });
+    expect(searchAirports(localized, 'Bécs')[0].iata).toBe('VIE');
+    expect(searchAirports(localized, 'bec')[0].iata).toBe('VIE');
+    expect(searchAirports(localized, 'Köpenhamn')[0].iata).toBe('CPH');
+    for (const query of ['cph', 'egll', 'vienna', 'copenhagen', 'london', 'tokyo'])
+      expect(searchAirports(localized, query).map((a) => a.id)).toEqual(searchAirports(index, query).map((a) => a.id));
+  });
+  it('gives an exact extra-name match the same score as an exact original-city match', () => {
+    const source = airports.find((a) => a.iata === 'CPH')!;
+    const first = {
+      ...source,
+      id: 1,
+      iata: null,
+      icao: null,
+      ident: 'ONE',
+      city: 'Other',
+      name: 'A Airport',
+      keywords: [],
+    };
+    const second = { ...first, id: 2, ident: 'TWO', city: 'Köpenhamn', name: 'B Airport' };
+    const localized = buildSearchIndex([second, first], { extraNames: (a) => (a.id === 1 ? ['Köpenhamn'] : []) });
+    expect(searchAirports(localized, 'Köpenhamn').map((a) => a.id)).toEqual([1, 2]);
+  });
+});

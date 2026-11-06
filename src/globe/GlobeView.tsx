@@ -16,6 +16,7 @@ export interface GlobeViewProps {
   insets: Insets;
   showBorders: boolean;
   showCountryNames: boolean;
+  locale?: string;
   reducedMotion: boolean;
   sim?: SimulationFeed | null;
   /** Increment to re-frame the camera on the current route / leg. */
@@ -54,6 +55,7 @@ export default function GlobeView(props: GlobeViewProps) {
         coastlinesUrl,
         countryLabelsUrl,
         showCountryLabels: latest.current.showCountryNames,
+        labelLocale: latest.current.locale ?? 'en',
         showBorders: latest.current.showBorders,
         reducedMotion: latest.current.reducedMotion,
         onLegClick: (leg) => latest.current.onLegClick(leg),
@@ -99,6 +101,10 @@ export default function GlobeView(props: GlobeViewProps) {
   useEffect(() => {
     rendererRef.current?.setCountryLabelsVisible(showCountryNames);
   }, [showCountryNames]);
+
+  useEffect(() => {
+    rendererRef.current?.setLabelLocale(props.locale ?? 'en');
+  }, [props.locale]);
 
   // Insets first, so the initial framing accounts for panels covering the globe.
   useEffect(() => {

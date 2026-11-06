@@ -203,6 +203,8 @@ a {
 }
 
 .globe-marker {
+  /* Projection moves these imperatively; the global reduced-motion duration must not animate transforms. */
+  transition-property: none;
   position: absolute;
   left: 0;
   top: 0;
@@ -2819,7 +2821,7 @@ button.map-menu__item:hover {
   }
 }
 
-/* Optional atlas country names, beneath the airport labels. */
+/* Optional atlas place names, beneath the airport labels. */
 .country-labels {
   position: absolute;
   inset: 0;
@@ -2843,4 +2845,24 @@ button.map-menu__item:hover {
   text-shadow:
     0 1px 4px rgba(3, 10, 19, 0.9),
     0 0 10px rgba(3, 10, 19, 0.5);
+}
+
+.country-label--ocean,
+.country-label--sea {
+  color: rgba(177, 206, 222, 0.94);
+  font-style: italic;
+  font-weight: 500;
+  text-align: center;
+}
+.country-label--ocean {
+  white-space: pre;
+  letter-spacing: var(--track-caps);
+  line-height: 1.45;
+}
+.country-label--sea {
+  width: max-content;
+  max-width: 11em;
+  white-space: normal;
+  text-transform: none;
+  letter-spacing: 0.04em;
 }

@@ -7,6 +7,7 @@ interface Entry {
   icao: string;
   name: string;
   city: string;
+  extraNames: string[];
   country: string;
   keywords: string[];
   tokens: string[];
@@ -21,7 +22,10 @@ export interface SearchIndex {
   ident: Map<string, Airport>;
   ids: Map<number, Airport>;
 }
-export function buildSearchIndex(airports: Airport[]): SearchIndex {
+export function buildSearchIndex(
+  airports: Airport[],
+  options: { extraNames?: (airport: Airport) => readonly string[] } = {},
+): SearchIndex {
   const index: SearchIndex = {
     entries: [],
     prefixes: new Map(),
@@ -37,9 +41,10 @@ export function buildSearchIndex(airports: Airport[]): SearchIndex {
       city = normalizeText(airport.city.split(/[,(]/)[0]),
       country = normalizeText(airport.country);
     const keywords = airport.keywords.map(normalizeText);
+    const extraNames = (options.extraNames?.(airport) ?? []).map(normalizeText).filter(Boolean);
     const tokens = [
       ...new Set(
-        [iata, icao, name, city, normalizeText(airport.region), country, ...keywords]
+        [iata, icao, name, city, normalizeText(airport.region), country, ...keywords, ...extraNames]
           .join(' ')
           .split(' ')
           .filter(Boolean),
@@ -57,7 +62,7 @@ export function buildSearchIndex(airports: Airport[]): SearchIndex {
       (airport.iata ? 30 : 0) +
       (airport.iata && PRIMARY_AIRPORTS.has(airport.iata) ? PRIMARY_AIRPORT_BOOST : 0);
     const row = index.entries.length;
-    index.entries.push({ airport, iata, icao, name, city, country, keywords, tokens, boost });
+    index.entries.push({ airport, iata, icao, name, city, extraNames, country, keywords, tokens, boost });
     const prefixes = new Set<string>();
     for (const token of tokens) for (let i = 1; i <= token.length; i++) prefixes.add(token.slice(0, i));
     for (const prefix of prefixes) {
@@ -94,12 +99,18 @@ const MATCH = {
 function matchQuality(e: Entry, q: string, tokens: string[]): number {
   if (e.icao === q) return MATCH.exactIcao;
   if (e.iata === q) return MATCH.exactIata;
-  if (e.city === q) return MATCH.cityExact;
-  if (e.city.startsWith(q)) return MATCH.cityPrefix;
+  if (e.city === q || e.extraNames.includes(q)) return MATCH.cityExact;
+  if (e.city.startsWith(q) || e.extraNames.some((name) => name.startsWith(q))) return MATCH.cityPrefix;
   if (e.name.startsWith(q)) return MATCH.namePrefix;
   if (e.keywords.includes(q)) return MATCH.keywordExact;
   // All tokens matched somewhere in the airport's own name/city/codes?
-  const own = [e.iata, e.icao, ...e.name.split(' '), ...e.city.split(' ')];
+  const own = [
+    e.iata,
+    e.icao,
+    ...e.name.split(' '),
+    ...e.city.split(' '),
+    ...e.extraNames.flatMap((name) => name.split(' ')),
+  ];
   if (tokens.every((t) => own.some((w) => w.startsWith(t)))) return MATCH.tokenPrefix;
   if (e.keywords.some((k) => k.startsWith(q))) return MATCH.keywordPrefix;
   return MATCH.country;
