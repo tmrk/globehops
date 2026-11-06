@@ -39,7 +39,6 @@ describe('route reducer', () => {
     expect(s.stops.map((s) => s.airportId)).toEqual([3, null]);
     s = reduce(s, { type: 'removeStop', index: 0 });
     expect(s.stops.map((s) => s.airportId)).toEqual([null, null]);
-    expect(reduce(createRouteState([1, 2, 3]), { type: 'clear' }).stops.map((s) => s.airportId)).toEqual([null, null]);
   });
   it('resets leg selection on each structural edit', () => {
     const actions: RouteAction[] = [
@@ -49,7 +48,6 @@ describe('route reducer', () => {
       { type: 'removeStop', index: 1 },
       { type: 'moveStop', from: 0, to: 2 },
       { type: 'reverse' },
-      { type: 'clear' },
       { type: 'load', airportIds: [4, 5] },
     ];
     for (const action of actions) {
@@ -77,8 +75,6 @@ describe('route reducer', () => {
     const full = createRouteState(Array(10).fill(1));
     expect(reduce(full, { type: 'addStop' })).toBe(full);
     expect(reduce(full, { type: 'insertStop', index: 0 })).toBe(full);
-    const empty = createRouteState();
-    expect(reduce(empty, { type: 'clear' })).toBe(empty);
   });
   it('connects consecutive filled stops across gaps, retaining zero-distance legs', () => {
     const cph = data.airports.find((a) => a.iata === 'CPH')!,
@@ -175,14 +171,12 @@ describe('stop-based journey times', () => {
     expect(reduce(s, { ...action, arrivals: [null, { ...arrival, local: '2026-11-21T13:50' }] })).not.toBe(s);
     expect(reduce(s, { type: 'load', airportIds: [1, 2] }).stops.every((s) => !s.arrival && !s.departure)).toBe(true);
   });
-  it('clears times on reverse and clear, preserving airport/layover behavior', () => {
+  it('clears times on reverse, preserving airport/layover behavior', () => {
     const s = createRouteState([1, 2, 3], [null, 180], [null, null, arrival], [departure]);
     const reversed = reduce(s, { type: 'reverse' });
     expect(reversed.stops.map((s) => s.airportId)).toEqual([3, 2, 1]);
     expect(reversed.stops[1].layoverMin).toBe(180);
     expect(reversed.stops.every((s) => !s.arrival && !s.departure)).toBe(true);
-    const emptyWithTimes = createRouteState([], [], [], [departure]);
-    expect(reduce(emptyWithTimes, { type: 'clear' }).stops[0].departure).toBeNull();
   });
 });
 

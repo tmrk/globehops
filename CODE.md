@@ -14,7 +14,7 @@
 | `src/hooks/usePickerHistory.ts`, `src/hooks/usePanelInsets.ts`                    | Mobile picker history entry with synchronous iOS focus; panel/sheet insets reported to the globe.                   |
 | `src/hooks/useAppWebTools.ts`, `src/state/appWebState.ts`                         | Live WebMCP command handling over App state, with tested view, share-link and `get_journey` builders.               |
 | `src/state/visitLocale.ts`, `src/hooks/appMedia.ts`                               | Visit-only locale address rewrite; the shared desktop/sheet layout media query.                                     |
-| `src/components/{JourneyPanelHeader,CollapsedJourneyPeek,WelcomeSuggestions}.tsx` | Panel title/actions, collapsed-sheet route peek and first-visit route suggestions.                                  |
+| `src/components/{JourneyPanelHeader,CollapsedJourneyPeek,WelcomeSuggestions}.tsx` | Panel title with Edit/Share/Reset (inline Cancel/Reset confirmation), collapsed-sheet peek and welcome suggestions. |
 | `src/i18n/locales.ts`, `src/i18n/catalogue.ts`, `src/i18n/messages/{en,hu,sv}.ts` | Typed locale definitions, message keys and lazy Hungarian/Swedish catalogues.                                       |
 | `src/i18n/detect.ts`, `src/i18n/detect.test.ts`                                   | Locale precedence, locale paths, optional saved choice and time-zone country proxy tests.                           |
 | `src/i18n/I18nProvider.tsx`, `src/i18n/LanguageSelector.tsx`                      | Shared UI translation/formatting, lazy city table and accessible persisted/visit-only language changes.             |

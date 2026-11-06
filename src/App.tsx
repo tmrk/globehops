@@ -330,11 +330,18 @@ export default function App() {
     dispatch({ type: 'reverse' });
     setIsExample(false);
   };
-  const clear = () => {
-    dispatch({ type: 'clear' });
+  /** Start over: one empty journey, no compared journeys, times or open timeline. Preferences stay. */
+  const resetJourney = () => {
+    compareDispatch({ type: 'load', journeys: [] });
+    setCopiedDraft(null);
     setIsExample(false);
     setArranging(false);
+    if (timeOpen) closeTime();
     if (isDesktop) setEditing(0);
+    else {
+      setEditing(null);
+      focusStopButton(0);
+    }
   };
   const toggleArranging = () => {
     if (!arranging && route.selectedLeg !== null) selectLeg(null);
@@ -429,6 +436,7 @@ export default function App() {
     )
   );
   const canArrange = filledAirports.length > 0 || route.stops.length > 2;
+  const canReset = comparing || timeOpen || (!isExample && (canArrange || hasEnteredTimes(route.stops)));
   const timeBar = (docked: boolean) => (
     <TimeBar
       clock={clock}
@@ -617,8 +625,10 @@ export default function App() {
               hasAirports={filledAirports.length > 0}
               canArrange={canArrange}
               arranging={arranging}
+              canReset={canReset}
               onToggleArranging={toggleArranging}
               onShare={share}
+              onReset={resetJourney}
             />
 
             {comparing && (
@@ -681,7 +691,6 @@ export default function App() {
                     }}
                     onSelectLeg={selectLeg}
                     onReverse={reverse}
-                    onClear={clear}
                   />
                   {(comparing || (!isExample && legs.length > 0)) && (
                     <div className="itinerary__actions">

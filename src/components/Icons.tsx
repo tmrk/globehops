@@ -109,6 +109,13 @@ export const IconInfo = (p: IconProps) => (
     <path d="M10 9v4.6M10 6.4v.1" />
   </Icon>
 );
+/** Counter-clockwise arrow: start over. */
+export const IconReset = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.8 7A6 6 0 1 1 4.1 11" />
+    <path d="M4.6 3.4v3.8h3.8" />
+  </Icon>
+);
 export const IconTrash = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4 5.5h12M8 5.5V4h4v1.5M5.5 5.5l.7 10.2c.1.7.6 1.3 1.4 1.3h4.8c.8 0 1.3-.6 1.4-1.3l.7-10.2" />

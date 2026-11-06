@@ -1,7 +1,7 @@
 import type { Messages } from './en.ts';
 export const hu: Messages = {
   'compare.entry': 'Összehasonlítás másik utazással',
-  'compare.title': 'Utazások összehasonlítása',
+  'compare.title': 'Összehasonlítás',
   'compare.journeys': 'Utazások',
   'compare.add': 'Újabb utazás hozzáadása',
   'compare.copiedHint':
@@ -28,6 +28,7 @@ export const hu: Messages = {
   'toasts.zonesUnavailable': 'Az időzónák nem tölthetők be. Az útvonaltervezés továbbra is elérhető.',
   'panel.routeTitle': '{0} · GlobeHops',
   'common.documentTitle': 'GlobeHops — az utad egy 3D-s földgömbön',
+  'common.cancel': 'Mégse',
   'toasts.locationDenied':
     'A helyhozzáférés le van tiltva. A helyzeted megjelenítéséhez engedélyezd ennek az oldalnak a böngésző beállításaiban.',
   'toasts.locationUnavailable': 'A helyzeted most nem érhető el.',
@@ -51,6 +52,9 @@ export const hu: Messages = {
   'panel.done': 'Kész',
   'panel.edit': 'Szerkesztés',
   'panel.share': 'Megosztás',
+  'panel.reset': 'Útvonal visszaállítása',
+  'panel.resetConfirm': 'Visszaállítás',
+  'panel.resetQuestion': 'Visszaállítod az útvonalat? Minden megálló, időpont és összehasonlított út törlődik.',
   'errors.airportsUnavailable':
     'A repülőtéradatok nem tölthetők be. Ellenőrizd az internetkapcsolatod, és töltsd újra az oldalt.',
   'panel.tryOneOfThese': 'Próbáld ki valamelyiket',
@@ -116,7 +120,6 @@ export const hu: Messages = {
   'stops.addTimes': 'Időpontok',
   'stops.addStop': 'Megálló hozzáadása',
   'stops.reverseRoute': 'Útvonal megfordítása',
-  'stops.clearRoute': 'Útvonal törlése',
   'summary.journeyTime': 'Menetidő',
   'summary.totalTime': 'Teljes idő',
   'summary.flightTime': 'Repülési idő',

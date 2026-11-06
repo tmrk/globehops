@@ -2,6 +2,12 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.11.0 — 2026-11-06 — Reset in one step
+
+- **Start over in one step.** A reset button now sits beside Edit and Share. It asks first, in place: **Cancel** (which has the focus, and Escape works too) or **Reset**. Resetting removes every stop, time and compared journey and closes the timeline, leaving an empty planner with route suggestions; display settings such as units, layers and motion stay as they are.
+- **Simpler editing.** Edit mode keeps inserting, removing, reordering and reversing stops; the old “Clear route” there is gone, because it emptied only the journey you were viewing and was easy to confuse with starting over. In a comparison, **Remove journey** still drops a single option.
+- **Headings never collide with buttons.** When a heading and the Edit/Share/Reset buttons don't fit on one line (long Hungarian words, narrow phones), the buttons move to their own line instead of running into the title. The Hungarian comparison title is now simply “Összehasonlítás”.
+
 ## 1.10.1 — 2026-11-06 — Hardening: neater phones, keyboard and touch, a steadier globe
 
 - **Neater on phones.** The airport search now covers the whole screen while the keyboard is open; on iPhones the journey no longer shows through beneath the floating address bar and keyboard toolbar. Editing a flight's times gives the editor the whole sheet: it scrolls into view, the totals move below the list, and date and time fields size to their wording instead of cutting off ("Idő megadása", "Ange tid"), with departure and arrival still lined up. On the narrowest phones the timeline clock gets its own line instead of wrapping word by word.

@@ -236,10 +236,10 @@ test('mobile takeover focuses input, keeps results in viewport, selects and canc
   await expectRoute(page, ['CPH', 'YYZ']);
 });
 
-test('insert and remove a transfer, reverse, clear and choose a suggestion', async ({ page }) => {
+test('insert and remove a transfer, reverse, reset and choose a suggestion', async ({ page }) => {
   await page.goto('./?route=CPH-JFK');
   await expectRoute(page, ['CPH', 'JFK']);
-  // Everyday rows stay uncluttered; edit mode reveals insert, remove, reorder, reverse and clear.
+  // Everyday rows stay uncluttered; edit mode reveals insert, remove, reorder and reverse.
   await expect(page.getByRole('button', { name: 'Remove Copenhagen', exact: true })).toHaveCount(0);
   await startEditing(page);
   await page.getByRole('button', { name: 'Add a stop after Copenhagen', exact: true }).click();
@@ -250,8 +250,17 @@ test('insert and remove a transfer, reverse, clear and choose a suggestion', asy
   await expectRoute(page, ['CPH', 'JFK']);
   await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
   await expectRoute(page, ['JFK', 'CPH']);
-  await page.getByRole('button', { name: 'Clear route', exact: true }).click();
-  // Clearing opens the inline departure picker on desktop; dismiss it before using suggestions.
+  // Reset asks in place: Cancel takes focus and Escape backs out; only the explicit Reset starts over.
+  const reset = page.getByRole('button', { name: 'Reset journey', exact: true });
+  await reset.click();
+  const confirmReset = page.getByRole('group', { name: /^Reset the journey\?/ });
+  await expect(confirmReset.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(reset).toBeFocused();
+  await expectRoute(page, ['JFK', 'CPH']);
+  await reset.click();
+  await confirmReset.getByRole('button', { name: 'Reset', exact: true }).click();
+  // Resetting opens the inline departure picker on desktop; dismiss it before using suggestions.
   if (await airportField(page).count()) await airportField(page).press('Escape');
   await expect(stopButtons(page)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Departure airport: choose an airport' })).toBeVisible();

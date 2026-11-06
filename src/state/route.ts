@@ -11,7 +11,6 @@ export type RouteAction =
   | { type: 'removeStop'; index: number }
   | { type: 'moveStop'; from: number; to: number }
   | { type: 'reverse' }
-  | { type: 'clear' }
   | { type: 'selectLeg'; leg: number | null }
   | { type: 'setLayover'; index: number; minutes: number | null }
   | { type: 'setTime'; index: number; field: 'arrival' | 'departure'; value: LocalTimeInput | null }
@@ -98,13 +97,6 @@ export function routeReducer(state: RouteState, action: RouteAction): RouteState
     }
     case 'reverse':
       return changed([...stops].reverse().map((s) => ({ ...s, arrival: null, departure: null })));
-    case 'clear':
-      return stops.length === 2 &&
-        stops.every((s) => s.airportId === null) &&
-        !hasEnteredTimes(stops) &&
-        state.selectedLeg === null
-        ? state
-        : createRouteState();
     case 'load': {
       const ids = action.airportIds.slice(0, MAX_STOPS);
       while (ids.length < 2) ids.push(null);

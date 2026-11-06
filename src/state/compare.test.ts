@@ -70,7 +70,7 @@ describe('comparison editor', () => {
       expect(compareReducer(state, { type: 'activate', index })).toBe(state);
       expect(compareReducer(state, { type: 'remove', index })).toBe(state);
       expect(compareReducer(state, { type: 'setLabel', index, label: 'a' })).toBe(state);
-      expect(compareReducer(state, { type: 'route', index, action: { type: 'clear' } })).toBe(state);
+      expect(compareReducer(state, { type: 'route', index, action: { type: 'reverse' } })).toBe(state);
     }
   });
   it('loads up to four journeys, normalizes an empty load and allows indexed edits', () => {

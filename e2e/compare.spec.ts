@@ -65,6 +65,18 @@ test('add, edit, share and remove an alternative without changing journey A', as
   await expect(page.getByRole('tablist')).toHaveCount(0);
   await expect(page).toHaveURL(/\?route=BUD-JFK$/);
   await expect(page.getByRole('region', { name: 'Journey totals' })).toBeVisible();
+  // One Reset clears every compared journey, its times and the timeline at once.
+  await page.goto('./?route=BUD-JFK&b.route=BUD-LHR-JFK&t=2026-12-01T10:00Z');
+  await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reset journey', exact: true }).click();
+  await page
+    .getByRole('group', { name: /^Reset the journey\?/ })
+    .getByRole('button', { name: 'Reset' })
+    .click();
+  await expect(page.getByRole('tablist')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Timeline' })).toHaveCount(0);
+  await expect(stopButtons(page)).toHaveCount(0);
+  await expect(page).not.toHaveURL(/route=|b\./);
 });
 
 test('all journeys play on one axis with live lanes and overlapping aircraft', async ({ page, isMobile }, info) => {

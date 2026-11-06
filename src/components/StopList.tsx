@@ -13,7 +13,7 @@ import { formatLegTimes } from '../lib/journeyText.ts';
 import { LegSchedule } from './LegSchedule.tsx';
 import type { LocalTimeInput } from '../types.ts';
 import { CodeBadge } from './CodeBadge.tsx';
-import { IconChevronDown, IconClock, IconClose, IconGrip, IconPlane, IconPlus, IconSwap, IconTrash } from './Icons.tsx';
+import { IconChevronDown, IconClock, IconClose, IconGrip, IconPlane, IconPlus, IconSwap } from './Icons.tsx';
 
 export interface StopListProps {
   journeyColor?: string;
@@ -41,7 +41,6 @@ export interface StopListProps {
   onSelectLeg: (leg: number | null) => void;
   onLayoverChange: (stopIndex: number, minutes: number | null) => void;
   onReverse: () => void;
-  onClear: () => void;
 }
 
 interface DragState {
@@ -423,27 +422,13 @@ export function StopList(props: StopListProps) {
             </button>
           )}
           {arranging && (
-            <>
-              <button type="button" className="row row--action" onClick={props.onReverse} disabled={filled < 2}>
-                <Rail top={null} bottom={null} />
-                <span className="row__icon">
-                  <IconSwap size={17} />
-                </span>
-                <span>{t('stops.reverseRoute')}</span>
-              </button>
-              <button
-                type="button"
-                className="row row--action row--danger"
-                onClick={props.onClear}
-                disabled={filled === 0 && count === 2}
-              >
-                <Rail top={null} bottom={null} />
-                <span className="row__icon">
-                  <IconTrash size={17} />
-                </span>
-                <span>{t('stops.clearRoute')}</span>
-              </button>
-            </>
+            <button type="button" className="row row--action" onClick={props.onReverse} disabled={filled < 2}>
+              <Rail top={null} bottom={null} />
+              <span className="row__icon">
+                <IconSwap size={17} />
+              </span>
+              <span>{t('stops.reverseRoute')}</span>
+            </button>
           )}
         </div>
       )}
