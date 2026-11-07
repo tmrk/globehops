@@ -12,6 +12,7 @@ import {
   IconFrame,
   IconLabels,
   IconLayers,
+  IconMoon,
   IconRuler,
   IconSunMoon,
 } from './Icons.tsx';
@@ -36,6 +37,8 @@ interface MapToolsProps {
   onToggleCountryNames: () => void;
   onToggleDayNight: () => void;
   onUnitChange: (unit: DistanceUnit) => void;
+  /** Turns the globe to the Moon; offered while the sky is shown. */
+  onFindMoon?: () => void;
   onFit: () => void;
 }
 
@@ -161,6 +164,19 @@ export function MapTools(props: MapToolsProps) {
                 on={props.dayNight}
                 onClick={props.onToggleDayNight}
               />
+              {props.onFindMoon && (
+                <button
+                  type="button"
+                  className="map-menu__item"
+                  onClick={() => {
+                    setOpen(null);
+                    props.onFindMoon?.();
+                  }}
+                >
+                  <IconMoon size={18} className="map-menu__icon" />
+                  <span className="map-menu__label">{t('maptools.findMoon')}</span>
+                </button>
+              )}
             </>
           )}
           {props.globe && props.locationAvailable && (

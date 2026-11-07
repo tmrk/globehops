@@ -436,6 +436,21 @@ test('the time dial shows the globe at any moment without a route, and Live retu
   );
 });
 
+test('Find the Moon turns the globe until the labelled Moon stands above it, while the sky is shown', async ({
+  page,
+}) => {
+  await page.goto('./?route=&t=2026-11-24T00:00Z');
+  const display = await openDisplay(page);
+  await display.getByRole('button', { name: 'Find the Moon', exact: true }).click();
+  await expect(display).toBeHidden();
+  const label = page.locator('.globe-sky-label');
+  await expect(label).toHaveText('Moon');
+  await expect(label).toHaveCSS('opacity', '1');
+  await (await openDisplay(page)).getByRole('button', { name: 'Day and night', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Find the Moon', exact: true })).toHaveCount(0);
+  await expect(label).toHaveCSS('opacity', '0');
+});
+
 test('Live tracks a flight under way in real time, follows the aircraft and shares as live', async ({ page }) => {
   // London local time two hours ago: the estimated London–New York flight is under way.
   const departure = new Intl.DateTimeFormat('sv-SE', {

@@ -36,6 +36,8 @@ vi.mock('./GlobeRenderer.ts', () => ({
     setFollowAircraft = vi.fn();
     setSelectedLeg = vi.fn();
     setSky = vi.fn();
+    setMoonName = vi.fn();
+    showMoon = vi.fn();
     setAircraft = vi.fn();
     setFleet = vi.fn();
     setHighlightLeg = vi.fn();
@@ -69,6 +71,7 @@ beforeEach(() => {
     reducedMotion: true,
     followAircraft: false,
     fitNonce: 0,
+    moonNonce: 0,
     onFollowAircraftChange: vi.fn(),
     onLegClick: vi.fn(),
     onFitChange: vi.fn(),

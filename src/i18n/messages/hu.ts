@@ -97,6 +97,8 @@ export const hu: Messages = {
   'maptools.myLocation': 'Tartózkodási helyem',
   'maptools.countryNames': 'Országnevek',
   'maptools.dayAndNight': 'Nappal és éjszaka',
+  'maptools.findMoon': 'Hold megkeresése',
+  'sky.moon': 'Hold',
   'maptools.distance': 'Távolság',
   'maptools.distanceUnit': 'Távolság mértékegysége',
   'stops.journeyStops': 'Az útvonal megállói',

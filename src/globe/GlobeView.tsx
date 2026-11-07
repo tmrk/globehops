@@ -29,6 +29,8 @@ export interface GlobeViewProps {
   onFollowAircraftChange: (enabled: boolean) => void;
   /** Increment to re-frame the camera on the current route / leg. */
   fitNonce: number;
+  /** Increment to turn the globe until the Moon stands above its limb. */
+  moonNonce: number;
   onLegClick: (leg: number) => void;
   onFitChange: (fits: boolean) => void;
   onReady: () => void;
@@ -163,6 +165,14 @@ export default function GlobeView(props: GlobeViewProps) {
   useEffect(() => {
     if (fitNonce > 0) rendererRef.current?.frameCurrent(true);
   }, [fitNonce]);
+
+  useEffect(() => {
+    if (props.moonNonce > 0) rendererRef.current?.showMoon();
+  }, [props.moonNonce]);
+
+  useEffect(() => {
+    rendererRef.current?.setMoonName(t('sky.moon'));
+  }, [t]);
 
   useEffect(() => {
     const r = rendererRef.current;

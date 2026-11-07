@@ -96,6 +96,8 @@ export const sv: Messages = {
   'maptools.myLocation': 'Min plats',
   'maptools.countryNames': 'Landsnamn',
   'maptools.dayAndNight': 'Dag och natt',
+  'maptools.findMoon': 'Hitta månen',
+  'sky.moon': 'Månen',
   'maptools.distance': 'Avstånd',
   'maptools.distanceUnit': 'Avståndsenhet',
   'stops.journeyStops': 'Resans stopp',

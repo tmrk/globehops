@@ -86,6 +86,7 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [fits, setFits] = useState(true);
   const [fitNonce, setFitNonce] = useState(0);
+  const [moonNonce, setMoonNonce] = useState(0);
   const [globeReady, setGlobeReady] = useState(false);
   const [globeFailed, setGlobeFailed] = useState(false);
   /** Set when a layout change (collapsing the sheet for playback) should re-frame the globe once insets settle. */
@@ -558,6 +559,7 @@ export default function App() {
                 locale={locale}
                 reducedMotion={reducedMotion}
                 fitNonce={fitNonce}
+                moonNonce={moonNonce}
                 onLegClick={(globalLeg) => {
                   const target = localLegAt(compared, globalLeg);
                   if (!target) return;
@@ -629,6 +631,7 @@ export default function App() {
           onToggleCountryNames={toggleCountryNames}
           onToggleDayNight={preferences.toggleDayNight}
           onUnitChange={changeUnit}
+          onFindMoon={dayNight && !globeFailed ? () => setMoonNonce((n) => n + 1) : undefined}
           onFit={() => setFitNonce((n) => n + 1)}
         />
       )}

@@ -96,6 +96,8 @@ export const en = {
   'maptools.myLocation': 'My location',
   'maptools.countryNames': 'Country names',
   'maptools.dayAndNight': 'Day and night',
+  'maptools.findMoon': 'Find the Moon',
+  'sky.moon': 'Moon',
   'maptools.distance': 'Distance',
   'maptools.distanceUnit': 'Distance unit',
   'stops.journeyStops': 'Journey stops',

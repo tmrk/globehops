@@ -2315,6 +2315,21 @@ button.map-menu__item:hover {
   outline-offset: 2px;
 }
 
+/* The Moon's name, set beneath its small disc while it is in view. */
+.globe-sky-label {
+  /* Projection moves it imperatively; the global reduced-motion duration must not animate transforms. */
+  transition-property: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 /* ------------------------------------------------------------------------------------------ */
 /* Live: a broadcast-style badge, pressed while time follows the wall clock                   */
 

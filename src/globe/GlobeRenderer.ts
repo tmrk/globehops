@@ -72,7 +72,7 @@ import { AirportLabelLayer } from './airportLabels.ts';
 import { setClass, setStyle } from './dom.ts';
 import { FOLLOW_APPROACH_MS, followBlend, followDistance, followLead } from './followCamera.ts';
 import type { AircraftView, FleetAircraft, Sky } from './simFeed.ts';
-import { SkyBodies } from './skyBodies.ts';
+import { moonVantage, SkyBodies } from './skyBodies.ts';
 import { routeGeometrySignature } from './routeGeometry.ts';
 
 export type MarkerRole = 'origin' | 'transfer' | 'destination' | 'single';
@@ -440,6 +440,7 @@ export class GlobeRenderer {
       sunDirection: this.sunScene,
       fade: this.dayNight,
       far: this.camera.far,
+      labelLayer: this.labelLayer,
       loadMoonMap: () => this.textures.moon(),
       requestRender: this.requestRender,
     });
@@ -731,6 +732,21 @@ export class GlobeRenderer {
     this.requestRender();
   }
 
+  setMoonName(name: string) {
+    this.skyBodies.setMoonName(name);
+  }
+
+  /** Turns the globe until the Moon stands just above Earth's limb, ready for the user to look around. */
+  showMoon() {
+    const moon = this.skyBodies.moonPosition;
+    if (!this.sky || !moon) return;
+    this.exitFollowAircraft();
+    this.follow = false;
+    const reach = this.availableHalfFov() * 0.85;
+    const { direction, distance } = moonVantage(moon, this.camera.position.length(), reach, ATMOSPHERE_RADIUS);
+    this.flyTo(direction, distance, true);
+  }
+
   /** Keyboard rotation / zoom for accessibility. */
   nudge(dLng: number, dLat: number, zoom = 1) {
     this.exitFollowAircraft();
@@ -844,6 +860,7 @@ export class GlobeRenderer {
     this.airportLabels.measure();
     this.countryLabels.measure(this.camera, this.height);
     this.updateUserLocation();
+    this.skyBodies.placeLabel(this.camera, this.width, this.height);
     const reserved = this.airportLabels.update(this.camera, this.width, this.height);
     this.countryLabels.update(this.camera, this.width, this.height, reserved);
     if (this.fleet?.length) {

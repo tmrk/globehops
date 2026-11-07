@@ -2,6 +2,12 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.14.0 — 2026-11-07 — Find the Moon
+
+- **Find the Moon.** The Moon at its true size is only in view from a narrow band of angles, so the display menu now has **Find the Moon** (while day and night shading is on): the globe turns until the Moon stands just above its edge, still north-up, and you can look around from there.
+- **The Moon is named.** A small “Moon” label sits beside the disc whenever it is on screen, on the side away from the globe.
+- **Earthshine.** Near new Moon, when Earth seen from the Moon is full, its sunlight now greys the Moon’s dark side, as it does to the eye, so a thin crescent no longer vanishes against black space. Earthshine fades as the Moon fills out.
+
 ## 1.13.0 — 2026-11-07 — The Sun and Moon, any moment, and Live
 
 - **The Sun and Moon in the sky.** With day and night shading on, the Sun and the Moon now hang in space at their true positions for the moment shown, at the size they really appear: the Sun a half-degree disc with a soft glare, the Moon textured from NASA's Lunar Reconnaissance Orbiter mosaic. Turn the globe to find them; Earth hides them as they pass behind it. The Moon's phase comes from real sunlight, its near side rocks with libration, and it darkens to a faint red in Earth's shadow during a lunar eclipse.

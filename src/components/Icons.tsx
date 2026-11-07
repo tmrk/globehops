@@ -143,6 +143,13 @@ export const IconSunMoon = (p: IconProps) => (
   </Icon>
 );
 
+/** A waxing crescent. */
+export const IconMoon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10.8 2.6a6 6 0 100 10.8 6.6 6.6 0 010-10.8z" />
+  </Icon>
+);
+
 /** Atlas text layer: two letter sizes over a text baseline. */
 export const IconLabels = (p: IconProps) => (
   <Icon viewBox="0 0 24 24" {...p}>

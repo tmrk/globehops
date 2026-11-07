@@ -7,11 +7,13 @@ import {
   ShaderMaterial,
   SphereGeometry,
   Vector3,
+  type PerspectiveCamera,
   type Texture,
 } from 'three';
 import { EARTH_RADIUS_KM } from '../lib/geo.ts';
 import { MOON_RADIUS_KM } from '../lib/moon.ts';
-import { ecefToScene, latLngToVector3 } from './math3d.ts';
+import { setStyle } from './dom.ts';
+import { ecefToScene, latLngToVector3, projectToScreen } from './math3d.ts';
 import type { Sky } from './simFeed.ts';
 
 const SUN_RADIUS_KM = 695_700;
@@ -22,6 +24,26 @@ const GLARE_RADII = 8;
 const UMBRA_TAPER = (SUN_RADIUS_KM - EARTH_RADIUS_KM) / AU_KM;
 const PENUMBRA_FLARE = (SUN_RADIUS_KM + EARTH_RADIUS_KM) / AU_KM;
 const glsl = (value: number) => value.toFixed(6);
+const MOON_RADIUS = MOON_RADIUS_KM / EARTH_RADIUS_KM;
+/** Sky between Earth's glowing limb and the Moon when it is brought into view. */
+const MOON_CLEARANCE = (2.5 * Math.PI) / 180;
+const EARTH_CENTRE = new Vector3();
+
+/**
+ * A camera position (direction and distance) from which the Moon stands just above Earth's limb. The
+ * camera sits on the far side of Earth from the Moon, raised north by θ so that, looking at Earth's
+ * centre, it sees the Moon α off its axis: just clear of the `limb` and within `reach`, the half field
+ * of view it may use. Raising it northwards keeps a north-up view with the Moon above the globe; the
+ * Moon never strays more than about 29° from the equator, so the camera stays clear of the poles.
+ */
+export function moonVantage(moon: Vector3, distance: number, reach: number, limb: number) {
+  const d = Math.max(distance, limb / Math.sin(reach - MOON_CLEARANCE));
+  const alpha = Math.asin(limb / d) + MOON_CLEARANCE;
+  const theta = alpha + Math.asin((d * Math.sin(alpha)) / moon.length());
+  const away = moon.clone().normalize().negate();
+  const north = new Vector3(0, 1, 0).addScaledVector(away, -away.y).normalize();
+  return { direction: away.multiplyScalar(Math.cos(theta)).addScaledVector(north, Math.sin(theta)), distance: d };
+}
 
 interface SkyBodiesOptions {
   /** Scene-space unit vector towards the Sun, shared with the Earth's shading. */
@@ -30,6 +52,8 @@ interface SkyBodiesOptions {
   fade: { value: number };
   /** The camera's far plane; the Sun is drawn just inside it, beyond the Moon. */
   far: number;
+  /** Holds the Moon's name, an HTML label like the airports'. */
+  labelLayer: HTMLElement;
   loadMoonMap: () => Promise<Texture | null>;
   requestRender: () => void;
 }
@@ -48,6 +72,10 @@ export class SkyBodies {
   private moon: Mesh<SphereGeometry, ShaderMaterial>;
   private basis = new Matrix4();
   private axes = [new Vector3(), new Vector3(), new Vector3()] as const;
+  private label = document.createElement('div');
+  private sightline = new Vector3();
+  private projected = new Vector3();
+  private centre = new Vector3();
   private map: Promise<void> | null = null;
   private disposed = false;
 
@@ -90,7 +118,7 @@ export class SkyBodies {
     this.sun.renderOrder = -1;
 
     this.moon = new Mesh(
-      new SphereGeometry(MOON_RADIUS_KM / EARTH_RADIUS_KM, 48, 24),
+      new SphereGeometry(MOON_RADIUS, 48, 24),
       new ShaderMaterial({
         uniforms: { uMap: { value: null }, uSun: { value: options.sunDirection }, uFade: options.fade },
         transparent: true,
@@ -123,9 +151,11 @@ export class SkyBodies {
             float shadow = behind > 0.0
               ? smoothstep(1.0 - behind * ${glsl(UMBRA_TAPER)}, 1.0 + behind * ${glsl(PENUMBRA_FLARE)}, length(vWorld + uSun * behind))
               : 1.0;
-            // Inside the umbra, sunlight bent through Earth's atmosphere glows faintly red; earthshine
-            // keeps the unlit side barely visible.
-            vec3 light = sunlight * mix(vec3(0.1, 0.035, 0.015), vec3(1.0), shadow) + vec3(0.012, 0.014, 0.018);
+            // Inside the umbra, sunlight bent through Earth's atmosphere glows faintly red.
+            vec3 light = sunlight * mix(vec3(0.1, 0.035, 0.015), vec3(1.0), shadow);
+            // Earthshine: sunlight off Earth greys the unlit side, brightest near new Moon, when Earth
+            // as seen from the Moon is full.
+            light += vec3(0.04, 0.046, 0.056) * (0.5 + 0.5 * dot(normalize(vWorld), uSun));
             gl_FragColor = vec4(texture2D(uMap, vUv).rgb * light * 1.25, uFade);
             #include <colorspace_fragment>
           }`,
@@ -133,6 +163,48 @@ export class SkyBodies {
     );
     this.moon.visible = false;
     this.object.add(this.sun, this.moon);
+    this.label.className = 'globe-sky-label';
+    setStyle(this.label, 'opacity', '0');
+    options.labelLayer.append(this.label);
+  }
+
+  /** The Moon's centre in the scene, once the sky has been set. */
+  get moonPosition(): Vector3 | null {
+    return this.map ? this.moon.position : null;
+  }
+
+  setMoonName(name: string): void {
+    this.label.textContent = name;
+  }
+
+  /** Names the Moon, on its side away from Earth, while it is on screen and not behind Earth. */
+  placeLabel(camera: PerspectiveCamera, width: number, height: number): void {
+    const eye = camera.position;
+    const toMoon = this.sightline.subVectors(this.moon.position, eye);
+    const approach = eye.dot(toMoon);
+    // The sightline passes through Earth when it nears Earth's centre on the way to the Moon.
+    const hidden = approach < 0 && eye.lengthSq() - (approach * approach) / toMoon.lengthSq() < 1;
+    const p = this.projected;
+    const shown =
+      this.moon.visible &&
+      this.options.fade.value > 0 &&
+      !hidden &&
+      projectToScreen(this.moon.position, camera, width, height, p) &&
+      p.x >= 0 &&
+      p.x <= width &&
+      p.y >= 0 &&
+      p.y <= height;
+    setStyle(this.label, 'opacity', shown ? String(this.options.fade.value) : '0');
+    if (!shown) return;
+    const radius = ((MOON_RADIUS / toMoon.length()) * height) / 2 / Math.tan((camera.fov * Math.PI) / 360);
+    // Outwards from Earth's centre on screen, the label's near edge just clear of the disc.
+    projectToScreen(EARTH_CENTRE, camera, width, height, this.centre);
+    const length = Math.hypot(p.x - this.centre.x, p.y - this.centre.y) || 1;
+    const ux = (p.x - this.centre.x) / length;
+    const uy = (p.y - this.centre.y) / length;
+    const x = p.x + ux * (radius + 5);
+    const y = p.y + uy * (radius + 5);
+    setStyle(this.label, 'transform', `translate3d(${x}px, ${y}px, 0) translate(${50 * ux - 50}%, ${50 * uy - 50}%)`);
   }
 
   /** Places both bodies for this instant; the first call fetches the Moon's surface. */
@@ -157,6 +229,7 @@ export class SkyBodies {
 
   dispose(): void {
     this.disposed = true;
+    this.label.remove();
     for (const body of [this.sun, this.moon]) {
       body.geometry.dispose();
       body.material.dispose();
