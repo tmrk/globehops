@@ -1,24 +1,24 @@
 {
-  "generatedAt": "2026-11-05T17:57:03.625Z",
+  "generatedAt": "2026-11-07T11:11:41.704Z",
   "source": "OurAirports (https://ourairports.com/data/) — public domain",
-  "upstreamCommit": null,
+  "upstreamCommit": "bdbcf5e2643119210d5c240f2e26ab2604ec5e38",
   "files": {
     "airports.csv": {
-      "sha256": "55bd82106c8ac1c9559cf5879ae9b69eb9c6e748df01514632dd5fbbb9e8b474",
-      "bytes": 12756853,
-      "lastModified": null,
-      "rows": 86337
+      "sha256": "8ed1da427be3cab1ae5f6fbbb4464a0a74c6bd2570ff9a73089539b7ccfef7f2",
+      "bytes": 12758041,
+      "lastModified": "Sat, 07 Nov 2026 02:53:50 GMT",
+      "rows": 86345
     },
     "countries.csv": {
       "sha256": "2a9dbee691125b0cdb8ceb5fe227c48c903f99c488963b8e53e2ab366521c639",
       "bytes": 24583,
-      "lastModified": null,
+      "lastModified": "Sat, 07 Nov 2026 02:53:50 GMT",
       "rows": 249
     },
     "regions.csv": {
       "sha256": "9220d6582b804cfdec8432e5bb21456699c9df8969bf5d8886beb62ff0b1318b",
       "bytes": 485265,
-      "lastModified": null,
+      "lastModified": "Sat, 07 Nov 2026 02:56:44 GMT",
       "rows": 3987
     }
   },
@@ -27,5 +27,5 @@
     "scheduled": 4327,
     "withIata": 9053
   },
-  "contentHash": "80e2bca5e2a2c5999ebaa352f41a000cab183378d15d9e414b5f4c3ab3e55747"
+  "contentHash": "5cb4f042b22df8b8b0a6fc7a85f55330f6528f5b82a26322e0144a70f1a60910"
 }

@@ -3,8 +3,8 @@
   "release": "2026f",
   "license": "ODbL-1.0",
   "attribution": "Contains information from timezone-boundary-builder, which is made available under the Open Database License (ODbL); boundaries derived from OpenStreetMap © OpenStreetMap contributors.",
-  "generatedAt": "2026-11-05T17:57:08.069Z",
-  "airportsContentHash": "80e2bca5e2a2c5999ebaa352f41a000cab183378d15d9e414b5f4c3ab3e55747",
+  "generatedAt": "2026-11-07T11:12:04.325Z",
+  "airportsContentHash": "5cb4f042b22df8b8b0a6fc7a85f55330f6528f5b82a26322e0144a70f1a60910",
   "counts": {
     "airports": 9932,
     "zones": 387,
@@ -27,217 +27,325 @@
         "id": 3086,
         "ident": "UG0U",
         "zone": "Asia/Tbilisi",
-        "candidates": ["Asia/Tbilisi", "Europe/Moscow"]
+        "candidates": [
+          "Asia/Tbilisi",
+          "Europe/Moscow"
+        ]
       },
       {
         "id": 3092,
         "ident": "UGSS",
         "zone": "Asia/Tbilisi",
-        "candidates": ["Asia/Tbilisi", "Europe/Moscow"]
+        "candidates": [
+          "Asia/Tbilisi",
+          "Europe/Moscow"
+        ]
       },
       {
         "id": 27234,
         "ident": "ZWSH",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 27235,
         "ident": "ZWTN",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 27236,
         "ident": "ZWWW",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 28144,
         "ident": "ZWTC",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 30635,
         "ident": "ZWAK",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 31609,
         "ident": "ZWHM",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 31684,
         "ident": "ZWCM",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 31731,
         "ident": "ZWKC",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 31771,
         "ident": "ZWKL",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 32406,
         "ident": "ZWSS",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 32725,
         "ident": "ZWYN",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 35310,
         "ident": "ZWKM",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 44191,
         "ident": "ZWAT",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 44210,
         "ident": "CN-0132",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 44211,
         "ident": "CN-0133",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 44213,
         "ident": "CN-0135",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 44217,
         "ident": "CN-0139",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 46650,
         "ident": "ZWBL",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 313426,
         "ident": "ZWKN",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 314799,
         "ident": "ZWTL",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 316548,
         "ident": "ZWNL",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 316764,
         "ident": "ZWHZ",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 323219,
         "ident": "ZWFY",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 326731,
         "ident": "ZWSC",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 333070,
         "ident": "ZWRQ",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 336113,
         "ident": "TWC",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 342843,
         "ident": "ZWYT",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 350883,
         "ident": "CN-0237",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 354507,
         "ident": "CN-0329",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 354654,
         "ident": "ZWAL",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 355952,
         "ident": "CN-0359",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 525153,
         "ident": "CN-0415",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 525757,
         "ident": "CN-0417",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       },
       {
         "id": 605890,
         "ident": "ZWLK",
         "zone": "Asia/Shanghai",
-        "candidates": ["Asia/Shanghai", "Asia/Urumqi"]
+        "candidates": [
+          "Asia/Shanghai",
+          "Asia/Urumqi"
+        ]
       }
     ],
     "unusedOverrides": [],
@@ -265,7 +373,10 @@
         "ident": "NTGJ",
         "zone": "Pacific/Gambier",
         "country": "PF",
-        "others": ["Pacific/Marquesas", "Pacific/Tahiti"],
+        "others": [
+          "Pacific/Marquesas",
+          "Pacific/Tahiti"
+        ],
         "reviewed": true
       },
       {
@@ -273,7 +384,10 @@
         "ident": "PCIS",
         "zone": "Pacific/Kanton",
         "country": "KI",
-        "others": ["Pacific/Kiritimati", "Pacific/Tarawa"],
+        "others": [
+          "Pacific/Kiritimati",
+          "Pacific/Tarawa"
+        ],
         "reviewed": true
       },
       {
@@ -281,7 +395,9 @@
         "ident": "PMDY",
         "zone": "Pacific/Midway",
         "country": "UM",
-        "others": ["Pacific/Wake"],
+        "others": [
+          "Pacific/Wake"
+        ],
         "reviewed": true
       },
       {
@@ -289,7 +405,9 @@
         "ident": "PWAK",
         "zone": "Pacific/Wake",
         "country": "UM",
-        "others": ["Pacific/Midway"],
+        "others": [
+          "Pacific/Midway"
+        ],
         "reviewed": true
       },
       {
@@ -321,7 +439,11 @@
         "ident": "SCIP",
         "zone": "Pacific/Easter",
         "country": "CL",
-        "others": ["America/Coyhaique", "America/Punta_Arenas", "America/Santiago"],
+        "others": [
+          "America/Coyhaique",
+          "America/Punta_Arenas",
+          "America/Santiago"
+        ],
         "reviewed": true
       },
       {
@@ -367,7 +489,12 @@
         "ident": "AT03",
         "zone": "Australia/Perth",
         "country": "AQ",
-        "others": ["America/Punta_Arenas", "Antarctica/McMurdo", "Antarctica/Rothera", "Antarctica/Vostok"],
+        "others": [
+          "America/Punta_Arenas",
+          "Antarctica/McMurdo",
+          "Antarctica/Rothera",
+          "Antarctica/Vostok"
+        ],
         "reviewed": true
       },
       {
@@ -375,7 +502,12 @@
         "ident": "AT28",
         "zone": "Antarctica/Vostok",
         "country": "AQ",
-        "others": ["America/Punta_Arenas", "Antarctica/McMurdo", "Antarctica/Rothera", "Australia/Perth"],
+        "others": [
+          "America/Punta_Arenas",
+          "Antarctica/McMurdo",
+          "Antarctica/Rothera",
+          "Australia/Perth"
+        ],
         "reviewed": true
       }
     ]
