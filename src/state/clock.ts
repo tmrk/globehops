@@ -1,4 +1,7 @@
 export type PlaybackSpeed = 'auto' | 1800 | 3600 | 7200;
+/** Live time follows the wall clock: twice a minute for the ambient globe, every second while tracking a journey. */
+export const AMBIENT_TICK_MS = 30_000;
+export const TRACKING_TICK_MS = 1_000;
 export const PLAYBACK_SPEEDS: { value: PlaybackSpeed; label: string; short: string }[] = [
   { value: 'auto', label: 'Auto (whole journey ≈ 15 s)', short: 'Auto' },
   { value: 1800, label: '0.5 hours per second', short: '0.5 h/s' },
@@ -113,11 +116,11 @@ export class SimulationClock {
   setSpeed(speed: PlaybackSpeed): void {
     this.update({ speed });
   }
-  goLive(): void {
+  goLive(tickMs = AMBIENT_TICK_MS): void {
     if (this.disposed) return;
     this.stopTimers();
     this.update({ time: this.deps.now(), playing: false, live: true });
-    this.interval = this.deps.setInterval(() => this.update({ time: this.deps.now() }), 30000);
+    this.interval = this.deps.setInterval(() => this.update({ time: this.deps.now() }), tickMs);
   }
   dispose(): void {
     this.stopTimers();

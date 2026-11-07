@@ -35,7 +35,7 @@ vi.mock('./GlobeRenderer.ts', () => ({
     setRoute = vi.fn();
     setFollowAircraft = vi.fn();
     setSelectedLeg = vi.fn();
-    setIllumination = vi.fn();
+    setSky = vi.fn();
     setAircraft = vi.fn();
     setFleet = vi.fn();
     setHighlightLeg = vi.fn();
@@ -112,7 +112,7 @@ it('unsubscribes replaced simulation feeds and cancels a pending loss timeout on
   const unsubscribe = vi.fn();
   const feed = {
     subscribe: vi.fn(() => unsubscribe),
-    getFrame: () => ({ subsolar: null, aircraft: null, highlightLeg: null, follow: false }),
+    getFrame: () => ({ sky: null, aircraft: null, highlightLeg: null, follow: false }),
   };
   act(() => root.render(createElement(GlobeView, { ...props, sim: feed })));
   expect(feed.subscribe).toHaveBeenCalledOnce();

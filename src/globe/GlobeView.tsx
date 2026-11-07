@@ -5,6 +5,7 @@ import mediumUrl from '../assets/textures/earth-4k.webp';
 import largeUrl from '../assets/textures/earth-8k.webp';
 import lightsSmallUrl from '../assets/textures/lights-2k.webp';
 import lightsLargeUrl from '../assets/textures/lights-4k.webp';
+import moonUrl from '../assets/textures/moon-512.webp';
 import countryLabelsUrl from '../data/generated/country-labels.json?url';
 import bordersUrl from '../data/generated/borders.json?url';
 import coastlinesUrl from '../data/generated/coastlines.json?url';
@@ -60,6 +61,7 @@ export default function GlobeView(props: GlobeViewProps) {
           large: largeUrl,
           lightsSmall: lightsSmallUrl,
           lightsLarge: lightsLargeUrl,
+          moon: moonUrl,
         },
         bordersUrl,
         coastlinesUrl,
@@ -166,7 +168,7 @@ export default function GlobeView(props: GlobeViewProps) {
     const r = rendererRef.current;
     if (!r) return;
     if (!sim) {
-      r.setIllumination(null);
+      r.setSky(null);
       r.setAircraft(null);
       r.setFleet(null);
       r.setHighlightLeg(null);
@@ -181,7 +183,7 @@ export default function GlobeView(props: GlobeViewProps) {
         r.setFollow(frame.follow);
         previousFollow = frame.follow;
       }
-      r.setIllumination(frame.subsolar);
+      r.setSky(frame.sky);
       r.setAircraft(frame.aircraft);
       r.setFleet(frame.fleet ?? null);
       r.setHighlightLeg(frame.highlightLeg);

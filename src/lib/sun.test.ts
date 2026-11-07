@@ -5,6 +5,7 @@ import {
   EquatorFromVector,
   GeoVector,
   Horizon,
+  KM_PER_AU,
   Observer,
   RotateVector,
   Rotation_EQJ_EQD,
@@ -19,6 +20,7 @@ import {
   solarDeclinationDeg,
   solarElevationDeg,
   subsolarPoint,
+  sunDistanceKm,
 } from './sun.ts';
 
 describe('NOAA/Meeus apparent solar position', () => {
@@ -141,6 +143,13 @@ describe('geometric elevation and daylight', () => {
       }
     }
     console.info('Solar elevation accuracy, 90 city/time pairs (degrees):', { maxElevationError });
+  });
+
+  it('sizes the Sun from its distance, within 0.0001 AU of astronomy-engine from perihelion to aphelion', () => {
+    for (const iso of ['2026-01-03T17:00Z', '2026-04-05T00:00Z', '2026-07-06T18:00Z', '2026-10-05T12:00Z']) {
+      const expected = GeoVector(Body.Sun, new Date(iso), true).Length() * KM_PER_AU;
+      expect(Math.abs(sunDistanceKm(Date.parse(iso)) - expected) / KM_PER_AU).toBeLessThan(1e-4);
+    }
   });
 
   it('classifies sunlight, civil twilight and night on both sides of the terminator', () => {

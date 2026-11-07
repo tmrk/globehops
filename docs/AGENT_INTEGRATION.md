@@ -32,6 +32,7 @@ The guide is at the project path `/globehops/llms.txt`, not the domain-root `/ll
 | `depN`, `arrN`      | Local departure/arrival at 1-based stop N                              | `dep1=2026-11-20T08:15`        |
 | `t`                 | Simulation instant, with Z or explicit offset                          | `2026-11-20T09:30Z`            |
 | `play`              | Start playback on open; reduced motion prevents autoplay               | `1`                            |
+| `live`              | Follow the real current time (the timeline's Live); replaces `t`       | `1`                            |
 | `speed`             | Auto or simulation seconds per real second                             | `auto`, `1800`, `3600`, `7200` |
 | `clock`             | Timeline display zone; airport code may be on any compared journey     | `local`, `utc`, `JFK`          |
 | `units`             | Distance display override                                              | `km`, `mi`                     |

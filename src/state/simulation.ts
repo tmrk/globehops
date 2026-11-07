@@ -1,8 +1,15 @@
 import type { Journey } from '../lib/schedule.ts';
-import { subsolarPoint } from '../lib/sun.ts';
+import { moonAt } from '../lib/moon.ts';
+import { subsolarPoint, sunDistanceKm } from '../lib/sun.ts';
 import { journeyStateAt, type Timeline } from '../lib/timeline.ts';
-import type { AircraftView, FleetAircraft, SimFrame, SimulationFeed } from '../globe/simFeed.ts';
+import type { AircraftView, FleetAircraft, SimFrame, SimulationFeed, Sky } from '../globe/simFeed.ts';
 import { playbackRate, type SimulationClock } from './clock.ts';
+
+export const skyAt = (time: number): Sky => ({
+  sun: subsolarPoint(time),
+  sunDistanceKm: sunDistanceKm(time),
+  moon: moonAt(time),
+});
 
 export function simFrameAt(
   journey: Journey,
@@ -13,7 +20,7 @@ export function simFrameAt(
   primary = 0,
 ): SimFrame {
   const frame: SimFrame = {
-    subsolar: dayNight ? subsolarPoint(time) : null,
+    sky: dayNight ? skyAt(time) : null,
     aircraft: null,
     highlightLeg: null,
     follow: false,
@@ -79,8 +86,8 @@ function sameFrame(a: SimFrame, b: SimFrame): boolean {
     a.follow !== b.follow ||
     a.highlightLeg !== b.highlightLeg ||
     !sameAircraft(a.aircraft, b.aircraft) ||
-    (a.subsolar !== b.subsolar &&
-      (!a.subsolar || !b.subsolar || a.subsolar.lat !== b.subsolar.lat || a.subsolar.lng !== b.subsolar.lng))
+    // Both bodies move with time alone, so an unmoved Sun means an unchanged sky.
+    (a.sky !== b.sky && (!a.sky || !b.sky || a.sky.sun.lat !== b.sky.sun.lat || a.sky.sun.lng !== b.sky.sun.lng))
   )
     return false;
   if (a.fleet === b.fleet) return true;
@@ -117,13 +124,14 @@ export function createSimulationFeed(
       ctx.fleet === undefined ? undefined : ctx.open ? ctx.fleet : EMPTY_FLEET,
       ctx.primary,
     );
-    frame.follow = ctx.open && ctx.follow && snapshot.playing;
+    const moving = snapshot.playing || snapshot.live;
+    frame.follow = ctx.open && ctx.follow && moving;
     const primary = ctx.fleet?.[ctx.primary ?? 0];
     const primaryJourney = ctx.fleet === undefined ? ctx.journey : primary?.journey;
     const primaryTimeline = ctx.fleet === undefined ? ctx.timeline : primary?.timeline;
-    if (frame.aircraft?.kind === 'air' && primaryJourney && primaryTimeline && snapshot.playing) {
+    if (frame.aircraft?.kind === 'air' && primaryJourney && primaryTimeline && moving) {
       const span = snapshot.start !== null && snapshot.end !== null ? snapshot.end - snapshot.start : 15000;
-      const rate = playbackRate(snapshot.speed, span);
+      const rate = snapshot.live ? 1 : playbackRate(snapshot.speed, span);
       const next = journeyStateAt(primaryJourney, primaryTimeline, snapshot.time + rate * 100);
       // Local distance velocity, in real seconds, predicts through the camera's smoothing lag.
       frame.aircraft.fractionPerSecond =

@@ -29,6 +29,7 @@ function createFormatters(locale: Locale) {
     timeZone: 'UTC',
   });
   const shortDates = new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const dayMarks = new Intl.DateTimeFormat(tag, { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
   const clocks = new Map<string, Intl.DateTimeFormat>();
   function duration(minutes: number, layover = false): string {
     if (locale === 'en') return layover ? formatLayover(minutes) : formatDuration(minutes);
@@ -59,6 +60,8 @@ function createFormatters(locale: Locale) {
     },
     list: (values: string[]) => lists.format(values),
     shortDate: (isoDate: string) => shortDates.format(new Date(`${isoDate}T12:00:00Z`)),
+    /** A day on a time scale: “Sun 8”. */
+    dayMark: (isoDate: string) => dayMarks.format(new Date(`${isoDate}T12:00:00Z`)),
     date: (isoDate: string) => {
       if (locale === 'en') return formatDateLabel(isoDate);
       const parsed = parseLocalDate(isoDate);

@@ -2,6 +2,13 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.13.0 — 2026-11-07 — The Sun and Moon, any moment, and Live
+
+- **The Sun and Moon in the sky.** With day and night shading on, the Sun and the Moon now hang in space at their true positions for the moment shown, at the size they really appear: the Sun a half-degree disc with a soft glare, the Moon textured from NASA's Lunar Reconnaissance Orbiter mosaic. Turn the globe to find them; Earth hides them as they pass behind it. The Moon's phase comes from real sunlight, its near side rocks with libration, and it darkens to a faint red in Earth's shadow during a lunar eclipse.
+- **See the planet at any moment.** With no route, a time dial sits below the globe (on phones, at the top of the sheet): drag or flick its hour tape, scroll, or use the arrow keys (Page Up/Down for whole days) to move the sunlight around the world, and tap the date for distant days. **Live** returns to now. A chosen moment stays in the page address, so it can be shared.
+- **Live flights.** Once a journey has real dates, the timeline offers **Live**: the globe jumps to now and keeps time with the real world, showing where the plane should be and moving it every second, with the camera following the aircraft. Before departure it waits at the gate with a countdown; after landing it rests at the destination. Shared links carry `live=1`, so whoever opens one watches the flight as it happens.
+- **Tidier globe controls.** The buttons in the top-right capsule now highlight their whole segment, following its rounded ends, instead of drawing circles inside it. The display menu no longer has a separate globe clock entry; the time dial replaces it.
+
 ## 1.12.0 — 2026-11-07 — Similar routes and lighter wording
 
 - **New compared journeys start empty.** **Compare journeys** no longer copies the first journey’s airports. The new tab is blank and offers up to three similar routes between the same airports — nonstop when your journey connects, or via a different well-known hub with little detour — never one you are already comparing. Choose one, or pick any airports yourself.

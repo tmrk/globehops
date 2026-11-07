@@ -167,6 +167,13 @@ export function resolveLocal(zone: string, local: LocalDateTime): LocalResolutio
   };
 }
 
+/** The instant a wall-clock time names: the earlier of a repeated hour, the first after a skipped one. */
+export function epochAtLocal(zone: string, local: LocalDateTime): number {
+  const resolution = resolveLocal(zone, local);
+  if (resolution.kind === 'exact') return resolution.time.epochMs;
+  return resolution.kind === 'ambiguous' ? resolution.options[0].epochMs : resolution.after.epochMs;
+}
+
 function offsetFields(offsetMin: number): { hours: number; minutes: number; seconds: number } {
   const seconds = Math.round(Math.abs(offsetMin) * 60);
   return { hours: Math.floor(seconds / 3600), minutes: Math.floor((seconds % 3600) / 60), seconds: seconds % 60 };

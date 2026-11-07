@@ -9,9 +9,9 @@ export function useClock(clock: SimulationClock) {
 }
 export function useClockPhase(clock: SimulationClock, journey: Journey, timeline: Timeline | null, open: boolean) {
   const snapshot = useCallback(() => {
-    const { time, playing } = clock.getSnapshot();
+    const { time, playing, live } = clock.getSnapshot();
     const state = open && timeline ? journeyStateAt(journey, timeline, time) : null;
-    return `${playing ? 'playing' : 'paused'}:${state?.phase ?? ''}:${state?.leg ?? ''}:${state && 'stop' in state ? state.stop : ''}`;
+    return `${playing ? 'playing' : live ? 'live' : 'paused'}:${state?.phase ?? ''}:${state?.leg ?? ''}:${state && 'stop' in state ? state.stop : ''}`;
   }, [clock, journey, timeline, open]);
   return useSyncExternalStore(clock.subscribe, snapshot);
 }

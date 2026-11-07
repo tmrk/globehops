@@ -18,6 +18,14 @@ Credit: **NASA Earth Observatory images by Joshua Stevens, using Suomi NPP VIIRS
 
 `scripts/build-textures.ts` resamples with Lanczos3 to 4096 × 2048 and 2048 × 1024, then `scripts/lib/lights.ts` turns each RGB pixel into a single light value: red minus 0.55 × blue, minus 2, scaled so that 110 is full brightness. This removes the bluish moonlit land, ice and ocean of the composite and keeps the warm-white lights. The masks are WebP (`lights-4k.webp` quality 75, about 143 KB; `lights-2k.webp` quality 80, about 44 KB). The globe shader tints them warm and shows them only on the night side. Lights reflect 2016 and are not live.
 
+## Moon
+
+Source: NASA Scientific Visualization Studio, [CGI Moon Kit](https://svs.gsfc.nasa.gov/4720) (SVS 4720), `lroc_color_poles_1k.jpg`: the Lunar Reconnaissance Orbiter Camera (LROC) Wide Angle Camera colour mosaic with the poles filled in, a 1024 × 512 equirectangular JPEG centred on 0° longitude. [Direct download](https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles_1k.jpg).
+
+Credit: **NASA's Scientific Visualization Studio; LRO/LROC data courtesy of NASA/GSFC/Arizona State University.** The same NASA imagery terms as above apply.
+
+`scripts/build-textures.ts --moon-only` resamples it with Lanczos3 to 512 × 256 and encodes `moon-512.webp` (quality 82, about 17 KB). There are no colour or content changes. The Moon is drawn at its true apparent size, at most a few dozen device pixels across, so this resolution is ample. Its position, phase and orientation come from `src/lib/moon.ts` (Meeus, _Astronomical Algorithms_, ch. 47 and 53), not from any data download.
+
 ## Airport data
 
 [OurAirports downloads](https://ourairports.com/data/) are released to the public domain without accuracy guarantees. Source repository: [davidmegginson/ourairports-data](https://github.com/davidmegginson/ourairports-data); [data dictionary](https://ourairports.com/help/data-dictionary.html).

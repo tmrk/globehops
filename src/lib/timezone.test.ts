@@ -3,6 +3,7 @@ import {
   MAX_YEAR,
   MIN_YEAR,
   browserTimeZone,
+  epochAtLocal,
   formatClock,
   formatIsoInstant,
   formatIsoOffset,
@@ -165,6 +166,12 @@ describe('DST gaps and folds', () => {
       expect(resolveLocal('Pacific/Apia', { ...local('2011-12-30T00:00'), hour }).kind).toBe('nonexistent');
     }
     expect(resolveLocal('Pacific/Apia', local('2011-12-29T23:59')).kind).toBe('exact');
+  });
+
+  it('names one instant for every wall time: the earlier fold, the first after a gap', () => {
+    expect(epochAtLocal('America/New_York', local('2026-11-01T01:30'))).toBe(Date.parse('2026-11-01T05:30Z'));
+    expect(epochAtLocal('America/New_York', local('2026-03-08T02:30'))).toBe(Date.parse('2026-03-08T07:00Z'));
+    expect(epochAtLocal('Europe/Budapest', local('2026-11-07T11:00'))).toBe(Date.parse('2026-11-07T10:00Z'));
   });
 
   it('has exact instants immediately outside New York’s gap and fold', () => {

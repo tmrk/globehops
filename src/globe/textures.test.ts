@@ -52,7 +52,7 @@ beforeEach(() => {
   textures = new GlobeTextures({
     material,
     capabilities: { maxTextureSize: 8192, getMaxAnisotropy: () => 16 },
-    urls: { preview: '1k', medium: '4k', large: '8k', lightsSmall: 'lights2k', lightsLarge: 'lights4k' },
+    urls: { preview: '1k', medium: '4k', large: '8k', lightsSmall: 'lights2k', lightsLarge: 'lights4k', moon: 'moon' },
     cityLights: { value: 0 },
     reducedMotion: () => false,
     illuminated: () => illuminated,

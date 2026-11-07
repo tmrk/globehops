@@ -12,19 +12,26 @@
  * using Suomi NPP VIIRS data from Miguel Román, NASA's Goddard Space Flight Center.
  *   https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/
  *
+ * Moon source: NASA Scientific Visualization Studio, CGI Moon Kit (SVS 4720), LRO Camera (LROC) WAC
+ * colour mosaic with polar fill, equirectangular, 1024×512, centred on 0° longitude.
+ *   https://svs.gsfc.nasa.gov/4720 — Credit: NASA's Scientific Visualization Studio; LRO/LROC data
+ *   from NASA/GSFC/Arizona State University.
+ *
  * NASA imagery is generally not subject to copyright in the United States; see docs/DATA_SOURCES.md.
  *
  * Day modifications: Lanczos resampling to power-of-two equirectangular sizes, a lift of the darkest
  * water (see liftOceans) so deep oceans read differently by day and by night, and WebP encoding.
  * No geometry or content changes.
+ * Moon modifications: Lanczos resampling to 512×256 (the Moon spans at most a few dozen device pixels)
+ * and WebP encoding.
  * Night modifications: Lanczos resampling, then a single-channel light mask that removes the
  * bluish moonlit land and ocean (see lightMask) so the shader can tint and fade lights by sun angle.
  *
  * The source files are NOT committed (they are large); the generated textures in src/assets/textures/ are.
  *
- * Usage: node scripts/build-textures.ts [--day-only | --night-only] [day-source.jpg] [night-source.jpg]
- * Default sources: .cache/bmng/world.topo.bathy.200407.3x21600x10800.jpg and
- * .cache/blackmarble/BlackMarble_2016_3km.jpg (download URLs below).
+ * Usage: node scripts/build-textures.ts [--day-only | --night-only | --moon-only] [day.jpg] [night.jpg] [moon.jpg]
+ * Default sources: .cache/bmng/world.topo.bathy.200407.3x21600x10800.jpg,
+ * .cache/blackmarble/BlackMarble_2016_3km.jpg and .cache/moon/lroc_color_poles_1k.jpg (URLs below).
  */
 import { mkdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -37,14 +44,15 @@ export const SOURCE_URL =
   'https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x21600x10800.jpg';
 export const NIGHT_SOURCE_URL =
   'https://assets.science.nasa.gov/content/dam/science/esd/eo/images/imagerecords/144000/144898/BlackMarble_2016_3km.jpg';
+export const MOON_SOURCE_URL = 'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles_1k.jpg';
 
 const root = path.resolve(import.meta.dirname, '..');
 const args = process.argv.slice(2);
 const paths = args.filter((arg) => !arg.startsWith('--'));
-const dayOnly = args.includes('--day-only');
-const nightOnly = args.includes('--night-only');
+const only = ['day', 'night', 'moon'].filter((name) => args.includes(`--${name}-only`));
 const daySource = paths[0] ?? path.join(root, '.cache/bmng/world.topo.bathy.200407.3x21600x10800.jpg');
 const nightSource = paths[1] ?? path.join(root, '.cache/blackmarble/BlackMarble_2016_3km.jpg');
+const moonSource = paths[2] ?? path.join(root, '.cache/moon/lroc_color_poles_1k.jpg');
 const outDir = path.join(root, 'src/assets/textures');
 
 const dayOutputs = [
@@ -121,14 +129,29 @@ async function buildNight(source: string) {
   }
 }
 
+async function buildMoon(source: string) {
+  await sourceWidth(source);
+  const file = 'moon-512.webp';
+  const target = path.join(outDir, file);
+  await sharp(source)
+    .resize(512, 256, { kernel: 'lanczos3', fit: 'fill' })
+    .removeAlpha()
+    .webp({ quality: 82, effort: 6 })
+    .toFile(target);
+  await report(target, file, 512);
+}
+
 async function main() {
-  if (dayOnly && nightOnly) throw new Error('Choose at most one of --day-only and --night-only');
-  const jobs: [string, string, string, (source: string) => Promise<void>][] = [];
-  if (!nightOnly) jobs.push(['Day', daySource, SOURCE_URL, buildDay]);
-  if (!dayOnly) jobs.push(['Night', nightSource, NIGHT_SOURCE_URL, buildNight]);
+  if (only.length > 1) throw new Error('Choose at most one of --day-only, --night-only and --moon-only');
+  const jobs: [name: string, source: string, url: string, build: (source: string) => Promise<void>][] = [
+    ['Day', daySource, SOURCE_URL, buildDay],
+    ['Night', nightSource, NIGHT_SOURCE_URL, buildNight],
+    ['Moon', moonSource, MOON_SOURCE_URL, buildMoon],
+  ];
   sharp.cache(false);
   await mkdir(outDir, { recursive: true });
   for (const [name, source, url, build] of jobs) {
+    if (only.length && !only.includes(name.toLowerCase())) continue;
     if (!existsSync(source)) {
       console.error(`${name} source image not found: ${source}\nDownload it first:\n  curl -L -o ${source} ${url}`);
       process.exitCode = 1;

@@ -1,9 +1,7 @@
 import { localeInfo } from '../i18n/locales.ts';
 import { LanguageOptions } from '../i18n/LanguageSelector.tsx';
 import { useI18n } from '../i18n/I18nProvider.tsx';
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
-import type { SimulationClock } from '../state/clock.ts';
-import { browserTimeZone, zoneAbbreviation } from '../lib/timezone.ts';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { DistanceUnit } from '../types.ts';
 import {
   IconLanguage,
@@ -11,8 +9,6 @@ import {
   IconMotion,
   IconLocate,
   IconBorders,
-  IconChevronRight,
-  IconClock,
   IconFrame,
   IconLabels,
   IconLayers,
@@ -21,7 +17,6 @@ import {
 } from './Icons.tsx';
 
 interface MapToolsProps {
-  clock: SimulationClock;
   /** False when WebGL is unavailable: only settings that still matter are offered. */
   globe: boolean;
   showBorders: boolean;
@@ -35,38 +30,13 @@ interface MapToolsProps {
   onToggleMyLocation: () => void;
   dayNight: boolean;
   unit: DistanceUnit;
-  timeOpen: boolean;
   /** Label for the re-centre button, or null when there is nothing to frame. */
   frameLabel: string | null;
   onToggleBorders: () => void;
   onToggleCountryNames: () => void;
   onToggleDayNight: () => void;
   onUnitChange: (unit: DistanceUnit) => void;
-  onOpenTime: () => void;
   onFit: () => void;
-}
-
-/** Minute-level globe clock, the entry to the time controls when no journey is playing. */
-function GlobeTime({ clock, onOpen }: { clock: SimulationClock; onOpen: () => void }) {
-  const { t, fmt } = useI18n();
-
-  const snapshot = useCallback(() => Math.floor(clock.getSnapshot().time / 60000) * 60000, [clock]);
-  const time = useSyncExternalStore(clock.subscribe, snapshot);
-  const zone = browserTimeZone();
-  const label = fmt.clock(time, zone);
-  return (
-    <button
-      type="button"
-      className="map-menu__item"
-      onClick={onOpen}
-      aria-label={t('maptools.clockAction', label, zoneAbbreviation(zone, time))}
-    >
-      <IconClock size={18} className="map-menu__icon" />
-      <span className="map-menu__label">{t('maptools.globeTime')}</span>
-      <span className="map-menu__value">{t('maptools.nowTime', label)}</span>
-      <IconChevronRight size={14} className="map-menu__chev" />
-    </button>
-  );
 }
 
 function Toggle({
@@ -90,8 +60,8 @@ function Toggle({
 }
 
 /**
- * One grouped control at the globe's top-right corner: display options (map layers, units and the
- * globe clock) in a small menu, a language menu, and re-centring on the route.
+ * One grouped control at the globe's top-right corner: display options (map layers and units) in a
+ * small menu, a language menu, and re-centring on the route.
  */
 export function MapTools(props: MapToolsProps) {
   const { t, locale } = useI18n();
@@ -252,18 +222,6 @@ export function MapTools(props: MapToolsProps) {
             on={props.reducedMotion}
             onClick={props.onToggleReduceMotion}
           />
-          {!props.timeOpen && (
-            <>
-              <hr className="map-menu__rule" />
-              <GlobeTime
-                clock={props.clock}
-                onOpen={() => {
-                  setOpen(null);
-                  props.onOpenTime();
-                }}
-              />
-            </>
-          )}
         </div>
       )}
       {open === 'language' && (

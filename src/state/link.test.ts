@@ -102,6 +102,12 @@ describe('journey share links', () => {
     expect(s.stops).toHaveLength(2);
     expect(s.issues).toHaveLength(1);
   });
+  it('round trips live time, which replaces a fixed time', () => {
+    expect(parseLink('?route=CPH-LHR&dep1=2026-11-20T08:15&live=1').view.live).toBe(true);
+    expect(parseLink('?route=CPH-LHR&live=yes').issues).toEqual(['Invalid live value in this link.']);
+    expect(serializeLink(stops, { live: true })).toContain('live=1');
+    expect(serializeLink(stops, { live: false })).not.toContain('live');
+  });
   it('omits endpoint times, defaults and endpoint layovers', () => {
     const allTimes = stops.map((s) => ({
       ...s,

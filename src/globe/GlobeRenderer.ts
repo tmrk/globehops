@@ -13,6 +13,7 @@
  * - Airport labels are HTML elements projected from 3D and hidden on the far side of the globe.
  * - Country borders and fainter coastlines (Natural Earth) are fetched only when first shown.
  * - The night side shows city lights (NASA Black Marble), fetched after the day texture.
+ * - With day and night shading, the Sun and Moon appear at their true directions and apparent sizes.
  */
 import {
   AdditiveBlending,
@@ -70,7 +71,8 @@ import { GlobeTextures } from './textures.ts';
 import { AirportLabelLayer } from './airportLabels.ts';
 import { setClass, setStyle } from './dom.ts';
 import { FOLLOW_APPROACH_MS, followBlend, followDistance, followLead } from './followCamera.ts';
-import type { AircraftView, FleetAircraft } from './simFeed.ts';
+import type { AircraftView, FleetAircraft, Sky } from './simFeed.ts';
+import { SkyBodies } from './skyBodies.ts';
 import { routeGeometrySignature } from './routeGeometry.ts';
 
 export type MarkerRole = 'origin' | 'transfer' | 'destination' | 'single';
@@ -113,6 +115,8 @@ export interface TextureSet {
   /** Night-light masks: `small` for GPUs below 4096 px and coarse pointers, `large` otherwise. */
   lightsSmall: string;
   lightsLarge: string;
+  /** The Moon's surface, fetched when the sky is first shown. */
+  moon: string;
 }
 
 export interface GlobeRendererOptions {
@@ -246,7 +250,8 @@ export class GlobeRenderer {
   private reportedCameraDistance = '';
   private reportedCameraAt = -Infinity;
   private keyLight = new DirectionalLight(0xfff6ea, 2.1);
-  private subsolar: LatLng | null = null;
+  private sky: Sky | null = null;
+  private skyBodies: SkyBodies;
   private sunScene = new Vector3(1, 0, 0);
   private sunView = { value: new Vector3(1, 0, 0) };
   private dayNight = { value: 0 };
@@ -426,35 +431,45 @@ export class GlobeRenderer {
       urls: options.textures,
       cityLights: this.cityLights,
       reducedMotion: () => this.options.reducedMotion,
-      illuminated: () => this.subsolar !== null,
+      illuminated: () => this.sky !== null,
       requestRender: this.requestRender,
       onReady: options.onTextureReady,
     });
     void this.textures.load();
+    this.skyBodies = new SkyBodies({
+      sunDirection: this.sunScene,
+      fade: this.dayNight,
+      far: this.camera.far,
+      loadMoonMap: () => this.textures.moon(),
+      requestRender: this.requestRender,
+    });
+    this.scene.add(this.skyBodies.object);
     if (options.showBorders) this.ensureBorders();
   }
 
   // ---------------------------------------------------------------------------------------------
   // Public API
 
-  setIllumination(subsolar: LatLng | null) {
-    if (subsolar?.lat === this.subsolar?.lat && subsolar?.lng === this.subsolar?.lng) return;
-    const toggled = (subsolar === null) !== (this.subsolar === null);
-    this.subsolar = subsolar ? { ...subsolar } : null;
-    if (subsolar) {
-      sunDirectionScene(subsolar, this.sunScene);
+  /** Sunlit shading, the Sun and the Moon for one instant; null returns to camera-relative daylight. */
+  setSky(sky: Sky | null) {
+    if (sky?.sun.lat === this.sky?.sun.lat && sky?.sun.lng === this.sky?.sun.lng) return;
+    const toggled = (sky === null) !== (this.sky === null);
+    this.sky = sky;
+    if (sky) {
+      sunDirectionScene(sky.sun, this.sunScene);
+      this.skyBodies.set(sky);
       if (this.keyLight.parent !== this.scene) this.scene.add(this.keyLight);
       this.keyLight.position.copy(this.sunScene).multiplyScalar(5);
       this.textures.ensureCityLights();
     }
     if (toggled) {
-      const to = subsolar ? 1 : 0;
+      const to = sky ? 1 : 0;
       this.illuminationTween = this.options.reducedMotion
         ? null
         : { from: this.dayNight.value, to, start: performance.now() };
       if (this.options.reducedMotion) this.dayNight.value = to;
     }
-    if (!subsolar && !this.illuminationTween) this.restoreCameraLight();
+    if (!sky && !this.illuminationTween) this.restoreCameraLight();
     this.requestRender();
   }
 
@@ -683,7 +698,7 @@ export class GlobeRenderer {
     if (reduced && this.illuminationTween) {
       this.dayNight.value = this.illuminationTween.to;
       this.illuminationTween = null;
-      if (!this.subsolar) this.restoreCameraLight();
+      if (!this.sky) this.restoreCameraLight();
       this.requestRender();
     }
   }
@@ -763,6 +778,7 @@ export class GlobeRenderer {
     this.earthMaterial.dispose();
     this.atmosphere.geometry.dispose();
     (this.atmosphere.material as ShaderMaterial).dispose();
+    this.skyBodies.dispose();
     this.textures.dispose();
     this.keyLight.removeFromParent();
     this.scene.clear();
@@ -1088,7 +1104,7 @@ export class GlobeRenderer {
     this.dayNight.value = tween.from + (tween.to - tween.from) * easeInOutCubic(t);
     if (t >= 1) {
       this.illuminationTween = null;
-      if (!this.subsolar) this.restoreCameraLight();
+      if (!this.sky) this.restoreCameraLight();
     }
     return t < 1;
   }

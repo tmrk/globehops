@@ -40,6 +40,7 @@ export class GlobeTextures {
   private largeState: LoadState = 'idle';
   private lightsState: LoadState = 'idle';
   private lightsFadeStart: number | null = null;
+  private moonMap: Promise<Texture | null> | null = null;
 
   constructor(private context: TextureContext) {}
 
@@ -109,6 +110,15 @@ export class GlobeTextures {
       .finally(() => {
         this.lightsState = 'done';
       });
+  }
+
+  /** The Moon's surface, decoded once when the sky first needs it. */
+  moon(): Promise<Texture | null> {
+    this.moonMap ??= this.decode(this.context.urls.moon).catch((error: unknown) => {
+      if (!this.disposed) console.warn('Moon texture unavailable', error);
+      return null;
+    });
+    return this.moonMap;
   }
 
   stepLights(now: number): boolean {

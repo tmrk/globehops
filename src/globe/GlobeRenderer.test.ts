@@ -5,6 +5,7 @@ import type { Line2 } from 'three/addons/lines/Line2.js';
 import { GlobeRenderer, type GlobeRoute } from './GlobeRenderer.ts';
 import { routeGeometrySignature } from './routeGeometry.ts';
 import type { FleetAircraft } from './simFeed.ts';
+import { skyAt } from '../state/simulation.ts';
 
 // Keep real Three.js geometry, materials, camera and controls; replace only the GPU boundary.
 vi.mock('three', async (importOriginal) => {
@@ -87,7 +88,7 @@ beforeEach(() => {
   document.body.append(container);
   vi.spyOn(container, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1440, 900));
   renderer = new GlobeRenderer(container, {
-    textures: { preview: '', medium: '', large: '', lightsSmall: '', lightsLarge: '' },
+    textures: { preview: '', medium: '', large: '', lightsSmall: '', lightsLarge: '', moon: '' },
     bordersUrl: '',
     coastlinesUrl: '',
     countryLabelsUrl: '',
@@ -310,7 +311,7 @@ it('suspends frame scheduling until a lost WebGL context is restored', async () 
 
 it('removes all owned DOM and detaches the reparented light on repeat-safe disposal', () => {
   renderer.setFleet(fleet);
-  renderer.setIllumination({ lat: 15, lng: 30 });
+  renderer.setSky(skyAt(Date.UTC(2026, 5, 21, 10)));
   expect(state().keyLight.parent).toBe(state().scene);
   const owned = [...container.querySelectorAll('*')];
   const material = state().earthMaterial;

@@ -404,33 +404,71 @@ test('remembered schedules omit transient time and view units; explicit empty ro
   await expect(page.getByRole('button', { name: 'Departure airport: choose an airport' })).toBeVisible();
 });
 
-test('globe clock opens a native day explorer without a route, and day-night preference is remembered', async ({
-  page,
-}) => {
+test('the time dial shows the globe at any moment without a route, and Live returns to now', async ({ page }) => {
   await page.goto('./?route=');
-  await (await openDisplay(page)).getByRole('button', { name: /Globe time: now/ }).click();
-  const bar = timeline(page);
-  await expect(bar).toContainText('Day and night');
-  await expect(bar.getByRole('button', { name: 'Play journey' })).toBeDisabled();
-  await bar.getByRole('combobox', { name: 'Clock time zone' }).selectOption('utc');
-  await bar.getByLabel('Globe date', { exact: true }).fill('2026-03-20');
-  await bar.getByRole('slider').focus();
-  await bar.getByRole('slider').press('Home');
-  await expect(bar).toContainText('Fri 20 Mar, 00:00 UTC');
-  await bar.getByRole('button', { name: 'Now', exact: true }).click();
-  await expect(bar.getByLabel('Globe date', { exact: true })).not.toHaveValue('2026-03-20');
+  const dial = page.getByRole('region', { name: 'Globe time', exact: true });
+  const live = dial.getByRole('button', { name: 'Live', exact: true });
+  const tape = dial.getByRole('slider', { name: 'Globe time', exact: true });
+  await expect(live).toHaveAttribute('aria-pressed', 'true');
+  await expect(page).not.toHaveURL(/[?&]t=/);
+  await dial.getByRole('combobox', { name: 'Clock time zone' }).selectOption('utc');
+  await dial.getByLabel('Globe date', { exact: true }).fill('2026-03-20');
+  await expect(live).toHaveAttribute('aria-pressed', 'false');
+  await expect(tape).toHaveAttribute('aria-valuetext', /^Fri 20 Mar, \d\d:\d\d UTC$/);
+  // Chosen moments are shareable once scrubbing pauses.
+  await expect(page).toHaveURL(/[?&]t=2026-03-20T/);
+  const before = Number(await tape.getAttribute('aria-valuenow'));
+  await tape.press('ArrowRight');
+  await expect(tape).toHaveAttribute('aria-valuenow', String(before + 15 * 60_000));
+  await tape.press('PageDown');
+  await expect(tape).toHaveAttribute('aria-valuetext', /^Thu 19 Mar, /);
+  await tape.press('Home');
+  await expect(live).toHaveAttribute('aria-pressed', 'true');
+  await expect(page).not.toHaveURL(/[?&]t=/);
+  await expect(timeline(page)).toHaveCount(0);
   await (await openDisplay(page)).getByRole('button', { name: 'Day and night', exact: true }).click();
-  // While the timeline is open the menu offers no second way into it.
-  await expect(page.getByRole('button', { name: /Globe time: now/ })).toHaveCount(0);
   await page.keyboard.press('Escape');
-  await bar.getByRole('button', { name: 'Close timeline' }).click();
-  await expect(bar).toHaveCount(0);
   await page.goto('./');
   await openDisplay(page);
   await expect(page.getByRole('button', { name: 'Day and night', exact: true })).toHaveAttribute(
     'aria-pressed',
     'false',
   );
+});
+
+test('Live tracks a flight under way in real time, follows the aircraft and shares as live', async ({ page }) => {
+  // London local time two hours ago: the estimated London–New York flight is under way.
+  const departure = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/London',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
+    .format(Date.now() - 2 * 3_600_000)
+    .replace(' ', 'T');
+  await page.goto(`./?route=LHR-JFK&dep1=${departure}`);
+  const bar = timeline(page);
+  const live = bar.getByRole('button', { name: 'Live', exact: true });
+  await expect(live).toHaveAttribute('aria-pressed', 'false');
+  await live.click();
+  await expect(live).toHaveAttribute('aria-pressed', 'true');
+  await expect(bar).toContainText('En route to New York JFK');
+  await expect(bar.getByRole('button', { name: 'Follow aircraft', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page).toHaveURL(/[?&]live=1/);
+  await expect(page).not.toHaveURL(/[?&]t=/);
+  // Leaving live keeps the moment on screen as an ordinary paused time.
+  await live.click();
+  await expect(live).toHaveAttribute('aria-pressed', 'false');
+  await expect(page).toHaveURL(/[?&]t=/);
+  await expect(page).not.toHaveURL(/live=1/);
+  await page.goto(`./?route=LHR-JFK&dep1=${departure}&live=1`);
+  await expect(timeline(page).getByRole('button', { name: 'Live', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(timeline(page)).toContainText('En route to New York JFK');
 });
 
 test('unsupported browser time zones disable local inputs while route editing and playback remain usable', async ({

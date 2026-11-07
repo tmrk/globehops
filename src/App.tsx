@@ -16,6 +16,7 @@ import { MapTools } from './components/MapTools.tsx';
 import { StopList } from './components/StopList.tsx';
 import { Summary } from './components/Summary.tsx';
 import { TimeBar } from './components/TimeBar.tsx';
+import { TimeDial } from './components/TimeDial.tsx';
 import { Toast } from './components/Toast.tsx';
 import { RouteSuggestions, type SuggestedRoute } from './components/RouteSuggestions.tsx';
 import { DESKTOP_MEDIA_QUERY } from './hooks/appMedia.ts';
@@ -141,7 +142,13 @@ export default function App() {
   } = model;
   const phaseKey = useClockPhase(clock, journey, timeline, timeOpen);
   const playing = phaseKey.startsWith('playing:');
+  const live = phaseKey.startsWith('live:');
   const activeState = timeOpen && timeline ? journeyStateAt(journey, timeline, clock.getSnapshot().time) : null;
+  // Any journey's flights, not just the active one's, give the timeline something to show; without
+  // flights, the time dial shows the globe at any moment instead.
+  const hasFlights = compared.some((entry) => entry.journey.legs.length > 0);
+  const timeBarShown = timeOpen && hasFlights;
+  const dialShown = initialized && !globeFailed && !hasFlights;
   const [simulation] = useState(() => {
     let context: SimulationContext = { journey, timeline, open: timeOpen, dayNight, follow: !reducedMotion };
     const feed = createSimulationFeed(clock, () => context);
@@ -173,6 +180,7 @@ export default function App() {
     comparison,
     timeOpen,
     playing,
+    live,
     pausedTime,
     speed,
     initialized,
@@ -318,6 +326,25 @@ export default function App() {
     if (!isDesktop && !playing && (!timeOpen || playbackRange) && !collapsed) {
       refitAfterLayout.current = !followAircraft;
       setCollapsed(true);
+    }
+  };
+  /** Shows the globe at a chosen moment; the first one opens the timeline so links keep the time. */
+  const exploreTime = (time: number) => {
+    if (!timeOpen) openTime();
+    clock.seek(time);
+  };
+  /**
+   * Live follows the wall clock. With flights, it tracks them in real time from the timeline, with the
+   * camera following the aircraft; without, the globe simply shows now, as it does with the timeline closed.
+   */
+  const changeLive = (on: boolean) => {
+    if (!on) exploreTime(clock.getSnapshot().time);
+    else if (!hasFlights) closeTime();
+    else {
+      playback.goLive();
+      if (!globeFailed && !followAircraft) changeFollowAircraft(true);
+      if (!isDesktop && !collapsed) setCollapsed(true);
+      trackEvent('live_journey', { flights: legs.length });
     }
   };
   const changeTime = (stop: number, field: 'arrival' | 'departure', value: LocalTimeInput | null) => {
@@ -484,7 +511,20 @@ export default function App() {
       onClockZone={preferences.changeClockZone}
       onClose={closeTime}
       onToggle={togglePlayback}
+      onLive={changeLive}
       onEditLeg={editLeg}
+    />
+  );
+
+  const timeDial = (docked: boolean) => (
+    <TimeDial
+      clock={clock}
+      clockZone={clockZone}
+      reducedMotion={reducedMotion}
+      docked={docked}
+      onClockZone={preferences.changeClockZone}
+      onSeek={exploreTime}
+      onLive={changeLive}
     />
   );
 
@@ -566,7 +606,6 @@ export default function App() {
 
       {initialized && (
         <MapTools
-          clock={clock}
           globe={!globeFailed}
           showWaterNames={showWaterNames}
           reducedMotion={reducedMotion}
@@ -579,7 +618,6 @@ export default function App() {
           showCountryNames={showCountryNames}
           dayNight={dayNight}
           unit={unit}
-          timeOpen={timeOpen}
           frameLabel={
             legs.length
               ? route.selectedLeg !== null
@@ -591,14 +629,13 @@ export default function App() {
           onToggleCountryNames={toggleCountryNames}
           onToggleDayNight={preferences.toggleDayNight}
           onUnitChange={changeUnit}
-          onOpenTime={openTime}
           onFit={() => setFitNonce((n) => n + 1)}
         />
       )}
 
-      {((isDesktop && timeOpen) || (!globeFailed && !timeOpen)) && (
+      {((isDesktop && timeBarShown) || (!globeFailed && !timeBarShown)) && (
         <div
-          className={`hud-wrap${isDesktop && timeOpen ? ' has-timeline' : ''}`}
+          className="hud-wrap"
           style={
             {
               '--inset-left': `${insets.left}px`,
@@ -606,7 +643,8 @@ export default function App() {
             } as React.CSSProperties
           }
         >
-          {isDesktop && timeOpen && timeBar(false)}
+          {isDesktop && timeBarShown && timeBar(false)}
+          {isDesktop && dialShown && timeDial(false)}
           {!globeFailed && !timeOpen && (
             <GlobeHud legs={legs} selectedLeg={route.selectedLeg} fits={fits} onSelectLeg={selectLeg} />
           )}
@@ -615,7 +653,7 @@ export default function App() {
 
       <main
         ref={panelRef}
-        className={`panel${comparison.journeys.length >= 3 ? ' has-many-journeys' : ''}${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && timeOpen ? ' has-timeline' : ''}`}
+        className={`panel${comparison.journeys.length >= 3 ? ' has-many-journeys' : ''}${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && (timeBarShown || dialShown) ? ' has-timeline' : ''}`}
         aria-label={t('panel.journeyPlanner')}
       >
         {!isDesktop && (
@@ -630,10 +668,11 @@ export default function App() {
           </button>
         )}
 
-        {!isDesktop && timeOpen && timeBar(true)}
+        {!isDesktop && timeBarShown && timeBar(true)}
+        {!isDesktop && dialShown && timeDial(true)}
 
         {sheetCollapsed ? (
-          !timeOpen && (
+          !timeBarShown && (
             <CollapsedJourneyPeek
               airports={filledAirports}
               hasLegs={legs.length > 0}

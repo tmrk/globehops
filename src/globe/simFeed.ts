@@ -1,3 +1,4 @@
+import type { MoonState } from '../lib/moon.ts';
 import type { LatLng } from '../types.ts';
 
 export type AircraftView =
@@ -20,9 +21,17 @@ export interface FleetAircraft {
   highlightLeg: number | null;
 }
 
+/** The Sun and Moon at one instant, in the Earth-fixed frame of airports and textures. */
+export interface Sky {
+  /** Subsolar point. */
+  sun: LatLng;
+  sunDistanceKm: number;
+  moon: MoonState;
+}
+
 export interface SimFrame {
-  /** Null preserves the camera-following daylight appearance. */
-  subsolar: LatLng | null;
+  /** Null preserves the camera-following daylight appearance and hides the Sun and Moon. */
+  sky: Sky | null;
   aircraft: AircraftView | null;
   highlightLeg: number | null;
   follow: boolean;

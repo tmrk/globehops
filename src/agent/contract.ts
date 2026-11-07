@@ -16,6 +16,7 @@ export const LINK_PARAMS = {
   arrival: 'arr',
   time: 't',
   play: 'play',
+  live: 'live',
   speed: 'speed',
   clock: 'clock',
   units: 'units',

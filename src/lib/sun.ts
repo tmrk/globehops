@@ -13,7 +13,7 @@ const cos = (deg: number) => Math.cos(deg * RAD);
  * Low-precision apparent Sun of date, with nutation/aberration; geometric elevation,
  * no atmospheric refraction. Julian day comes directly from epoch ms (no 1901–2099 shortcut).
  */
-function solarCoordinates(epochMs: number): { declination: number; equationOfTime: number } {
+function solarCoordinates(epochMs: number): { declination: number; equationOfTime: number; distanceAu: number } {
   const t = (epochMs / DAY + 2440587.5 - 2451545) / 36525;
   const meanLongitude = normalizeLng(280.46646 + t * (36000.76983 + 0.0003032 * t));
   const meanAnomaly = 357.52911 + t * (35999.05029 - 0.0001537 * t);
@@ -34,7 +34,18 @@ function solarCoordinates(epochMs: number): { declination: number; equationOfTim
       4 * eccentricity * y * sin(meanAnomaly) * cos(2 * meanLongitude) -
       0.5 * y * y * sin(4 * meanLongitude) -
       1.25 * eccentricity * eccentricity * sin(2 * meanAnomaly));
-  return { declination: Math.asin(sin(obliquity) * sin(apparentLongitude)) / RAD, equationOfTime };
+  return {
+    declination: Math.asin(sin(obliquity) * sin(apparentLongitude)) / RAD,
+    equationOfTime,
+    distanceAu: (1.000001018 * (1 - eccentricity ** 2)) / (1 + eccentricity * cos(meanAnomaly + centre)),
+  };
+}
+
+const KM_PER_AU = 149_597_870.7;
+
+/** Earth–Sun distance (Meeus 25.5), which sets the Sun's apparent size. */
+export function sunDistanceKm(epochMs: number): number {
+  return solarCoordinates(epochMs).distanceAu * KM_PER_AU;
 }
 
 export function subsolarPoint(epochMs: number): LatLng {

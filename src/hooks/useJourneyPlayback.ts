@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { SimulationClock } from '../state/clock.ts';
+import { SimulationClock, TRACKING_TICK_MS } from '../state/clock.ts';
 import type { LinkState, LinkView } from '../state/link.ts';
 import { PLAYBACK_LEAD_MS, playInRange } from '../state/playbackRange.ts';
 import { DESKTOP_MEDIA_QUERY } from './appMedia.ts';
@@ -34,12 +34,17 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
       const open = !!(
         link.view.time !== null ||
         link.view.play ||
+        link.view.live ||
         [...(link.stops ?? []), ...(link.compare ?? []).flatMap((entry) => entry.stops)].some(
           (s) => s.arrival || s.departure,
         )
       );
       setTimeOpen(open);
-      if (link.view.play && !reducedMotionRef.current && !window.matchMedia(DESKTOP_MEDIA_QUERY).matches)
+      if (
+        (link.view.play || link.view.live) &&
+        !reducedMotionRef.current &&
+        !window.matchMedia(DESKTOP_MEDIA_QUERY).matches
+      )
         setCollapsed(true);
       setAssumedStart(open ? (link.view.time ?? Date.now()) : null);
       setPausedTime(link.view.time);
@@ -60,7 +65,7 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
       clearTimeout(timer);
       const snapshot = clock.getSnapshot();
       if (snapshot.speed !== speed) setSpeed(snapshot.speed);
-      if (snapshot.playing || !timeOpen) return;
+      if (snapshot.playing || snapshot.live || !timeOpen) return;
       timer = setTimeout(() => setPausedTime(clock.getSnapshot().time), 450);
     };
     update();
@@ -81,6 +86,11 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
     setLinkedTime(null);
     clock.setRange(null, null);
     clock.goLive();
+  };
+  /** Show the journey as it is now and keep following the wall clock, every second. */
+  const goLive = () => {
+    setPausedTime(null);
+    clock.goLive(TRACKING_TICK_MS);
   };
   const requestPlayback = (view: LinkView) => {
     pendingExplicitPlayRef.current = true;
@@ -104,6 +114,7 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
     applyView,
     openTime,
     closeTime,
+    goLive,
   };
 }
 
@@ -114,7 +125,11 @@ export function usePlaybackRange(
   scheduleErrors: boolean,
 ) {
   const { clock, timeOpen, linkedTime, pendingViewRef, pendingExplicitPlayRef, reducedMotionRef } = playback;
+  // The ambient live globe gives way to the journey's start once, when the timeline opens; live time
+  // chosen inside the timeline keeps following the wall clock through later edits.
+  const settled = useRef(false);
   useEffect(() => {
+    if (!timeOpen) settled.current = false;
     if (!timeOpen || !zonesLoaded) return;
     if (!playbackRange || scheduleErrors) clock.pause();
     clock.setRange(
@@ -122,7 +137,10 @@ export function usePlaybackRange(
       playbackRange ? Math.max(playbackRange.end, linkedTime ?? -Infinity) : null,
     );
     const view = pendingViewRef.current;
-    if (view) {
+    if (view?.live) {
+      pendingViewRef.current = null;
+      clock.goLive(TRACKING_TICK_MS);
+    } else if (view) {
       pendingViewRef.current = null;
       clock.seek(view.time ?? playbackRange?.start ?? Date.now());
       const shouldPlay = view.play && (pendingExplicitPlayRef.current || !reducedMotionRef.current);
@@ -130,7 +148,8 @@ export function usePlaybackRange(
       if (shouldPlay && playbackRange && !scheduleErrors) {
         playInRange(clock, playbackRange, linkedTime);
       }
-    } else if (clock.getSnapshot().live) clock.seek(playbackRange?.start ?? Date.now());
+    } else if (!settled.current && clock.getSnapshot().live) clock.seek(playbackRange?.start ?? Date.now());
+    settled.current = true;
   }, [
     clock,
     playbackRange,

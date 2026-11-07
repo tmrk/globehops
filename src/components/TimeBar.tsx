@@ -10,15 +10,16 @@ import { journeyStateAt, type Timeline } from '../lib/timeline.ts';
 import {
   isSupportedTimeZone,
   browserTimeZone,
+  epochAtLocal,
   formatLocalDateTime,
   parseLocalDateTime,
-  resolveLocal,
   utcToLocal,
   zoneAbbreviation,
 } from '../lib/timezone.ts';
 import { legColor } from '../lib/legColors.ts';
 import { PLAYBACK_SPEEDS, type PlaybackSpeed, type SimulationClock } from '../state/clock.ts';
 import { DateTimeField } from './DateTimeField.tsx';
+import { LiveButton } from './LiveButton.tsx';
 import { IconChevronDown, IconBack, IconChevronRight, IconClose, IconFollow, IconPause, IconPlay } from './Icons.tsx';
 interface Props {
   comparison?: ComparedJourney[];
@@ -32,6 +33,8 @@ interface Props {
   onClockZone: (value: string) => void;
   onClose: () => void;
   onToggle: () => void;
+  /** Follow the wall clock in real time; offered once a journey has real dates. */
+  onLive: (live: boolean) => void;
   onEditLeg: (leg: number) => void;
   /** Phones: part of the journey sheet instead of a floating card. */
   docked?: boolean;
@@ -50,6 +53,7 @@ export function TimeBar({
   onClockZone,
   onClose,
   onToggle,
+  onLive,
   onEditLeg,
   docked = false,
   followAircraft,
@@ -109,10 +113,7 @@ export function TimeBar({
   const dayStart = useMemo(() => {
     const midnight = parseLocalDateTime(`${date}T00:00`);
     if (!midnight) throw new RangeError('Invalid local date');
-    const resolution = resolveLocal(zone, midnight);
-    if (resolution.kind === 'exact') return resolution.time.epochMs;
-    if (resolution.kind === 'ambiguous') return resolution.options[0].epochMs;
-    return resolution.after.epochMs;
+    return epochAtLocal(zone, midnight);
   }, [zone, date]);
   const start = sharedRange ? (snapshot.start ?? sharedRange.start - 30 * 60000) : dayStart;
   const end = sharedRange ? (snapshot.end ?? sharedRange.end) : dayStart + 24 * 3600000;
@@ -199,6 +200,7 @@ export function TimeBar({
             )}
           </div>
         </div>
+        {allJourneys.some((entry) => entry.dated) && <LiveButton live={snapshot.live} onChange={onLive} />}
         <button
           type="button"
           className="icon-btn icon-btn--quiet"
@@ -312,15 +314,7 @@ export function TimeBar({
                 const local = parseLocalDateTime(
                   `${value}T${formatLocalDateTime(utcToLocal(zone, snapshot.time)).slice(11)}`,
                 );
-                if (!local) return;
-                const resolved = resolveLocal(zone, local);
-                seek(
-                  resolved.kind === 'exact'
-                    ? resolved.time.epochMs
-                    : resolved.kind === 'ambiguous'
-                      ? resolved.options[0].epochMs
-                      : resolved.after.epochMs,
-                );
+                if (local) seek(epochAtLocal(zone, local));
               }}
             />
             <button

@@ -30,6 +30,8 @@ export interface LinkStop {
 export interface LinkView {
   time: number | null;
   play: boolean;
+  /** Follow the wall clock (in real time) instead of a fixed or playing time. */
+  live?: boolean;
   speed: PlaybackSpeed;
   clock: 'local' | 'utc' | string;
   units: DistanceUnit | null;
@@ -54,6 +56,7 @@ export interface LinkState {
 }
 const BOOLEAN_VIEW_PARAMS = {
   [P.play]: 'play',
+  [P.live]: 'live',
   [P.names]: 'names',
   [P.borders]: 'borders',
   [P.follow]: 'follow',
@@ -234,6 +237,7 @@ export function serializeLink(
   );
   if (view.time != null) params.push([P.time, formatIsoInstant(view.time)]);
   if (view.play) params.push([P.play, '1']);
+  if (view.live) params.push([P.live, '1']);
   if (view.speed !== undefined && view.speed !== 'auto') params.push([P.speed, String(view.speed)]);
   if (view.clock && (view.clock !== 'local' || includeDefault('clock'))) params.push([P.clock, view.clock]);
   if (view.units) params.push([P.units, view.units]);

@@ -35,6 +35,8 @@
   /* Compact controls inside the panel share one height; floating globe controls another. */
   --control-h: 34px;
   --location-blue: #3b8cff;
+  /* Live time, like a broadcast's on-air light. */
+  --live: #ff5e52;
   --float-h: 44px;
   /* Distance from the screen edges to floating controls (16px on larger screens). */
   --edge: 12px;
@@ -507,6 +509,26 @@ a {
 
 .float-group__btn[aria-expanded='true'] {
   color: var(--accent);
+}
+
+/* In a capsule, each button fills its whole segment: hover, open and focus shapes follow the capsule's
+   rounded ends (the end buttons inherit its radius) instead of drawing circles inside straight sides. */
+.float-group > .float-group__btn {
+  border-radius: 0;
+}
+
+.float-group > .float-group__btn:first-child {
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+
+.float-group > .float-group__btn:last-child {
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
+}
+
+.float-group > .float-group__btn:focus-visible {
+  outline-offset: -2px;
 }
 
 /* A hairline between grouped buttons, inset from the rounded ends. */
@@ -2291,6 +2313,245 @@ button.map-menu__item:hover {
 .time-bar label:has(select:focus-visible) {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Live: a broadcast-style badge, pressed while time follows the wall clock                   */
+
+.live-btn {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 7px;
+  height: 28px;
+  padding: 0 10px 0 9px;
+  border-radius: var(--radius-btn);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.live-btn:hover {
+  background: var(--press);
+  color: var(--text);
+}
+
+.live-btn__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--text-3);
+  transition: background-color 0.15s;
+}
+
+.live-btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--live) 16%, transparent);
+  color: var(--text);
+}
+
+.live-btn[aria-pressed='true'] .live-btn__dot {
+  background: var(--live);
+  animation: live-pulse 2.4s ease-out infinite;
+}
+
+@keyframes live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 60%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Time dial: the globe's clock without a route, a tape of hours under a fixed needle         */
+
+.time-dial {
+  width: min(400px, 100%);
+  margin-inline: auto;
+  padding-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-float);
+  box-shadow: var(--shadow-float);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  pointer-events: auto;
+}
+
+.time-dial__head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px 0 8px;
+}
+
+.time-dial__clock {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  flex: none;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.time-dial__clock:hover {
+  background: var(--hover);
+}
+
+.time-dial__time {
+  font: 600 var(--text-xl) / 1 var(--mono);
+  font-stretch: var(--mono-stretch);
+  font-variant-numeric: tabular-nums;
+}
+
+.time-dial__zone {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font: 500 var(--text-xs) / 1 var(--mono);
+  font-stretch: var(--mono-stretch);
+  color: var(--text-2);
+}
+
+.time-dial__clock select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.time-dial__clock select option {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.time-dial__clock:has(select:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.time-dial .dt-field {
+  height: 28px;
+  margin-right: auto;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+
+.time-dial .dt-field:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Phones: like the timeline, the dial is the top of the sheet rather than a card over the globe. */
+.time-dial--docked {
+  width: auto;
+  margin: 0;
+  padding-top: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.time-dial--docked .time-dial__head {
+  padding-inline: calc(var(--pad) - 6px) var(--pad);
+}
+
+/* Ticks hang from a ruler line; the edges fade so the tape reads as endless. */
+.time-dial__tape {
+  position: relative;
+  height: 38px;
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  cursor: grab;
+  touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.time-dial__tape:active {
+  cursor: grabbing;
+}
+
+.time-dial__tape:focus-visible {
+  outline-offset: -2px;
+}
+
+.time-dial__ticks {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+}
+
+.time-dial__tick {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 5px;
+  margin-left: -0.5px;
+  background: var(--text-3);
+}
+
+.time-dial__tick.is-major {
+  height: 9px;
+}
+
+.time-dial__tick.is-day {
+  height: 13px;
+  background: var(--text-2);
+}
+
+.time-dial__label {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 500 var(--text-2xs) / 1 var(--mono);
+  font-stretch: var(--mono-stretch);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.is-day > .time-dial__label {
+  font: 600 var(--text-xs) / 1 var(--font);
+  color: var(--text-2);
+}
+
+.time-dial__needle {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 2px;
+  height: 18px;
+  margin-left: -1px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+  pointer-events: none;
 }
 
 /* ------------------------------------------------------------------------------------------ */

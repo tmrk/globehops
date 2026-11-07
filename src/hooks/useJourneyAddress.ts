@@ -15,6 +15,7 @@ interface JourneyAddressOptions {
   comparison: CompareState;
   timeOpen: boolean;
   playing: boolean;
+  live: boolean;
   pausedTime: number | null;
   speed: LinkView['speed'];
   initialized: boolean;
@@ -27,6 +28,7 @@ export function useJourneyAddress({
   comparison,
   timeOpen,
   playing,
+  live,
   pausedTime,
   speed,
   initialized,
@@ -50,7 +52,8 @@ export function useJourneyAddress({
       serializeLink(
         primaryStops,
         {
-          time: timeOpen && !playing ? pausedTime : null,
+          time: timeOpen && !playing && !live ? pausedTime : null,
+          live: timeOpen && live,
           speed,
           clock: clockZone,
           units: linkUnits,
@@ -72,6 +75,7 @@ export function useJourneyAddress({
       comparison.journeys,
       timeOpen,
       playing,
+      live,
       pausedTime,
       speed,
       clockZone,

@@ -165,7 +165,7 @@ for (const [width, height] of [
     const bounds = await display.boundingBox();
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height);
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
-    await display.getByRole('button', { name: /^Globe time/ }).scrollIntoViewIfNeeded();
+    await display.getByRole('button', { name: 'Reduce motion', exact: true }).scrollIntoViewIfNeeded();
     if (width === 390 || width === 1440) {
       await display.getByRole('button', { name: 'Country borders', exact: true }).scrollIntoViewIfNeeded();
       await mkdir(reviewDir, { recursive: true });

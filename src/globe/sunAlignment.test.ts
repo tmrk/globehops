@@ -90,18 +90,18 @@ it('feeds the selected clock UTC instant to sunlight, then resumes live UTC when
   const off = feed.subscribe(() => {});
   try {
     clock.goLive();
-    expect(feed.getFrame().subsolar).toEqual(subsolarPoint(now));
+    expect(feed.getFrame().sky?.sun).toEqual(subsolarPoint(now));
     context.open = true;
     const selected = Date.parse('1968-02-29T07:23:17Z');
     clock.seek(selected);
-    expect(feed.getFrame().subsolar).toEqual(subsolarPoint(selected));
+    expect(feed.getFrame().sky?.sun).toEqual(subsolarPoint(selected));
     // App.closeTime clears the range and calls goLive; a dated journey never supplies the Sun's time.
     context.open = false;
     clock.setRange(null, null);
     clock.goLive();
-    expect(feed.getFrame().subsolar).toEqual(subsolarPoint(now));
+    expect(feed.getFrame().sky?.sun).toEqual(subsolarPoint(now));
     vi.advanceTimersByTime(30_000);
-    expect(feed.getFrame().subsolar).toEqual(subsolarPoint(now + 30_000));
+    expect(feed.getFrame().sky?.sun).toEqual(subsolarPoint(now + 30_000));
     expect(feed.getFrame().aircraft).toBeNull();
   } finally {
     off();

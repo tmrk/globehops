@@ -4,7 +4,7 @@ import { computeJourney } from '../lib/schedule.ts';
 import { buildTimeline } from '../lib/timeline.ts';
 import { subsolarPoint } from '../lib/sun.ts';
 import { SimulationClock } from './clock.ts';
-import { createSimulationFeed, simFrameAt, type SimulationContext } from './simulation.ts';
+import { createSimulationFeed, simFrameAt, skyAt, type SimulationContext } from './simulation.ts';
 const airports: Airport[] = ['CPH', 'LHR', 'JFK'].map((code, i) => ({
   id: i,
   ident: code,
@@ -68,7 +68,7 @@ describe('fleet simulation frames', () => {
     });
     expect(frame.aircraft).toBe(frame.fleet?.[1].view);
     expect(frame.highlightLeg).toBe(frame.fleet?.[1].highlightLeg);
-    expect(frame.subsolar).toEqual(subsolarPoint(time));
+    expect(frame.sky?.sun).toEqual(subsolarPoint(time));
   });
 
   it('parks before each departure, during its transfer, and after each arrival', () => {
@@ -205,12 +205,12 @@ describe('simulation frames', () => {
   });
   it('uses the same UTC instant for sunlight and hides simulation when closed or invalid', () => {
     expect(simFrameAt(journey, null, timeline.start, true)).toEqual({
-      subsolar: subsolarPoint(timeline.start),
+      sky: skyAt(timeline.start),
       aircraft: null,
       highlightLeg: null,
       follow: false,
     });
-    expect(simFrameAt(journey, timeline, timeline.start, false).subsolar).toBeNull();
+    expect(simFrameAt(journey, timeline, timeline.start, false).sky).toBeNull();
     expect(simFrameAt({ ...journey, playable: false }, timeline, timeline.start, true).aircraft).toBeNull();
   });
   it('predicts real-time distance velocity only during playback', () => {
@@ -228,6 +228,21 @@ describe('simulation frames', () => {
     clock.pause();
     expect(feed.getFrame().follow).toBe(false);
     expect(feed.getFrame().aircraft).not.toHaveProperty('fractionPerSecond');
+    clock.dispose();
+  });
+  it('follows live flights at real-time speed', () => {
+    const now = (timeline.start + timeline.segments[0].end) / 2;
+    const clock = new SimulationClock({ now: () => now, setInterval: () => 0 as never, clearInterval: () => {} });
+    const context = { journey, timeline, open: true, dayNight: true, follow: true };
+    const feed = createSimulationFeed(clock, () => context);
+    clock.goLive();
+    const frame = feed.getFrame();
+    expect(frame.follow).toBe(true);
+    expect(frame.sky?.sun).toEqual(subsolarPoint(now));
+    if (frame.aircraft?.kind !== 'air') throw new Error('Expected an airborne aircraft');
+    // A long-haul flight crosses well under a thousandth of its distance per real second.
+    expect(frame.aircraft.fractionPerSecond).toBeGreaterThan(0);
+    expect(frame.aircraft.fractionPerSecond).toBeLessThan(1e-3);
     clock.dispose();
   });
   it('caches unchanged frames and notifies subscribers when context changes', () => {
