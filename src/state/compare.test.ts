@@ -14,7 +14,7 @@ describe('comparison editor', () => {
     expect(next.journeys[0].key).toBe(state.journeys[0].key);
     expect(compareReducer(next, { type: 'route', action })).toBe(next);
   });
-  it('copies only filled endpoints when adding, activates the new journey, and stops at four', () => {
+  it('adds an empty journey, activates it, and stops at four', () => {
     let state = compareReducer(createCompareState(), {
       type: 'load',
       journeys: [
@@ -28,7 +28,7 @@ describe('comparison editor', () => {
     });
     state = compareReducer(state, { type: 'add' });
     expect(state.active).toBe(1);
-    expect(state.journeys[1].route.stops.map((stop) => stop.airportId)).toEqual([1, 3]);
+    expect(state.journeys[1].route.stops.map((stop) => stop.airportId)).toEqual([null, null]);
     expect(
       state.journeys[1].route.stops.every(
         (stop) => stop.arrival === null && stop.departure === null && stop.layoverMin === null,

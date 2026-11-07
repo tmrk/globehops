@@ -17,7 +17,7 @@ import { StopList } from './components/StopList.tsx';
 import { Summary } from './components/Summary.tsx';
 import { TimeBar } from './components/TimeBar.tsx';
 import { Toast } from './components/Toast.tsx';
-import { WelcomeSuggestions } from './components/WelcomeSuggestions.tsx';
+import { RouteSuggestions, type SuggestedRoute } from './components/RouteSuggestions.tsx';
 import { DESKTOP_MEDIA_QUERY } from './hooks/appMedia.ts';
 import { useAnalyticsConsent } from './hooks/useAnalyticsConsent.ts';
 import { useAppLinks } from './hooks/useAppLinks.ts';
@@ -38,6 +38,7 @@ import type { GlobeRoute } from './globe/GlobeRenderer.ts';
 import { useI18n } from './i18n/I18nProvider.tsx';
 import { trackEvent } from './analytics.ts';
 import { airportCode } from './data/airports.ts';
+import { similarRoutes } from './data/similarRoutes.ts';
 import { comparisonGlobeRoute, localLegAt } from './lib/compareView.ts';
 import { sumDurations } from './lib/flightTime.ts';
 import { journeyStateAt } from './lib/timeline.ts';
@@ -77,8 +78,6 @@ export default function App() {
   const route = comparison.journeys[comparison.active].route;
   const comparing = comparison.journeys.length > 1;
   const dispatch = useCallback((action: RouteAction) => compareDispatch({ type: 'route', action }), []);
-  // Only a newly added, unedited draft gets the copied-airports hint.
-  const [copiedDraft, setCopiedDraft] = useState<{ index: number; airportIds: (number | null)[] } | null>(null);
   const [isExample, setIsExample] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   /** Edit mode: reorder, remove and insert stops, reverse or clear the route. */
@@ -109,7 +108,6 @@ export default function App() {
       route,
       dispatch,
       compareDispatch,
-      setCopiedDraft,
       setEditing,
       setIsExample,
       resetPreferences: preferences.resetToLink,
@@ -139,6 +137,7 @@ export default function App() {
     scheduleErrors,
     legOffsets,
     fleet,
+    serializedJourneys,
   } = model;
   const phaseKey = useClockPhase(clock, journey, timeline, timeOpen);
   const playing = phaseKey.startsWith('playing:');
@@ -334,7 +333,6 @@ export default function App() {
   /** Start over: one empty journey, no compared journeys, times or open timeline. Preferences stay. */
   const resetJourney = () => {
     compareDispatch({ type: 'load', journeys: [] });
-    setCopiedDraft(null);
     setIsExample(false);
     setArranging(false);
     if (timeOpen) closeTime();
@@ -350,9 +348,9 @@ export default function App() {
   };
 
   /** A chosen suggestion becomes the visitor's journey; bring its stops and actions into view. */
-  const chooseSuggestion = (from: Airport, to: Airport) => {
+  const chooseSuggestion = ({ airports }: SuggestedRoute) => {
     if (!index) return;
-    loadCodes([airportCode(from), airportCode(to)], index);
+    loadCodes(airports.map(airportCode), index);
     requestAnimationFrame(() => listRef.current?.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' }));
   };
 
@@ -404,17 +402,25 @@ export default function App() {
     setEditing(null);
     setIsExample(false);
     compareDispatch({ type: 'add' });
-    setCopiedDraft({
-      index: comparison.journeys.length,
-      airportIds: [filledAirports[0]?.id ?? null, filledAirports.at(-1)?.id ?? null],
-    });
+    listRef.current?.scrollTo({ top: 0 });
     trackEvent('compare_journeys');
   };
-  const showCopiedHint =
-    copiedDraft?.index === comparison.active &&
-    route.stops.length === 2 &&
-    !hasEnteredTimes(route.stops) &&
-    route.stops.every((stop, i) => stop.airportId !== null && stop.airportId === copiedDraft.airportIds[i]);
+  /** An empty compared journey offers alternatives to the first journey with a route, never a copy. */
+  const similar = useMemo(() => {
+    if (!comparing || !index || filledAirports.length > 0) return [];
+    const reference = serializedJourneys.find((entry, i) => i !== comparison.active && entry.stops.length >= 2);
+    if (!reference) return [];
+    return similarRoutes(
+      reference.stops.map((stop) => stop.airport),
+      index,
+      serializedJourneys.map((entry) => entry.stops.map((stop) => stop.airport.id)),
+    );
+  }, [comparing, index, filledAirports.length, serializedJourneys, comparison.active]);
+  const chooseSimilar = ({ airports }: SuggestedRoute) => {
+    setEditing(null);
+    setIsExample(false);
+    dispatch({ type: 'load', airportIds: airports.map((airport) => airport.id) });
+  };
   const summary = comparing ? (
     <CompareSummary
       list={compared}
@@ -446,11 +452,14 @@ export default function App() {
   const canArrange = filledAirports.length > 0 || route.stops.length > 2;
   const canReset = comparing || timeOpen || (!isExample && (canArrange || hasEnteredTimes(route.stops)));
   // A route that is exactly one of the suggestions keeps the list, so people can switch between them.
-  const chosenSuggestion = suggestions.find(
-    ({ from, to }) =>
+  const welcomeRoutes = useMemo(
+    () => suggestions.map(({ from, to, minutes }): SuggestedRoute => ({ airports: [from, to], minutes })),
+    [suggestions],
+  );
+  const chosenSuggestion = welcomeRoutes.find(
+    ({ airports }) =>
       route.stops.length === 2 &&
-      route.stops[0].airportId === from.id &&
-      route.stops[1].airportId === to.id &&
+      route.stops.every((stop, i) => stop.airportId === airports[i].id) &&
       !hasEnteredTimes(route.stops),
   );
   const showSuggestions =
@@ -665,9 +674,6 @@ export default function App() {
                 </p>
               ) : (
                 <>
-                  {comparing && showCopiedHint && (
-                    <p className="compare-hint">{t('compare.copiedHint', compared[comparison.active].id)}</p>
-                  )}
                   <StopList
                     key={comparison.journeys[comparison.active].key}
                     journeyColor={comparing ? compared[comparison.active].color : undefined}
@@ -711,6 +717,9 @@ export default function App() {
                     onSelectLeg={selectLeg}
                     onReverse={reverse}
                   />
+                  {similar.length > 0 && (
+                    <RouteSuggestions title={t('compare.similar')} routes={similar} codes onSelect={chooseSimilar} />
+                  )}
                   {(comparing || (!isExample && legs.length > 0)) && (
                     <div className="itinerary__actions">
                       {comparing ? (
@@ -720,7 +729,6 @@ export default function App() {
                           onClick={() => {
                             setEditing(null);
                             compareDispatch({ type: 'remove', index: comparison.active });
-                            setCopiedDraft(null);
                           }}
                         >
                           <span aria-hidden="true" />
@@ -743,10 +751,10 @@ export default function App() {
                 </>
               )}
               {showSuggestions && (
-                <WelcomeSuggestions
-                  suggestions={suggestions}
-                  isExample={isExample}
-                  chosen={chosenSuggestion}
+                <RouteSuggestions
+                  title={t(isExample ? 'panel.tryOneOfThese' : 'panel.orTryOneOfThese')}
+                  routes={welcomeRoutes}
+                  chosen={chosenSuggestion ?? null}
                   onSelect={chooseSuggestion}
                 />
               )}

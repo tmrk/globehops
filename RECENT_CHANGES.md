@@ -2,6 +2,12 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.12.0 — 2026-11-07 — Similar routes and lighter wording
+
+- **New compared journeys start empty.** **Compare journeys** no longer copies the first journey’s airports. The new tab is blank and offers up to three similar routes between the same airports — nonstop when your journey connects, or via a different well-known hub with little detour — never one you are already comparing. Choose one, or pick any airports yourself.
+- **Less text, cleaner panel.** Shorter labels and notes throughout: **Compare journeys**, **Remove journey**, “Flight ≈ 4h 55m”, “Example departure”, “City, airport or code”. The welcome header no longer repeats how to change airports, a single flight’s totals drop the “Great-circle route” and “Estimated” sublines (≈ already says it), and the comparison ticket shows a note only when untimed journeys start together. An empty journey in the ticket reads quietly instead of showing a +0m difference.
+- **Natural Hungarian.** Hungarian text no longer uses the “A(z)” article placeholder, and one leftover formal phrase now matches the app’s informal voice.
+
 ## 1.11.1 — 2026-11-06 — Chosen suggestions are your journey
 
 - **Suggested routes can be reset and compared.** Choosing one of the suggested routes still counted as the automatic example, so Reset and **Compare with another journey** stayed hidden. A chosen suggestion is now your journey, with Edit, Share, Reset and Compare like any other; its stops come into view, and the other suggestions stay just below, with your choice highlighted, until you change the route. Only the route shown on your first visit is an example.

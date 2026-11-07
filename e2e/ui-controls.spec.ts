@@ -118,7 +118,7 @@ test('denied browser location switches off and explains browser settings', async
   await openDisplay(page);
   const toggle = page.getByRole('button', { name: 'My location', exact: true });
   await toggle.click();
-  await expect(page.getByRole('status')).toContainText('Location access is blocked.');
+  await expect(page.getByRole('status')).toContainText('Location is blocked in your browser settings.');
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   expect(await page.evaluate(() => localStorage.getItem('globehops:myLocation'))).toBe('off');
   await expect(page.locator('.globe-user-location')).toBeHidden();

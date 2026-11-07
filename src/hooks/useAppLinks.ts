@@ -36,7 +36,6 @@ interface AppLinksOptions {
   route: RouteState;
   dispatch: Dispatch<RouteAction>;
   compareDispatch: Dispatch<CompareAction>;
-  setCopiedDraft: Setter<{ index: number; airportIds: (number | null)[] } | null>;
   setEditing: Setter<number | null>;
   setIsExample: Setter<boolean>;
   resetPreferences: ReturnType<typeof useViewPreferences>['resetToLink'];
@@ -60,7 +59,6 @@ export function useAppLinks({
   route,
   dispatch,
   compareDispatch,
-  setCopiedDraft,
   setEditing,
   setIsExample,
   resetPreferences,
@@ -131,7 +129,6 @@ export function useAppLinks({
         });
         stopCount = routeStopCount.current = journeys[0].airportIds.length;
         compareDispatch({ type: 'load', journeys });
-        setCopiedDraft(null);
         setEditing(null);
         setIsExample(false);
         if (missing.length) notices.unshift(unknownAirports(missing, t));
@@ -165,7 +162,6 @@ export function useAppLinks({
       dispatch,
       resetPreferences,
       compareDispatch,
-      setCopiedDraft,
       setEditing,
       setIsExample,
       applyView,

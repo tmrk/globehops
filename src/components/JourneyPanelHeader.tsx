@@ -48,13 +48,7 @@ export function JourneyPanelHeader({
 
   const title = () => {
     if (comparing) return t('compare.title');
-    if (isExample)
-      return (
-        <>
-          {t('panel.exampleJourney')}
-          <span className="panel__hint">{t('panel.chooseAnyAirportToChangeIt')}</span>
-        </>
-      );
+    if (isExample) return t('panel.exampleJourney');
     return t(hasAirports ? 'panel.yourJourney' : 'panel.planAJourney');
   };
   return (

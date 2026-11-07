@@ -56,14 +56,10 @@ export function compareReducer(state: CompareState, action: CompareAction): Comp
         journeys: state.journeys.map((journey, i) => (i === index ? { ...journey, route } : journey)),
       };
     }
-    case 'add': {
+    case 'add':
+      // A new journey starts empty; App offers similar routes rather than a copy of an existing one.
       if (state.journeys.length >= MAX_JOURNEYS) return state;
-      const filled = state.journeys[state.active].route.stops.flatMap((stop) =>
-        stop.airportId === null ? [] : [stop.airportId],
-      );
-      const airportIds = filled.length > 0 ? [filled[0], filled[filled.length - 1]] : filled;
-      return { journeys: [...state.journeys, draft({ airportIds })], active: state.journeys.length };
-    }
+      return { journeys: [...state.journeys, draft()], active: state.journeys.length };
     case 'remove': {
       if (!valid(action.index) || state.journeys.length === 1) return state;
       return {

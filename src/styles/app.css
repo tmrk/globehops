@@ -795,15 +795,6 @@ button.map-menu__item:hover {
   color: var(--text-3);
 }
 
-.panel__hint {
-  margin-top: 2px;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--text-2);
-}
-
 .panel__actions {
   display: flex;
   flex: none;
@@ -1517,6 +1508,12 @@ button.map-menu__item:hover {
 .suggestion__route {
   min-width: 0;
   flex: 1;
+}
+
+.suggestion--codes .suggestion__route {
+  font: 500 var(--text-sm) var(--mono);
+  font-stretch: var(--mono-stretch);
+  word-spacing: var(--mono-space);
 }
 
 .suggestion__duration {
@@ -3189,12 +3186,6 @@ button.map-menu__item:hover {
   line-height: 1;
 }
 
-.compare-hint {
-  margin: 2px 0 8px;
-  color: var(--text-3);
-  font-size: var(--text-sm);
-}
-
 .compare-entry {
   color: var(--text-2);
 }
@@ -3312,6 +3303,11 @@ button.map-menu__item:hover {
   color: var(--text-2);
   font-family: var(--font);
   font-stretch: normal;
+  word-spacing: normal;
+}
+.compare-summary__empty {
+  color: var(--text-3);
+  font: 400 var(--text-sm) var(--font);
   word-spacing: normal;
 }
 .compare-summary__duration {

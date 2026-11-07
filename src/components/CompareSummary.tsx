@@ -4,7 +4,6 @@ import { useI18n } from '../i18n/I18nProvider.tsx';
 import type { ComparedJourney, ComparisonMetrics } from '../lib/compare.ts';
 import { DEFAULT_FLIGHT_TIME_MODEL } from '../lib/flightTime.ts';
 import { DEFAULT_LAYOVER_MIN } from '../lib/layover.ts';
-import { DEFAULT_ALTITUDE_MODEL } from '../lib/altitude.ts';
 import { ComparisonStrip } from './ComparisonStrip.tsx';
 import { IconInfo, IconPlay } from './Icons.tsx';
 
@@ -40,16 +39,19 @@ export function CompareSummary({ list, metrics, active, onActivate, onPlay, time
               <span className="journey-chip">{entry.id}</span>
               <span className="compare-summary__route">
                 {entry.label && <span className="compare-summary__label">{entry.label} · </span>}
-                {entry.journey.stops.map((stop) => airportCode(stop.airport)).join(' → ')}
+                {entry.journey.stops.length ? (
+                  entry.journey.stops.map((stop) => airportCode(stop.airport)).join(' → ')
+                ) : (
+                  <span className="compare-summary__empty">{t('compare.chooseAirports')}</span>
+                )}
               </span>
               <span className="compare-summary__duration">
-                {ready
-                  ? `${metric.estimated ? '≈ ' : ''}${fmt.duration(metric.journeyMin)}`
-                  : t('compare.chooseAirports')}
+                {ready && `${metric.estimated ? '≈ ' : ''}${fmt.duration(metric.journeyMin)}`}
               </span>
               <ComparisonStrip entry={entry} list={list} />
               <span className="compare-summary__awards">
                 {ready &&
+                  metrics.fastest !== null &&
                   (metrics.fastest === entry.id ? (
                     <span className="compare-badge">{t('compare.fastest')}</span>
                   ) : (
@@ -75,7 +77,7 @@ export function CompareSummary({ list, metrics, active, onActivate, onPlay, time
           <IconInfo size={16} />
         </button>
         <span className="compare-summary__note">
-          {list.some((entry) => entry.anchor === 'assumed') ? t('compare.assumed') : t('compare.sharedClock')}
+          {list.some((entry) => entry.anchor === 'assumed') && t('compare.assumed')}
         </span>
         {!timeOpen && (
           <button
@@ -92,13 +94,7 @@ export function CompareSummary({ list, metrics, active, onActivate, onPlay, time
       </div>
       <div id={infoId} className="summary__info" hidden={!showInfo}>
         <p>{t('summary.method', `${fmt.number(model.cruiseSpeedKmh)} km/h`, model.overheadMinutes)}</p>
-        <p>
-          {t(
-            'summary.connectionMethod',
-            fmt.layover(DEFAULT_LAYOVER_MIN),
-            `${fmt.number(DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm)} km`,
-          )}
-        </p>
+        <p>{t('summary.connectionMethod', fmt.layover(DEFAULT_LAYOVER_MIN))}</p>
       </div>
     </section>
   );

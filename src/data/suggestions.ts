@@ -56,7 +56,7 @@ function normalizeZone(zone: string): string {
   return Object.hasOwn(ZONE_ALIASES, zone) ? ZONE_ALIASES[zone] : zone;
 }
 
-function isGateway(airport: Airport): airport is Airport & { iata: string } {
+export function isGateway(airport: Airport): airport is Airport & { iata: string } {
   return airport.type === 'large' && airport.scheduled && !!airport.iata;
 }
 

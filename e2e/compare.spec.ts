@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test, expect, chooseAirport, startEditing, stopButtons, airportField } from './fixtures.ts';
+import { test, expect, stopButtons, airportField } from './fixtures.ts';
 import { installTools, invoke, ready } from './webTools.ts';
 
 const dated =
@@ -20,22 +20,24 @@ test.beforeEach(async ({ page, isMobile }) => {
 
 test('add, edit, share and remove an alternative without changing journey A', async ({ page }, info) => {
   await page.goto('./?route=BUD-JFK');
-  await page.getByRole('button', { name: 'Compare with another journey' }).click();
+  await page.getByRole('button', { name: 'Compare journeys' }).click();
   await expect(page.getByRole('heading', { name: 'Compare journeys' })).toBeVisible();
   const a = page.getByRole('tab', { name: 'A BUD → JFK' });
-  const b = page.getByRole('tab', { name: 'B BUD → JFK' });
+  const b = page.getByRole('tab', { name: 'B Choose airports' });
   await expect(b).toHaveAttribute('aria-selected', 'true');
-  await expect(stopButtons(page)).toHaveCount(2);
-  await expect(page.getByRole('tabpanel')).toContainText('Journey B starts with the same airports');
+  // A new journey starts empty, never as a copy, and offers different routes between A's airports.
+  await expect(stopButtons(page)).toHaveCount(0);
+  const similar = page.getByRole('list', { name: 'Similar routes' }).getByRole('button');
+  await expect(similar).toHaveText([/^BUD → LHR → JFK/, /^BUD → ZRH → JFK/, /^BUD → CPH → JFK/]);
   await b.focus();
   await b.press('Home');
   await expect(a).toBeFocused();
   await a.press('ArrowRight');
   await expect(b).toBeFocused();
-  await startEditing(page);
-  await page.getByRole('button', { name: 'Add a stop after Budapest', exact: true }).click();
-  await chooseAirport(page, 'LHR', 'LHR');
-  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await similar.first().click();
+  await expect(page.getByRole('list', { name: 'Similar routes' })).toHaveCount(0);
+  await expect(stopButtons(page)).toHaveCount(3);
+  await expect(stopButtons(page).nth(1)).toHaveAccessibleName(/\(LHR\)/);
   const summary = page.getByRole('region', { name: 'Journey comparison' });
   await expect(summary.locator('.compare-summary__row')).toHaveCount(2);
   await expect(summary.locator('.compare-summary__row').nth(0)).toContainText('Fastest');
@@ -60,7 +62,7 @@ test('add, edit, share and remove an alternative without changing journey A', as
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(airportField(page)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Remove journey B' }).click();
+  await page.getByRole('button', { name: 'Remove journey', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Your journey', exact: true })).toBeVisible();
   await expect(page.getByRole('tablist')).toHaveCount(0);
   await expect(page).toHaveURL(/\?route=BUD-JFK$/);
@@ -205,7 +207,7 @@ test('WebMCP applies labelled comparisons, reports them, shares them and resets 
 test('four journeys keep the phone globe visible and tabs reachable', async ({ page, isMobile }, info) => {
   await page.goto('./?route=BUD-JFK&b.route=BUD-LHR-JFK&c.route=BUD-FRA-JFK&d.route=BUD-CDG-JFK');
   await expect(page.getByRole('tab')).toHaveCount(4);
-  await expect(page.getByRole('button', { name: 'Add another journey' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add journey' })).toHaveCount(0);
   await page.getByRole('tab').first().focus();
   await page.keyboard.press('End');
   await expect(page.getByRole('tab').last()).toBeFocused();

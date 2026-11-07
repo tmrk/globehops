@@ -79,7 +79,7 @@ test('each flight offers its times in place, with airport zones and estimates fo
   await expect(editor.getByLabel('Arrival time', { exact: true })).toHaveValue('13:00');
   await expect(editor.getByLabel('Arrival date', { exact: true })).toHaveValue('2026-11-20');
   await expect(editor.getByRole('group', { name: 'Arrival, local time' })).toContainText('≈Fri 20 Nov 2026');
-  await expect(editor).toContainText('Estimated from your other times');
+  await expect(editor.locator('.when__note')).toHaveText('Estimated');
   await expect(flight(page, 2)).toContainText('11:00');
   await expect(flight(page, 1)).toContainText('→');
   await editor.getByRole('button', { name: 'Done' }).click();

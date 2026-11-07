@@ -139,9 +139,7 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
             ) : (
               suggestion && (
                 <p className="when__note">
-                  {suggestion.provenance === 'assumed'
-                    ? t('schedule.exampleDepartureSetYourOwn')
-                    : t('schedule.estimatedFromYourOtherTimes')}
+                  {suggestion.provenance === 'assumed' ? t('schedule.exampleDeparture') : t('schedule.estimated')}
                 </p>
               )
             )}

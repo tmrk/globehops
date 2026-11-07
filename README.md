@@ -29,7 +29,7 @@ On your first visit, try one of three long-haul journeys from a likely home airp
 
 ### Compare journeys
 
-Choose **Compare with another journey** below your stops to try up to four flight options. Each journey has its own colour and tab; the new option starts with the same departure and destination airports, ready for a different connection or timetable. The ticket compares total time, marks the fastest option and shows which arrives first. **Play all** runs every journey on one shared clock, including layovers, with a live status lane for each. Share keeps all the options together. Journeys without times use a common example departure when you play them.
+Choose **Compare journeys** below your stops to try up to four flight options. Each journey has its own colour and tab; a new option starts empty and offers a few similar routes between the same airports, such as nonstop or via a different hub, or you can choose any airports yourself. The ticket compares total time, marks the fastest option and shows which arrives first. **Play all** runs every journey on one shared clock, including layovers, with a live status lane for each. Share keeps all the options together. Journeys without times use a common example departure when you play them.
 
 ### Choose your language
 

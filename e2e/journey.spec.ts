@@ -20,7 +20,8 @@ test('first visit loads three long-haul examples from the home country', { tag: 
   await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: /^Flight \d,/ })).toHaveCount(1);
   const totals = page.getByRole('region', { name: 'Journey totals' });
-  await expect(totals).toContainText('Great-circle route');
+  // One flight needs no sublines: ≈ already marks the estimate.
+  await expect(totals.locator('.stat__detail')).toHaveCount(0);
   await expect(totals).toContainText(/\d[\d,]*km/);
   await expect(totals).toContainText(/≈ (?:1[2-9]|2\d)h \d+m/);
   await expect(totals.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
@@ -31,7 +32,7 @@ test('first visit loads three long-haul examples from the home country', { tag: 
   await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'false');
   await expect(suggestions.nth(1)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Reset journey', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Compare with another journey' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Compare journeys' })).toBeVisible();
   await startEditing(page);
   await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
   await expectRoute(page, ['SIN', 'CPH']);
@@ -509,7 +510,7 @@ test('desktop search opens in place: rows keep their positions and suggestions f
   const before = { row: await row.boundingBox(), next: await destination.boundingBox() };
   await stopButtons(page).nth(1).click();
   await expect(airportField(page)).toBeFocused();
-  await expect(page.getByText(/Try a city, airport or code/)).toBeVisible();
+  await expect(page.getByText(/City, airport or code/)).toBeVisible();
   await airportField(page).fill('par');
   const list = page.getByRole('listbox', { name: 'Airport suggestions' });
   await expect(list.getByRole('option').first()).toBeVisible();

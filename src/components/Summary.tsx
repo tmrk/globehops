@@ -1,6 +1,5 @@
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useId, useState } from 'react';
-import { DEFAULT_ALTITUDE_MODEL } from '../lib/altitude.ts';
 import { DEFAULT_FLIGHT_TIME_MODEL, sumDurations } from '../lib/flightTime.ts';
 import { DEFAULT_LAYOVER_MIN } from '../lib/layover.ts';
 
@@ -37,17 +36,12 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
   const m = DEFAULT_FLIGHT_TIME_MODEL;
   const speed =
     unit === 'km' ? `${fmt.number(m.cruiseSpeedKmh)} km/h` : `${Math.round(m.cruiseSpeedKmh / 1.609344 / 5) * 5} mph`;
-  const cruise =
-    unit === 'km'
-      ? `${fmt.number(DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm)} km`
-      : `${fmt.number(Math.round((DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm * 3280.84) / 1000) * 1000)} ft`;
 
   const timeLabel = journey.dated
     ? t('summary.journeyTime')
     : layovers.length
       ? t('summary.totalTime')
       : t('summary.flightTime');
-  const flightsText = flights === 1 ? t('summary.greatCircleRoute') : t('summary.flights', fmt.number(flights));
   // Each part stays whole, so a narrow column breaks only between flying and ground time.
   const breakdown = layovers.length ? (
     <>
@@ -56,11 +50,7 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
         {fmt.duration(groundMin)} {layovers.length === 1 ? t('summary.layover') : t('summary.inLayovers')}
       </span>
     </>
-  ) : estimated ? (
-    t('summary.estimated')
-  ) : (
-    t('summary.fromEnteredTimes')
-  );
+  ) : null;
   const destination = journey.stops.at(-1)?.airport;
   const dates =
     journey.dated && journey.start && journey.end && destination
@@ -88,7 +78,11 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
             {flights ? fmt.distanceNumber(totalKm, unit) : '—'}
             <span className="stat__unit">{unit}</span>
           </span>
-          <span className="stat__detail">{flights ? flightsText : t('summary.chooseTwoAirports')}</span>
+          {flights !== 1 && (
+            <span className="stat__detail">
+              {flights ? t('summary.flights', fmt.number(flights)) : t('summary.chooseTwoAirports')}
+            </span>
+          )}
         </div>
         <div className="stat stat--end">
           <span className="stat__label">
@@ -107,7 +101,7 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
           <span className="stat__value">
             {flights && totalMin ? `${estimated ? '≈ ' : ''}${fmt.duration(totalMin)}` : '—'}
           </span>
-          <span className="stat__detail">{breakdown}</span>
+          {breakdown && <span className="stat__detail">{breakdown}</span>}
         </div>
         {action ? <div className="summary__action">{action}</div> : null}
         {dates ? (
@@ -123,7 +117,7 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
       ) : null}
       <div id={infoId} className="summary__info" hidden={!showInfo}>
         <p>{t('summary.method', speed, m.overheadMinutes)}</p>
-        <p>{t('summary.connectionMethod', fmt.layover(DEFAULT_LAYOVER_MIN), cruise)}</p>
+        <p>{t('summary.connectionMethod', fmt.layover(DEFAULT_LAYOVER_MIN))}</p>
       </div>
     </section>
   );
