@@ -49,6 +49,10 @@ Never hand-edit generated `public/agent/*.json`: run `npm run agent:build` after
 
 ## Common pitfalls
 
+- Production PWA precaches every same-origin build/public runtime file. Keep new runtime assets there; external requests break offline functionality. Splash/screenshots/social images are excluded.
+- Service workers are blocked by default in E2E; only the PWA spec opts in. Registration runs only in production builds.
+- UI pinch/double-tap zoom is suppressed; preserve globe wheel, trackpad, pointer-pinch and button zoom. Gesture listeners may prevent defaults but must never stop propagation. Keep safe-area padding and iOS inputs at least 16px.
+
 - Production base is `/globehops/`; use imported asset URLs and test the production build at that path. `BASE_PATH` can override the Vite base for another host.
 - Node runs `.ts` scripts and `mcp/` natively. All modules they import must use erasable TypeScript (no enums, namespaces or parameter properties), explicit `.ts` import extensions, no Vite `?url` imports and no DOM-only globals at module scope.
 - Locale precedence is path → `?lang=` → saved `globehops:locale` → browser time zone (Budapest/Stockholm as country proxies, not physical location) → browser languages → English. Explicit selectors persist; link/tool language changes are visit-only. Keep `/en/`, `/hu/`, `/sv/` static pages under the configured base and ordinary share links language-neutral.

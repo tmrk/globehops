@@ -54,3 +54,11 @@ The full browser suite can also run against the live site (no local server is st
 ```sh
 E2E_BASE_URL=https://tmrk.github.io/globehops/ npx playwright test
 ```
+
+## Installed apps after a deploy
+
+A successful production build emits `sw.js` containing every runtime asset's revision. Publish the complete `dist/` together under its configured base; do not upload the worker separately ahead of the assets. Installed and browser apps keep serving their complete cached version until the next version installs successfully. Each opening explicitly checks the deployed worker, as do foreground resumes (throttled to 60 seconds) and reconnects. An Update/Later notice offers the waiting build; Update activates it and reloads controlled tabs once. Later keeps the current session and normal activation happens when all app windows close.
+
+GitHub Pages/Fastly propagation can briefly expose mixed deployment bytes. New or changed precache downloads append `?__rev=<revision>` and use `cache: 'no-store'`; the worker verifies the exact response's SHA-256 prefix and retries once. A stale or missing file fails the entire install, preserving the previous offline version until a later update check retries. Unchanged files copy from the previous cache without downloading. Deployment changes are detected from `sw.js` bytes, not by querying GitHub commits.
+
+The first successful online visit must finish installing before offline use. Browser storage clearing or eviction can remove that copy; fullscreen/standalone apps request persistent storage where supported. Every runtime asset must be a same-origin build/public file so it is included automatically. Promotional splash, screenshot and social-preview imagery is deliberately excluded from the offline cache.

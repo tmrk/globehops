@@ -1,5 +1,7 @@
 # GlobeHops
 
+Install GlobeHops as an app: it works offline after the first visit and checks for updates whenever it opens. When an update is ready, tap **Update**, or keep exploring and let it update itself after all app windows close.
+
 **See any air journey as it really curves around the Earth.** GlobeHops draws your flights as great-circle routes on an interactive 3D globe, with distances, estimated flight times and layovers for every connection. Add your flight times if you like, press Play and watch the journey unfold across the sunlit and dark sides of the planet.
 
 **[Open GlobeHops → tmrk.github.io/globehops](https://tmrk.github.io/globehops/)**

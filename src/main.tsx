@@ -1,3 +1,6 @@
+import './pwa/install.ts';
+import { appUpdater } from './pwa/updates.ts';
+import { nativeFeel } from './pwa/nativeFeel.ts';
 import { I18nProvider } from './i18n/I18nProvider.tsx';
 import { loadMessages } from './i18n/catalogue.ts';
 import { loadLocaleChoice, resolveLocale } from './i18n/detect.ts';
@@ -15,6 +18,9 @@ import './styles/app.css';
 import App from './App.tsx';
 import { loadReduceMotion } from './state/storage.ts';
 import { effectiveReducedMotion } from './lib/motion.ts';
+
+nativeFeel();
+if (import.meta.env.PROD && 'serviceWorker' in navigator) void appUpdater.start();
 
 document.documentElement.dataset.motion = effectiveReducedMotion(
   loadReduceMotion(),

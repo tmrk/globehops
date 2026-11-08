@@ -18,6 +18,7 @@ export default defineConfig({
   use: {
     baseURL: externalBaseURL ?? `http://localhost:${port}/globehops/`,
     locale: 'en-GB',
+    serviceWorkers: 'block',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

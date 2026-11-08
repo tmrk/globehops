@@ -1,5 +1,21 @@
 import type { Messages } from './en.ts';
 export const hu: Messages = {
+  'pwa.notice': 'Elérhető a GlobeHops új verziója',
+  'pwa.version': 'Verzió: {0}',
+  'pwa.update': 'Frissítés',
+  'pwa.later': 'Később',
+  'pwa.app': 'Alkalmazás',
+  'pwa.description': 'A GlobeHops internet nélkül is működik, és minden indításkor megnézi, van-e új verzió.',
+  'pwa.check': 'Frissítések keresése',
+  'pwa.checking': 'Frissítések keresése…',
+  'pwa.current': 'A legújabb verziót használod.',
+  'pwa.downloading': 'Az új verzió letöltése…',
+  'pwa.ready': 'A(z) {0} verzió telepítésre kész.',
+  'pwa.offline': 'Nincs internetkapcsolat. A GlobeHops akkor keres frissítést, amikor újra online leszel.',
+  'pwa.failed': 'Nem sikerült frissítést keresni.',
+  'pwa.install': 'GlobeHops telepítése',
+  'pwa.iosHint': 'iPhone-on vagy iPaden koppints a Megosztás gombra, majd a „Hozzáadás a Főképernyőhöz” lehetőségre.',
+
   'compare.entry': 'Utazások összehasonlítása',
   'compare.title': 'Összehasonlítás',
   'compare.journeys': 'Utazások',

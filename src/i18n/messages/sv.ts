@@ -1,5 +1,21 @@
 import type { Messages } from './en.ts';
 export const sv: Messages = {
+  'pwa.notice': 'En ny version av GlobeHops är klar',
+  'pwa.version': 'Version {0}',
+  'pwa.update': 'Uppdatera',
+  'pwa.later': 'Senare',
+  'pwa.app': 'App',
+  'pwa.description': 'GlobeHops fungerar offline och letar efter en ny version varje gång den öppnas.',
+  'pwa.check': 'Sök efter uppdateringar',
+  'pwa.checking': 'Söker efter uppdateringar…',
+  'pwa.current': 'Du har den senaste versionen.',
+  'pwa.downloading': 'Hämtar den nya versionen…',
+  'pwa.ready': 'Version {0} är klar.',
+  'pwa.offline': 'Du är offline. GlobeHops söker efter uppdateringar när du är online igen.',
+  'pwa.failed': 'Det gick inte att söka efter uppdateringar.',
+  'pwa.install': 'Installera GlobeHops',
+  'pwa.iosHint': 'På iPhone eller iPad: tryck på Dela och sedan Lägg till på hemskärmen.',
+
   'compare.entry': 'Jämför resor',
   'compare.title': 'Jämför resor',
   'compare.journeys': 'Resor',
