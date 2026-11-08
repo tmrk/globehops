@@ -23,7 +23,7 @@ Use Node 22.18+ (CI: Node 24). Run `npm install`, then `npm run dev` and open th
 | `npm run agent:build`     | Regenerate static agent capabilities, schema and worked examples.                       |
 | `npm run mcp`             | Run the local MCP stdio server (not an HTTP listener).                                  |
 | `npm run textures:build`  | Build day and night-light WebP textures from downloaded NASA source images.             |
-| `npm run icons:build`     | Generate PNG app icons from the SVG sources in `public/`.                               |
+| `npm run icons:build`     | Render stylised app icons, iOS splash screens and manifest screenshots.                 |
 
 Useful focused commands:
 
@@ -149,7 +149,7 @@ UI catalogues: add every UI key to `src/i18n/messages/{en,hu,sv}.ts`; missing ke
 
 Textures: download the [NASA Blue Marble JPEG](https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x21600x10800.jpg) to `.cache/bmng/world.topo.bathy.200407.3x21600x10800.jpg` and the [Black Marble 2016 3 km JPEG](https://assets.science.nasa.gov/content/dam/science/esd/eo/images/imagerecords/144000/144898/BlackMarble_2016_3km.jpg) to `.cache/blackmarble/BlackMarble_2016_3km.jpg` (create the directories first), then run `npm run textures:build`. `-- --day-only` or `-- --night-only` builds one set; explicit inputs work with `npm run textures:build -- /path/to/day.jpg /path/to/night.jpg`. Sources must be 2:1 images; a missing source is reported and the other set still builds. The night build writes single-channel light masks (`lights-2k.webp`, `lights-4k.webp`; rules in `scripts/lib/lights.ts`). Commit generated WebP outputs, never the sources/cache.
 
-Icons: `npm run icons:build` renders favicon, Apple touch, standard app and maskable PNG icons from `public/favicon.svg` and `public/logo.svg`, using installed Playwright Chromium. The UI SVGs live in `src/components/Icons.tsx` and `Brand.tsx`. To regenerate `public/og-image.png` too, first build and start preview, then run:
+Icons: `npm run icons:build` renders Apple touch, standard app and maskable PNG icons from the NASA Earth texture with an original GRU–LHR route, using Canvas 2D in installed Playwright Chromium. It also renders portrait/landscape iOS launch screens on the app backdrop and converts `docs/screenshot{,-mobile}.png` to manifest WebP screenshots. `scripts/pwa-assets.ts` exports their shared catalogue and startup-image link tags. The favicon and logo remain the original vector artwork; this command leaves them and `favicon-32.png` unchanged. The UI SVGs live in `src/components/Icons.tsx` and `Brand.tsx`. To regenerate `public/og-image.png` too, first build and start preview, then run:
 
 ```sh
 npm run icons:build -- --og http://localhost:4173/globehops/

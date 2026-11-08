@@ -43,7 +43,7 @@ Review screenshots at mobile and desktop sizes, including a picker and an edited
 
 Never hand-edit generated `public/agent/*.json`: run `npm run agent:build` after contract, calculation or dataset changes. `scripts/agent-files.test.ts` fails on drift. `agent/dataset.json` is emitted separately by Vite from current build metadata; it is not a checked-in file.
 
-`npm run textures:build` requires the NASA source JPEG in `.cache/bmng/` or a source path argument. `npm run icons:build` generates PNG app icons from `public/logo.svg` and `public/favicon.svg` using Playwright Chromium; add `-- --og http://localhost:4173/globehops/` to capture the social preview from a running build.
+`npm run textures:build` requires the NASA source JPEG in `.cache/bmng/` or a source path argument. `npm run icons:build` renders stylised PNG app icons and iOS splash screens from pinned Natural Earth country polygons using Playwright Chromium Canvas 2D, and converts the documented app screenshots to manifest WebP assets; add `-- --og http://localhost:4173/globehops/` to capture the social preview from a running build.
 
 `.github/workflows/deploy.yml` publishes Pages after checks. `update-airports.yml` refreshes daily at 04:23 UTC, rebuilds time zones when airports change, pushes validated changes or opens a PR, then calls Deploy for successful direct pushes. `GITHUB_TOKEN` pushes do not trigger push workflows; keep the reusable workflow call. See [deployment](docs/DEPLOYMENT.md).
 

@@ -118,7 +118,7 @@
 | `public/agent/{capabilities,itinerary.schema,examples}.json`                      | Generated static contract, schema and computed examples.                                                            |
 | `vite.config.ts`                                                                  | Vite/Vitest configuration, static locale pages and current agent/dataset.json metadata.                             |
 | `data/{timezones-build,timezone-overrides}.json`, `data/TIMEZONES.md`             | Zone provenance, exception report, sourced overrides and ODbL terms.                                                |
-| `scripts/build-icons.ts`                                                          | PNG icons from SVGs and optional globe social preview capture.                                                      |
+| `scripts/build-icons.ts`                                                          | Stylised Canvas 2D globe icons, iOS launch screens, screenshots and optional social preview.                        |
 | `public/`                                                                         | SVG/PNG icons, manifest and social preview.                                                                         |
 | `scripts/build-textures.ts`                                                       | NASA day/night JPEG resampling, ocean lift, light-mask extraction and WebP.                                         |
 | `scripts/version.test.ts`                                                         | Keeps package.json, package-lock.json and the newest RECENT_CHANGES heading on one version.                         |
