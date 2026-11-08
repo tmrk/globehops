@@ -23,7 +23,7 @@ Use Node 22.18+ (CI: Node 24). Run `npm install`, then `npm run dev` and open th
 | `npm run agent:build`     | Regenerate static agent capabilities, schema and worked examples.                       |
 | `npm run mcp`             | Run the local MCP stdio server (not an HTTP listener).                                  |
 | `npm run textures:build`  | Build day and night-light WebP textures from downloaded NASA source images.             |
-| `npm run icons:build`     | Render photographic app icons, iOS splash screens and manifest screenshots.             |
+| `npm run icons:build`     | Render stylised app icons, iOS splash screens and manifest screenshots.                 |
 
 Useful focused commands:
 

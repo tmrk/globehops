@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.14.1 — 2026-11-08 — A sculpted globe icon
+
+- **A clearer app icon.** Smooth cobalt oceans, ice-blue continents and a luminous amber flight ribbon replace the photographic globe. Directional light and a soft atmosphere give the globe depth while keeping its silhouette clear at small sizes. The same artwork appears on iOS launch screens, with full-bleed versions for Apple and maskable icons.
+- **Public-domain land shapes.** Icons now use Natural Earth country polygons instead of NASA photography. The favicon, logo, app screenshots and social preview are unchanged.
+
 ## 1.14.0 — 2026-11-07 — Find the Moon
 
 - **Find the Moon.** The Moon at its true size is only in view from a narrow band of angles, so the display menu now has **Find the Moon** (while day and night shading is on): the globe turns until the Moon stands just above its edge, still north-up, and you can look around from there.

@@ -1,7 +1,7 @@
 /**
- * Photographic app icons, iOS launch screens and manifest screenshots.
- * NASA Blue Marble imagery (public domain) with an original route overlay (MIT).
- * Requires installed Playwright Chromium; no WebGL or network requests for asset rendering.
+ * Stylised app icons and iOS launch screens: public-domain Natural Earth land silhouettes,
+ * smooth orthographic sphere lighting and an original luminous great-circle ribbon (MIT).
+ * Requires Playwright Chromium. Downloads pinned country polygons only if the cache is absent.
  *   node scripts/build-icons.ts
  *   node scripts/build-icons.ts --og http://localhost:4173/globehops/
  */
@@ -9,10 +9,61 @@ import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
 import sharp from 'sharp';
+import { atomicWrite, loadNaturalEarth } from './build-country-labels.ts';
+import { COUNTRY_LABEL_SOURCE_URL } from './lib/countryLabels.ts';
 import { APP_ICONS, SCREENSHOTS, splashFiles, SPLASH_SCREENS } from './pwa-assets.ts';
+
+// Artwork geometry is independent of output size; every asset downsamples the same 4× master.
+const ARTWORK = {
+  size: 2048,
+  radius: 860,
+  view: { latitude: 12, longitude: 3, roll: 15 },
+  route: {
+    origin: [-23.4356, -46.4731] as [number, number], // São Paulo (GRU)
+    destination: [60.3172, 24.9633] as [number, number], // Helsinki (HEL)
+    lift: 0.17,
+  },
+  // Ice-blue land over cobalt water; the lit rim is directional, never a uniform outline.
+  palette: {
+    shadow: [10, 37, 82],
+    mid: [20, 82, 168],
+    lit: [61, 143, 240],
+    land: [207, 230, 255],
+    landShadow: [28, 70, 132],
+    rim: [120, 204, 255],
+    glow: ['#5ab4ff50', '#4ba8ff20', '#388dff07', '#388dff00'],
+    amber: ['#ff9f1ca0', '#ffb52f', '#ffd36b', '#fff0b3'],
+  },
+};
+const TILE = {
+  top: '#132a52',
+  bottom: '#040814',
+  corner: 0.224,
+  diameter: 0.75,
+  maskableDiameter: 0.72,
+};
+
+type CountryGeometry =
+  { type: 'Polygon'; coordinates: number[][][] } | { type: 'MultiPolygon'; coordinates: number[][][][] };
+interface CountryCollection {
+  type: 'FeatureCollection';
+  features: { geometry: CountryGeometry }[];
+}
 
 const root = path.resolve(import.meta.dirname, '..');
 const pub = (f: string) => path.join(root, 'public', f);
+const cache = path.join(root, '.cache/naturalearth/ne_50m_admin_0_countries.geojson');
+const source = await loadNaturalEarth(COUNTRY_LABEL_SOURCE_URL, cache, false, false);
+const countries = JSON.parse(source.text) as CountryCollection;
+if (
+  countries.type !== 'FeatureCollection' ||
+  !Array.isArray(countries.features) ||
+  countries.features.length < 200 ||
+  countries.features.some(({ geometry }) => !['Polygon', 'MultiPolygon'].includes(geometry.type))
+) {
+  throw new Error('Invalid Natural Earth country polygons');
+}
+if (source.downloaded) await atomicWrite(cache, source.text);
 
 const logo = await readFile(pub('logo.svg'), 'utf8');
 // The social card is rendered from an inline page, so embed the brand typeface rather than linking it.
@@ -46,206 +97,282 @@ async function render(html: string, size: { width: number; height: number }, fil
 
 const svgAt = (svg: string, px: number) => svg.replace(/width="64" height="64"/, `width="${px}" height="${px}"`);
 
-// Project once at 4× the largest icon size. All outputs downsample this master.
-const page = await browser.newPage({ viewport: { width: 2048, height: 2048 } });
-const texture = `data:image/webp;base64,${(await readFile(path.join(root, 'src/assets/textures/earth-8k.webp'))).toString('base64')}`;
+// Canvas 2D performs the orthographic projection per pixel; no WebGL or photo texture.
+const page = await browser.newPage({ viewport: { width: ARTWORK.size, height: ARTWORK.size } });
 const globeData = await page.evaluate(
-  async ({ texture }) => {
-    const size = 2048;
-    const radius = 880;
+  ({ countries, artwork }) => {
+    const size = artwork.size;
+    const radius = artwork.radius;
     const center = size / 2;
     const rad = Math.PI / 180;
-    // Move east from the initial Atlantic view to show the real route’s bow; a slight roll
-    // preserves the brand mark’s lower-left to upper-right diagonal.
-    const lat = 12 * rad;
-    const lon = -6 * rad;
     type Vec = [number, number, number];
+    const lat = artwork.view.latitude * rad;
+    const lon = artwork.view.longitude * rad;
+    const roll = artwork.view.roll * rad;
     const forward: Vec = [Math.cos(lat) * Math.cos(lon), Math.sin(lat), Math.cos(lat) * Math.sin(lon)];
     const eastBase: Vec = [-Math.sin(lon), 0, Math.cos(lon)];
     const northBase: Vec = [-Math.sin(lat) * Math.cos(lon), Math.cos(lat), -Math.sin(lat) * Math.sin(lon)];
-    const roll = 12 * rad;
     const east = eastBase.map((v, i) => v * Math.cos(roll) + northBase[i] * Math.sin(roll)) as Vec;
     const north = northBase.map((v, i) => v * Math.cos(roll) - eastBase[i] * Math.sin(roll)) as Vec;
     const dot = (a: Vec, b: Vec) => a.reduce((sum, v, i) => sum + v * b[i], 0);
-    const load = async (url: string) => {
-      const image = new Image();
-      image.src = url;
-      await image.decode();
-      const canvas = document.createElement('canvas');
-      canvas.width = image.width;
-      canvas.height = image.height;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-      ctx.drawImage(image, 0, 0);
-      return {
-        pixels: ctx.getImageData(0, 0, image.width, image.height).data,
-        width: image.width,
-        height: image.height,
-      };
-    };
-    const day = await load(texture);
-    // NASA equirectangular: left = 180°W, centre = Greenwich, top = north.
-    // Equivalent to SphereGeometry UVs with scene +X=Greenwich, +Y=north, −Z=east.
-    const sample = (map: typeof day, u: number, v: number, channel: number) => {
-      const x = u * map.width - 0.5;
-      const y = Math.max(0, Math.min(map.height - 1, v * map.height - 0.5));
-      const ix = Math.floor(x);
-      const iy = Math.floor(y);
-      const fx = x - ix;
-      const fy = y - iy;
+    const mask = document.createElement('canvas');
+    // A high-resolution equirectangular coverage mask keeps coastlines smooth after projection.
+    mask.width = 8192;
+    mask.height = 4096;
+    const m = mask.getContext('2d', { willReadFrequently: true })!;
+    m.fillStyle = '#fff';
+    for (const { geometry } of countries.features) {
+      const polygons =
+        geometry.type === 'Polygon' ? [geometry.coordinates as number[][][]] : (geometry.coordinates as number[][][][]);
+      for (const polygon of polygons) {
+        m.beginPath();
+        for (const ring of polygon) {
+          ring.forEach(([lng, lat], i) => {
+            const x = ((lng + 180) / 360) * mask.width;
+            const y = ((90 - lat) / 180) * mask.height;
+            if (i === 0) m.moveTo(x, y);
+            else m.lineTo(x, y);
+          });
+          m.closePath();
+        }
+        m.fill('evenodd');
+      }
+    }
+    const pixels = m.getImageData(0, 0, mask.width, mask.height).data;
+    const landAt = (u: number, v: number) => {
+      const x = u * mask.width - 0.5;
+      const y = Math.max(0, Math.min(mask.height - 1, v * mask.height - 0.5));
+      const ix = Math.floor(x),
+        iy = Math.floor(y),
+        fx = x - ix,
+        fy = y - iy;
       const at = (dx: number, dy: number) =>
-        map.pixels[(Math.min(map.height - 1, iy + dy) * map.width + ((ix + dx + map.width) % map.width)) * 4 + channel];
+        pixels[(Math.min(mask.height - 1, iy + dy) * mask.width + ((ix + dx + mask.width) % mask.width)) * 4 + 3] / 255;
       return (at(0, 0) * (1 - fx) + at(1, 0) * fx) * (1 - fy) + (at(0, 1) * (1 - fx) + at(1, 1) * fx) * fy;
     };
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
     const ctx = canvas.getContext('2d')!;
-    const glow = ctx.createRadialGradient(center, center, radius * 0.99, center, center, radius * 1.085);
-    glow.addColorStop(0, '#76afff40');
-    glow.addColorStop(0.3, '#4b98ff18');
-    glow.addColorStop(1, '#4b98ff00');
+    const glow = ctx.createRadialGradient(center, center, radius * 0.995, center, center, radius * 1.08);
+    glow.addColorStop(0, artwork.palette.glow[0]);
+    glow.addColorStop(0.22, artwork.palette.glow[1]);
+    glow.addColorStop(0.6, artwork.palette.glow[2]);
+    glow.addColorStop(1, artwork.palette.glow[3]);
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, size, size);
     const surface = document.createElement('canvas');
     surface.width = surface.height = size;
-    const surfaceCtx = surface.getContext('2d')!;
-    const data = surfaceCtx.createImageData(size, size);
+    const sc = surface.getContext('2d')!;
+    const data = sc.createImageData(size, size);
+    const { shadow, mid, lit, landShadow, rim } = artwork.palette;
     for (let py = 0; py < size; py++) {
       const y = (center - py - 0.5) / radius;
       for (let px = 0; px < size; px++) {
-        const x = (px + 0.5 - center) / radius;
-        const rr = x * x + y * y;
+        const x = (px + 0.5 - center) / radius,
+          rr = x * x + y * y;
         if (rr > 1) continue;
         const z = Math.sqrt(1 - rr);
         const world = forward.map((value, i) => value * z + east[i] * x + north[i] * y) as Vec;
-        const u = (Math.atan2(world[2], world[0]) + Math.PI) / (2 * Math.PI);
-        const v = 0.5 - Math.asin(world[1]) / Math.PI;
-        const light = Math.max(0, -0.4 * x + 0.45 * y + 0.8 * z);
-        const shade = (0.77 + 0.31 * light) * (0.78 + 0.22 * Math.pow(z, 0.4));
-        const rgb = [0, 1, 2].map((c) => sample(day, u, v, c));
-        const luma = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+        const land =
+          landAt((Math.atan2(world[2], world[0]) + Math.PI) / (2 * Math.PI), 0.5 - Math.asin(world[1]) / Math.PI) *
+          0.88;
+        // Wrapped diffuse light avoids a flat black night side. All land shares the ocean lighting.
+        const light = -0.48 * x + 0.55 * y + 0.68 * z;
+        const diffuse = Math.pow(Math.max(0, (light + 0.24) / 1.24), 1.15);
+        const spec = Math.pow(Math.max(0, -0.27 * x + 0.31 * y + 0.911 * z), 14) * 0.15;
+        // Fresnel light is broadest on the upper-left limb and fades around the shadow side.
+        const fresnel = Math.pow(1 - z, 3.5) * (0.025 + 0.7 * Math.max(0, -0.65 * x + 0.72 * y));
+        const inner = 1 - 0.15 * Math.pow(1 - z, 2) * Math.max(0, 0.65 * x - 0.72 * y);
         const index = (py * size + px) * 4;
         for (let c = 0; c < 3; c++) {
-          data.data[index + c] = Math.max(
-            0,
-            Math.min(255, ((luma + (rgb[c] - luma) * 1.16 - 128) * 1.07 + 132) * shade),
-          );
+          const ocean =
+            diffuse < 0.48
+              ? shadow[c] + ((mid[c] - shadow[c]) * diffuse) / 0.48
+              : mid[c] + ((lit[c] - mid[c]) * (diffuse - 0.48)) / 0.52;
+          const ice = landShadow[c] + (artwork.palette.land[c] - landShadow[c]) * diffuse;
+          const base = (ocean * (1 - land) + ice * land) * inner;
+          const gloss = base + (255 - base) * spec;
+          data.data[index + c] = gloss + (rim[c] - gloss) * fresnel;
         }
         data.data[index + 3] = 255;
       }
     }
-    surfaceCtx.putImageData(data, 0, 0);
-    // Slight optical softness suppresses subpixel terrain noise; the rim and route stay crisp.
-    ctx.filter = 'blur(2.6px)';
+    sc.putImageData(data, 0, 0);
     ctx.drawImage(surface, 0, 0);
-    ctx.filter = 'none';
-    ctx.beginPath();
-    ctx.arc(center, center, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = '#9ccaff';
-    ctx.lineWidth = radius * 0.014;
-    ctx.stroke();
-    const vector = (latitude: number, longitude: number): Vec => [
+    const vector = ([latitude, longitude]: [number, number]): Vec => [
       Math.cos(latitude * rad) * Math.cos(longitude * rad),
       Math.sin(latitude * rad),
       Math.cos(latitude * rad) * Math.sin(longitude * rad),
     ];
-    const origin = vector(-23.4356, -46.4731);
-    const destination = vector(51.47, -0.4543);
+    // GRU–HEL: a real great circle, lifted radially by 17% at mid-flight.
+    const origin = vector(artwork.route.origin),
+      destination = vector(artwork.route.destination);
     const angle = Math.acos(dot(origin, destination));
     const project = (point: Vec, lift = 1) => ({
       x: center + radius * lift * dot(point, east),
       y: center - radius * lift * dot(point, north),
-      visible: dot(point, forward) > 0,
     });
+    const points = Array.from({ length: 257 }, (_, i) => {
+      const t = i / 256,
+        a = Math.sin((1 - t) * angle) / Math.sin(angle),
+        b = Math.sin(t * angle) / Math.sin(angle);
+      const world = origin.map((value, j) => value * a + destination[j] * b) as Vec;
+      return { ...project(world, 1 + artwork.route.lift * Math.sin(Math.PI * t)), ground: project(world), t };
+    });
+    // Ground track stays on the sphere while the luminous ribbon lifts away.
+    ctx.save();
     ctx.beginPath();
-    for (let i = 0; i <= 256; i++) {
-      const t = i / 256;
-      const a = Math.sin((1 - t) * angle) / Math.sin(angle);
-      const b = Math.sin(t * angle) / Math.sin(angle);
-      const point = project(
-        origin.map((value, j) => value * a + destination[j] * b) as Vec,
-        1 + 0.04 * Math.sin(Math.PI * t),
-      );
-      if (!point.visible) continue;
-      if (i === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
-    }
-    ctx.lineCap = ctx.lineJoin = 'round';
-    const stroke = radius * 2 * 0.075;
-    ctx.strokeStyle = '#04060c73';
-    ctx.lineWidth = stroke * 1.8;
+    ctx.arc(center, center, radius, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(p.ground.x, p.ground.y);
+      else ctx.lineTo(p.ground.x, p.ground.y);
+    });
+    ctx.strokeStyle = '#03152b50';
+    ctx.lineWidth = radius * 0.035;
+    ctx.filter = `blur(${radius * 0.014}px)`;
     ctx.stroke();
-    ctx.strokeStyle = '#ffc24b';
-    ctx.lineWidth = stroke;
-    ctx.stroke();
-    for (const [i, endpoint] of [origin, destination].entries()) {
-      const point = project(endpoint);
+    ctx.restore();
+    // Offset the sampled curve along its screen normal to form a tapered ribbon.
+    const ribbon = (lower: number, upper: number) => {
+      const edge = (p: (typeof points)[number], i: number, offset: number) => {
+        const a = points[Math.max(0, i - 1)],
+          b = points[Math.min(256, i + 1)];
+        const dx = b.x - a.x,
+          dy = b.y - a.y,
+          len = Math.hypot(dx, dy);
+        const width = radius * (0.014 + 0.116 * Math.pow(Math.sin((p.t * Math.PI) / 2), 1.3));
+        return { x: p.x - (dy / len) * width * offset, y: p.y + (dx / len) * width * offset };
+      };
       ctx.beginPath();
-      ctx.arc(point.x, point.y, radius * (i === 0 ? 0.13 : 0.14), 0, Math.PI * 2);
-      ctx.fillStyle = i === 0 ? '#0a0f1a' : '#ffc24b';
+      points.forEach((p, i) => {
+        const e = edge(p, i, lower);
+        if (i === 0) ctx.moveTo(e.x, e.y);
+        else ctx.lineTo(e.x, e.y);
+      });
+      if (lower === -0.5 && upper === 0.5) {
+        const p = points[256],
+          a = points[255];
+        const normal = Math.atan2(p.x - a.x, -(p.y - a.y));
+        ctx.arc(p.x, p.y, (radius * 0.13) / 2, normal + Math.PI, normal + 2 * Math.PI);
+      }
+      for (let i = 256; i >= 0; i--) {
+        const e = edge(points[i], i, upper);
+        ctx.lineTo(e.x, e.y);
+      }
+      ctx.closePath();
+    };
+    const start = points[0],
+      end = points[256];
+    const amber = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+    amber.addColorStop(0, artwork.palette.amber[0]);
+    amber.addColorStop(0.35, artwork.palette.amber[1]);
+    amber.addColorStop(0.72, artwork.palette.amber[2]);
+    amber.addColorStop(1, artwork.palette.amber[3]);
+    ctx.save();
+    ctx.shadowColor = '#ffb52f90';
+    ctx.shadowBlur = radius * 0.055;
+    ribbon(-0.5, 0.5);
+    ctx.fillStyle = amber;
+    ctx.fill();
+    ctx.restore();
+    // A smooth cross-ribbon highlight gives the accent volume without a hard stripe.
+    for (let band = 0; band < 24; band++) {
+      const lo = -0.5 + band / 24,
+        hi = lo + 1 / 24;
+      ribbon(lo, hi);
+      ctx.fillStyle = `rgba(255,249,218,${0.25 * Math.exp(-Math.pow(((lo + hi) / 2 + 0.22) / 0.2, 2))})`;
       ctx.fill();
-      ctx.strokeStyle = i === 0 ? '#ffc24b' : '#fff';
-      ctx.lineWidth = radius * (i === 0 ? 0.065 : 0.052);
-      ctx.stroke();
+    }
+    for (const [i, p] of [start, end].entries()) {
+      const halo = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius * (i === 0 ? 0.06 : 0.16));
+      halo.addColorStop(0, i === 0 ? '#ffb52f88' : '#ffdf9280');
+      halo.addColorStop(0.25, '#ffc24b38');
+      halo.addColorStop(1, '#ffc24b00');
+      ctx.fillStyle = halo;
+      ctx.fillRect(p.x - radius * 0.16, p.y - radius * 0.16, radius * 0.32, radius * 0.32);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius * (i === 0 ? 0.023 : 0.042), 0, Math.PI * 2);
+      ctx.fillStyle = i === 0 ? '#ffc24b' : '#fff9e3';
+      ctx.fill();
     }
     return canvas.toDataURL('image/png');
   },
-  { texture },
+  { countries, artwork: ARTWORK },
 );
 await page.close();
 const globe = Buffer.from(globeData.split(',')[1], 'base64');
 
-async function icon(size: number, scale: number, rounded: boolean, file: string) {
-  const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: 2 });
-  await page.setContent(
-    `<body style="margin:0;background:transparent"><canvas width="${size * 2}" height="${size * 2}" style="width:${size}px;height:${size}px"></canvas></body>`,
-  );
-  await page.evaluate(
-    async ({ globeData, size, scale, rounded }) => {
-      const canvas = document.querySelector('canvas')!;
+async function icon(size: number, rounded: boolean, maskable: boolean, file: string) {
+  const page = await browser.newPage();
+  const data = await page.evaluate(
+    async ({ globeData, artwork, tile, rounded, maskable }) => {
+      const size = artwork.size;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
       const ctx = canvas.getContext('2d')!;
-      ctx.scale(2, 2);
-      ctx.beginPath();
-      ctx.roundRect(0, 0, size, size, rounded ? size * 0.22 : 0);
-      ctx.clip();
-      const gradient = ctx.createRadialGradient(size / 2, size * 0.4, 0, size / 2, size * 0.4, size * 0.75);
-      gradient.addColorStop(0, '#0f1c33');
-      gradient.addColorStop(1, '#05080f');
-      ctx.fillStyle = gradient;
+      if (rounded) {
+        // Cubics with long tangent handles produce a continuous, squircle-like corner.
+        const r = size * tile.corner;
+        const k = r * 0.12;
+        ctx.beginPath();
+        ctx.moveTo(r, 0);
+        ctx.lineTo(size - r, 0);
+        ctx.bezierCurveTo(size - k, 0, size, k, size, r);
+        ctx.lineTo(size, size - r);
+        ctx.bezierCurveTo(size, size - k, size - k, size, size - r, size);
+        ctx.lineTo(r, size);
+        ctx.bezierCurveTo(k, size, 0, size - k, 0, size - r);
+        ctx.lineTo(0, r);
+        ctx.bezierCurveTo(0, k, k, 0, r, 0);
+        ctx.closePath();
+        ctx.clip();
+      }
+      const background = ctx.createLinearGradient(0, 0, 0, size);
+      background.addColorStop(0, tile.top);
+      background.addColorStop(1, tile.bottom);
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, size, size);
+      const bloom = ctx.createRadialGradient(size * 0.46, size * 0.43, 0, size * 0.46, size * 0.43, size * 0.54);
+      bloom.addColorStop(0, '#2275cc30');
+      bloom.addColorStop(1, '#2275cc00');
+      ctx.fillStyle = bloom;
       ctx.fillRect(0, 0, size, size);
       const image = new Image();
       image.src = globeData;
       await image.decode();
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      const edge = (size * scale) / (1760 / 2048);
-      ctx.drawImage(image, (size - edge) / 2, (size - edge) / 2, edge, edge);
+      const diameter = maskable ? tile.maskableDiameter : tile.diameter;
+      const edge = (size * diameter) / ((artwork.radius * 2) / artwork.size);
+      // Centre maskable art exactly; its atmosphere reaches 72% × 1.08 = 77.76% of the tile.
+      const cx = size * (maskable ? 0.5 : 0.51);
+      const cy = size * (maskable ? 0.5 : 0.525);
+      ctx.drawImage(image, cx - edge / 2, cy - edge / 2, edge, edge);
+      return canvas.toDataURL('image/png');
     },
-    { globeData, size, scale, rounded },
+    { globeData, artwork: ARTWORK, tile: TILE, rounded, maskable },
   );
-  const png = await page.screenshot({ omitBackground: true });
-  const output = sharp(png).resize(size, size);
+  const output = sharp(Buffer.from(data.split(',')[1], 'base64')).resize(size, size);
   if (!rounded) output.removeAlpha();
   await output.png({ compressionLevel: 9, adaptiveFiltering: true }).toFile(pub(file));
   await page.close();
   console.log('wrote', file);
 }
-// The maskable disc is 72%; its glow reaches 72% × 1.085 = 78.12%, inside the 80% safe circle.
 for (const asset of APP_ICONS) {
-  const size = Number(asset.sizes.split('x')[0]);
-  await icon(size, asset.purpose === 'maskable' ? 0.72 : 0.8, asset.purpose === 'any', asset.src);
+  await icon(Number(asset.sizes.split('x')[0]), asset.purpose === 'any', asset.purpose === 'maskable', asset.src);
 }
-await icon(180, 0.78, false, 'apple-touch-icon.png');
+await icon(180, false, false, 'apple-touch-icon.png');
 
 await mkdir(pub('splash'), { recursive: true });
 for (const screen of splashFiles()) {
   const short = Math.min(screen.width, screen.height);
   const definition = SPLASH_SCREENS.find((item) => item.width * item.dpr === short)!;
-  const edge = Math.round((short * (definition.width >= 744 ? 0.22 : 0.3)) / (1760 / 2048));
+  const edge = Math.round((short * (definition.width >= 744 ? 0.22 : 0.3)) / ((ARTWORK.radius * 2) / ARTWORK.size));
   const mark = await sharp(globe).resize(edge).toBuffer();
   await sharp({ create: { width: screen.width, height: screen.height, channels: 3, background: '#04060c' } })
     .composite([{ input: mark, gravity: 'centre' }])
-    // Quantise only launch screens; app-icon PNG compression above is lossless.
-    .png({ compressionLevel: 9, palette: true, quality: 80, dither: 0.1 })
+    // Preserve smooth lighting and a fully faded atmosphere on the flat launch backdrop.
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toFile(pub(screen.file));
 }
 console.log('wrote', splashFiles().length, 'launch screens');
