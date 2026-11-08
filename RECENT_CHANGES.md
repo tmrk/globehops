@@ -2,6 +2,10 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.15.1 — 2026-11-08 — Edge to edge on iPhone
+
+- **The bottom sheet reaches the bottom of the screen.** In the installed app on iPhone and iPad, a black strip the height of the status bar could sit below the journey sheet (a WebKit quirk with see-through status bars). The app now measures that strip and extends the globe, sheet, airport picker and privacy sheet to the physical bottom edge.
+
 ## 1.15.0 — 2026-11-08 — An app that works offline
 
 - **Install GlobeHops as an app.** Add it to your home screen or desktop (About → **Install GlobeHops**, or Share → Add to Home Screen on iPhone and iPad) and it opens like a native app: full screen on Android, edge to edge under the status bar on iPhone and iPad, with a launch screen instead of a blank flash and new app icons.

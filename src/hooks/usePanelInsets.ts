@@ -24,7 +24,9 @@ export function usePanelInsets(panelRef: RefObject<HTMLElement | null>, layout: 
     // On phones the open time bar is part of the sheet, so the sheet alone covers the bottom of the globe.
     const measure = () => {
       const r = panel.getBoundingClientRect();
-      const sheet = Math.max(0, Math.round(window.innerHeight - r.top));
+      // The app root can extend below the layout viewport (iOS home-screen apps), so measure from its bottom.
+      const bottom = panel.offsetParent?.getBoundingClientRect().bottom ?? window.innerHeight;
+      const sheet = Math.max(0, Math.round(bottom - r.top));
       setSheetInset((prev) => (Math.abs(prev - sheet) < 2 ? prev : sheet));
       const next: Insets = isDesktop
         ? { top: 0, right: 0, bottom: 0, left: Math.round(r.right) }

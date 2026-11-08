@@ -177,6 +177,8 @@ a {
 .app {
   position: fixed;
   inset: 0;
+  /* iOS home-screen apps: reach the physical bottom edge (see src/pwa/standaloneGap.ts). */
+  bottom: calc(-1 * var(--standalone-gap, 0px));
 }
 
 .layout-desktop {
@@ -3061,7 +3063,7 @@ button.map-menu__item:hover {
 
 .consent {
   position: fixed;
-  inset: auto 0 0;
+  inset: auto 0 calc(-1 * var(--standalone-gap, 0px));
   width: 100%;
   max-width: none;
   max-height: calc(100dvh - var(--safe-top) - 24px);
