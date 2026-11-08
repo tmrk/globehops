@@ -3,13 +3,13 @@ import { sheetDragOffset, sheetRelease } from '../lib/sheet.ts';
 
 const DURATION = 240;
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
-/** Approximate collapsed height (handle + peek row); only used to aim the collapse animation. */
+/** Approximate collapsed height (handle + peek row), until the sheet has been seen collapsed. */
 const PEEK_HEIGHT = 74;
 /** The sheet's handle; with the timeline docked in the sheet, the collapsed sheet is handle + timeline. */
 const HANDLE_HEIGHT = 22;
 
-/** Height the sheet keeps when collapsed: the docked timeline stays, otherwise the peek bar. */
-function peekHeight(panel: HTMLElement) {
+/** Estimated height the sheet keeps when collapsed: the docked timeline stays, otherwise the peek bar. */
+function estimatedPeekHeight(panel: HTMLElement) {
   const bar = panel.querySelector<HTMLElement>('.time-bar');
   return bar ? HANDLE_HEIGHT + bar.offsetHeight : PEEK_HEIGHT;
 }
@@ -19,6 +19,11 @@ interface Options {
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
   reducedMotion: boolean;
+  /**
+   * What the collapsed sheet shows (the timeline, the globe's dial, a route summary). Each kind's measured
+   * height aims later collapse animations, so the sheet comes to rest exactly where its peek will be.
+   */
+  peek: string;
 }
 
 /**
@@ -35,6 +40,12 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
   const cancelSlide = useRef<(() => void) | null>(null);
   /** Height and drag offset just before the sheet changes state, for a continuous expand animation. */
   const before = useRef<{ height: number; offset: number } | null>(null);
+  const peekHeights = useRef(new Map<string, number>());
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (panel && options.enabled && options.collapsed && !busy.current)
+      peekHeights.current.set(options.peek, panel.offsetHeight);
+  });
 
   const slide = useCallback(
     (from: number, to: number, done?: () => void) => {
@@ -79,7 +90,8 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
     (fromOffset = 0) => {
       const panel = panelRef.current;
       if (!panel || latest.current.collapsed) return;
-      const target = Math.max(0, panel.offsetHeight - peekHeight(panel));
+      const peek = peekHeights.current.get(latest.current.peek) ?? estimatedPeekHeight(panel);
+      const target = Math.max(0, panel.offsetHeight - peek);
       slide(fromOffset, target, () => {
         latest.current.setCollapsed(true);
         panel.style.transform = '';

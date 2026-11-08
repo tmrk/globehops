@@ -2,6 +2,15 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.16.0 — 2026-11-08 — Opens on the globe
+
+- **GlobeHops opens on the globe.** Instead of loading an example journey, the app now starts with the globe as large as the screen allows, lit as it is right now, and its clock beneath it. On phones the sheet starts lowered: the time dial, then a large amber **Show a flight** button that opens the planner with its three long-haul ideas. The empty globe grows and shrinks smoothly as the sheet opens and closes, unless you have zoomed it yourself. Shared links and your last journey still open as before.
+- **A live clock with seconds.** While **Live** is on, the dial shows seconds ticking in step with your device's clock; they fold away as soon as you move the time. The head is laid out on three columns — time on the left, the date centred (without the year while it is this year), Live on the right.
+- **Smoother sheet.** Opening the planner on a phone hides the dial to give the list room, and content settles into the sheet as it opens or closes. A lowered journey shows its route and totals centred under the handle.
+- **Reset, gently.** Reset's Cancel and Reset buttons slide in where Reset was, and the usual actions return the same way.
+- **The Sun is named too.** The Sun now has a label like the Moon's, and both show only with **Country names** on, alongside the other place names. Labels near the screen's edge move to the other side of their body instead of being cut off.
+- **Tidier alignment.** On desktop the empty globe keeps clear of the top bar and the floating dial; on phones the timeline's clock fits on one line beside the playback controls.
+
 ## 1.15.3 — 2026-11-08 — The whole screen on iPhone
 
 - **The installed app now fills the screen down to the bottom edge.** iOS 26 gives a home-screen app with a see-through status bar a viewport one status bar short of the bottom whenever the page is shorter than the screen, and stops drawing there (WebKit bug 301108), so 1.15.1–1.15.2 stretched the app into an area iOS never showed and could hide the bottom of the journey sheet. The installed app's page is now as tall as the screen, so iOS hands it the whole screen; the earlier stretching is gone.

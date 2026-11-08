@@ -232,7 +232,7 @@ describe('simulation frames', () => {
   });
   it('follows live flights at real-time speed', () => {
     const now = (timeline.start + timeline.segments[0].end) / 2;
-    const clock = new SimulationClock({ now: () => now, setInterval: () => 0 as never, clearInterval: () => {} });
+    const clock = new SimulationClock({ now: () => now, setTimeout: () => 0 as never, clearTimeout: () => {} });
     const context = { journey, timeline, open: true, dayNight: true, follow: true };
     const feed = createSimulationFeed(clock, () => context);
     clock.goLive();

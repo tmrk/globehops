@@ -232,6 +232,8 @@ test.describe('welcome suggestion translations', () => {
     expect(requests).toHaveLength(1);
     await page.keyboard.press('Escape');
     await page.goto('./hu/?route=');
+    const start = page.getByRole('button', { name: 'Repülőút megjelenítése', exact: true });
+    if (await start.isVisible()) await start.click();
     await expect(page.locator('.suggestions')).toContainText('Koppenhága → Sydney');
   });
 });

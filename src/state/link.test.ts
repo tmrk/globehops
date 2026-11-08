@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Airport } from '../types.ts';
-import { parseLink, serializeLink, buildLinkUrl, type SerializableLinkStop } from './link.ts';
+import { linkHasStops, parseLink, serializeLink, buildLinkUrl, type SerializableLinkStop } from './link.ts';
 import { encodeItineraryParam } from '../agent/itinerary.ts';
 const airports = ['CPH', 'LHR', 'JFK'].map((code, i): Airport => ({
   id: i,
@@ -196,6 +196,16 @@ it('round trips language, layers and flight selection in readable and document l
   expect(serializeLink(stops, { follow: false, dayNight: true, clock: 'local' }, true)).toContain(
     'clock=local&daynight=1&follow=0',
   );
+});
+
+describe('starting routes', () => {
+  it('tells links that name airports from empty and view-only links', () => {
+    expect(linkHasStops(parseLink('?route=CPH-LHR'))).toBe(true);
+    expect(linkHasStops(parseLink('?route=&b.route=CPH-LHR'))).toBe(true);
+    expect(linkHasStops(parseLink('?route='))).toBe(false);
+    expect(linkHasStops(parseLink('?t=2026-11-20T10:00Z'))).toBe(false);
+    expect(linkHasStops(parseLink(''))).toBe(false);
+  });
 });
 
 describe('comparison links', () => {

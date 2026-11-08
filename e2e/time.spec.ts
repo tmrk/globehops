@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { test, expect, openDisplay } from './fixtures.ts';
+import { openPlanner, test, expect, openDisplay } from './fixtures.ts';
 import type { Page } from '@playwright/test';
 
 const scheduled =
@@ -180,7 +180,8 @@ test('scheduled playback advances, pauses, scrubs all phases, changes speed and 
 test('shared schedule restores paused instant and itinerary JSON canonicalises', async ({ page }) => {
   await page.goto(`./${scheduled}&t=2026-11-20T10:00Z&clock=utc`);
   await expect(timeline(page)).toContainText('Connecting at London Heathrow');
-  await expect(timeline(page)).toContainText('Fri 20 Nov, 10:00 UTC');
+  // Docked on phones, the readout leaves out the weekday to stay on one line.
+  await expect(timeline(page)).toContainText(/(?:Fri )?20 Nov, 10:00 UTC/);
   await expect(timeline(page).getByRole('button', { name: 'Play journey' })).toBeVisible();
   await page.reload();
   await expect(timeline(page)).toContainText('Connecting at London Heathrow');
@@ -401,7 +402,7 @@ test('remembered schedules omit transient time and view units; explicit empty ro
   await page.goto('./?route=');
   await expect(page).toHaveURL(/\/globehops\/$/);
   await expect(timeline(page)).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Departure airport: choose an airport' })).toBeVisible();
+  await openPlanner(page);
 });
 
 test('the time dial shows the globe at any moment without a route, and Live returns to now', async ({ page }) => {
@@ -436,15 +437,18 @@ test('the time dial shows the globe at any moment without a route, and Live retu
   );
 });
 
-test('Find the Moon turns the globe until the labelled Moon stands above it, while the sky is shown', async ({
+test('Find the Moon turns the globe until the Moon stands above it, named with place names, while the sky is shown', async ({
   page,
 }) => {
   await page.goto('./?route=&t=2026-11-24T00:00Z');
   const display = await openDisplay(page);
   await display.getByRole('button', { name: 'Find the Moon', exact: true }).click();
   await expect(display).toBeHidden();
-  const label = page.locator('.globe-sky-label');
-  await expect(label).toHaveText('Moon');
+  // The Sun's and Moon's names are place names: they show only with Country names on.
+  const label = page.locator('.globe-sky-label').filter({ hasText: 'Moon' });
+  await expect(page.getByRole('application')).toHaveAttribute('data-camera-motion', 'settled');
+  await expect(label).toHaveCSS('opacity', '0');
+  await (await openDisplay(page)).getByRole('button', { name: 'Country names', exact: true }).click();
   await expect(label).toHaveCSS('opacity', '1');
   await (await openDisplay(page)).getByRole('button', { name: 'Day and night', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Find the Moon', exact: true })).toHaveCount(0);

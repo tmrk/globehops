@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useClock } from '../hooks/useClock.ts';
 import {
@@ -12,7 +12,7 @@ import {
   utcToLocal,
   zoneAbbreviation,
 } from '../lib/timezone.ts';
-import type { SimulationClock } from '../state/clock.ts';
+import { TRACKING_TICK_MS, type SimulationClock } from '../state/clock.ts';
 import { DateTimeField } from './DateTimeField.tsx';
 import { IconChevronDown } from './Icons.tsx';
 import { LiveButton } from './LiveButton.tsx';
@@ -44,7 +44,8 @@ interface TimeDialProps {
 /**
  * The globe's clock while there is no route: a tape of hours that scrolls under a fixed needle. Drag,
  * flick, scroll or use the arrow keys to move through the day; pick a date for distant moments; Live
- * returns to now.
+ * returns to now. While Live, the clock shows seconds turning over with the device's own clock; they
+ * fold away as soon as the time is moved.
  */
 export function TimeDial({
   clock,
@@ -60,6 +61,18 @@ export function TimeDial({
   const zone = clockZone === 'utc' ? 'UTC' : browserTimeZone();
   const local = formatLocalDateTime(utcToLocal(zone, time));
   const abbreviation = zoneAbbreviation(zone, time);
+  // The year shows only away from the current one, which keeps the date short enough to stay centred.
+  const [openedAt] = useState(Date.now);
+  const thisYear = formatLocalDateTime(utcToLocal(zone, openedAt)).slice(0, 4);
+  const seconds = String(((Math.floor(time / 1000) % 60) + 60) % 60).padStart(2, '0');
+  // Live seconds need a tick every second; the ambient globe otherwise follows the wall clock twice a minute.
+  useEffect(() => {
+    if (!live) return;
+    if (clock.liveTickMs !== TRACKING_TICK_MS) clock.goLive(TRACKING_TICK_MS);
+    return () => {
+      if (clock.getSnapshot().live) clock.goLive();
+    };
+  }, [clock, live]);
   const drag = useRef<{ x: number; from: number; last: number; at: number; velocity: number } | null>(null);
   const fling = useRef(0);
   const stopFling = () => {
@@ -99,10 +112,18 @@ export function TimeDial({
   });
 
   return (
-    <section className={`time-dial${docked ? ' time-dial--docked' : ''}`} aria-label={t('dial.globeTime')}>
+    <section
+      className={`time-dial${docked ? ' time-dial--docked' : ''}${live ? ' is-live' : ''}`}
+      aria-label={t('dial.globeTime')}
+    >
       <div className="time-dial__head">
         <label className="time-dial__clock">
-          <span className="time-dial__time">{local.slice(11)}</span>
+          <span className="time-dial__time">
+            {local.slice(11)}
+            <span className="time-dial__seconds" aria-hidden="true">
+              :{seconds}
+            </span>
+          </span>
           <span className="time-dial__zone">
             {abbreviation}
             <IconChevronDown size={12} />
@@ -120,7 +141,7 @@ export function TimeDial({
           kind="date"
           label={t('timebar.globeDate')}
           value={local.slice(0, 10)}
-          display={fmt.date(local.slice(0, 10))}
+          display={fmt.date(local.slice(0, 10), { year: local.slice(0, 4) !== thisYear })}
           placeholder={t('timebar.date')}
           onChange={(value) => {
             const next = parseLocalDateTime(`${value}T${local.slice(11)}`);

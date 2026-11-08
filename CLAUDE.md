@@ -5,7 +5,7 @@ See [AGENTS.md](AGENTS.md).
 - Use `useI18n()` for UI text/formatting and `fmt.city()` for cities; every key belongs in all three typed EN/HU/SV catalogues (missing keys are compile errors). Keep airport proper names untranslated and shared agent/MCP output English.
 - Keep pure logic tested in `src/lib/`, `src/state/`, `src/data/` and `src/agent/`; imperative Three.js stays in `src/globe/`.
 - Use only openly licensed, documented assets; no proprietary services, keys or backend. The only exception is consent-gated GA4 (`src/analytics.ts`): never send route data; write the URL via `replaceUrl`/`pushUrl`.
-- Preserve `/globehops/` asset paths and URL > remembered > example route precedence.
+- Preserve `/globehops/` asset paths and URL > remembered route precedence; with neither, the app opens on the globe and its clock (phones: collapsed sheet with Show a flight), not an example route.
 - Locale precedence: path > `?lang=` > `globehops:locale` > browser time zone (Budapest/Stockholm country proxy) > browser languages > English. Keep static `/en/`, `/hu/`, `/sv/` pages under the base; ordinary Share links are language-neutral.
 - E2E fixtures seed `globehops:locale=en` and Playwright uses `en-GB`; detection specs opt out with `localeChoice: null`. Use a unique `E2E_PORT` for concurrent worktrees.
 - Request a render after scene changes; dispose Three.js resources. Preserve synchronous iOS tap-to-focus.

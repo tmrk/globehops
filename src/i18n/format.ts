@@ -28,6 +28,12 @@ function createFormatters(locale: Locale) {
     year: 'numeric',
     timeZone: 'UTC',
   });
+  const yearlessDates = new Intl.DateTimeFormat(tag, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
   const shortDates = new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const dayMarks = new Intl.DateTimeFormat(tag, { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
   const clocks = new Map<string, Intl.DateTimeFormat>();
@@ -62,13 +68,15 @@ function createFormatters(locale: Locale) {
     shortDate: (isoDate: string) => shortDates.format(new Date(`${isoDate}T12:00:00Z`)),
     /** A day on a time scale: “Sun 8”. */
     dayMark: (isoDate: string) => dayMarks.format(new Date(`${isoDate}T12:00:00Z`)),
-    date: (isoDate: string) => {
-      if (locale === 'en') return formatDateLabel(isoDate);
+    /** “Fri 20 Nov 2026”; without the year (“Fri 20 Nov”) where the year goes without saying. */
+    date: (isoDate: string, options: { year?: boolean } = {}) => {
+      const year = options.year ?? true;
+      if (locale === 'en') return formatDateLabel(isoDate, year);
       const parsed = parseLocalDate(isoDate);
       if (!parsed) return '';
       const day = new Date(0);
       day.setUTCFullYear(parsed.year, parsed.month - 1, parsed.day);
-      return dates.format(day);
+      return (year ? dates : yearlessDates).format(day);
     },
     clock: (instant: number, zone: string, options: { weekday?: boolean; date?: boolean } = {}) => {
       if (locale === 'en') return formatClock(instant, zone, options);

@@ -1,4 +1,5 @@
 import {
+  openPlanner,
   test,
   expect,
   expectRoute,
@@ -11,96 +12,122 @@ import {
 
 test.use({ timezoneId: 'Europe/Copenhagen' });
 
-test('first visit loads three long-haul examples from the home country', { tag: '@smoke' }, async ({ page }) => {
-  await page.goto('./');
-  await expectRoute(page, ['CPH', 'SYD']);
-  await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
-  const suggestions = page.getByRole('list', { name: /try one of these/i }).getByRole('button');
-  await expect(suggestions).toHaveCount(3);
-  await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: /^Flight \d,/ })).toHaveCount(1);
-  const totals = page.getByRole('region', { name: 'Journey totals' });
-  // One flight needs no sublines: ≈ already marks the estimate.
-  await expect(totals.locator('.stat__detail')).toHaveCount(0);
-  await expect(totals).toContainText(/\d[\d,]*km/);
-  await expect(totals).toContainText(/≈ (?:1[2-9]|2\d)h \d+m/);
-  await expect(totals.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
-  await suggestions.nth(1).click();
-  await expectRoute(page, ['CPH', 'SIN']);
-  // A chosen suggestion is the visitor's journey (reset, compare) while the list stays for switching.
-  await expect(page.getByRole('heading', { name: 'Your journey', exact: true })).toBeVisible();
-  await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'false');
-  await expect(suggestions.nth(1)).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: 'Reset journey', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Compare journeys' })).toBeVisible();
-  await startEditing(page);
-  await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
-  await expectRoute(page, ['SIN', 'CPH']);
-  await expect(page.locator('.suggestions')).toHaveCount(0);
-});
+test(
+  'first visit opens on the globe and its clock, with long-haul ideas from the home country',
+  { tag: '@smoke' },
+  async ({ page, isMobile }) => {
+    await page.goto('./');
+    // No example route: the globe, its live clock and an invitation to show a flight.
+    const dial = page.getByRole('region', { name: 'Globe time', exact: true });
+    await expect(dial.getByRole('button', { name: 'Live', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    if (isMobile) await expect(page.getByRole('button', { name: 'Show a flight', exact: true })).toBeInViewport();
+    else await expect(page.getByRole('heading', { name: 'Show a flight', exact: true })).toBeVisible();
+    await openPlanner(page);
+    await expect(stopButtons(page)).toHaveCount(0);
+    expect(new URL(page.url()).search).toBe('');
+    const suggestions = page.getByRole('list', { name: 'Or try one of these', exact: true }).getByRole('button');
+    await expect(suggestions).toHaveCount(3);
+    for (const button of await suggestions.all()) await expect(button).toContainText('Copenhagen →');
+    await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'false');
+    await suggestions.nth(1).click();
+    await expectRoute(page, ['CPH', 'SIN']);
+    // A chosen suggestion is the visitor's journey (reset, compare) while the list stays for switching.
+    await expect(page.getByRole('heading', { name: 'Your journey', exact: true })).toBeVisible();
+    await expect(suggestions.nth(1)).toHaveAttribute('aria-pressed', 'true');
+    await expect(dial).toHaveCount(0);
+    const totals = page.getByRole('region', { name: 'Journey totals' });
+    await expect(totals).toContainText(/≈ (?:1[2-9]|2\d)h \d+m/);
+    await expect(totals.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reset journey', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Compare journeys' })).toBeVisible();
+    await startEditing(page);
+    await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
+    await expectRoute(page, ['SIN', 'CPH']);
+    await expect(page.locator('.suggestions')).toHaveCount(0);
+  },
+);
 
 test.describe('western US welcome', () => {
   test.use({ timezoneId: 'America/Los_Angeles' });
-  test('first visit starts at LAX', async ({ page }) => {
+  test('first visit suggests flights from LAX', async ({ page }) => {
     await page.goto('./');
-    await expectRoute(page, ['LAX', 'SYD']);
-    await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
-    const suggestions = page.getByRole('list', { name: 'Try one of these', exact: true }).getByRole('button');
+    await openPlanner(page);
+    const suggestions = page.getByRole('list', { name: 'Or try one of these', exact: true }).getByRole('button');
     await expect(suggestions).toHaveCount(3);
-    await expect(suggestions.first()).toHaveAttribute('aria-pressed', 'true');
     for (const button of await suggestions.all()) await expect(button).toContainText('Los Angeles →');
   });
 });
 
 test.describe('Budapest welcome layout', () => {
   test.use({ timezoneId: 'Europe/Budapest' });
-  test('welcome keeps all three choices and Play visible beside the globe', async ({ page, isMobile }, testInfo) => {
+  test('welcome gives the globe the screen, with the clock and Show a flight in reach', async ({
+    page,
+    isMobile,
+  }, testInfo) => {
     // Review the owner's reference phone size; desktop keeps the project's 1440 × 900 viewport.
     if (isMobile) await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('./');
-    await expectRoute(page, ['BUD', 'SYD']);
     await expect(page.locator('.stage')).toHaveClass(/is-ready/);
     await page.evaluate(() => document.fonts.ready);
-    const suggestions = page.getByRole('list', { name: 'Try one of these', exact: true }).getByRole('button');
-    await expect(suggestions).toHaveCount(3);
-    for (const button of await suggestions.all()) {
-      await expect(button).toBeInViewport({ ratio: 1 });
-      const bounds = await button.boundingBox();
-      expect(bounds!.height).toBeGreaterThanOrEqual(isMobile ? 44 : 40);
-    }
-    await expect(
-      page.getByRole('region', { name: 'Journey totals' }).getByRole('button', { name: 'Play', exact: true }),
-    ).toBeInViewport();
+    const dial = page.getByRole('region', { name: 'Globe time', exact: true });
+    await expect(dial).toBeInViewport({ ratio: 1 });
+    // Time on the left, the date centred and Live on the right.
+    const [clock, date, live] = await Promise.all(
+      [dial.locator('.time-dial__clock'), dial.locator('.dt-field'), dial.getByRole('button', { name: 'Live' })].map(
+        (part) => part.boundingBox(),
+      ),
+    );
+    const head = (await dial.boundingBox())!;
+    expect(Math.abs(date!.x + date!.width / 2 - (head.x + head.width / 2))).toBeLessThanOrEqual(8);
+    expect(clock!.x + clock!.width).toBeLessThan(date!.x);
+    expect(live!.x).toBeGreaterThan(date!.x + date!.width);
     if (isMobile) {
+      const start = page.getByRole('button', { name: 'Show a flight', exact: true });
+      await expect(start).toBeInViewport({ ratio: 1 });
+      expect((await start.boundingBox())!.height).toBeGreaterThanOrEqual(48);
+      // The sheet keeps to the bottom of the screen; the globe has the rest.
       const panel = await page.locator('.panel').boundingBox();
-      expect(panel!.y).toBeGreaterThan(page.viewportSize()!.height * 0.4);
+      expect(panel!.y).toBeGreaterThan(page.viewportSize()!.height * 0.65);
+    } else {
+      const suggestions = page.getByRole('list', { name: 'Or try one of these', exact: true }).getByRole('button');
+      await expect(suggestions).toHaveCount(3);
+      for (const button of await suggestions.all()) await expect(button).toBeInViewport({ ratio: 1 });
     }
     await page.screenshot({ path: `test-results/welcome-${testInfo.project.name}.png`, animations: 'disabled' });
+    if (isMobile) {
+      await openPlanner(page);
+      // The open planner needs the room: the clock gives way until the sheet is lowered again.
+      await expect(dial).toHaveCount(0);
+      const suggestions = page.getByRole('list', { name: 'Or try one of these', exact: true }).getByRole('button');
+      for (const button of await suggestions.all()) await expect(button).toBeInViewport({ ratio: 1 });
+      await page.screenshot({
+        path: `test-results/welcome-planner-${testInfo.project.name}.png`,
+        animations: 'disabled',
+      });
+      await page.getByRole('button', { name: 'Hide journey details' }).click();
+      await expect(dial).toBeVisible();
+    }
   });
 });
 
-test('first visit waits for the zone table before choosing its example', async ({ page }) => {
+test('first visit does not wait for the zone table; suggestions follow it', async ({ page }) => {
   let release = () => {};
   const ready = new Promise<void>((resolve) => {
     release = resolve;
   });
-  let requested = () => {};
-  const zoneRequested = new Promise<void>((resolve) => {
-    requested = resolve;
-  });
   await page.route('**/timezones-*.json', async (route) => {
-    requested();
     await ready;
     await route.continue();
   });
   await page.goto('./');
-  await zoneRequested;
-  await expect(page.getByRole('button', { name: 'Departure airport: choose an airport' })).toBeEnabled();
+  await openPlanner(page);
   await expect(stopButtons(page)).toHaveCount(0);
   expect(new URL(page.url()).search).toBe('');
   release();
-  await expectRoute(page, ['CPH', 'SYD']);
+  await expect(
+    page.getByRole('list', { name: 'Or try one of these', exact: true }).getByRole('button').first(),
+  ).toContainText('Copenhagen →');
 });
 
 for (const source of ['URL', 'invalid itinerary', 'remembered journey', 'legacy route'] as const) {
@@ -124,8 +151,9 @@ for (const source of ['URL', 'invalid itinerary', 'remembered journey', 'legacy 
     const url = source === 'URL' ? './?route=CPH-JFK' : source === 'invalid itinerary' ? './?itinerary=invalid' : './';
     await page.goto(url);
     if (source === 'invalid itinerary') {
-      await expectRoute(page, ['CPH', 'SYD']);
-      await expect(page.getByRole('heading', { name: /Example journey/ })).toBeVisible();
+      await openPlanner(page);
+      await expect(stopButtons(page)).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Show a flight', exact: true })).toBeVisible();
     } else {
       await expectRoute(page, ['CPH', 'JFK']);
       await expect(page.getByRole('heading', { name: 'Your journey', exact: true })).toBeVisible();
@@ -137,8 +165,8 @@ for (const source of ['URL', 'invalid itinerary', 'remembered journey', 'legacy 
 test('failed zone loading still shows usable welcome suggestions', async ({ page }) => {
   await page.route('**/timezones-*.json', (route) => route.fulfill({ status: 200, body: '{}' }));
   await page.goto('./');
-  await expectRoute(page, ['CPH', 'SYD']);
-  await expect(page.getByRole('list', { name: 'Try one of these', exact: true }).getByRole('button')).toHaveCount(3);
+  await openPlanner(page);
+  await expect(page.getByRole('list', { name: 'Or try one of these', exact: true }).getByRole('button')).toHaveCount(3);
 });
 
 test('desktop entry uses keyboard selection and advances to destination', async ({ page, isMobile }) => {
@@ -146,6 +174,7 @@ test('desktop entry uses keyboard selection and advances to destination', async 
   await page.goto('./?route=');
   // Canonicalisation happens only after data loading and route initialisation.
   await expect(page).toHaveURL(/\/globehops\/$/);
+  await openPlanner(page);
   await page.getByRole('button', { name: 'Departure airport: choose an airport' }).click();
   const from = page.getByRole('combobox', { name: 'Departure airport' });
   const options = page.getByRole('listbox', { name: 'Airport suggestions' }).getByRole('option');
@@ -164,6 +193,7 @@ test('autocomplete searches codes, city, aliases and diacritics and Escape clear
   await page.goto('./?route=');
   // Canonicalisation happens only after data loading and route initialisation.
   await expect(page).toHaveURL(/\/globehops\/$/);
+  await openPlanner(page);
   await page.getByRole('button', { name: 'Departure airport: choose an airport' }).click();
   const input = airportField(page);
   const options = page.getByRole('listbox', { name: 'Airport suggestions' }).getByRole('option');
@@ -199,6 +229,7 @@ test('mobile takeover focuses input, keeps results in viewport, selects and canc
   await page.goto('./?route=');
   // Canonicalisation happens only after data loading and route initialisation.
   await expect(page).toHaveURL(/\/globehops\/$/);
+  await openPlanner(page);
   await page.getByRole('button', { name: 'Departure airport: choose an airport' }).tap();
   const dialog = page.getByRole('dialog', { name: 'Departure airport', exact: true });
   await expect(dialog).toBeVisible();
@@ -312,7 +343,7 @@ test('miles persist across reload and URL routes override remembered routes', as
   await page.goto('./?route=');
   // Canonicalisation happens only after data loading and route initialisation.
   await expect(page).toHaveURL(/\/globehops\/$/);
-  await expect(page.getByRole('button', { name: 'Departure airport: choose an airport' })).toBeVisible();
+  await openPlanner(page);
   await expect(stopButtons(page)).toHaveCount(0);
 });
 
@@ -353,7 +384,7 @@ test('missing codes show a toast and preserve valid airports; garbage remains ed
   await expectRoute(page, ['CPH', 'JFK']);
   await page.goto('./?route=%%%');
   await expect(page).toHaveURL(/\/globehops\/$/);
-  await expect(page.getByRole('button', { name: 'Departure airport: choose an airport' })).toBeVisible();
+  await openPlanner(page);
   await expect(stopButtons(page)).toHaveCount(0);
   await page.getByRole('button', { name: 'Departure airport: choose an airport' }).click();
   await chooseAirport(page, 'CPH', 'CPH');

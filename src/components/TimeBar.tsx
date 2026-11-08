@@ -117,7 +117,10 @@ export function TimeBar({
   }, [zone, date]);
   const start = sharedRange ? (snapshot.start ?? sharedRange.start - 30 * 60000) : dayStart;
   const end = sharedRange ? (snapshot.end ?? sharedRange.end) : dayStart + 24 * 3600000;
-  const readout = `${fmt.clock(snapshot.time, zone, { weekday: true, date: true })} ${zoneAbbreviation(zone, snapshot.time)}`;
+  const abbreviation = zoneAbbreviation(zone, snapshot.time);
+  const spoken = `${fmt.clock(snapshot.time, zone, { weekday: true, date: true })} ${abbreviation}`;
+  // Docked on a phone, the clock shares its row with the playback controls: the date alone keeps it on one line.
+  const readout = docked ? `${fmt.clock(snapshot.time, zone, { date: true })} ${abbreviation}` : spoken;
   const seek = (time: number) => {
     clock.pause();
     clock.seek(time);
@@ -237,7 +240,7 @@ export function TimeBar({
         </div>
         <input
           aria-label={t('timebar.journeyTime')}
-          aria-valuetext={`${readout}. ${text.title}. ${text.detail}`}
+          aria-valuetext={`${spoken}. ${text.title}. ${text.detail}`}
           type="range"
           min={start}
           max={end}

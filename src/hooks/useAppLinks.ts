@@ -22,7 +22,7 @@ import { useI18n } from '../i18n/I18nProvider.tsx';
 import { localeFromPath } from '../i18n/detect.ts';
 import { replaceUrl } from '../analytics.ts';
 import { visitLocaleAddress } from '../state/visitLocale.ts';
-import { parseLink, type LinkState } from '../state/link.ts';
+import { linkHasStops, parseLink, type LinkState } from '../state/link.ts';
 import { resolveRouteCodes } from '../state/url.ts';
 import { isNamedClock } from '../agent/contract.ts';
 import { loadLastRoute, loadLastJourney } from '../state/storage.ts';
@@ -37,7 +37,6 @@ interface AppLinksOptions {
   dispatch: Dispatch<RouteAction>;
   compareDispatch: Dispatch<CompareAction>;
   setEditing: Setter<number | null>;
-  setIsExample: Setter<boolean>;
   resetPreferences: ReturnType<typeof useViewPreferences>['resetToLink'];
   applyView: (link: LinkState) => void;
   showToast: ReturnType<typeof useToast>['showToast'];
@@ -49,10 +48,22 @@ function unknownAirports(missing: string[], t: ReturnType<typeof useI18n>['t']) 
     : t('toasts.unknownAirports', missing.join(', '));
 }
 
-/** Shared by the memoized welcome rows and asynchronous first-visit initialization. */
+/** Long-haul previews from the visitor's likely home airport, offered while there is no route. */
 function suggestionsFor(index: SearchIndex, zones: TimeZoneTable | null) {
   const home = homeAirport(browserTimeZone(), { index, zones }) ?? index.iata.get(FALLBACK_HOME);
   return home ? welcomeSuggestions(home, index) : [];
+}
+
+/**
+ * Whether startup will load a route, known before any data arrives: from the URL, else the remembered
+ * journey or legacy route. Without one, the app opens on the globe and its clock.
+ */
+export function opensWithRoute(search = window.location.search): boolean {
+  const fromUrl = parseLink(search);
+  if (fromUrl.stops !== null) return linkHasStops(fromUrl);
+  const saved = loadLastJourney();
+  if (saved !== null) return linkHasStops(parseLink(saved));
+  return (loadLastRoute()?.length ?? 0) > 0;
 }
 
 export function useAppLinks({
@@ -60,7 +71,6 @@ export function useAppLinks({
   dispatch,
   compareDispatch,
   setEditing,
-  setIsExample,
   resetPreferences,
   applyView,
   showToast,
@@ -89,19 +99,18 @@ export function useAppLinks({
   }, [route.stops]);
   /** Loads route tokens (codes with optional layovers) into the route, reporting unknown codes. */
   const loadCodes = useCallback(
-    (codes: string[], idx: SearchIndex, opts: { example?: boolean } = {}) => {
+    (codes: string[], idx: SearchIndex) => {
       const { stops, missing } = resolveRouteCodes(codes, idx);
       routeStopCount.current = stops.length;
       compareDispatch({
         type: 'load',
         journeys: [{ airportIds: stops.map((s) => s.airport.id), layovers: stops.map((s) => s.layoverMin) }],
       });
-      setIsExample(!!opts.example);
       if (missing.length) {
         showToast(unknownAirports(missing, t));
       }
     },
-    [showToast, t, compareDispatch, setIsExample],
+    [showToast, t, compareDispatch],
   );
 
   const applyLink = useCallback(
@@ -130,7 +139,6 @@ export function useAppLinks({
         stopCount = routeStopCount.current = journeys[0].airportIds.length;
         compareDispatch({ type: 'load', journeys });
         setEditing(null);
-        setIsExample(false);
         if (missing.length) notices.unshift(unknownAirports(missing, t));
       }
       if (link.view.leg !== undefined) {
@@ -154,26 +162,13 @@ export function useAppLinks({
       resetPreferences({ ...link.view, clock: linkedClock ? airportCode(linkedClock) : link.view.clock }, search);
       applyView(link);
     },
-    [
-      showToast,
-      t,
-      locale,
-      setVisitLocale,
-      dispatch,
-      resetPreferences,
-      compareDispatch,
-      setEditing,
-      setIsExample,
-      applyView,
-    ],
+    [showToast, t, locale, setVisitLocale, dispatch, resetPreferences, compareDispatch, setEditing, applyView],
   );
 
   const zoneLoadError = useEffectEvent(() => showToast(t('toasts.zonesUnavailable')));
-  const initializeRoute = useEffectEvent((idx: SearchIndex, loadedZones?: TimeZoneTable | null): boolean => {
+  // URL route, else the remembered journey (or legacy route); otherwise the route stays empty.
+  const initializeRoute = useEffectEvent((idx: SearchIndex) => {
     const fromUrl = parseLink(window.location.search);
-    const hasRouteInput = [...new URLSearchParams(window.location.search).keys()].some((key) =>
-      /^(route|itinerary)$/i.test(key),
-    );
     if (fromUrl.stops !== null) applyLink(fromUrl, idx, window.location.search);
     else {
       const saved = loadLastJourney();
@@ -183,43 +178,30 @@ export function useAppLinks({
         applyLink(remembered, idx, saved);
       } else {
         const legacy = loadLastRoute();
-        // Only a first-time example waits for the zone lookup, including a failed request.
-        if (legacy === null && !hasRouteInput && loadedZones === undefined) return false;
-        const first = legacy === null ? suggestionsFor(idx, loadedZones ?? zones)[0] : undefined;
-        loadCodes(legacy ?? (first ? [airportCode(first.from), airportCode(first.to)] : []), idx, {
-          example: legacy === null,
-        });
+        if (legacy !== null) loadCodes(legacy, idx);
       }
       // A view-only link still overrides the remembered/default view.
       if (window.location.search) applyLink(fromUrl, idx, window.location.search);
     }
     setInitialized(true);
-    return true;
   });
 
   useEffect(() => {
     const ctrl = new AbortController();
-    const zonesReady = loadTimeZones(timezonesUrl, ctrl.signal)
-      .then((table) => {
-        setZones(table);
-        return table;
-      })
+    loadTimeZones(timezonesUrl, ctrl.signal)
+      .then(setZones)
       .catch(() => {
         if (!ctrl.signal.aborted) zoneLoadError();
-        return null;
       })
       .finally(() => {
         if (!ctrl.signal.aborted) setZonesLoaded(true);
       });
     loadAirports(airportsUrl, ctrl.signal)
-      .then(async (data) => {
+      .then((data) => {
         const idx = buildSearchIndex(data.airports);
         setDataset(data);
         setBaseIndex(idx);
-        if (!initializeRoute(idx)) {
-          const table = await zonesReady;
-          if (!ctrl.signal.aborted) initializeRoute(idx, table);
-        }
+        initializeRoute(idx);
       })
       .catch((err) => {
         if (ctrl.signal.aborted) return;

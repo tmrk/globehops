@@ -23,15 +23,16 @@ export interface ClockDependencies {
   now?: () => number;
   requestFrame?: (cb: (t: number) => void) => number;
   cancelFrame?: (id: number) => void;
-  setInterval?: (cb: () => void, ms: number) => ReturnType<typeof globalThis.setInterval>;
-  clearInterval?: (id: ReturnType<typeof globalThis.setInterval>) => void;
+  setTimeout?: (cb: () => void, ms: number) => ReturnType<typeof globalThis.setTimeout>;
+  clearTimeout?: (id: ReturnType<typeof globalThis.setTimeout>) => void;
 }
 export class SimulationClock {
   private snapshot: ClockSnapshot;
   private listeners = new Set<() => void>();
   private deps: Required<ClockDependencies>;
   private frame: number | null = null;
-  private interval: ReturnType<typeof globalThis.setInterval> | null = null;
+  private timer: ReturnType<typeof globalThis.setTimeout> | null = null;
+  private liveTick = AMBIENT_TICK_MS;
   private previousFrame: number | null = null;
   private disposed = false;
   constructor(deps: ClockDependencies = {}) {
@@ -39,8 +40,8 @@ export class SimulationClock {
       now: deps.now ?? Date.now,
       requestFrame: deps.requestFrame ?? ((cb) => globalThis.requestAnimationFrame(cb)),
       cancelFrame: deps.cancelFrame ?? ((id) => globalThis.cancelAnimationFrame(id)),
-      setInterval: deps.setInterval ?? ((cb, ms) => globalThis.setInterval(cb, ms)),
-      clearInterval: deps.clearInterval ?? ((id) => globalThis.clearInterval(id)),
+      setTimeout: deps.setTimeout ?? ((cb, ms) => globalThis.setTimeout(cb, ms)),
+      clearTimeout: deps.clearTimeout ?? ((id) => globalThis.clearTimeout(id)),
     };
     this.snapshot = { time: this.deps.now(), playing: false, speed: 'auto', live: false, start: null, end: null };
   }
@@ -58,8 +59,8 @@ export class SimulationClock {
   }
   private stopTimers(): void {
     if (this.frame !== null) this.deps.cancelFrame(this.frame);
-    if (this.interval !== null) this.deps.clearInterval(this.interval);
-    this.frame = this.interval = null;
+    if (this.timer !== null) this.deps.clearTimeout(this.timer);
+    this.frame = this.timer = null;
     this.previousFrame = null;
   }
   private clamp(time: number): number {
@@ -116,11 +117,29 @@ export class SimulationClock {
   setSpeed(speed: PlaybackSpeed): void {
     this.update({ speed });
   }
+  /** How often live time follows the wall clock, while it does. */
+  get liveTickMs(): number {
+    return this.liveTick;
+  }
   goLive(tickMs = AMBIENT_TICK_MS): void {
     if (this.disposed) return;
     this.stopTimers();
+    this.liveTick = tickMs;
     this.update({ time: this.deps.now(), playing: false, live: true });
-    this.interval = this.deps.setInterval(() => this.update({ time: this.deps.now() }), tickMs);
+    this.scheduleLiveTick();
+  }
+  /**
+   * Live ticks land on the wall clock's own boundaries (each whole second, each half minute), so a clock
+   * showing live time turns over with the device's rather than up to a tick later.
+   */
+  private scheduleLiveTick(): void {
+    const tick = this.liveTick;
+    const delay = tick - (((this.deps.now() % tick) + tick) % tick);
+    this.timer = this.deps.setTimeout(() => {
+      this.timer = null;
+      this.update({ time: this.deps.now() });
+      if (this.snapshot.live && !this.disposed) this.scheduleLiveTick();
+    }, delay);
   }
   dispose(): void {
     this.stopTimers();

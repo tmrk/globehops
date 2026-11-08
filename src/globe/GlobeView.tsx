@@ -171,7 +171,7 @@ export default function GlobeView(props: GlobeViewProps) {
   }, [props.moonNonce]);
 
   useEffect(() => {
-    rendererRef.current?.setMoonName(t('sky.moon'));
+    rendererRef.current?.setSkyNames({ sun: t('sky.sun'), moon: t('sky.moon') });
   }, [t]);
 
   useEffect(() => {

@@ -4,7 +4,7 @@ function fakeClock() {
   let now = 1000,
     id = 0;
   const frames = new Map<number, (t: number) => void>();
-  const intervals = new Map<ReturnType<typeof setInterval>, () => void>();
+  const intervals = new Map<ReturnType<typeof setTimeout>, () => void>();
   const cadences: number[] = [];
   const clock = new SimulationClock({
     now: () => now,
@@ -15,13 +15,16 @@ function fakeClock() {
     cancelFrame: (key) => {
       frames.delete(key);
     },
-    setInterval: (cb, ms) => {
+    setTimeout: (cb, ms) => {
       cadences.push(ms);
-      const key = ++id as unknown as ReturnType<typeof setInterval>;
-      intervals.set(key, cb);
+      const key = ++id as unknown as ReturnType<typeof setTimeout>;
+      intervals.set(key, () => {
+        intervals.delete(key);
+        cb();
+      });
       return key;
     },
-    clearInterval: (key) => {
+    clearTimeout: (key) => {
       intervals.delete(key);
     },
   });
@@ -165,8 +168,10 @@ describe('simulation clock', () => {
   });
   it('follows the wall clock twice a minute for the globe and every second while tracking', () => {
     const { clock, intervals, cadences, liveTick, setNow } = fakeClock();
+    setNow(0);
     clock.goLive();
     clock.goLive(TRACKING_TICK_MS);
+    expect(clock.liveTickMs).toBe(TRACKING_TICK_MS);
     expect(cadences).toEqual([AMBIENT_TICK_MS, TRACKING_TICK_MS]);
     expect(intervals.size).toBe(1);
     setNow(2000);
@@ -175,6 +180,26 @@ describe('simulation clock', () => {
     // Leaving live keeps the moment that was showing.
     clock.seek(clock.getSnapshot().time);
     expect(clock.getSnapshot()).toMatchObject({ time: 2000, live: false });
+    expect(intervals.size).toBe(0);
+  });
+  it('turns live time over on the wall clock’s own second and half-minute boundaries', () => {
+    const { clock, intervals, cadences, liveTick, setNow } = fakeClock();
+    setNow(12_345);
+    clock.goLive(TRACKING_TICK_MS);
+    expect(cadences).toEqual([655]);
+    setNow(13_000);
+    liveTick();
+    expect(clock.getSnapshot().time).toBe(13_000);
+    // A late timer still aims for the next boundary rather than drifting a whole tick behind it.
+    expect(cadences.at(-1)).toBe(1000);
+    setNow(14_040);
+    liveTick();
+    expect(cadences.at(-1)).toBe(960);
+    setNow(44_000);
+    clock.goLive();
+    expect(cadences.at(-1)).toBe(16_000);
+    expect(intervals.size).toBe(1);
+    clock.seek(0);
     expect(intervals.size).toBe(0);
   });
   it('disposes every timer and prevents later activity', () => {

@@ -66,6 +66,11 @@ const comparisonLimitMessage = `Only ${MAX_JOURNEYS} journeys can be compared.`;
 // Any later letter is grouped too, so unsupported prefixes (e.–z.) report the journey limit.
 const JOURNEY_PARAM_PATTERN = /^([b-z])\.(.+)$/;
 
+/** Whether a parsed link names any airport, in its main journey or a compared one. */
+export function linkHasStops(link: LinkState): boolean {
+  return !!link.stops?.length || !!link.compare?.some((journey) => journey.stops.length > 0);
+}
+
 export function parseLink(search: string, pathname?: string, base = '/globehops/'): LinkState {
   const pathLocale = pathname ? localeFromPath(pathname, base) : null;
   const state: LinkState = {

@@ -33,6 +33,7 @@ describe('localized formatting', () => {
     }
     expect(fmt.distance(12345, 'mi')).toBe(formatDistance(12345, 'mi'));
     expect(fmt.date('2026-11-20')).toBe(formatDateLabel('2026-11-20'));
+    expect(fmt.date('2026-11-20', { year: false })).toBe('Fri 20 Nov');
     expect(fmt.clock(0, 'UTC', { weekday: true, date: true })).toBe(
       formatClock(0, 'UTC', { weekday: true, date: true }),
     );
@@ -65,6 +66,8 @@ describe('localized formatting', () => {
       expect(fmt.date('2026-11-20')).toMatch(/20/);
       expect(fmt.date('2026-11-20').toLowerCase()).toMatch(/nov/);
       expect(fmt.date('invalid')).toBe('');
+      expect(fmt.date('2026-11-20', { year: false })).not.toMatch(/2026/);
+      expect(fmt.date('2026-11-20', { year: false })).toMatch(/20/);
       expect(fmt.clock(Date.parse('2026-11-20T08:15Z'), 'UTC')).toMatch(/08[:.]15/);
       expect(fmt.clock(Date.parse('2026-11-20T00:00Z'), 'UTC')).toMatch(/00[:.]00/);
       expect(fmt.zone('Europe/Stockholm', Date.parse('2026-11-20T08:15Z'))).toMatch(/UTC\+1/);

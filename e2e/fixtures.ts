@@ -67,6 +67,18 @@ export async function expectRoute(page: Page, codes: string[]) {
   await expect(page).toHaveURL(new RegExp(`/globehops/\\?route=${codes.join('-')}$`));
 }
 
+/**
+ * Without a route, phones open on the globe and its clock with the planner one tap away; this opens it.
+ * Elsewhere (desktop, or a sheet that is already open) it only waits for the planner.
+ */
+export async function openPlanner(page: Page) {
+  const start = page.getByRole('button', { name: 'Show a flight', exact: true });
+  const from = page.getByRole('button', { name: 'Departure airport: choose an airport' });
+  await expect(start.or(from).first()).toBeVisible();
+  if (await start.isVisible()) await start.click();
+  await expect(from).toBeVisible();
+}
+
 /** Opens the globe's display menu (map layers, distance unit, globe time) unless it is open. */
 export async function openDisplay(page: Page) {
   const button = page.getByRole('button', { name: 'Display options' });

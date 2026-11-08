@@ -786,28 +786,37 @@ button.map-menu__item:hover {
   background: var(--line-strong);
 }
 
+/* The collapsed sheet's one action, centred under the handle (and under the dial, when there is one). */
 .peek {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 52px;
-  padding: 0 var(--pad) calc(12px + var(--safe-bottom));
-  text-align: left;
+  flex: none;
+  padding: 0 var(--pad) calc(14px + var(--safe-bottom));
+  animation: sheet-content-in 0.26s var(--ease);
+}
+
+/* A route: its codes over its totals, opening the journey. */
+.peek--route {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 56px;
+  padding-top: 4px;
+  text-align: center;
 }
 
 .peek__route {
-  font: 600 var(--text-md) / 1.2 var(--mono);
+  max-width: 100%;
+  font: 600 var(--text-lg) / 1.2 var(--mono);
   font-stretch: var(--mono-stretch);
   word-spacing: var(--mono-space);
   letter-spacing: var(--track-code);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 0;
 }
 
 .peek__totals {
-  margin-left: auto;
   color: var(--text-2);
   font: 500 var(--text-xs) / 1.2 var(--mono);
   font-stretch: var(--mono-stretch);
@@ -815,9 +824,58 @@ button.map-menu__item:hover {
   white-space: nowrap;
 }
 
-.peek__chev {
-  flex: none;
-  color: var(--text-3);
+/* No route yet: an amber wayfinding sign inviting the first flight. */
+.peek--start {
+  padding-top: 14px;
+}
+
+.start-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 52px;
+  border-radius: var(--radius-btn);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  box-shadow: 0 4px 18px rgba(255, 194, 75, 0.2);
+  transition:
+    background-color 0.15s,
+    transform 0.15s var(--ease);
+}
+
+.start-btn:hover {
+  background: #ffcd69;
+}
+
+.start-btn:active {
+  transform: scale(0.98);
+}
+
+/* Taking off towards the upper right, like the mark's hop. */
+.start-btn__icon {
+  transform: rotate(45deg);
+}
+
+/* Content arriving in the sheet as it opens or closes settles in rather than appearing at once. */
+@keyframes sheet-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.layout-mobile .panel__head,
+.layout-mobile .panel__scroll {
+  animation: sheet-content-in 0.26s var(--ease);
+}
+
+/* Without totals pinned beneath it, the list keeps clear of the home indicator itself. */
+.layout-mobile .panel__scroll:last-child {
+  padding-bottom: calc(8px + var(--safe-bottom));
 }
 
 /* Title and actions share a row while they fit; otherwise the actions wrap to their own row rather
@@ -856,6 +914,32 @@ button.map-menu__item:hover {
   flex: none;
   gap: 2px;
   margin-left: auto;
+}
+
+/* Reset's confirmation slides in from where Reset was; Cancel follows just behind. */
+.panel__actions--confirm > * {
+  animation: confirm-in 0.24s var(--ease) both;
+}
+
+.panel__actions--confirm > :first-child {
+  animation-delay: 0.05s;
+}
+
+.panel__actions.is-returning {
+  animation: actions-in 0.22s var(--ease);
+}
+
+@keyframes confirm-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+@keyframes actions-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* Header actions read as text, like a navigation bar; the active Edit turns into an amber Done. */
@@ -1458,23 +1542,6 @@ button.map-menu__item:hover {
 
 .suggestions {
   padding: 8px 0 4px;
-}
-
-/* Keep the three choices above the fold on the welcome sheet. Edit reveals Add stop. */
-.layout-mobile .suggestions--welcome .itinerary__actions {
-  display: none;
-}
-
-.layout-mobile .suggestions--welcome .suggestions {
-  padding: 4px 0 0;
-}
-
-.layout-mobile .suggestions--welcome .suggestions__title {
-  margin: 2px 0 6px;
-}
-
-.layout-mobile .suggestions--welcome .suggestions ul {
-  gap: 2px;
 }
 
 .suggestions__title {
@@ -2435,19 +2502,23 @@ button.map-menu__item:hover {
   pointer-events: auto;
 }
 
+/* Time, date and Live on three columns: the date stays centred however wide the time becomes. */
 .time-dial__head {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 4px;
-  padding: 0 10px 0 8px;
+  gap: 6px;
+  padding: 0 12px;
 }
 
 .time-dial__clock {
   position: relative;
   display: inline-flex;
   align-items: baseline;
-  flex: none;
+  justify-self: start;
   gap: 6px;
+  /* The hover fill reaches past the text, which stays on the edge line. */
+  margin-left: -6px;
   padding: 4px 6px;
   border-radius: var(--radius-btn);
   cursor: pointer;
@@ -2462,6 +2533,24 @@ button.map-menu__item:hover {
   font: 600 var(--text-xl) / 1 var(--mono);
   font-stretch: var(--mono-stretch);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Live seconds, quieter than the hours and minutes; they fold away while the time is moved. */
+.time-dial__seconds {
+  display: inline-block;
+  max-width: 3ch;
+  overflow: hidden;
+  vertical-align: top;
+  color: var(--text-3);
+  transition:
+    max-width 0.3s var(--ease),
+    opacity 0.2s;
+}
+
+.time-dial:not(.is-live) .time-dial__seconds {
+  max-width: 0;
+  opacity: 0;
 }
 
 .time-dial__zone {
@@ -2493,8 +2582,8 @@ button.map-menu__item:hover {
 }
 
 .time-dial .dt-field {
+  justify-self: center;
   height: 28px;
-  margin-right: auto;
   padding: 0 6px;
   border: 0;
   background: none;
@@ -2519,10 +2608,15 @@ button.map-menu__item:hover {
   box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+  animation: sheet-content-in 0.26s var(--ease);
 }
 
 .time-dial--docked .time-dial__head {
-  padding-inline: calc(var(--pad) - 6px) var(--pad);
+  padding-inline: var(--pad);
+}
+
+.time-dial .live-btn {
+  justify-self: end;
 }
 
 /* Ticks hang from a ruler line; the edges fade so the tape reads as endless. */

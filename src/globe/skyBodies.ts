@@ -52,8 +52,10 @@ interface SkyBodiesOptions {
   fade: { value: number };
   /** The camera's far plane; the Sun is drawn just inside it, beyond the Moon. */
   far: number;
-  /** Holds the Moon's name, an HTML label like the airports'. */
+  /** Holds the Sun's and Moon's names, HTML labels like the airports'. */
   labelLayer: HTMLElement;
+  /** Whether the names start shown; they belong with the place-name layer. */
+  showNames: boolean;
   loadMoonMap: () => Promise<Texture | null>;
   requestRender: () => void;
 }
@@ -65,6 +67,7 @@ interface SkyBodiesOptions {
  * - The Sun is effectively at infinity: a camera-facing disc placed along its direction from the camera,
  *   so it never parallaxes, sized to its angular radius at the Earth–Sun distance of the moment.
  * Both depth-test against Earth and each other, so the Earth hides them and the Moon can eclipse the Sun.
+ * Their names, like countries', show only while place names are on.
  */
 export class SkyBodies {
   readonly object = new Group();
@@ -72,7 +75,13 @@ export class SkyBodies {
   private moon: Mesh<SphereGeometry, ShaderMaterial>;
   private basis = new Matrix4();
   private axes = [new Vector3(), new Vector3(), new Vector3()] as const;
-  private label = document.createElement('div');
+  private moonLabel = document.createElement('div');
+  private sunLabel = document.createElement('div');
+  private namesShown: boolean;
+  /** The Sun's angular radius at the Earth–Sun distance of the moment. */
+  private sunAngularRadius = 0;
+  /** Each label's measured size, read once after its text changes. */
+  private sizes = new Map<HTMLElement, { width: number; height: number }>();
   private sightline = new Vector3();
   private projected = new Vector3();
   private centre = new Vector3();
@@ -163,9 +172,13 @@ export class SkyBodies {
     );
     this.moon.visible = false;
     this.object.add(this.sun, this.moon);
-    this.label.className = 'globe-sky-label';
-    setStyle(this.label, 'opacity', '0');
-    options.labelLayer.append(this.label);
+    this.namesShown = options.showNames;
+    for (const label of [this.sunLabel, this.moonLabel]) {
+      label.className = 'globe-sky-label';
+      setStyle(label, 'opacity', '0');
+      options.labelLayer.append(label);
+    }
+    this.sunLabel.classList.add('globe-sky-label--sun');
   }
 
   /** The Moon's centre in the scene, once the sky has been set. */
@@ -173,38 +186,90 @@ export class SkyBodies {
     return this.map ? this.moon.position : null;
   }
 
-  setMoonName(name: string): void {
-    this.label.textContent = name;
+  setNames(names: { sun: string; moon: string }): void {
+    this.sunLabel.textContent = names.sun;
+    this.moonLabel.textContent = names.moon;
+    this.sizes.clear();
   }
 
-  /** Names the Moon, on its side away from Earth, while it is on screen and not behind Earth. */
-  placeLabel(camera: PerspectiveCamera, width: number, height: number): void {
+  /** Shows or hides both names; the caller requests a render. */
+  setNamesVisible(visible: boolean): void {
+    this.namesShown = visible;
+  }
+
+  /** Names the Sun and Moon, each on its side away from Earth, while on screen and not behind Earth. */
+  placeLabels(camera: PerspectiveCamera, width: number, height: number): void {
     const eye = camera.position;
+    const pixels = height / 2 / Math.tan((camera.fov * Math.PI) / 360);
+    const names = this.namesShown && this.options.fade.value > 0;
     const toMoon = this.sightline.subVectors(this.moon.position, eye);
-    const approach = eye.dot(toMoon);
-    // The sightline passes through Earth when it nears Earth's centre on the way to the Moon.
-    const hidden = approach < 0 && eye.lengthSq() - (approach * approach) / toMoon.lengthSq() < 1;
+    const moonRadius = (MOON_RADIUS / toMoon.length()) * pixels;
+    this.placeLabel(
+      this.moonLabel,
+      names && this.moon.visible,
+      this.moon.position,
+      toMoon,
+      moonRadius,
+      camera,
+      width,
+      height,
+    );
+    // The Sun is drawn at infinity, so its place on screen is the same from any distance along its direction.
+    const toSun = this.sightline.copy(this.options.sunDirection);
+    const sunAt = this.centre.copy(eye).addScaledVector(toSun, this.options.far * 0.5);
+    // Its glare is not part of its size; the name sits clear of the bright inner glow.
+    const sunRadius = Math.tan(this.sunAngularRadius) * pixels * 3;
+    this.placeLabel(this.sunLabel, names, sunAt, toSun, sunRadius, camera, width, height);
+  }
+
+  private placeLabel(
+    label: HTMLElement,
+    visible: boolean,
+    position: Vector3,
+    sightline: Vector3,
+    radius: number,
+    camera: PerspectiveCamera,
+    width: number,
+    height: number,
+  ): void {
+    const eye = camera.position;
+    const approach = eye.dot(sightline);
+    // The sightline passes through Earth when it nears Earth's centre on the way to the body.
+    const hidden = approach < 0 && eye.lengthSq() - (approach * approach) / sightline.lengthSq() < 1;
     const p = this.projected;
     const shown =
-      this.moon.visible &&
-      this.options.fade.value > 0 &&
+      visible &&
       !hidden &&
-      projectToScreen(this.moon.position, camera, width, height, p) &&
+      projectToScreen(position, camera, width, height, p) &&
       p.x >= 0 &&
       p.x <= width &&
       p.y >= 0 &&
       p.y <= height;
-    setStyle(this.label, 'opacity', shown ? String(this.options.fade.value) : '0');
+    setStyle(label, 'opacity', shown ? String(this.options.fade.value) : '0');
     if (!shown) return;
-    const radius = ((MOON_RADIUS / toMoon.length()) * height) / 2 / Math.tan((camera.fov * Math.PI) / 360);
+    const x0 = p.x;
+    const y0 = p.y;
     // Outwards from Earth's centre on screen, the label's near edge just clear of the disc.
-    projectToScreen(EARTH_CENTRE, camera, width, height, this.centre);
-    const length = Math.hypot(p.x - this.centre.x, p.y - this.centre.y) || 1;
-    const ux = (p.x - this.centre.x) / length;
-    const uy = (p.y - this.centre.y) / length;
-    const x = p.x + ux * (radius + 5);
-    const y = p.y + uy * (radius + 5);
-    setStyle(this.label, 'transform', `translate3d(${x}px, ${y}px, 0) translate(${50 * ux - 50}%, ${50 * uy - 50}%)`);
+    const centre = projectToScreen(EARTH_CENTRE, camera, width, height, p) ? p : null;
+    const length = centre ? Math.hypot(x0 - centre.x, y0 - centre.y) || 1 : 1;
+    let ux = centre ? (x0 - centre.x) / length : 0;
+    let uy = centre ? (y0 - centre.y) / length : 1;
+    let size = this.sizes.get(label);
+    if (!size) {
+      size = { width: label.offsetWidth, height: label.offsetHeight };
+      if (size.width) this.sizes.set(label, size);
+    }
+    // Near the screen's edge, the name moves to the body's other side rather than leaving the screen.
+    const reach = radius + 5;
+    const left = x0 + ux * reach + (ux / 2 - 0.5) * size.width;
+    const top = y0 + uy * reach + (uy / 2 - 0.5) * size.height;
+    if (left < 0 || top < 0 || left + size.width > width || top + size.height > height) {
+      ux = -ux;
+      uy = -uy;
+    }
+    const x = x0 + ux * reach;
+    const y = y0 + uy * reach;
+    setStyle(label, 'transform', `translate3d(${x}px, ${y}px, 0) translate(${50 * ux - 50}%, ${50 * uy - 50}%)`);
   }
 
   /** Places both bodies for this instant; the first call fetches the Moon's surface. */
@@ -218,6 +283,7 @@ export class SkyBodies {
     z.crossVectors(x, y);
     this.moon.quaternion.setFromRotationMatrix(this.basis.makeBasis(x, y, z));
     const angularRadius = Math.asin(SUN_RADIUS_KM / sky.sunDistanceKm);
+    this.sunAngularRadius = angularRadius;
     this.sun.material.uniforms.uSize.value = this.options.far * 0.9 * Math.tan(angularRadius) * GLARE_RADII;
     this.map ??= this.options.loadMoonMap().then((texture) => {
       if (!texture || this.disposed) return;
@@ -229,7 +295,8 @@ export class SkyBodies {
 
   dispose(): void {
     this.disposed = true;
-    this.label.remove();
+    this.sunLabel.remove();
+    this.moonLabel.remove();
     for (const body of [this.sun, this.moon]) {
       body.geometry.dispose();
       body.material.dispose();

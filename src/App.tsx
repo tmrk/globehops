@@ -21,7 +21,7 @@ import { Toast } from './components/Toast.tsx';
 import { RouteSuggestions, type SuggestedRoute } from './components/RouteSuggestions.tsx';
 import { DESKTOP_MEDIA_QUERY } from './hooks/appMedia.ts';
 import { useAnalyticsConsent } from './hooks/useAnalyticsConsent.ts';
-import { useAppLinks } from './hooks/useAppLinks.ts';
+import { opensWithRoute, useAppLinks } from './hooks/useAppLinks.ts';
 import { useAppWebTools } from './hooks/useAppWebTools.ts';
 import { useBottomSheet } from './hooks/useBottomSheet.ts';
 import { useClockPhase } from './hooks/useClock.ts';
@@ -79,11 +79,12 @@ export default function App() {
   const route = comparison.journeys[comparison.active].route;
   const comparing = comparison.journeys.length > 1;
   const dispatch = useCallback((action: RouteAction) => compareDispatch({ type: 'route', action }), []);
-  const [isExample, setIsExample] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   /** Edit mode: reorder, remove and insert stops, reverse or clear the route. */
   const [arranging, setArranging] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  /** Without a route to show, phones open on the globe and its clock, with the planner one tap away. */
+  const [startsEmpty] = useState(() => !opensWithRoute());
+  const [collapsed, setCollapsed] = useState(() => startsEmpty && !window.matchMedia(DESKTOP_MEDIA_QUERY).matches);
   const [fits, setFits] = useState(true);
   const [fitNonce, setFitNonce] = useState(0);
   const [moonNonce, setMoonNonce] = useState(0);
@@ -111,7 +112,6 @@ export default function App() {
       dispatch,
       compareDispatch,
       setEditing,
-      setIsExample,
       resetPreferences: preferences.resetToLink,
       applyView,
       showToast,
@@ -149,7 +149,8 @@ export default function App() {
   // flights, the time dial shows the globe at any moment instead.
   const hasFlights = compared.some((entry) => entry.journey.legs.length > 0);
   const timeBarShown = timeOpen && hasFlights;
-  const dialShown = initialized && !globeFailed && !hasFlights;
+  // An empty start shows the dial straight away rather than once the airports have loaded.
+  const dialShown = (initialized || startsEmpty) && !globeFailed && !hasFlights;
   const [simulation] = useState(() => {
     let context: SimulationContext = { journey, timeline, open: timeOpen, dayNight, follow: !reducedMotion };
     const feed = createSimulationFeed(clock, () => context);
@@ -220,6 +221,7 @@ export default function App() {
     timeOpen,
     initialized,
     arranging,
+    dial: dialShown,
   });
 
   useEffect(() => {
@@ -227,6 +229,13 @@ export default function App() {
     refitAfterLayout.current = false;
     setFitNonce((n) => n + 1);
   }, [insets]);
+
+  /** Without a globe to look at, the planner is the whole app, so the sheet opens. */
+  const failGlobe = (error: unknown) => {
+    console.error(error);
+    setGlobeFailed(true);
+    setCollapsed(false);
+  };
 
   const openEditor = (i: number) => {
     flushSync(() => setEditing(i));
@@ -237,7 +246,6 @@ export default function App() {
     const target = at ?? route.stops.length;
     flushSync(() => {
       dispatch(at === undefined ? { type: 'addStop' } : { type: 'insertStop', index: at });
-      setIsExample(false);
       setEditing(target);
     });
     focusTakeover();
@@ -260,7 +268,6 @@ export default function App() {
     if (editing === null) return;
     const i = editing;
     dispatch({ type: 'setAirport', index: i, airportId: a.id });
-    setIsExample(false);
     // Continue to the next empty stop (e.g. From → To) without closing the keyboard.
     const stops = route.stops.map((s, k) => (k === i ? { ...s, airportId: a.id } : s));
     let next = stops.findIndex((s, k) => k > i && s.airportId === null);
@@ -351,17 +358,14 @@ export default function App() {
   const changeTime = (stop: number, field: 'arrival' | 'departure', value: LocalTimeInput | null) => {
     const original = route.stops.map((s, i) => (s.airportId !== null ? i : -1)).filter((i) => i !== -1)[stop];
     if (original !== undefined) dispatch({ type: 'setTime', index: original, field, value });
-    setIsExample(false);
   };
   const reverse = () => {
     if (hasEnteredTimes(route.stops)) showToast(t('toasts.reversedTimes'));
     dispatch({ type: 'reverse' });
-    setIsExample(false);
   };
   /** Start over: one empty journey, no compared journeys, times or open timeline. Preferences stay. */
   const resetJourney = () => {
     compareDispatch({ type: 'load', journeys: [] });
-    setIsExample(false);
     setArranging(false);
     if (timeOpen) closeTime();
     if (isDesktop) setEditing(0);
@@ -418,6 +422,7 @@ export default function App() {
     collapsed: sheetCollapsed,
     setCollapsed,
     reducedMotion,
+    peek: timeBarShown ? 'timeline' : dialShown ? 'dial' : 'route',
   });
   // On phones, a docked timeline or an open flight-times editor needs the sheet's room more than the
   // totals do, so the totals scroll with the list instead of staying pinned beneath it.
@@ -428,7 +433,6 @@ export default function App() {
   };
   const addJourney = () => {
     setEditing(null);
-    setIsExample(false);
     compareDispatch({ type: 'add' });
     listRef.current?.scrollTo({ top: 0 });
     trackEvent('compare_journeys');
@@ -446,7 +450,6 @@ export default function App() {
   }, [comparing, index, filledAirports.length, serializedJourneys, comparison.active]);
   const chooseSimilar = ({ airports }: SuggestedRoute) => {
     setEditing(null);
-    setIsExample(false);
     dispatch({ type: 'load', airportIds: airports.map((airport) => airport.id) });
   };
   const summary = comparing ? (
@@ -478,7 +481,7 @@ export default function App() {
     )
   );
   const canArrange = filledAirports.length > 0 || route.stops.length > 2;
-  const canReset = comparing || timeOpen || (!isExample && (canArrange || hasEnteredTimes(route.stops)));
+  const canReset = comparing || timeOpen || canArrange || hasEnteredTimes(route.stops);
   // A route that is exactly one of the suggestions keeps the list, so people can switch between them.
   const welcomeRoutes = useMemo(
     () => suggestions.map(({ from, to, minutes }): SuggestedRoute => ({ airports: [from, to], minutes })),
@@ -490,8 +493,7 @@ export default function App() {
       route.stops.every((stop, i) => stop.airportId === airports[i].id) &&
       !hasEnteredTimes(route.stops),
   );
-  const showSuggestions =
-    initialized && !comparing && (isExample || filledAirports.length === 0 || chosenSuggestion !== undefined);
+  const showSuggestions = initialized && !comparing && (filledAirports.length === 0 || chosenSuggestion !== undefined);
   const timeBar = (docked: boolean) => (
     <TimeBar
       clock={clock}
@@ -538,12 +540,7 @@ export default function App() {
             <p>{t('errors.noWebGL')}</p>
           </div>
         ) : (
-          <ErrorBoundary
-            onError={(e) => {
-              console.error(e);
-              setGlobeFailed(true);
-            }}
-          >
+          <ErrorBoundary onError={failGlobe}>
             <Suspense fallback={null}>
               <GlobeView
                 sim={sim}
@@ -579,10 +576,7 @@ export default function App() {
                 }}
                 onFitChange={setFits}
                 onReady={() => setGlobeReady(true)}
-                onError={(e) => {
-                  console.error(e);
-                  setGlobeFailed(true);
-                }}
+                onError={failGlobe}
               />
             </Suspense>
           </ErrorBoundary>
@@ -656,7 +650,7 @@ export default function App() {
 
       <main
         ref={panelRef}
-        className={`panel${comparison.journeys.length >= 3 ? ' has-many-journeys' : ''}${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && (timeBarShown || dialShown) ? ' has-timeline' : ''}`}
+        className={`panel${comparison.journeys.length >= 3 ? ' has-many-journeys' : ''}${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && timeBarShown ? ' has-timeline' : ''}`}
         aria-label={t('panel.journeyPlanner')}
       >
         {!isDesktop && (
@@ -672,7 +666,8 @@ export default function App() {
         )}
 
         {!isDesktop && timeBarShown && timeBar(true)}
-        {!isDesktop && dialShown && timeDial(true)}
+        {/* The dial belongs to the globe view; the open planner needs the room. */}
+        {!isDesktop && dialShown && sheetCollapsed && timeDial(true)}
 
         {sheetCollapsed ? (
           !timeBarShown && (
@@ -690,7 +685,6 @@ export default function App() {
           <>
             <JourneyPanelHeader
               comparing={comparing}
-              isExample={isExample}
               hasAirports={filledAirports.length > 0}
               canArrange={canArrange}
               arranging={arranging}
@@ -708,7 +702,7 @@ export default function App() {
               role={comparing ? 'tabpanel' : undefined}
               id={comparing ? 'journey-panel' : undefined}
               aria-labelledby={comparing ? `journey-tab-${compared[comparison.active].id}` : undefined}
-              className={`panel__scroll${isExample && !arranging ? ' suggestions--welcome' : ''}`}
+              className="panel__scroll"
             >
               {dataError ? (
                 <p className="panel__error" role="alert">
@@ -742,27 +736,18 @@ export default function App() {
                       />
                     )}
                     onEdit={openEditor}
-                    onRemove={(i) => {
-                      dispatch({ type: 'removeStop', index: i });
-                      setIsExample(false);
-                    }}
+                    onRemove={(i) => dispatch({ type: 'removeStop', index: i })}
                     onInsert={(i) => addStop(i)}
                     onAdd={() => addStop()}
-                    onMove={(from, to) => {
-                      dispatch({ type: 'moveStop', from, to });
-                      setIsExample(false);
-                    }}
-                    onLayoverChange={(index, minutes) => {
-                      dispatch({ type: 'setLayover', index, minutes });
-                      setIsExample(false);
-                    }}
+                    onMove={(from, to) => dispatch({ type: 'moveStop', from, to })}
+                    onLayoverChange={(index, minutes) => dispatch({ type: 'setLayover', index, minutes })}
                     onSelectLeg={selectLeg}
                     onReverse={reverse}
                   />
                   {similar.length > 0 && (
                     <RouteSuggestions title={t('compare.similar')} routes={similar} codes onSelect={chooseSimilar} />
                   )}
-                  {(comparing || (!isExample && legs.length > 0)) && (
+                  {(comparing || legs.length > 0) && (
                     <div className="itinerary__actions">
                       {comparing ? (
                         <button
@@ -794,7 +779,7 @@ export default function App() {
               )}
               {showSuggestions && (
                 <RouteSuggestions
-                  title={t(isExample ? 'panel.tryOneOfThese' : 'panel.orTryOneOfThese')}
+                  title={t('panel.orTryOneOfThese')}
                   routes={welcomeRoutes}
                   chosen={chosenSuggestion ?? null}
                   onSelect={chooseSuggestion}

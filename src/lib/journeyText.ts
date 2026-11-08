@@ -69,12 +69,12 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** A calendar date ("2026-11-20") as "Thu 20 Nov 2026"; '' for anything else. Independent of time zones. */
-export function formatDateLabel(isoDate: string): string {
+export function formatDateLabel(isoDate: string, year = true): string {
   const date = parseLocalDate(isoDate);
   if (!date) return '';
   const utc = new Date(0);
   utc.setUTCFullYear(date.year, date.month - 1, date.day);
-  return `${WEEKDAYS[utc.getUTCDay()]} ${date.day} ${MONTHS[date.month - 1]} ${date.year}`;
+  return `${WEEKDAYS[utc.getUTCDay()]} ${date.day} ${MONTHS[date.month - 1]}${year ? ` ${date.year}` : ''}`;
 }
 
 /** UTC offset with an explicit sign, including zero: "UTC+1", "UTC−3:30", "UTC+0". */

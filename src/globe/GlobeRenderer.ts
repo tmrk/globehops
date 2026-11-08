@@ -157,6 +157,10 @@ const BORDER_STEP_DEG = 0.5;
 const BORDER_OPACITY = 0.42;
 const COAST_OPACITY = 0.2;
 const ATMOSPHERE_RADIUS = 1.055;
+/** Without a route, the globe's glowing limb fills this share of the unobstructed area's smaller side. */
+const EMPTY_GLOBE_FILL = 0.94;
+/** The empty globe resizes with the panels a little quicker than a flight to a new route. */
+const EMPTY_FIT_MS = 600;
 
 const ATMOSPHERE_COLOR = new Color('#7fb4ff');
 
@@ -235,6 +239,9 @@ export class GlobeRenderer {
   private height = 1;
   private insets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
   private targetInsets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  /** Camera distance of the empty globe's last automatic fit; null with a route or once the visitor zooms. */
+  private emptyFit: number | null = null;
+  private drawn = false;
   private frame = 0;
   private cameraTween: CameraTween | null = null;
   private reveal: RevealAnim | null = null;
@@ -423,6 +430,8 @@ export class GlobeRenderer {
     this.canvas.addEventListener('webglcontextrestored', this.onContextRestored);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
+    // The globe opens fitted to the screen; a route, when one arrives, is framed from here.
+    this.emptyFit = this.camera.position.length();
     this.resizeObserver.observe(container);
     this.resize();
     this.textures = new GlobeTextures({
@@ -441,6 +450,7 @@ export class GlobeRenderer {
       fade: this.dayNight,
       far: this.camera.far,
       labelLayer: this.labelLayer,
+      showNames: options.showCountryLabels,
       loadMoonMap: () => this.textures.moon(),
       requestRender: this.requestRender,
     });
@@ -660,8 +670,10 @@ export class GlobeRenderer {
     if (!points.length) for (const m of this.airportLabels.markers) points.push(m.position);
     if (!points.length) {
       if (reportFit) this.notifyFit(true);
+      this.fitEmptyGlobe(animate);
       return;
     }
+    this.emptyFit = null;
     const cap = enclosingCap(points.map(sceneToEcef));
     let center = ecefToScene(cap.center);
     let radius = cap.radius;
@@ -681,12 +693,33 @@ export class GlobeRenderer {
   }
 
   setInsets(insets: Insets, animate = true) {
+    // The empty globe keeps filling the room the panels leave it, easing along once it is on screen.
+    const fitting = this.isEmptyFit();
+    const ease = (animate || (fitting && this.drawn)) && !this.options.reducedMotion;
     this.targetInsets = { ...insets };
-    if (!animate || this.options.reducedMotion) {
+    if (!ease) {
       this.insets = { ...insets };
       this.updateProjection();
     }
+    if (fitting) this.fitEmptyGlobe(ease);
     this.requestRender();
+  }
+
+  /** Whether the camera still shows (or is flying to) the empty globe's automatic fit. */
+  private isEmptyFit(): boolean {
+    if (this.emptyFit === null) return false;
+    const distance = this.cameraTween?.toDist ?? this.camera.position.length();
+    return Math.abs(distance - this.emptyFit) < 0.01;
+  }
+
+  /** Without a route, the whole globe is as large as the unobstructed area allows, seen from where it is. */
+  private fitEmptyGlobe(animate: boolean) {
+    const distance = ATMOSPHERE_RADIUS / Math.sin(this.availableHalfFov() * EMPTY_GLOBE_FILL);
+    const current = this.cameraTween?.toDist ?? this.camera.position.length();
+    this.emptyFit = distance;
+    if (Math.abs(current - distance) < 0.005) return;
+    const direction = this.cameraTween?.toDir ?? this.camera.position;
+    this.flyTo(direction, distance, animate, EMPTY_FIT_MS);
   }
 
   setReducedMotion(reduced: boolean) {
@@ -718,6 +751,8 @@ export class GlobeRenderer {
   setCountryLabelsVisible(visible: boolean) {
     this.options.showCountryLabels = visible;
     this.countryLabels.setVisible(visible, this.options.showWaterLabels);
+    // The Sun's and Moon's names are place names too.
+    this.skyBodies.setNamesVisible(visible);
     this.requestRender();
   }
 
@@ -732,8 +767,9 @@ export class GlobeRenderer {
     this.requestRender();
   }
 
-  setMoonName(name: string) {
-    this.skyBodies.setMoonName(name);
+  setSkyNames(names: { sun: string; moon: string }) {
+    this.skyBodies.setNames(names);
+    this.requestRender();
   }
 
   /** Turns the globe until the Moon stands just above Earth's limb, ready for the user to look around. */
@@ -857,10 +893,11 @@ export class GlobeRenderer {
     // Recompute even for paused sunlight: orbit/damping changes the normals' view space every frame.
     this.sunView.value.copy(this.sunScene).transformDirection(this.camera.matrixWorldInverse);
     this.renderer.render(this.scene, this.camera);
+    this.drawn = true;
     this.airportLabels.measure();
     this.countryLabels.measure(this.camera, this.height);
     this.updateUserLocation();
-    this.skyBodies.placeLabel(this.camera, this.width, this.height);
+    this.skyBodies.placeLabels(this.camera, this.width, this.height);
     const reserved = this.airportLabels.update(this.camera, this.width, this.height);
     this.countryLabels.update(this.camera, this.width, this.height, reserved);
     if (this.fleet?.length) {
@@ -1463,6 +1500,7 @@ export class GlobeRenderer {
     }
     for (const layer of this.borderLayers) layer.material.resolution.set(w, h);
     this.updateProjection();
+    if (this.isEmptyFit()) this.fitEmptyGlobe(false);
     this.requestRender();
   }
 

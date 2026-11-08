@@ -18,7 +18,7 @@ it('finishes only the panel transform and cancels pending collapse on disable or
   let collapse = () => {};
   function Probe({ enabled = true, reducedMotion = false }) {
     const ref = useRef<HTMLDivElement>(null);
-    const sheet = useBottomSheet(ref, { enabled, reducedMotion, collapsed: false, setCollapsed });
+    const sheet = useBottomSheet(ref, { enabled, reducedMotion, collapsed: false, setCollapsed, peek: 'route' });
     collapse = sheet.collapse;
     return createElement('div', { ref }, createElement('span'));
   }

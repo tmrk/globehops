@@ -4,7 +4,6 @@ import { IconCheck, IconPencil, IconReset, IconShare } from './Icons.tsx';
 
 interface JourneyPanelHeaderProps {
   comparing: boolean;
-  isExample: boolean;
   hasAirports: boolean;
   canArrange: boolean;
   arranging: boolean;
@@ -15,10 +14,12 @@ interface JourneyPanelHeaderProps {
   onReset: () => void;
 }
 
-/** Title plus Edit, Share and Reset; Reset asks for confirmation in place of the other actions. */
+/**
+ * Title plus Edit, Share and Reset; Reset asks for confirmation in place of the other actions. The
+ * confirmation slides in from where Reset was, and the usual actions settle back when it is cancelled.
+ */
 export function JourneyPanelHeader({
   comparing,
-  isExample,
   hasAirports,
   canArrange,
   arranging,
@@ -29,6 +30,8 @@ export function JourneyPanelHeader({
 }: JourneyPanelHeaderProps) {
   const { t } = useI18n();
   const [confirmingReset, setConfirmingReset] = useState(false);
+  /** Set once the confirmation has been dismissed, so only that return animates, not every first render. */
+  const [returned, setReturned] = useState(false);
   const confirming = confirmingReset && canReset;
   const resetRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -39,24 +42,25 @@ export function JourneyPanelHeader({
 
   const cancel = () => {
     setConfirmingReset(false);
+    setReturned(true);
     requestAnimationFrame(() => resetRef.current?.focus());
   };
   const confirm = () => {
     setConfirmingReset(false);
+    setReturned(true);
     onReset();
   };
 
   const title = () => {
     if (comparing) return t('compare.title');
-    if (isExample) return t('panel.exampleJourney');
-    return t(hasAirports ? 'panel.yourJourney' : 'panel.planAJourney');
+    return t(hasAirports ? 'panel.yourJourney' : 'panel.showAFlight');
   };
   return (
     <div className="panel__head">
       <h2 className="panel__title">{title()}</h2>
       {confirming ? (
         <div
-          className="panel__actions"
+          className="panel__actions panel__actions--confirm"
           role="group"
           aria-label={t('panel.resetQuestion')}
           onKeyDown={(event) => {
@@ -74,7 +78,7 @@ export function JourneyPanelHeader({
           </button>
         </div>
       ) : (
-        <div className="panel__actions">
+        <div className={`panel__actions${returned ? ' is-returning' : ''}`}>
           {canArrange && (
             <button
               type="button"
