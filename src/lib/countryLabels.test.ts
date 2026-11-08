@@ -132,8 +132,15 @@ describe('label locales and priority', () => {
       { ...label, kind: 'ocean', rank: 0 },
     ];
     expect(labels.sort(labelPriority).map((l) => l.kind)).toEqual(['ocean', 'country', 'sea']);
-    expect(labelStyle({ ...label, kind: 'ocean' }, 3)!.fontPx).toBeGreaterThan(labelStyle(label, 3)!.fontPx);
     expect(labelStyle({ ...label, kind: 'sea' }, 3)!.fontPx).toBeLessThan(labelStyle(label, 3)!.fontPx);
+  });
+  it('sizes oceans like the leading country names, never larger', () => {
+    const ocean: CountryLabel = { ...label, kind: 'ocean', rank: 0, minZoom: 0.8 };
+    const leading: CountryLabel = { ...label, kind: 'country', rank: 2, minZoom: 1.7 };
+    for (const zoom of [1.7, 2.1, 3.3, 5, 20])
+      expect(labelStyle(ocean, zoom)!.fontPx).toBeCloseTo(labelStyle(leading, zoom)!.fontPx);
+    expect(labelStyle(ocean, 0.8)!.fontPx).toBeLessThan(labelStyle(leading, 1.7)!.fontPx);
+    expect(labelStyle(ocean, 20)!.fontPx).toBe(17);
   });
   it('requires all translations and unique kind/English identities, while allowing shared exonyms', () => {
     const raw = wire();

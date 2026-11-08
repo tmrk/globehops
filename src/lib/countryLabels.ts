@@ -71,13 +71,23 @@ export function mapZoom(pxPerRadian: number): number {
   return Math.log2((pxPerRadian * 2 * Math.PI) / 256);
 }
 
+/** The most prominent country names (Natural Earth rank 2, shown from zoom 1.7: USA, Brazil, China…). */
+const LEADING_COUNTRY = { rank: 2, minZoom: 1.7 };
+
+function namePx(base: number, rank: number, beyond: number): number {
+  return Math.max(10, Math.min(17, base - rank * 0.65 + beyond * 0.65));
+}
+
 export function labelStyle(label: CountryLabel, zoom: number): { opacity: number; fontPx: number } | null {
   if (!Number.isFinite(zoom) || zoom < label.minZoom) return null;
   const beyond = zoom - label.minZoom;
-  const base = label.kind === 'ocean' ? 16 : label.kind === 'sea' ? 13 : 14.5;
   return {
     opacity: Math.min(1, beyond / 0.6),
-    fontPx: Math.max(10, Math.min(label.kind === 'ocean' ? 20 : 17, base - label.rank * 0.65 + beyond * 0.65)),
+    // Oceans appear first but never outgrow the leading country names at the same zoom; seas sit just below them.
+    fontPx:
+      label.kind === 'ocean'
+        ? namePx(14.5, LEADING_COUNTRY.rank, zoom - LEADING_COUNTRY.minZoom)
+        : namePx(label.kind === 'sea' ? 13 : 14.5, label.rank, beyond),
   };
 }
 

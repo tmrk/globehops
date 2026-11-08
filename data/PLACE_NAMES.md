@@ -25,7 +25,7 @@ Countries retain Natural Earth's label points and zoom/rank. The table includes 
 
 Sea points use the largest polygon by cos(latitude)-scaled area, unwrapping longitude across the antimeridian and retaining holes. Best-first square subdivision finds an interior point far from the shoreline (0.02° projected tolerance). Polar caps keep their deliberate full-longitude edge. Every marine label, including manually placed points, must pass polygon containment after 0.01° rounding. The ocean and Mediterranean placements below improve composition across the whole-globe and phone views.
 
-Oceans start at zoom 0.8. Marine minimum zooms otherwise use `1.8 + (min_label - 2) * 0.45`, adapting Natural Earth's 2–5.7 thresholds to this globe. Oceans are larger italic caps; seas use smaller blue italic type. Long ocean names can occupy two lines. The normal collision and far-side rules apply; airports always win and countries win equal-rank sea ties.
+Oceans start at zoom 0.8. Marine minimum zooms otherwise use `1.8 + (min_label - 2) * 0.45`, adapting Natural Earth's 2–5.7 thresholds to this globe. Oceans are italic caps sized like the leading country names (rank 2, zoom 1.7) at the same zoom, never larger; seas use slightly smaller blue italic type. Long ocean names can occupy two lines. The normal collision and far-side rules apply; airports always win and countries win equal-rank sea ties.
 
 `CountryLabelLayer.setLocale(locale)`, `GlobeRenderer.setLabelLocale(locale)` and optional `GlobeView.locale` accept `en`, `hu`, `sv`; other values use English. A locale change resets text measurements and requests a frame without reloading data. The existing country-name preference controls this whole layer.
 
