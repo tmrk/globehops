@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { currentStandaloneGap } from '../pwa/standaloneGap.ts';
+import { currentStandaloneGap, standaloneFixedHeight } from '../pwa/standaloneGap.ts';
 
 /**
  * Mirrors the visual viewport (the part of the page not covered by the on-screen keyboard)
@@ -13,7 +13,8 @@ export function useVisualViewportVars(): void {
     const update = () => {
       // Without a keyboard, iOS home-screen apps also own the strip below the short layout viewport.
       const visible = vv ? vv.height : window.innerHeight;
-      const height = visible >= window.innerHeight - 1 ? visible + currentStandaloneGap() : visible;
+      const layout = standaloneFixedHeight() || window.innerHeight;
+      const height = visible >= layout - 1 ? visible + currentStandaloneGap() : visible;
       const top = vv ? vv.offsetTop : 0;
       root.style.setProperty('--vv-height', `${Math.round(height)}px`);
       root.style.setProperty('--vv-top', `${Math.round(top)}px`);

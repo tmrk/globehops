@@ -2,6 +2,10 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.15.2 — 2026-11-08 — Edge to edge on iPhone, for real
+
+- **No more black strip below the sheet.** 1.15.1 looked for the strip by comparing the window height with the screen, but on current iPhones the window reports its full height even while the sheet stops short. The installed app now measures how far bottom-anchored content really reaches, and recognises the home-screen app by its display mode as well.
+
 ## 1.15.1 — 2026-11-08 — Edge to edge on iPhone
 
 - **The bottom sheet reaches the bottom of the screen.** In the installed app on iPhone and iPad, a black strip the height of the status bar could sit below the journey sheet (a WebKit quirk with see-through status bars). The app now measures that strip and extends the globe, sheet, airport picker and privacy sheet to the physical bottom edge.
