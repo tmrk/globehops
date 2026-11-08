@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 import { APP_ICONS, SCREENSHOTS, SPLASH_SCREENS, splashFiles, splashLinkTags } from './pwa-assets.ts';
 
@@ -73,5 +74,19 @@ describe('manifest assets', () => {
       'narrow:image/webp',
       'wide:image/webp',
     ]);
+  });
+
+  it('matches the web app manifest', () => {
+    const manifest = JSON.parse(readFileSync(pub('manifest.webmanifest'), 'utf8')) as {
+      icons: { src: string; sizes: string; purpose: string; type: string }[];
+      screenshots: { src: string; sizes: string; form_factor: string; type: string }[];
+    };
+    expect(manifest.icons.map(({ src, sizes, purpose }) => ({ src, sizes, purpose }))).toEqual(
+      APP_ICONS.map(({ src, sizes, purpose }) => ({ src, sizes, purpose })),
+    );
+    expect(manifest.icons.every(({ type }) => type === 'image/png')).toBe(true);
+    expect(
+      manifest.screenshots.map(({ src, sizes, form_factor, type }) => ({ src, sizes, form_factor, type })),
+    ).toEqual(SCREENSHOTS.map(({ src, sizes, form_factor, type }) => ({ src, sizes, form_factor, type })));
   });
 });

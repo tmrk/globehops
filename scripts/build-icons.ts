@@ -32,7 +32,7 @@ const ARTWORK = {
     landShadow: [28, 70, 132],
     rim: [120, 204, 255],
     glow: ['#5ab4ff50', '#4ba8ff20', '#388dff07', '#388dff00'],
-    amber: ['#ff9f1ca0', '#ffb52f', '#ffd36b', '#fff0b3'],
+    amber: ['#f27a00b0', '#ff9200', '#ffa814', '#ffc23d'],
   },
 };
 const TILE = {
@@ -271,7 +271,7 @@ const globeData = await page.evaluate(
     amber.addColorStop(0.72, artwork.palette.amber[2]);
     amber.addColorStop(1, artwork.palette.amber[3]);
     ctx.save();
-    ctx.shadowColor = '#ffb52f90';
+    ctx.shadowColor = '#ff920090';
     ctx.shadowBlur = radius * 0.055;
     ribbon(-0.5, 0.5);
     ctx.fillStyle = amber;
@@ -282,19 +282,19 @@ const globeData = await page.evaluate(
       const lo = -0.5 + band / 24,
         hi = lo + 1 / 24;
       ribbon(lo, hi);
-      ctx.fillStyle = `rgba(255,249,218,${0.25 * Math.exp(-Math.pow(((lo + hi) / 2 + 0.22) / 0.2, 2))})`;
+      ctx.fillStyle = `rgba(255,222,150,${0.22 * Math.exp(-Math.pow(((lo + hi) / 2 + 0.22) / 0.2, 2))})`;
       ctx.fill();
     }
     for (const [i, p] of [start, end].entries()) {
       const halo = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius * (i === 0 ? 0.06 : 0.16));
-      halo.addColorStop(0, i === 0 ? '#ffb52f88' : '#ffdf9280');
-      halo.addColorStop(0.25, '#ffc24b38');
-      halo.addColorStop(1, '#ffc24b00');
+      halo.addColorStop(0, i === 0 ? '#ff920088' : '#ffb83080');
+      halo.addColorStop(0.25, '#ffa01a38');
+      halo.addColorStop(1, '#ffa01a00');
       ctx.fillStyle = halo;
       ctx.fillRect(p.x - radius * 0.16, p.y - radius * 0.16, radius * 0.32, radius * 0.32);
       ctx.beginPath();
       ctx.arc(p.x, p.y, radius * (i === 0 ? 0.023 : 0.042), 0, Math.PI * 2);
-      ctx.fillStyle = i === 0 ? '#ffc24b' : '#fff9e3';
+      ctx.fillStyle = i === 0 ? '#ffa01a' : '#ffe9b0';
       ctx.fill();
     }
     return canvas.toDataURL('image/png');
