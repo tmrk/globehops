@@ -115,7 +115,9 @@ export function createAppUpdater(deps: UpdaterDependencies) {
     if (state.status !== 'ready' && state.status !== 'downloading') set({ status: 'checking' });
     try {
       await registration.update();
-      if (registration.waiting && controlled) await ready(registration.waiting);
+      // update() can resolve just before `updatefound` fires; a new installing worker is a download.
+      if (registration.installing) watch(registration.installing);
+      else if (registration.waiting && controlled) await ready(registration.waiting);
       else if (state.status === 'checking') set({ status: 'current' });
       set({ checkedAt: deps.now() });
     } catch {

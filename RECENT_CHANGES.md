@@ -2,6 +2,14 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.15.0 — 2026-11-08 — An app that works offline
+
+- **Install GlobeHops as an app.** Add it to your home screen or desktop (About → **Install GlobeHops**, or Share → Add to Home Screen on iPhone and iPad) and it opens like a native app: full screen on Android, edge to edge under the status bar on iPhone and iPad, with a launch screen instead of a blank flash and new app icons.
+- **Works offline, always.** After the first visit everything GlobeHops needs — the globe imagery, every airport, time zones, labels and all three languages — is stored on your device, so it opens instantly and keeps working without a connection, in the browser or as an installed app.
+- **Updates itself.** Every time it opens (or comes back to the foreground) GlobeHops checks whether a newer version has been published. The new version downloads quietly in the background and verified file by file; when it is ready, a small **Update** notice appears, or it switches over the next time you open the app. About shows the status and has **Check for updates**.
+- **Feels like an app.** Pinching or double-tapping the interface no longer zooms the page and text no longer gets selected by accident, while pinch, scroll and button zoom on the globe work as before.
+- **Quieter ocean names.** Ocean labels are now the size of the leading country names instead of towering over them, and water names are as bright as country names.
+
 ## 1.14.0 — 2026-11-07 — Find the Moon
 
 - **Find the Moon.** The Moon at its true size is only in view from a narrow band of angles, so the display menu now has **Find the Moon** (while day and night shading is on): the globe turns until the Moon stands just above its edge, still north-up, and you can look around from there.

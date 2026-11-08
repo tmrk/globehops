@@ -10,7 +10,7 @@ export const hu: Messages = {
   'pwa.checking': 'Frissítések keresése…',
   'pwa.current': 'A legújabb verziót használod.',
   'pwa.downloading': 'Az új verzió letöltése…',
-  'pwa.ready': 'A(z) {0} verzió telepítésre kész.',
+  'pwa.ready': 'Telepíthető az új verzió: {0}.',
   'pwa.offline': 'Nincs internetkapcsolat. A GlobeHops akkor keres frissítést, amikor újra online leszel.',
   'pwa.failed': 'Nem sikerült frissítést keresni.',
   'pwa.install': 'GlobeHops telepítése',
