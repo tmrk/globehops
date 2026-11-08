@@ -148,10 +148,11 @@ test('desktop entry uses keyboard selection and advances to destination', async 
   await expect(page).toHaveURL(/\/globehops\/$/);
   await page.getByRole('button', { name: 'Departure airport: choose an airport' }).click();
   const from = page.getByRole('combobox', { name: 'Departure airport' });
+  const options = page.getByRole('listbox', { name: 'Airport suggestions' }).getByRole('option');
   await from.fill('copenhagen');
-  await expect(page.getByRole('option').first()).toContainText('CPH');
+  await expect(options.first()).toContainText('CPH');
   await from.press('ArrowDown');
-  await expect(page.getByRole('option').first()).toHaveAttribute('aria-selected', 'true');
+  await expect(options.first()).toHaveAttribute('aria-selected', 'true');
   await from.press('Enter');
   await expect(page.getByRole('combobox', { name: 'Destination airport' })).toBeFocused();
   await chooseAirport(page, 'toronto', 'YYZ');

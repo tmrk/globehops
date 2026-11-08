@@ -186,3 +186,11 @@ Expect server name `globehops`, five tools, four resources, the `plan_and_visual
 - Aircraft follow: keep camera north-up and the OrbitControls target at the origin; inspect feed velocity and manual-input exits separately from automatic leg framing. Reduced motion should re-centre only as needed.
 - Solar shading: change CPU stops and generated GLSL together in `sun.ts`, shared by Earth and atmosphere; do not duplicate thresholds in renderer code.
 - Playback: App must not subscribe to every frame. Derive renderer state from the single UTC clock, keep geometry precomputed and never write `t` to history during playback (Safari throttling).
+
+## Testing the offline PWA
+
+The worker and registration run only in production builds. Use `npm run build`, then `npx vite preview --port 4191` and open `http://localhost:4191/globehops/`. In browser developer tools, wait for the worker to control the page, inspect Cache Storage and verify the initial `?__rev=` requests. Disable the network, reload, open a route query and `/globehops/hu/`, and search for an airport. Lazy locales, city names, data, fonts and globe textures must all work offline. Dev-server modules are never cached by this implementation. Clear/unregister a previously installed production worker when switching that origin to a dev server.
+
+Playwright's shared configuration blocks service workers so existing tests cannot acquire control mid-test. `e2e/pwa.spec.ts` opts in with `test.use({ serviceWorkers: 'allow' })` and uses the shared console audit. Chromium may bypass `context.route` for worker main-script update checks; in that case the update interception test explicitly skips with an annotation, and injected updater unit tests cover that lifecycle. Run a prebuilt preview with `E2E_PORT=4181 E2E_SKIP_BUILD=1 npx playwright test e2e/pwa.spec.ts --project=desktop-chromium`.
+
+`src/pwa/swRouting.ts` has no browser-specific types; `tsconfig.sw.json` checks worker code against WebWorker rather than DOM globals. `scripts/pwa.test.ts` checks manifest assembly, byte revisions, head insertion and install metadata without depending on generated promotional images. Gesture suppression must never stop event propagation: verify globe wheel/pinch/button zoom and follow exit whenever changing it.

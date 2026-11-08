@@ -1,3 +1,4 @@
+import { AppSettings } from './AppSettings.tsx';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { LanguageSelector } from '../i18n/LanguageSelector.tsx';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
@@ -128,6 +129,7 @@ export const AboutDialog = forwardRef<AboutDialogHandle, AboutDialogProps>(funct
             .
           </li>
         </ul>
+        <AppSettings />
         <h3 ref={privacyRef} id="about-privacy">
           {t('about.privacy')}
         </h3>

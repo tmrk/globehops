@@ -1,3 +1,4 @@
+import { UpdateNotice } from './UpdateNotice.tsx';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import type { ToastState } from '../hooks/useToast.ts';
 
@@ -6,6 +7,7 @@ export function Toast({ toast }: { toast: ToastState | null }) {
 
   return (
     <div className="toast-region" role="status" aria-live="polite">
+      <UpdateNotice />
       {toast && (
         <div className="toast" key={toast.id}>
           <span>{toast.message}</span>

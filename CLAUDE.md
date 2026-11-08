@@ -23,3 +23,6 @@ See [AGENTS.md](AGENTS.md).
 - `docs/AGENT_INTEGRATION.md` is for external agents using GlobeHops, not contributors; follow `AGENTS.md` for codebase work.
 
 - Compare invariants: journey ids A–D are positional; alternatives use `b.*`/`c.*`/`d.*` link parameters while single-journey links stay unchanged; one UTC clock drives the fleet, with the active journey primary for camera follow.
+
+- Production PWA precaches same-origin build/public runtime files; new external runtime requests break offline. Service workers are blocked by default in E2E; the PWA spec opts in.
+- UI gestures must not zoom the page; globe wheel/trackpad/pinch/button zoom must still work. Never stop propagation in native-feel listeners; retain safe-area padding and iOS input sizing.

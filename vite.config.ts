@@ -1,3 +1,4 @@
+import { pwa } from './scripts/pwa.ts';
 import { localizedPages } from './scripts/localized-pages.ts';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -69,7 +70,7 @@ function agentDataset(): Plugin {
 
 export default defineConfig({
   base,
-  plugins: [react(), agentDataset(), localizedPages(base)],
+  plugins: [react(), agentDataset(), localizedPages(base), pwa({ base, build })],
   define: {
     __APP_VERSION__: JSON.stringify(build.version),
     __APP_COMMIT__: JSON.stringify(build.commit),
