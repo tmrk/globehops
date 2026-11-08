@@ -100,6 +100,16 @@ html {
   touch-action: pan-x pan-y;
 }
 
+/* iOS 26 home-screen apps with a see-through status bar give a page shorter than the screen a viewport
+   one status bar short of the bottom edge, and stop drawing fixed UI there (WebKit bug 301108). A page at
+   least as tall as the screen gets the whole screen; the 100lvh cap keeps pages without a top inset from
+   scrolling (WebKit bug 316008). */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  html {
+    min-height: min(100lvh, calc(100% + env(safe-area-inset-top)));
+  }
+}
+
 body {
   -webkit-user-select: none;
   user-select: none;
@@ -177,8 +187,6 @@ a {
 .app {
   position: fixed;
   inset: 0;
-  /* iOS home-screen apps: reach the physical bottom edge (see src/pwa/standaloneGap.ts). */
-  bottom: calc(-1 * var(--standalone-gap, 0px));
 }
 
 .layout-desktop {
@@ -3063,7 +3071,7 @@ button.map-menu__item:hover {
 
 .consent {
   position: fixed;
-  inset: auto 0 calc(-1 * var(--standalone-gap, 0px));
+  inset: auto 0 0;
   width: 100%;
   max-width: none;
   max-height: calc(100dvh - var(--safe-top) - 24px);

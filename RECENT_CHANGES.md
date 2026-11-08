@@ -2,6 +2,10 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.15.3 — 2026-11-08 — The whole screen on iPhone
+
+- **The installed app now fills the screen down to the bottom edge.** iOS 26 gives a home-screen app with a see-through status bar a viewport one status bar short of the bottom whenever the page is shorter than the screen, and stops drawing there (WebKit bug 301108), so 1.15.1–1.15.2 stretched the app into an area iOS never showed and could hide the bottom of the journey sheet. The installed app's page is now as tall as the screen, so iOS hands it the whole screen; the earlier stretching is gone.
+
 ## 1.15.2 — 2026-11-08 — Edge to edge on iPhone, for real
 
 - **No more black strip below the sheet.** 1.15.1 looked for the strip by comparing the window height with the screen, but on current iPhones the window reports its full height even while the sheet stops short. The installed app now measures how far bottom-anchored content really reaches, and recognises the home-screen app by its display mode as well.
