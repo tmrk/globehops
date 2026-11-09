@@ -254,10 +254,11 @@ describe('simulation clock', () => {
       expect(clock.getSnapshot()).toMatchObject({
         time: 14 * H,
         playing: true,
-        skipping: { from: 14 * H, to: 139 * H },
+        skipping: { from: 14 * H, to: 139 * H, progress: 0 },
       });
+      // The pause reports its progress, so the scrubber can glide across the stay while time holds.
       frame((t += SKIP_DWELL_MS / 2));
-      expect(clock.getSnapshot().time).toBe(14 * H);
+      expect(clock.getSnapshot()).toMatchObject({ time: 14 * H, skipping: { progress: 0.5 } });
       frame((t += SKIP_DWELL_MS));
       expect(clock.getSnapshot()).toMatchObject({ time: 139 * H, playing: true, skipping: null });
       frame((t += 100));

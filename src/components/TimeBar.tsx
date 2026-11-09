@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { compareMetrics, comparisonRange, type ComparedJourney } from '../lib/compare.ts';
 import { ComparisonLanes } from './ComparisonLanes.tsx';
 import { useI18n } from '../i18n/I18nProvider.tsx';
@@ -218,6 +218,38 @@ export function TimeBar({
     ? { min: 0, max: axis.length, step: 1, toPos: axis.toPos, toTime: axis.toTime }
     : { min: start, max: end, step: 60000, toPos: (time: number) => time, toTime: (pos: number) => pos };
   const at = (time: number) => (100 * (scale.toPos(time) - scale.min)) / Math.max(1, scale.max - scale.min);
+  // Skipping a stay, time holds at the arrival while the thumb glides across the break, landing where
+  // playback continues; reduced motion jumps instead.
+  const skipping = axis ? snapshot.skipping : null;
+  const glide = skipping && document.documentElement.dataset.motion !== 'reduce' ? easeInOut(skipping.progress) : 0;
+  const thumbPos = skipping
+    ? scale.toPos(snapshot.time) + glide * (scale.toPos(skipping.to) - scale.toPos(snapshot.time))
+    : scale.toPos(snapshot.time);
+  const thumbAt = (100 * (thumbPos - scale.min)) / Math.max(1, scale.max - scale.min);
+  // The track's own width (between the thumb's centres at either end) decides when the thumb reaches a label.
+  const scrubberRef = useRef<HTMLDivElement>(null);
+  const [trackPx, setTrackPx] = useState(0);
+  useEffect(() => {
+    const scrubber = scrubberRef.current;
+    if (!scrubber || !axis || typeof ResizeObserver === 'undefined') return;
+    const measure = () => setTrackPx(Math.max(0, scrubber.clientWidth - 2 * THUMB_RADIUS));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scrubber);
+    return () => observer.disconnect();
+  }, [axis]);
+  // Stays are true gaps in the track, so the two journeys read as separate bars.
+  const trackGaps = axis?.breaks.length
+    ? `linear-gradient(to right, ${[
+        ...axis.breaks.flatMap((gap, i) => {
+          const from = at(gap.start),
+            to = at(gap.end);
+          const previous = i ? at(axis.breaks[i - 1].end) : 0;
+          return [`#000 ${previous}% ${from}%`, `transparent ${from}% ${to}%`];
+        }),
+        `#000 ${at(axis.breaks[axis.breaks.length - 1].end)}% 100%`,
+      ].join(', ')})`
+    : undefined;
   const trackSegments = trip
     ? (trip.scope === null
         ? trip.trip.timeline?.sections
@@ -315,8 +347,12 @@ export function TimeBar({
           range={laneRange}
         />
       )}
-      <div className="time-bar__scrubber">
-        <div className="time-bar__track" aria-hidden="true">
+      <div className="time-bar__scrubber" ref={scrubberRef}>
+        <div
+          className="time-bar__track"
+          aria-hidden="true"
+          style={trackGaps ? { maskImage: trackGaps, WebkitMaskImage: trackGaps } : undefined}
+        >
           {trackSegments?.map((segment, index) => (
             <span
               key={index}
@@ -333,21 +369,19 @@ export function TimeBar({
           <div className="time-bar__breaks" aria-hidden="true">
             {axis?.breaks.map((gap) => {
               const stay = trip?.trip.stays.find((s) => s.arrival?.epochMs === gap.start);
+              const label = stay ? stayLength(stay.minutes, stay.days, { t, fmt }) : '';
+              const centre = (at(gap.start) + at(gap.end)) / 2;
+              // The label steps aside (fades) whenever the thumb comes within reach, never sitting under it.
+              const reach = THUMB_RADIUS + LABEL_CHAR_PX * label.length * 0.5 + 6;
+              const covered = !trackPx || (Math.abs(thumbAt - centre) / 100) * trackPx < reach;
+              const active = skipping && skipping.from >= gap.start && skipping.to <= gap.end;
               return (
                 <span
                   key={gap.start}
-                  className={`time-bar__break${
-                    snapshot.skipping && snapshot.skipping.from >= gap.start && snapshot.skipping.to <= gap.end
-                      ? ' is-skipping'
-                      : snapshot.time >= gap.start && snapshot.time < gap.end
-                        ? ' is-current'
-                        : ''
-                  }`}
+                  className={`time-bar__break${active ? ' is-skipping' : ''}${covered ? ' is-covered' : ''}`}
                   style={{ left: `${at(gap.start)}%`, width: `${at(gap.end) - at(gap.start)}%` }}
                 >
-                  {stay && (
-                    <span className="time-bar__break-label">{stayLength(stay.minutes, stay.days, { t, fmt })}</span>
-                  )}
+                  {label && <span className="time-bar__break-label">{label}</span>}
                 </span>
               );
             })}
@@ -360,7 +394,7 @@ export function TimeBar({
           min={scale.min}
           max={scale.max}
           step={scale.step}
-          value={scale.toPos(snapshot.time)}
+          value={thumbPos}
           onChange={(e) => seek(scale.toTime(Number(e.target.value)))}
         />
       </div>
@@ -451,3 +485,9 @@ export function TimeBar({
     </section>
   );
 }
+
+/** Half the scrubber thumb (28px): the track runs between its centres at either end. */
+const THUMB_RADIUS = 14;
+/** Approximate width of one character of a break label (condensed mono at --text-2xs). */
+const LABEL_CHAR_PX = 5.4;
+const easeInOut = (x: number) => (x < 0.5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2);

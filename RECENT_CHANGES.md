@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.18.1 — 2026-11-09 — Smoother stays on the timeline
+
+- **The plane glides over a stay.** When playback skips a stay, the timeline's handle now slides smoothly across the stay's break during the short pause and lands exactly where the next journey continues, instead of jumping. The globe holds at the arrival meanwhile, then moves on to the departure day.
+- **Clearer breaks.** Each stay is now a clean gap between the journeys' bars, marked with a fine slanted stroke, and its length (“5 days”) steps aside whenever the handle comes near, so it is never half hidden.
+
 ## 1.18.0 — 2026-11-09 — Round trips, and routes within reach of an airport
 
 - **Round trips and multi-stage trips.** **Add return flight** under your stops turns a journey into a trip: the way home appears in its own **Return** tab, from your destination back to where you started, ready for its own connections and times. **+** beside the tabs adds further journeys, and **Edit** names or removes one. One-way journeys look exactly as before.

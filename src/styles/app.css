@@ -4118,7 +4118,10 @@ button.map-menu__item:hover {
   outline-offset: 1px;
 }
 
-/* The scrubber shows a whole trip's stays as short breaks: a slanted double stroke, its length above. */
+/* The scrubber shows a whole trip's stays as short breaks: the track stops (its mask cuts a gap), a fine
+   slanted double stroke marks the compressed time, and the stay's length sits above. The label steps
+   aside whenever the thumb comes within reach; while playback skips a stay, the thumb glides across
+   the gap and the stroke turns amber. */
 .time-bar__breaks {
   position: absolute;
   inset: 0 14px;
@@ -4127,7 +4130,7 @@ button.map-menu__item:hover {
 .time-bar__break {
   position: absolute;
   top: 50%;
-  height: 12px;
+  height: 10px;
   transform: translateY(-50%);
 }
 .time-bar__break::before {
@@ -4135,35 +4138,36 @@ button.map-menu__item:hover {
   position: absolute;
   left: 50%;
   top: 0;
-  width: 6px;
+  width: 5px;
   height: 100%;
-  transform: translateX(-50%) skewX(-22deg);
+  transform: translateX(-50%) skewX(-24deg);
   border-inline: 1.5px solid var(--text-3);
-  background: var(--surface-solid);
   transition: border-color 0.2s;
 }
 .time-bar__break-label {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 2px);
+  bottom: calc(100% + 3px);
   transform: translateX(-50%);
   color: var(--text-3);
   font: 500 var(--text-2xs) / 1 var(--mono);
   font-stretch: var(--mono-stretch);
   word-spacing: var(--mono-space);
   white-space: nowrap;
-  transition: color 0.2s;
+  transition:
+    opacity 0.18s var(--ease),
+    transform 0.18s var(--ease),
+    color 0.2s;
 }
-/* The thumb rests on the break during the stay, and the status line already names it. */
-.time-bar__break.is-current .time-bar__break-label {
+.time-bar__break.is-covered .time-bar__break-label {
   opacity: 0;
+  transform: translate(-50%, -2px);
 }
-/* While playback lingers before jumping across a stay. */
 .time-bar__break.is-skipping::before {
   border-color: var(--accent);
 }
-.time-bar__break.is-skipping .time-bar__break-label {
-  color: var(--accent);
+:root[data-motion='reduce'] .time-bar__break-label {
+  transition: none;
 }
 
 /* ------------------------------------------------------------------------------------------ */
