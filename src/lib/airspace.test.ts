@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import raw from '../data/generated/airspace.json';
 import { decodeAirspace, zoneContains, type AirspaceDataset } from '../data/airspace.ts';
 import type { LatLng, LegRoute } from '../types.ts';
-import { createAirspaceRouter, dayOf, peakFlightLevel, type RouteEndpoint } from './airspace.ts';
-import { centralAngle, greatCircleDistanceKm, initialBearing, interpolateGreatCircle } from './geo.ts';
+import { createAirspaceRouter, dayOf, peakFlightLevel, turnAngle, type RouteEndpoint } from './airspace.ts';
+import { centralAngle, greatCircleDistanceKm, interpolateGreatCircle, toVec3 } from './geo.ts';
 import { pathLengthKm } from './routePath.ts';
 
 const real = decodeAirspace(raw);
@@ -37,14 +37,11 @@ function intrusions(route: LegRoute, zones: AirspaceDataset['zones'], ids: strin
   }
   return [...found];
 }
+/** The largest change of direction at any vertex: a kink shows up as one large turn. */
 const maxTurnDeg = (path: LatLng[]) => {
+  const v = path.map(toVec3);
   let max = 0;
-  for (let i = 1; i < path.length - 1; i++) {
-    const turn = Math.abs(
-      ((initialBearing(path[i], path[i + 1]) - initialBearing(path[i - 1], path[i]) + 540) % 360) - 180,
-    );
-    max = Math.max(max, turn);
-  }
+  for (let i = 1; i < v.length - 1; i++) max = Math.max(max, (turnAngle(v[i - 1], v[i], v[i + 1]) * 180) / Math.PI);
   return max;
 };
 
@@ -58,6 +55,8 @@ function expectDetour(route: LegRoute, from: LatLng, to: LatLng) {
   expect(route.distanceKm).toBeLessThan(route.greatCircleKm * 1.5);
   for (let i = 1; i < path.length; i++) expect(centralAngle(path[i - 1], path[i])).toBeLessThan((1.01 * Math.PI) / 180);
   expect(intrusions(route, real.zones, route.avoided)).toEqual([]);
+  // Corners are rounded into bends rather than kinks.
+  expect(maxTurnDeg(path)).toBeLessThan(5);
 }
 
 describe('airspace routing on the bundled advisories', () => {
@@ -74,15 +73,13 @@ describe('airspace routing on the bundled advisories', () => {
     expect(route.avoidedPlaces).toEqual(['RU']);
   });
 
-  it('goes around several zones at once with smooth turns (Frankfurt–Dubai, Vilnius–Istanbul)', () => {
+  it('goes around several zones at once (Frankfurt–Dubai, Vilnius–Istanbul)', () => {
     const dubai = router.route(FRA, DXB, { epochMs: NOV_2026 });
     expectDetour(dubai, FRA, DXB);
     expect(dubai.avoided).toEqual(expect.arrayContaining(['ir', 'iq']));
     const istanbul = router.route(VNO, IST, { epochMs: NOV_2026 });
     expectDetour(istanbul, VNO, IST);
     expect(istanbul.avoided).toEqual(expect.arrayContaining(['by', 'ua']));
-    // Corners are rounded into bends rather than kinks.
-    for (const route of [dubai, istanbul]) expect(maxTurnDeg(route.path!)).toBeLessThan(25);
   });
 
   it('finds the Caucasus corridor between Russia and Iran (Frankfurt–Beijing)', () => {
@@ -98,6 +95,36 @@ describe('airspace routing on the bundled advisories', () => {
     expect(route.avoided).toContain('ru');
     const path = route.path!;
     expect(path.some((p, i) => i > 0 && Math.abs(p.lng - path[i - 1].lng) > 180)).toBe(true);
+  });
+
+  it('bends smoothly and stays clear on every detour between major airports', () => {
+    const airports = [
+      HEL,
+      NRT,
+      LHR,
+      JFK,
+      ICN,
+      FRA,
+      DXB,
+      DOH,
+      VNO,
+      IST,
+      PEK,
+      at(13.69, 100.75, 'TH'),
+      at(24.96, 46.7, 'SA'),
+    ];
+    let detours = 0;
+    for (const from of airports)
+      for (const to of airports) {
+        if (from === to) continue;
+        const route = router.route(from, to, { epochMs: NOV_2026 });
+        expect(route.status).not.toBe('unavoided');
+        if (!route.path) continue;
+        detours++;
+        expect(maxTurnDeg(route.path)).toBeLessThan(5);
+        expect(intrusions(route, real.zones, route.avoided)).toEqual([]);
+      }
+    expect(detours).toBeGreaterThan(40);
   });
 
   it('applies advisories only on the days they are valid', () => {

@@ -5,7 +5,7 @@
  * Zones are rasterised once onto a 0.5° grid: a cell blocks when a zone covers any part of it. A*
  * over that grid (16 directions, wrapping across the antimeridian and over the poles) finds the way
  * around; string-pulling and tightening turn the cell path into a few great-circle arcs that hug
- * the zones, and corners are rounded where the margin allows. Crossings are decided, and every
+ * the zones, and every corner is rounded into a gentle curve. Crossings are decided, and every
  * result validated, against the zones' own outlines; a missing or implausible detour keeps the
  * great circle and reports that avoidance is not guaranteed.
  */
@@ -39,7 +39,14 @@ const N = W * H;
 const FT_PER_KM = 3280.84;
 const SAMPLE_STEP = 0.15 * RAD;
 const DENSIFY_STEP = 1 * RAD;
-const CORNER_KM = 220;
+/**
+ * Corners are rounded over about 5% of the route on each side (200–500 km), so bends read as
+ * curves at any zoom; gentler bends are left as they are.
+ */
+const CORNER_SHARE = 0.05;
+const CORNER_MIN_KM = 200;
+const CORNER_MAX_KM = 500;
+const CORNER_MIN_TURN = 0.5 * RAD;
 /** Longer detours are treated as failures: the airline would not fly it, or the search went astray. */
 const MAX_DETOUR_FACTOR = 2.2;
 const MAX_DETOUR_EXTRA_KM = 500;
@@ -398,40 +405,99 @@ function tighten(s: Search, points: Vec3[]): Vec3[] {
   return pts;
 }
 
-/** Rounds each corner with a spherical quadratic Bézier where the curve stays clear. */
-function roundCorners(s: Search, points: Vec3[]): Vec3[] {
+const unit = (v: Vec3): Vec3 => {
+  const l = Math.hypot(...v);
+  return [v[0] / l, v[1] / l, v[2] / l];
+};
+/** Direction of travel at `from` along the arc towards `to`. */
+const heading = (from: Vec3, to: Vec3): Vec3 => {
+  const d = from[0] * to[0] + from[1] * to[1] + from[2] * to[2];
+  return unit([to[0] - from[0] * d, to[1] - from[1] * d, to[2] - from[2] * d]);
+};
+const cross = (a: Vec3, b: Vec3): Vec3 => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+
+/** Change of direction (radians) where the arc p → x meets x → q. */
+export function turnAngle(p: Vec3, x: Vec3, q: Vec3): number {
+  return vecAngle(unit(cross(p, x)), unit(cross(x, q)));
+}
+
+/** Inside the corner: a spherical quadratic Bézier from t1 to t2 with x as its control point. */
+function innerCurve(t1: Vec3, x: Vec3, t2: Vec3, segments: number): Vec3[] {
+  return Array.from({ length: segments + 1 }, (_, i) => {
+    const t = i / segments;
+    const u = (1 - t) * (1 - t),
+      v = 2 * (1 - t) * t,
+      w = t * t;
+    return unit([u * t1[0] + v * x[0] + w * t2[0], u * t1[1] + v * x[1] + w * t2[1], u * t1[2] + v * x[2] + w * t2[2]]);
+  });
+}
+
+/** Through the corner: Hermite curves t1 → x → t2, crossing x along the bisector, so they bulge outwards. */
+function outerCurve(p: Vec3, t1: Vec3, x: Vec3, t2: Vec3, q: Vec3, segments: number): Vec3[] {
+  const bisector = unit(heading(x, q).map((c, i) => c - heading(x, p)[i]) as Vec3);
+  const hermite = (a: Vec3, ta: Vec3, b: Vec3, tb: Vec3, n: number, skipFirst: boolean) => {
+    const length = vecAngle(a, b);
+    const out: Vec3[] = [];
+    for (let i = skipFirst ? 1 : 0; i <= n; i++) {
+      const t = i / n;
+      const h00 = 2 * t ** 3 - 3 * t ** 2 + 1,
+        h10 = t ** 3 - 2 * t ** 2 + t,
+        h01 = -2 * t ** 3 + 3 * t ** 2,
+        h11 = t ** 3 - t ** 2;
+      out.push(unit([0, 1, 2].map((j) => h00 * a[j] + h01 * b[j] + length * (h10 * ta[j] + h11 * tb[j])) as Vec3));
+    }
+    return out;
+  };
+  const half = Math.max(2, Math.ceil(segments / 2));
+  return [
+    ...hermite(t1, heading(t1, x), x, bisector, half, false),
+    ...hermite(x, bisector, t2, unit(heading(t2, q)), half, true),
+  ];
+}
+
+/**
+ * Rounds every corner a little so routes bend instead of kinking. Inside the corner (shorter) is
+ * tried first, then a curve through the corner that bulges away from the zone it hugs; each is
+ * checked against the grid margin, then against the zones' outlines. Only a corner with no clear
+ * curve at any size stays sharp.
+ */
+function roundCorners(s: Search, points: Vec3[], outlinesClear: (points: Vec3[]) => boolean): Vec3[] {
   if (points.length < 3) return points;
   const out: Vec3[] = [points[0]];
+  const routeKm = lengthOf(points) * EARTH_RADIUS_KM;
+  const corner = Math.min(CORNER_MAX_KM, Math.max(CORNER_MIN_KM, CORNER_SHARE * routeKm)) / EARTH_RADIUS_KM;
+  const gridClear = (curve: Vec3[]) => curve.every((point, i) => i === 0 || visible(s, curve[i - 1], point));
   for (let k = 1; k < points.length - 1; k++) {
     const p = points[k - 1],
       x = points[k],
       q = points[k + 1];
+    const turn = turnAngle(p, x, q);
+    if (!(turn > CORNER_MIN_TURN)) {
+      out.push(x);
+      continue;
+    }
     const a = vecAngle(x, p),
       b = vecAngle(x, q);
-    let d = Math.min(CORNER_KM / EARTH_RADIUS_KM, 0.4 * a, 0.4 * b);
+    // Dense enough that no step along a curve turns by more than a few degrees.
+    const segments = Math.max(8, Math.ceil(turn / RAD));
+    // The largest curve that fits wins; tight corridors get smaller ones.
+    const sizes = [1, 0.75, 0.56, 0.42, 0.32, 0.24, 0.18, 0.13].map((f) => f * Math.min(corner, 0.4 * a, 0.4 * b));
     let curve: Vec3[] | null = null;
-    for (let attempt = 0; attempt < 4 && d > 1e-4; attempt++, d /= 2) {
-      const t1 = slerpVec(x, p, d / a);
-      const t2 = slerpVec(x, q, d / b);
-      const candidate: Vec3[] = [];
-      for (let i = 0; i <= 10; i++) {
-        const t = i / 10;
-        const u = (1 - t) * (1 - t),
-          v = 2 * (1 - t) * t,
-          w = t * t;
-        const point: Vec3 = [
-          u * t1[0] + v * x[0] + w * t2[0],
-          u * t1[1] + v * x[1] + w * t2[1],
-          u * t1[2] + v * x[2] + w * t2[2],
-        ];
-        const l = Math.hypot(...point);
-        candidate.push([point[0] / l, point[1] / l, point[2] / l]);
-      }
-      if (candidate.every((point, i) => i === 0 || visible(s, candidate[i - 1], point))) {
-        curve = candidate;
-        break;
-      }
-    }
+    search: for (const clear of [gridClear, outlinesClear])
+      for (const inside of [true, false])
+        for (const d of sizes) {
+          const t1 = slerpVec(x, p, d / a);
+          const t2 = slerpVec(x, q, d / b);
+          const candidate = inside ? innerCurve(t1, x, t2, segments) : outerCurve(p, t1, x, t2, q, segments);
+          if (clear(candidate)) {
+            curve = candidate;
+            break search;
+          }
+        }
     if (curve) out.push(...curve);
     else out.push(x);
   }
@@ -521,7 +587,8 @@ export function createAirspaceRouter(dataset: AirspaceDataset): AirspaceRouter {
     if (!cells) return unavoided();
     const corners = tighten(search, stringPull(search, [u, ...cells.slice(1, -1).map(cellVec), v]));
     // Validate against the zones' outlines, not just the grid; fall back to sharp corners first.
-    const path = [densify(roundCorners(search, corners)), densify(corners)].find(
+    const outlinesClear = (points: Vec3[]) => zonesAlong(dataset.zones, g, mask, points, true) === 0;
+    const path = [densify(roundCorners(search, corners, outlinesClear)), densify(corners)].find(
       (points) => zonesAlong(dataset.zones, g, mask, points, true) === 0,
     );
     if (!path) return unavoided();

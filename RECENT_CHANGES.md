@@ -2,6 +2,10 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.17.1 — 2026-11-09 — Smoother detours
+
+- **No more sharp corners.** Every bend in a route around restricted airspace is now a gentle curve, sized to the route (about 5% of its length on each side, less where a corridor is narrow, as between Russia and Iran). Where the inside of a corner hugs a zone, the curve bulges slightly outwards instead, so routes still never enter the zones they avoid.
+
 ## 1.17.0 — 2026-11-09 — Around restricted airspace
 
 - **Flights avoid restricted airspace.** Routes now curve around conflict zones and closed airspace the way an EU airline's would: Helsinki–Tokyo goes over the pole instead of across Russia, Frankfurt–Beijing through the Caucasus and Central Asia, Frankfurt–Dubai around Iraq and Iran. Detours are short and smooth, cross the date line and the poles when that is the way round, and their extra distance lengthens the estimated flight time, the totals and the playback.
