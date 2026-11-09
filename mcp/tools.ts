@@ -3,11 +3,15 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
   searchAirports,
+  isTripDocument,
   planComparison,
   planItinerary,
+  planTrip,
   timelineAt,
+  tripTimelineAt,
   validateItinerary,
   type AgentContext,
+  type RoutingRequest,
 } from '../src/agent/plan.ts';
 import { linkStateToDocument, type ItineraryDocument } from '../src/agent/itinerary.ts';
 import { parseLink } from '../src/state/link.ts';
@@ -18,18 +22,35 @@ import { ITINERARY_SCHEMA } from '../src/agent/schema.ts';
 // Derive the MCP document description and validation directly from the published schema.
 // Zod's JSON Schema importer treats oneOf as the whole schema, ignoring sibling constraints.
 // Import each complete form, then retain the document's exclusive choice with z.xor.
-function documentForm(field: 'stops' | 'journeys') {
+function documentForm(field: 'stops' | 'journeys' | 'sections') {
   const schema = { ...ITINERARY_SCHEMA, $id: undefined, oneOf: undefined, required: ['version', field] };
   return z.fromJSONSchema(JSON.parse(JSON.stringify(schema)));
 }
 const itinerary = z
-  .xor([documentForm('stops'), documentForm('journeys')])
-  .describe('ItineraryDocument v1; airport-local wall times, optional explicit offsets.');
+  .xor([documentForm('stops'), documentForm('journeys'), documentForm('sections')])
+  .describe(
+    'ItineraryDocument v1; airport-local wall times, optional explicit offsets. Use sections for a round trip or multi-stage trip (stays between sections are explicit, never layovers).',
+  );
+const routing = z
+  .strictObject({
+    avoidAirspace: z
+      .boolean()
+      .optional()
+      .describe('Route around restricted airspace valid on the flight date (EASA bulletins; EU/EEA operator assumed).'),
+    diversion: z
+      .union([z.boolean(), z.number().int().min(60).max(370)])
+      .optional()
+      .describe(
+        'Keep flights within modelled reach of potential diversion airports (ETOPS/EDTO-inspired): true = 180 minutes at an assumed 400 kt on one engine; or minutes 60–370. Not an operator authorisation.',
+      ),
+  })
+  .optional()
+  .describe('Opt-in modelled routing. Omitted: great-circle distances and positions (the default).');
 const route = z
   .string()
   .max(MAX_URL_LENGTH)
   .describe('Airport codes separated by hyphens; custom transfer minutes follow _, e.g. CPH-LHR_180-JFK.');
-const journeyFields = { itinerary: itinerary.optional(), route: route.optional() };
+const journeyFields = { itinerary: itinerary.optional(), route: route.optional(), routing };
 const journeyInput = z
   .strictObject(journeyFields)
   .refine((v) => (v.itinerary !== undefined) !== (v.route !== undefined), 'Supply exactly one of itinerary or route.')
@@ -72,6 +93,7 @@ export const INPUT_SCHEMAS = {
     journeys: z.array(comparisonJourney).min(2).max(MAX_JOURNEYS),
     view: view.optional(),
     assumeDeparture: z.string().max(50).optional(),
+    routing,
   }),
   calculate_route: journeyInput,
   validate_itinerary: journeyInput,
@@ -110,11 +132,11 @@ const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Compare 2–4 alternative journeys (e.g. different airlines/connections between the same cities) and return a single GlobeHops link that plays them simultaneously on one clock, with per-journey totals and which is fastest/arrives first. Use airport-local wall times from the timetable; undated journeys align to the earliest dated departure or assumeDeparture.',
   search_airports: 'Find airports using GlobeHops ranking, with coordinates and IANA time zones.',
   calculate_route:
-    'Calculate 1–10 airport stops, great-circle distances in km/mi, durations in minutes, airport-local and UTC times, canonical links and issues. Flight estimates (850 km/h + 30 min) are not airline schedules.',
+    'Calculate 1–10 airport stops (or a trip of up to 6 sections with explicit stays), distances in km/mi (great circle by default; routing opts into restricted-airspace and diversion-aware routes), durations in minutes, airport-local and UTC times, canonical links and issues. Flight estimates (850 km/h + 30 min) are not airline schedules.',
   validate_itinerary:
     'Validate document structure, airports, local time-zone offsets and chronology using the same model as the app. Warnings remain valid.',
   visualize_route:
-    'Return readable and itinerary-document globe URLs, a humanSummary and totals. Use 1–10 airport stops; departures/arrivals are airport-local wall times; view.time is an absolute ISO instant. lang chooses en/hu/sv paths; leg is a one-based flight.',
+    'Return readable and itinerary-document globe URLs, a humanSummary and totals. Use 1–10 airport stops, or sections for a round trip/multi-stage trip; departures/arrivals are airport-local wall times; view.time is an absolute ISO instant. lang chooses en/hu/sv paths; leg is a one-based flight (counted across a trip).',
   get_journey_timeline:
     'Sample 2–1000 instants (or up to 1000 explicit ISO instants with offsets): state, latitude/longitude in degrees, illustrative altitude in km and daylight. Undated routes require assumeDeparture; a single stop has no timeline.',
 };
@@ -144,7 +166,7 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
     if (name === 'compare_journeys') {
       const args = INPUT_SCHEMAS.compare_journeys.parse(raw);
       const { assumeDeparture, ...input } = args;
-      const plan = planComparison(ctx, input, { assumeDeparture });
+      const plan = planComparison(ctx, input, { assumeDeparture, ...(args.routing ? { routing: args.routing } : {}) });
       return result(plan, !plan.valid);
     }
     const args = checked.data as {
@@ -153,11 +175,13 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
       at?: string[];
       samples?: number;
       assumeDeparture?: string;
+      routing?: RoutingRequest;
     };
+    const options = args.routing ? { routing: args.routing } : {};
     let input: unknown = args.itinerary ?? { route: args.route };
     if (name === 'visualize_route') {
       const visual = INPUT_SCHEMAS.visualize_route.parse(raw);
-      if (visual.view !== undefined) {
+      if (visual.view !== undefined || args.routing) {
         const parsedRoute = args.route !== undefined ? parseLink(`?route=${encodeURIComponent(args.route)}`) : null;
         const initial =
           args.itinerary !== undefined
@@ -165,13 +189,21 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
             : linkStateToDocument(parsedRoute ?? parseLink(''));
         input = {
           ...initial,
-          view: { ...(args.itinerary !== undefined ? initial.view : {}), ...(visual.view as object) },
+          view: { ...(args.itinerary !== undefined ? initial.view : {}), ...((visual.view as object) ?? {}) },
         };
         // Keep tolerant route diagnostics when converting to a strict document.
         if (parsedRoute?.issues.length) return result({ error: 'Invalid route', issues: parsedRoute.issues }, true);
       }
+      if (args.routing && input && typeof input === 'object') {
+        // The app shows the same routing for this visit; minutes other than 180 can't be shown there.
+        const doc = input as ItineraryDocument;
+        input = {
+          ...doc,
+          view: { ...doc.view, airspace: !!args.routing.avoidAirspace, diversion: !!args.routing.diversion },
+        };
+      }
       if (input && typeof input === 'object' && 'journeys' in input) {
-        const plan = planComparison(ctx, input);
+        const plan = planComparison(ctx, input, options);
         return result(
           {
             url: plan.url,
@@ -183,7 +215,20 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
           !plan.valid,
         );
       }
-      const plan = planItinerary(ctx, input);
+      if (isTripDocument(input)) {
+        const plan = planTrip(ctx, input, options);
+        return result(
+          {
+            url: plan.url,
+            itineraryParamUrl: plan.itineraryParamUrl,
+            humanSummary: plan.humanSummary,
+            summary: { valid: plan.valid, issues: plan.issues, totals: plan.sections[0]?.totals },
+            trip: { totals: plan.totals, stays: plan.stays },
+          },
+          !plan.valid,
+        );
+      }
+      const plan = planItinerary(ctx, input, options);
       return result(
         {
           url: plan.url,
@@ -200,12 +245,13 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
       return result({ valid, issues }, !valid);
     }
     if (name === 'get_journey_timeline') {
-      const value = timelineAt(ctx, input, args.at ?? { samples: args.samples ?? 10 }, {
-        assumeDeparture: args.assumeDeparture,
-      });
+      const at = args.at ?? { samples: args.samples ?? 10 };
+      const value = isTripDocument(input)
+        ? tripTimelineAt(ctx, input, at, { assumeDeparture: args.assumeDeparture, ...options })
+        : timelineAt(ctx, input, at, { assumeDeparture: args.assumeDeparture, ...options });
       return result(value, !value.valid);
     }
-    const plan = planItinerary(ctx, input);
+    const plan = isTripDocument(input) ? planTrip(ctx, input, options) : planItinerary(ctx, input, options);
     return result(plan, !plan.valid);
   } catch (error) {
     return result({ error: error instanceof Error ? error.message : 'Tool failed.' }, true);
@@ -253,6 +299,104 @@ const timeOutput = z
     provenance: z.enum(['entered', 'estimated', 'assumed']),
   })
   .nullable();
+const routingOutput = z
+  .object({
+    avoidAirspace: z.boolean(),
+    airspaceReviewed: z.string().nullable(),
+    diversion: z
+      .object({
+        profile: z.string(),
+        maxDiversionMinutes: z.number(),
+        oeiSpeedKt: z.number(),
+        radiusKm: z.number(),
+      })
+      .nullable(),
+    note: z.string(),
+  })
+  .nullable();
+const legOutput = z.object({
+  id: z.string(),
+  from: z.string(),
+  to: z.string(),
+  distanceKm: z
+    .number()
+    .describe('Flown distance used for estimates: the routed path when routed, else the great circle.'),
+  distanceMi: z.number(),
+  greatCircleKm: z.number(),
+  distanceModel: z.enum(['great_circle', 'routed']),
+  route: z
+    .object({
+      airspace: z.object({
+        status: z.enum(['clear', 'detour', 'partial', 'unavoided']),
+        avoided: z.array(z.string()),
+        crossed: z.array(z.string()),
+      }),
+      diversion: z
+        .object({
+          profile: z.string(),
+          limitMinutes: z.number(),
+          status: z.enum(['covered', 'adjusted', 'gap']),
+          maxDiversionMinutes: z.number(),
+          outsideKm: z.number(),
+          extraKm: z.number(),
+          beyondThresholdKm: z.number(),
+        })
+        .optional(),
+    })
+    .optional(),
+  estimatedFlightMinutes: z.number().int().nullable(),
+  departure: timeOutput,
+  arrival: timeOutput,
+  durationMinutes: z.number().int().nullable(),
+  durationSource: z.enum(['entered', 'estimated', 'mixed']),
+});
+const transferOutput = z.object({
+  id: z.string(),
+  airport: z.string(),
+  minutes: z.number().int(),
+  source: z.enum(['setting', 'times']),
+  provenance: z.enum(['entered', 'estimated', 'mixed']),
+});
+const tripTotalsOutput = z.object({
+  distanceKm: z.number(),
+  distanceMi: z.number(),
+  flightMinutes: z.number().int(),
+  connectionMinutes: z.number().int(),
+  stayMinutes: z.number().int(),
+  tripMinutes: z.number().int(),
+  flights: z.number().int(),
+  connections: z.number().int(),
+  sections: z.number().int(),
+  stays: z.number().int(),
+  departure: timeOutput,
+  arrival: timeOutput,
+  provenance: z.enum(['entered', 'estimated', 'mixed']),
+});
+const stayOutput = z.object({
+  afterSection: z.number().int(),
+  beforeSection: z.number().int(),
+  arrivalAirport: z.string(),
+  departureAirport: z.string(),
+  openJaw: z.boolean(),
+  arrival: timeOutput,
+  departure: timeOutput,
+  minutes: z.number().int(),
+  days: z.number().int().nullable(),
+  source: z.enum(['times', 'setting']),
+  provenance: z.enum(['entered', 'estimated', 'assumed', 'mixed']),
+});
+const sectionOutput = z.object({
+  index: z.number().int(),
+  name: z.string(),
+  label: z.string().nullable(),
+  anchor: z.enum(['entered', 'estimated', 'assumed', 'none']),
+  stops: z.array(airportOutput),
+  legs: z.array(legOutput),
+  transfers: z.array(transferOutput),
+  totals: totalsOutput,
+  departure: timeOutput,
+  arrival: timeOutput,
+});
 const comparisonOutput = z.object({
   fastest: z.enum(['A', 'B', 'C', 'D']).nullable(),
   firstArrival: z.enum(['A', 'B', 'C', 'D']).nullable(),
@@ -264,54 +408,42 @@ const singleOutputs = {
   search_airports: z.object({ airports: z.array(airportOutput) }),
   calculate_route: z.object({
     contractVersion: z.literal(1),
+    kind: z.enum(['journey', 'trip']).describe('trip for documents with sections; its journeys are in sections.'),
     input: z.unknown(),
     valid: z.boolean(),
     issues: issuesOutput,
     url: z.string().nullable(),
     itineraryParamUrl: z.string().nullable(),
-    totals: totalsOutput,
-    stops: z.array(airportOutput),
+    routing: routingOutput,
+    totals: z.union([totalsOutput, tripTotalsOutput]),
+    stops: z.array(airportOutput).optional(),
     notes: z.array(z.string()),
-    legs: z.array(
-      z.object({
-        id: z.string(),
-        from: z.string(),
-        to: z.string(),
-        distanceKm: z.number(),
-        distanceMi: z.number(),
-        estimatedFlightMinutes: z.number().int().nullable(),
-        departure: timeOutput,
-        arrival: timeOutput,
-        durationMinutes: z.number().int().nullable(),
-        durationSource: z.enum(['entered', 'estimated', 'mixed']),
-      }),
-    ),
-    transfers: z.array(
-      z.object({
-        id: z.string(),
-        airport: z.string(),
-        minutes: z.number().int(),
-        source: z.enum(['setting', 'times']),
-        provenance: z.enum(['entered', 'estimated', 'mixed']),
-      }),
-    ),
+    legs: z.array(legOutput).optional(),
+    transfers: z.array(transferOutput).optional(),
+    humanSummary: z.string().optional(),
+    sections: z.array(sectionOutput).optional(),
+    stays: z.array(stayOutput).optional(),
   }),
   validate_itinerary: z.object({ valid: z.boolean(), issues: issuesOutput }),
   visualize_route: z.object({
     url: z.string().nullable(),
     itineraryParamUrl: z.string().nullable(),
     humanSummary: z.string(),
-    summary: z.object({ valid: z.boolean(), issues: issuesOutput, totals: totalsOutput }),
+    summary: z.object({ valid: z.boolean(), issues: issuesOutput, totals: totalsOutput.optional() }),
     comparison: comparisonOutput.optional(),
+    trip: z.object({ totals: tripTotalsOutput, stays: z.array(stayOutput) }).optional(),
   }),
   get_journey_timeline: z.object({
     contractVersion: z.literal(1),
+    kind: z.enum(['journey', 'trip']),
     valid: z.boolean(),
     issues: issuesOutput,
     timeline: z.array(
       z.object({
         time: z.string(),
-        phase: z.enum(['before', 'flight', 'transfer', 'after']),
+        phase: z.enum(['before', 'flight', 'transfer', 'after', 'stay']),
+        section: z.number().int().optional().describe('Trip section; during a stay, the section that follows it.'),
+        globalLeg: z.number().int().optional(),
         legId: z.string().optional(),
         stopCode: z.string().optional(),
         distanceFraction: z.number().optional(),
@@ -320,7 +452,7 @@ const singleOutputs = {
           lat: z.number(),
           lng: z.number(),
           provenance: z.literal('estimated'),
-          model: z.literal('great_circle'),
+          model: z.enum(['great_circle', 'routed']),
         }),
         status: z.object({ title: z.string(), detail: z.string() }),
         daylight: z.enum(['day', 'twilight', 'night']),
@@ -340,6 +472,7 @@ export const OUTPUT_SCHEMAS = {
     notes: z.array(z.string()),
     url: z.string().nullable(),
     itineraryParamUrl: z.string().nullable(),
+    routing: routingOutput,
     humanSummary: z.string(),
     journeys: z.array(
       z.object({
@@ -347,8 +480,8 @@ export const OUTPUT_SCHEMAS = {
         label: z.string().nullable(),
         color: z.string(),
         stops: z.array(airportOutput),
-        legs: singleOutputs.calculate_route.shape.legs,
-        transfers: singleOutputs.calculate_route.shape.transfers,
+        legs: z.array(legOutput),
+        transfers: z.array(transferOutput),
         totals: totalsOutput,
         departure: timeOutput,
         arrival: timeOutput,

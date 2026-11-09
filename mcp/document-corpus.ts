@@ -29,7 +29,7 @@ export const DOCUMENT_CORPUS: unknown[] = [
   { version: 1, journeys: null },
 
   { ...scheduled, view: { lang: 'hu', names: true, borders: false, follow: true, leg: 2 } },
-  ...[{ lang: 'de' }, { names: 1 }, { borders: null }, { leg: 0 }, { leg: 10 }, { leg: 1.5 }].map((view) => ({
+  ...[{ lang: 'de' }, { names: 1 }, { borders: null }, { leg: 0 }, { leg: 55 }, { leg: 1.5 }].map((view) => ({
     ...scheduled,
     view,
   })),

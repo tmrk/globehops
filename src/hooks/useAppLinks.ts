@@ -26,16 +26,14 @@ import { linkHasStops, parseLink, type LinkState } from '../state/link.ts';
 import { resolveRouteCodes } from '../state/url.ts';
 import { isNamedClock } from '../agent/contract.ts';
 import { loadLastRoute, loadLastJourney } from '../state/storage.ts';
-import type { CompareAction } from '../state/compare.ts';
-import type { RouteAction } from '../state/route.ts';
+import type { PlanAction } from '../state/plan.ts';
 import type { useViewPreferences } from './useViewPreferences.ts';
 import type { useToast } from './useToast.ts';
 
 type Setter<T> = Dispatch<SetStateAction<T>>;
 interface AppLinksOptions {
   route: RouteState;
-  dispatch: Dispatch<RouteAction>;
-  compareDispatch: Dispatch<CompareAction>;
+  planDispatch: Dispatch<PlanAction>;
   setEditing: Setter<number | null>;
   resetPreferences: ReturnType<typeof useViewPreferences>['resetToLink'];
   applyView: (link: LinkState) => void;
@@ -68,8 +66,7 @@ export function opensWithRoute(search = window.location.search): boolean {
 
 export function useAppLinks({
   route,
-  dispatch,
-  compareDispatch,
+  planDispatch,
   setEditing,
   resetPreferences,
   applyView,
@@ -102,7 +99,7 @@ export function useAppLinks({
     (codes: string[], idx: SearchIndex) => {
       const { stops, missing } = resolveRouteCodes(codes, idx);
       routeStopCount.current = stops.length;
-      compareDispatch({
+      planDispatch({
         type: 'load',
         journeys: [{ airportIds: stops.map((s) => s.airport.id), layovers: stops.map((s) => s.layoverMin) }],
       });
@@ -110,16 +107,21 @@ export function useAppLinks({
         showToast(unknownAirports(missing, t));
       }
     },
-    [showToast, t, compareDispatch],
+    [showToast, t, planDispatch],
   );
 
   const applyLink = useCallback(
     (link: LinkState, idx: SearchIndex, search: string) => {
-      let stopCount = routeStopCount.current;
+      let flightCounts = [Math.max(0, routeStopCount.current - 1)];
       const notices = locale === 'en' ? [...link.issues] : link.issues.length ? [t('errors.invalidLink')] : [];
+      const trip = !!link.sections?.length;
       if (link.stops !== null) {
         const missing: string[] = [];
-        const journeys = [{ label: link.label, stops: link.stops }, ...(link.compare ?? [])].map((entry) => {
+        const entries = [
+          { label: link.label ?? null, stops: link.stops, stayMin: null as number | null },
+          ...(trip ? (link.sections ?? []) : (link.compare ?? []).map((entry) => ({ ...entry, stayMin: null }))),
+        ];
+        const journeys = entries.map((entry) => {
           const resolved = entry.stops.flatMap((stop) => {
             const result = resolveRouteCodes([stop.code], idx);
             if (!result.stops.length) {
@@ -130,23 +132,34 @@ export function useAppLinks({
           });
           return {
             label: entry.label,
+            stayMin: entry.stayMin,
             airportIds: resolved.map((s) => s.airport.id),
             layovers: resolved.map((s) => s.layoverMin),
             arrivals: resolved.map((s) => s.arrival),
             departures: resolved.map((s) => s.departure),
           };
         });
-        stopCount = routeStopCount.current = journeys[0].airportIds.length;
-        compareDispatch({ type: 'load', journeys });
+        routeStopCount.current = journeys[0].airportIds.length;
+        // Flight numbers count the first journey's flights, or a trip's flights across its journeys.
+        flightCounts = (trip ? journeys : journeys.slice(0, 1)).map((j) => Math.max(0, j.airportIds.length - 1));
+        planDispatch({ type: 'load', journeys, trip });
         setEditing(null);
         if (missing.length) notices.unshift(unknownAirports(missing, t));
       }
       if (link.view.leg !== undefined) {
-        if (link.view.leg < stopCount) dispatch({ type: 'selectLeg', leg: link.view.leg - 1 });
-        else
+        let flight = link.view.leg - 1;
+        const section = flightCounts.findIndex((count) => {
+          if (flight < count) return true;
+          flight -= count;
+          return false;
+        });
+        if (section >= 0) {
+          if (section > 0) planDispatch({ type: 'activate', index: section });
+          planDispatch({ type: 'route', index: section, action: { type: 'selectLeg', leg: flight } });
+        } else
           notices.push(
             locale === 'en'
-              ? `Flight ${link.view.leg} is outside this route; use 1 to ${Math.max(0, stopCount - 1)}.`
+              ? `Flight ${link.view.leg} is outside this route; use 1 to ${flightCounts.reduce((a, b) => a + b, 0)}.`
               : t('errors.invalidLink'),
           );
       }
@@ -162,7 +175,7 @@ export function useAppLinks({
       resetPreferences({ ...link.view, clock: linkedClock ? airportCode(linkedClock) : link.view.clock }, search);
       applyView(link);
     },
-    [showToast, t, locale, setVisitLocale, dispatch, resetPreferences, compareDispatch, setEditing, applyView],
+    [showToast, t, locale, setVisitLocale, resetPreferences, planDispatch, setEditing, applyView],
   );
 
   const zoneLoadError = useEffectEvent(() => showToast(t('toasts.zonesUnavailable')));

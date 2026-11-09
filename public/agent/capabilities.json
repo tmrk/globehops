@@ -6,6 +6,7 @@
   "urlTemplates": {
     "simple": "https://tmrk.github.io/globehops/?route={route}",
     "comparison": "https://tmrk.github.io/globehops/?route={routeA}&label={labelA}&b.route={routeB}&b.label={labelB}",
+    "trip": "https://tmrk.github.io/globehops/?route={outbound}&dep1={localDeparture}&2.route={return}&2.dep1={localDeparture}&2.stay={stay}",
     "localized": "https://tmrk.github.io/globehops/{lang}/?route={route}",
     "scheduled": "https://tmrk.github.io/globehops/?route={route}&dep1={localDeparture}",
     "document": "https://tmrk.github.io/globehops/?itinerary={base64urlJson}"
@@ -24,6 +25,27 @@
       "format": "prefix + route|depN|arrN|label",
       "examples": ["b.route=BUD-JFK", "c.dep1=2026-12-01T08:00"],
       "semantics": "Journeys B–D in order; gaps compact. Each group requires route. Parameter keys are case-insensitive. Other view parameters remain unprefixed; leg refers to A, clock may name any compared airport."
+    },
+    "2.–6.": {
+      "type": "trip section group",
+      "required": false,
+      "format": "prefix + route|depN|arrN|label|stay",
+      "examples": ["2.route=NBO-CDG-CPH", "2.dep1=2026-11-20T23:55", "2.stay=5d"],
+      "semantics": "A trip's sections after the first (up to 6 in all), in order; the first uses the unprefixed parameters. Sections are sequential journeys separated by explicit stays; connections stay inside a section. stay (days d, hours h or minutes m) places a section without times after the previous one (default 7 days). Never combined with b.–d. comparisons; leg counts flights across the trip."
+    },
+    "airspace": {
+      "type": "string",
+      "required": false,
+      "format": "0 or 1",
+      "examples": ["0"],
+      "semantics": "Restricted-airspace avoidance for this visit (app default on); overrides the saved preference."
+    },
+    "diversion": {
+      "type": "string",
+      "required": false,
+      "format": "0 or 1",
+      "examples": ["1"],
+      "semantics": "Diversion-aware routing for this visit (app default on): keep flights within modelled reach of potential diversion airports. Not an ETOPS authorisation."
     },
     "route": {
       "type": "string",
@@ -114,7 +136,7 @@
       "required": false,
       "format": "1-based flight number",
       "examples": [1, 2],
-      "semantics": "Frames the selected flight; must exist in the route. Does not change the simulation instant."
+      "semantics": "Frames the selected flight; must exist in the route (in a trip, flights count across sections, up to 54). Does not change the simulation instant."
     },
     "itinerary": {
       "type": "string",
@@ -129,10 +151,31 @@
     "alignment": "Entered schedules remain absolute. Undated journeys align to the earliest dated departure, else assumeDeparture; without either they have no timeline.",
     "metrics": "Fastest is shortest total journey duration; arrives first is earliest final UTC arrival. Exact ties have no winner. Invalid or fewer-than-two-stop journeys are excluded; arrival comparison requires every valid journey to have an end."
   },
+  "trips": {
+    "document": "Version 1; sections: 1–6 sequential journeys, each with stops and an optional label; later sections may carry stayMinutes (0–525600).",
+    "stays": "A stay is the time between one section arriving and the next departing, at the same airport or an open jaw. It is never a layover and is never inferred from duration. Its length comes from both sections’ times, else from stayMinutes (default 7 days), with estimated/assumed provenance.",
+    "playback": "One traveller flies the sections in order on one UTC clock; automatic playback skips stays without changing any instant. Comparisons (journeys) and trips (sections) never combine.",
+    "outputs": "calculate_route returns kind \"trip\" with sections (journey details), stays (minutes, calendar days, source, provenance) and trip totals; get_journey_timeline reports a \"stay\" phase between sections."
+  },
+  "routing": {
+    "default": "Agent and MCP results follow great circles unless routing is requested; the app routes by default.",
+    "request": "{ \"avoidAirspace\": boolean, \"diversion\": boolean | minutes 60–370 }",
+    "airspace": "Routes around EASA conflict-zone bulletins valid on the flight date, assuming an EU/EEA operator. See data/AIRSPACE.md.",
+    "diversion": {
+      "profile": "twin-180",
+      "maxDiversionMinutes": 180,
+      "oneEngineInoperativeSpeedKt": 400,
+      "radiusKm": 2222.4,
+      "semantics": "ETOPS/EDTO-inspired: keeps flights within still-air reach of potential diversion airports (open large/medium airports with a paved runway of at least 2,000 m by 45 m, OurAirports) or their own endpoints. Covered keeps the route, adjusted re-routes within a modest allowance, gap keeps the unconstrained route and reports the longest modelled diversion time. Not an operator authorisation; winds, tracks, airways and ATC are not modelled. See data/DIVERSION.md."
+    },
+    "legFields": "distanceKm is the flown (routed or great-circle) distance used for estimates; greatCircleKm is always present; distanceModel says which; route.airspace and route.diversion describe the modelled constraints."
+  },
   "schema": "https://tmrk.github.io/globehops/agent/itinerary.schema.json",
   "limits": {
     "stops": 10,
     "journeys": 4,
+    "tripSections": 6,
+    "maximumStayMinutes": 525600,
     "minimumDocumentStops": 1,
     "urlCharacters": 8000,
     "itineraryParamCharacters": 6000,
@@ -171,6 +214,8 @@
     "lang",
     "names",
     "borders",
+    "airspace",
+    "diversion",
     "leg"
   ],
   "validation": {
@@ -220,11 +265,28 @@
       { "code": "long_layover", "severity": "warning", "meaning": "Connection exceeds seven days." },
       { "code": "future_rules", "severity": "info", "meaning": "Future times use current runtime time-zone rules." }
     ],
+    "tripIssues": [
+      {
+        "code": "stay_overlap",
+        "severity": "error",
+        "meaning": "A section departs before the previous section arrives."
+      }
+    ],
     "agentIssues": [
       {
         "code": "use_compare_journeys",
         "severity": "error",
         "meaning": "Multi-journey documents require compare_journeys for calculations and timelines."
+      },
+      {
+        "code": "use_trip_sections",
+        "severity": "error",
+        "meaning": "Multi-section trips are planned as trips (calculate_route), not as one journey."
+      },
+      {
+        "code": "invalid_routing",
+        "severity": "error",
+        "meaning": "routing.diversion must be a boolean or 60–370 minutes."
       },
       { "code": "unknown_airport", "severity": "error", "meaning": "Unrecognised airport skipped." },
       { "code": "no_airports", "severity": "error", "meaning": "No known airport supplied." },
@@ -247,6 +309,11 @@
       { "code": "link_too_large", "severity": "error", "meaning": "Cannot encode within sharing limits." }
     ],
     "warnings": [
+      {
+        "code": "routing_unavailable",
+        "severity": "warning",
+        "meaning": "Requested routing data is not available here; those flights follow great circles."
+      },
       {
         "code": "document_link_too_large",
         "severity": "warning",

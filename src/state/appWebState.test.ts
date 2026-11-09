@@ -23,6 +23,7 @@ const snapshot: ClockSnapshot = {
   live: false,
   start: null,
   end: null,
+  skipping: null,
 };
 const settings = { clock: 'local', units: 'km' as const, dayNight: true, follow: false, lang: 'hu' as const };
 const primaryInput = resolveItinerary(context, 'CPH-LHR-JFK').input;
@@ -78,7 +79,6 @@ describe('live browser-tool state', () => {
       context,
       primaryStops: primary.stops,
       linkExtra: { compare: [alternative] },
-      serializedJourneys: [primary, alternative],
       active: 1,
       currentView: view,
       snapshot,
@@ -113,7 +113,6 @@ describe('live browser-tool state', () => {
       context,
       primaryStops: primary.stops,
       linkExtra: { compare: [] },
-      serializedJourneys: [primary],
       active: 0,
       currentView: createToolView(snapshot, false, settings, null),
       snapshot,

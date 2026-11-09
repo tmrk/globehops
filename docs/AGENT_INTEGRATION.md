@@ -29,6 +29,8 @@ The guide is at the project path `/globehops/llms.txt`, not the domain-root `/ll
 | `route`             | Airport tokens separated by hyphens; custom transfer minutes after `_` | `CPH-LHR_180-JFK`              |
 | `label`             | Journey A label, trimmed, 1–40 characters without controls             | `Via%20London`                 |
 | `b.*`, `c.*`, `d.*` | Additional journeys: route, depN, arrN and label                       | `b.route=BUD-JFK`              |
+| `2.*` … `6.*`       | A trip's later sections: route, depN, arrN, label and `stay`           | `2.route=NBO-CDG-CPH`          |
+| `N.stay`            | Stay before section N while its times don't fix it (`d`, `h`, `m`)     | `2.stay=5d`                    |
 | `depN`, `arrN`      | Local departure/arrival at 1-based stop N                              | `dep1=2026-11-20T08:15`        |
 | `t`                 | Simulation instant, with Z or explicit offset                          | `2026-11-20T09:30Z`            |
 | `play`              | Start playback on open; reduced motion prevents autoplay               | `1`                            |
@@ -41,7 +43,9 @@ The guide is at the project path `/globehops/llms.txt`, not the domain-root `/ll
 | `lang`              | `en`, `hu`, `sv`; generated links use `/en/`, `/hu/`, `/sv/` paths     | `lang=hu` alias on root path   |
 | `names`             | Place-name labels for this visit                                       | `1` on, `0` off                |
 | `borders`           | Country borders for this visit                                         | `0` off, `1` on                |
-| `leg`               | One-based selected flight; frames that flight without seeking time     | `2`                            |
+| `airspace`          | Restricted-airspace avoidance for this visit (app default on)          | `0` off, `1` on                |
+| `diversion`         | Diversion-aware routing for this visit (app default on)                | `0` off, `1` on                |
+| `leg`               | One-based selected flight (counted across a trip); frames it           | `2`                            |
 | `itinerary`         | Alternative complete base64url UTF-8 JSON document                     | See examples file              |
 
 The itinerary parameter takes precedence over readable parameters. An explicit locale path takes precedence over `lang`; otherwise document `view.lang` or the `?lang=` alias selects the language. `buildLinkUrl` and MCP generate locale paths, for example `/globehops/hu/?route=CPH-JFK&names=1&borders=0&leg=1`. Link and browser-tool view overrides do not save user preferences; later manual control changes may save them. When `follow` and `leg` are both supplied, the flight is selected while the aircraft camera takes priority; `select_flight` exits follow to frame its flight. URL input takes precedence over remembered browser state; absent both, the app opens an example. Explicit `?route=` clears the route. Canonical empty links omit `route`.
@@ -141,19 +145,69 @@ It returns both URLs, `humanSummary`, per-journey airports/legs/transfers/totals
 
 `visualize_route` and `validate_itinerary` also accept journeys documents. Visualization adds `comparison` and uses A for `summary.totals`. `calculate_route` and `get_journey_timeline` direct multi-journey documents to `compare_journeys`; a one-journey document works with either single-journey tool. See [comparison model and policy](ROUTE_COMPARISON.md).
 
+## Round trips and multi-stage trips
+
+A trip is a sequence of journeys (sections) separated by explicit stays, not a comparison: alternatives are compared side by side, while a trip's sections follow one another. A link or document is one or the other, never both. Readable links keep the first section unprefixed and add later ones with numeric prefixes:
+
+```text
+https://tmrk.github.io/globehops/?route=CPH-AMS-NBO&dep1=2026-11-15T07:00&arr2=2026-11-15T08:20&dep2=2026-11-15T10:20&arr3=2026-11-15T20:55&2.route=NBO-CDG-CPH&2.dep1=2026-11-20T23:55&2.arr2=2026-11-21T06:50&2.dep2=2026-11-21T09:30&2.arr3=2026-11-21T11:25
+```
+
+The document form uses `sections` (1–6), each with `stops`, an optional `label` and, after the first, an optional `stayMinutes`:
+
+```json
+{
+  "version": 1,
+  "sections": [
+    {
+      "stops": [
+        { "airport": "CPH", "departure": "2026-11-15T07:00" },
+        { "airport": "AMS", "arrival": "2026-11-15T08:20", "departure": "2026-11-15T10:20" },
+        { "airport": "NBO", "arrival": "2026-11-15T20:55" }
+      ]
+    },
+    {
+      "label": "Home",
+      "stops": [
+        { "airport": "NBO", "departure": "2026-11-20T23:55" },
+        { "airport": "CDG", "arrival": "2026-11-21T06:50", "departure": "2026-11-21T09:30" },
+        { "airport": "CPH", "arrival": "2026-11-21T11:25" }
+      ]
+    }
+  ]
+}
+```
+
+Connections belong inside a section; the time between sections is a **stay**, never a layover, and GlobeHops never turns one into the other by duration. Both sections' own times fix a stay (`source: "times"`). Build itineraries progressively: a section without times is placed from its neighbour by its `stayMinutes` (default 10080, seven days) with `estimated` provenance, or `assumed` when the default is used. Missing details are never invented beyond that marked placement. A section departing before the previous one arrives reports `stay_overlap` (error). Sections may be open jaws (arrive in Rome, leave from Milan).
+
+`calculate_route`, `visualize_route`, `validate_itinerary` and `get_journey_timeline` accept trip documents. `calculate_route` returns `kind: "trip"`, `sections` (each with `name` — the label or Outbound/Return/Journey n — `anchor`, stops, legs, transfers, totals and times), `stays` (`afterSection`, `beforeSection`, airports, `openJaw`, arrival/departure, `minutes`, calendar `days` at the arrival airport, `source`, `provenance`) and trip `totals` (`flightMinutes`, `connectionMinutes`, `stayMinutes`, `tripMinutes`, counts and first/last times). Timelines add `section` and `globalLeg`, and a `stay` phase at the arrival airport between sections. `leg` and `select_flight` count flights across the whole trip. The app plays one traveller through the trip on one clock and skips stays during automatic playback without changing any instant.
+
+## Routing: restricted airspace and diversion airports
+
+Agent and MCP results follow great circles by default, so existing workflows keep their numbers. Request modelled routing per call with `routing`:
+
+```json
+{ "route": "JNB-PER", "routing": { "avoidAirspace": true, "diversion": true } }
+```
+
+- `avoidAirspace`: route around EASA conflict-zone bulletins valid on each flight's date, as for an EU/EEA airline (see [restricted airspace](../data/AIRSPACE.md)).
+- `diversion`: `true` keeps flights within 180 minutes of a potential diversion airport at an assumed 400 kt on one engine in still air (≈ 2,222 km), in the spirit of ETOPS/EDTO; a number from 60 to 370 chooses another limit. Potential diversion airports are open large/medium airports with a paved runway of at least 2,000 × 45 m (OurAirports), plus the flight's own airports. This is modelled reach, not an operator authorisation or an airline's route (see [diversion coverage](../data/DIVERSION.md)).
+
+Results then include a top-level `routing` summary and, per leg, `distanceKm` (the distance used for estimates), `greatCircleKm`, `distanceModel` (`great_circle` or `routed`) and `route.airspace` (`status`, `avoided`, `crossed`) plus `route.diversion` (`status`: `covered`, `adjusted` or `gap`; `limitMinutes`, `maxDiversionMinutes`, `outsideKm`, `extraKm`, `beyondThresholdKm`). A `gap` keeps the unconstrained route and reports how far it goes beyond the limit (for example Sydney–Santiago needs about 312 minutes). `visualize_route` carries the choice into its link as `airspace=0|1&diversion=0|1`, which the app applies for that visit; minutes other than 180 can't be shown there. Without the routing data the request reports `routing_unavailable` (warning) and keeps great circles.
+
 ## Validation, limits and estimates
 
 Structural checks enforce types, patterns, required fields, additional-property rules, stop counts and transfer-only layovers. They intentionally do not validate calendar dates, zone offsets, airport existence or chronology. `validateItinerary` adds shared semantic issues to structural issues. MCP argument validation also rejects malformed tool envelopes and documents; these failures are returned as `isError` results with clear messages.
 
 Semantic issue codes, severities and meanings are published in `capabilities.json`. Calendar errors, unsupported/missing zones, DST gaps, invalid offsets, negative flight durations and overlapping connections are errors. Ambiguous repeated hours warn and choose the earlier instant unless an offset is supplied. Short connections (<20 minutes), unusual flight durations, ignored endpoint times and layovers over seven days warn; future-rule uncertainty is informational. Issue paths refer to document stops/fields or legs, prefixed with `/journeys/i` for comparisons. `valid` means there are no errors, not that an airline operates the route or a connection is feasible.
 
-Limits are 1–4 document journeys, 10 stops per journey, 8000 URL characters, 6000 itinerary-parameter characters, layover settings up to 10080 minutes and calendar years 1900–2100. Search returns 8 matches by default, at most 100. Timelines accept up to 1000 explicit instants or 2–1000 evenly spaced samples (default 10). A single airport has no flight timeline.
+Limits are 1–4 document journeys, 1–6 trip sections, stays up to 525600 minutes, 10 stops per journey, 8000 URL characters, 6000 itinerary-parameter characters, layover settings up to 10080 minutes and calendar years 1900–2100. Search returns 8 matches by default, at most 100. Timelines accept up to 1000 explicit instants or 2–1000 evenly spaced samples (default 10). A single airport has no flight timeline.
 
 Distances use great circles on a spherical Earth, radius 6371.0088 km. Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distance results round to 0.1 km/mi; durations round to integer minutes. Totals are rounded from unrounded shared calculations, so rounded leg distances may differ from totals by 0.1.
 
 Entered timepoints carry `provenance: "entered"`; propagated endpoints carry `"estimated"`; explicitly anchored undated journeys carry `"assumed"`. Legs report `durationSource`; transfers report their shared `source` (`setting` or `times`) and provenance; totals distinguish entered, estimated and mixed durations. An unanchored undated route returns null timepoints and estimated durations. A timeline requires `assumeDeparture` for such a route; the server never silently assumes “now.” Timeline instants distinguish entered requests from estimated samples and identify whether their journey anchor was entered or assumed.
 
-Positions use the shared flight-progress model along a great circle. The website can optionally route flights around restricted airspace for people viewing a link (on by default in the display menu); agent tools, MCP results and their numbers always use great circles, so the page may show longer distances and times for such flights. Altitude is illustrative. These are not live aircraft locations. Daylight uses the shared solar model, with civil twilight, at the requested position and instant. Actual routes, winds, aircraft and airline schedules are not modelled. Time conversion uses the runtime's Intl IANA database; its vintage may differ between machines, and future rules can change.
+Positions use the shared flight-progress model along a great circle, or along the routed path when `routing` was requested (`position.model: "routed"`). The website routes flights around restricted airspace and within reach of diversion airports for people viewing a link (both on by default in the display menu); without `routing`, agent tools and MCP results use great circles, so the page may show longer distances and times for such flights. Altitude is illustrative. These are not live aircraft locations. Daylight uses the shared solar model, with civil twilight, at the requested position and instant. Actual routes, winds, aircraft and airline schedules are not modelled. Time conversion uses the runtime's Intl IANA database; its vintage may differ between machines, and future rules can change.
 
 ## Dataset freshness and licences
 

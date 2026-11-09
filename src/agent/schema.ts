@@ -1,5 +1,13 @@
 import { MAX_LABEL_LENGTH } from '../lib/journeyLabel.ts';
-import { MAX_STOPS, MAX_JOURNEYS, MAX_LAYOVER_MIN, MAX_URL_LENGTH } from './contract.ts';
+import {
+  MAX_STOPS,
+  MAX_JOURNEYS,
+  MAX_SECTIONS,
+  MAX_STAY_MIN,
+  MAX_TRIP_FLIGHTS,
+  MAX_LAYOVER_MIN,
+  MAX_URL_LENGTH,
+} from './contract.ts';
 import { AIRPORT_PATTERN, LOCAL_TIME_PATTERN, INSTANT_PATTERN, LABEL_PATTERN } from './itinerary.ts';
 
 const stopProperties = {
@@ -27,6 +35,7 @@ export const ITINERARY_SCHEMA = {
   oneOf: [
     { type: 'object', required: ['stops'], properties: { stops: { type: 'array' } } },
     { type: 'object', required: ['journeys'], properties: { journeys: { type: 'array' } } },
+    { type: 'object', required: ['sections'], properties: { sections: { type: 'array' } } },
   ],
   properties: {
     $schema: { type: 'string' },
@@ -46,6 +55,30 @@ export const ITINERARY_SCHEMA = {
         },
       },
     },
+    sections: {
+      type: 'array',
+      minItems: 1,
+      maxItems: MAX_SECTIONS,
+      description:
+        'A trip: sequential journeys (outbound, return, further stages) separated by stays at their destinations. ' +
+        'Connections belong inside a section; a stay is never a layover.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['stops'],
+        properties: {
+          label: { type: 'string', minLength: 1, maxLength: MAX_LABEL_LENGTH, pattern: LABEL_PATTERN },
+          stayMinutes: {
+            type: 'integer',
+            minimum: 0,
+            maximum: MAX_STAY_MIN,
+            description:
+              'Sections after the first: the stay before this section, used only while its own times do not fix it (default 7 days).',
+          },
+          stops: { $ref: '#/$defs/stops' },
+        },
+      },
+    },
     view: {
       type: 'object',
       additionalProperties: false,
@@ -60,11 +93,17 @@ export const ITINERARY_SCHEMA = {
         lang: { enum: ['en', 'hu', 'sv'] },
         names: { type: 'boolean' },
         borders: { type: 'boolean' },
+        airspace: { type: 'boolean', description: 'Avoid restricted airspace for this visit (app default on).' },
+        diversion: {
+          type: 'boolean',
+          description:
+            'Diversion-aware routing for this visit: keep routes within modelled reach of potential diversion airports (app default on).',
+        },
         leg: {
           type: 'integer',
           minimum: 1,
-          maximum: MAX_STOPS - 1,
-          description: 'One-based flight number; must exist in this route.',
+          maximum: MAX_TRIP_FLIGHTS,
+          description: 'One-based flight number; must exist in this route (in a trip, counted across all sections).',
         },
       },
     },

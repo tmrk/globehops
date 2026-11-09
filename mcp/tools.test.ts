@@ -112,7 +112,7 @@ describe('MCP comparisons', () => {
     const output = OUTPUT_SCHEMAS.visualize_route.parse(visual.structuredContent);
     expect(output.url).toContain('/hu/?route=BUD-JFK');
     expect(output.comparison?.fastest).toBe('A');
-    expect(output.summary.totals.flights).toBe(1);
+    expect(output.summary.totals?.flights).toBe(1);
     expect(handleTool(context, 'validate_itinerary', { itinerary }).isError).not.toBe(true);
     for (const name of ['calculate_route', 'get_journey_timeline'] as const) {
       const result = handleTool(context, name, { itinerary });
@@ -142,5 +142,53 @@ describe('MCP comparisons', () => {
       const result = handleTool(context, name, validArgs[name]);
       expect(OUTPUT_SCHEMAS[name].safeParse(result.structuredContent).success, name).toBe(true);
     }
+  });
+});
+
+describe('MCP trips and routing', () => {
+  const trip = {
+    version: 1,
+    sections: [
+      { stops: [{ airport: 'CPH', departure: '2026-11-15T07:00' }, { airport: 'AMS' }, { airport: 'NBO' }] },
+      {
+        label: 'Home',
+        stops: [{ airport: 'NBO', departure: '2026-11-20T23:55' }, { airport: 'CDG' }, { airport: 'CPH' }],
+      },
+    ],
+  };
+  it('calculates, validates, visualises and samples a round trip through the published schemas', () => {
+    const calculated = handleTool(context, 'calculate_route', { itinerary: trip });
+    expect(calculated.isError).not.toBe(true);
+    const output = OUTPUT_SCHEMAS.calculate_route.parse(calculated.structuredContent);
+    expect(output.kind).toBe('trip');
+    expect(output.sections?.map((s) => s.name)).toEqual(['Outbound', 'Home']);
+    expect(output.stays?.[0]).toMatchObject({ arrivalAirport: 'NBO', source: 'times', days: 5 });
+    const visual = OUTPUT_SCHEMAS.visualize_route.parse(
+      handleTool(context, 'visualize_route', { itinerary: trip }).structuredContent,
+    );
+    expect(visual.url).toContain('2.route=NBO-CDG-CPH');
+    expect(visual.trip?.stays).toHaveLength(1);
+    expect(handleTool(context, 'validate_itinerary', { itinerary: trip }).isError).not.toBe(true);
+    const timeline = OUTPUT_SCHEMAS.get_journey_timeline.parse(
+      handleTool(context, 'get_journey_timeline', { itinerary: trip, samples: 20 }).structuredContent,
+    );
+    expect(timeline.kind).toBe('trip');
+    expect(timeline.timeline.some((sample) => sample.phase === 'stay')).toBe(true);
+  });
+  it('routes on request, with the same choice carried into the visualisation link', () => {
+    const args = { route: 'JNB-PER', routing: { avoidAirspace: true, diversion: true } };
+    const output = OUTPUT_SCHEMAS.calculate_route.parse(handleTool(context, 'calculate_route', args).structuredContent);
+    expect(output.routing).toMatchObject({ avoidAirspace: true, diversion: { maxDiversionMinutes: 180 } });
+    expect(output.legs?.[0].route?.diversion?.limitMinutes).toBe(180);
+    const visual = OUTPUT_SCHEMAS.visualize_route.parse(handleTool(context, 'visualize_route', args).structuredContent);
+    expect(visual.url).toContain('airspace=1&diversion=1');
+    const plain = OUTPUT_SCHEMAS.calculate_route.parse(
+      handleTool(context, 'calculate_route', { route: 'JNB-PER' }).structuredContent,
+    );
+    expect(plain.routing).toBeNull();
+    expect(plain.legs?.[0].distanceModel).toBe('great_circle');
+    expect(INPUT_SCHEMAS.calculate_route.safeParse({ route: 'JNB-PER', routing: { diversion: 30 } }).success).toBe(
+      false,
+    );
   });
 });

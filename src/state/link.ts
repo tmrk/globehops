@@ -7,10 +7,14 @@ import {
   MAX_URL_LENGTH,
   MAX_STOPS,
   MAX_JOURNEYS,
+  MAX_SECTIONS,
+  MAX_TRIP_FLIGHTS,
   JOURNEY_LINK_PREFIXES,
+  SECTION_LINK_PREFIXES,
   isNamedClock,
   LINK_PARAMS as P,
 } from '../agent/contract.ts';
+import { isValidStay, normalizeStay } from '../lib/trip.ts';
 import {
   decodeItineraryParam,
   documentToLinkState,
@@ -40,12 +44,19 @@ export interface LinkView {
   lang?: Locale;
   names?: boolean;
   borders?: boolean;
-  /** One-based flight number. */
+  /** Visit-only routing overrides: restricted-airspace avoidance and diversion-aware routing. */
+  airspace?: boolean;
+  diversion?: boolean;
+  /** One-based flight number; in a trip, counted across all its journeys. */
   leg?: number;
 }
 export interface LinkJourney {
   label: string | null;
   stops: LinkStop[];
+}
+/** A trip journey after the first, with the stay before it (null for the default). */
+export interface LinkSection extends LinkJourney {
+  stayMin: number | null;
 }
 export interface LinkState {
   stops: LinkStop[] | null;
@@ -53,6 +64,8 @@ export interface LinkState {
   issues: string[];
   label?: string | null;
   compare?: LinkJourney[];
+  /** A trip's journeys after the first (which uses `stops`/`label`). Never combined with `compare`. */
+  sections?: LinkSection[];
 }
 const BOOLEAN_VIEW_PARAMS = {
   [P.play]: 'play',
@@ -61,14 +74,42 @@ const BOOLEAN_VIEW_PARAMS = {
   [P.borders]: 'borders',
   [P.follow]: 'follow',
   [P.dayNight]: 'dayNight',
+  [P.airspace]: 'airspace',
+  [P.diversion]: 'diversion',
 } as const satisfies Record<string, keyof LinkView>;
 const comparisonLimitMessage = `Only ${MAX_JOURNEYS} journeys can be compared.`;
+const tripLimitMessage = `A trip has at most ${MAX_SECTIONS} journeys.`;
+const mixedMessage = 'A link can compare journeys or plan a trip, not both; the trip journeys were ignored.';
 // Any later letter is grouped too, so unsupported prefixes (e.–z.) report the journey limit.
 const JOURNEY_PARAM_PATTERN = /^([b-z])\.(.+)$/;
+// Trip journeys: 2.–6.; any later digit reports the trip limit.
+const SECTION_PARAM_PATTERN = /^([2-9])\.(.+)$/;
 
-/** Whether a parsed link names any airport, in its main journey or a compared one. */
+/** Stays in links: whole days (`5d`), hours (`36h`) or minutes (`90m` or a bare number). */
+export function parseStay(value: string): number | null {
+  const match = /^(\d{1,6})([mhd])?$/i.exec(value.trim());
+  if (!match) return null;
+  const minutes = +match[1] * ({ m: 1, h: 60, d: 1440 } as const)[(match[2]?.toLowerCase() ?? 'm') as 'm' | 'h' | 'd'];
+  return isValidStay(minutes) ? minutes : null;
+}
+export function formatStay(minutes: number): string {
+  return minutes % 1440 === 0 ? `${minutes / 1440}d` : minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`;
+}
+
+/** Whether a parsed link names any airport, in its main journey, a compared one or a trip journey. */
 export function linkHasStops(link: LinkState): boolean {
-  return !!link.stops?.length || !!link.compare?.some((journey) => journey.stops.length > 0);
+  return (
+    !!link.stops?.length ||
+    !!link.compare?.some((journey) => journey.stops.length > 0) ||
+    !!link.sections?.some((section) => section.stops.length > 0)
+  );
+}
+/** Flights a link's `leg` can name: the main journey's, or every trip journey's. */
+export function linkFlightCount(link: Pick<LinkState, 'stops' | 'sections'>): number {
+  return [link.stops ?? [], ...(link.sections ?? []).map((section) => section.stops)].reduce(
+    (sum, stops) => sum + Math.max(0, stops.length - 1),
+    0,
+  );
 }
 
 export function parseLink(search: string, pathname?: string, base = '/globehops/'): LinkState {
@@ -125,6 +166,42 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
     state.issues.push(...parsed.issues.map((message) => `${prefix}. ${message}`));
     (state.compare ??= []).push({ label: parsed.label ?? null, stops: parsed.stops ?? [] });
   }
+  const sectionGroups = new Map<string, URLSearchParams>();
+  for (const [key, value] of params) {
+    const match = SECTION_PARAM_PATTERN.exec(key);
+    if (!match) continue;
+    const group = sectionGroups.get(match[1]) ?? new URLSearchParams();
+    group.set(match[2], value);
+    sectionGroups.set(match[1], group);
+  }
+  if (sectionGroups.size && state.compare?.length) state.issues.push(mixedMessage);
+  else
+    for (const [prefix, group] of [...sectionGroups].sort(([a], [b]) => +a - +b)) {
+      if (!group.has(P.route)) {
+        state.issues.push(`Journey ${prefix} has parameters but no route.`);
+        continue;
+      }
+      if (!SECTION_LINK_PREFIXES.includes(`${prefix}.`)) {
+        if (!state.issues.includes(tripLimitMessage)) state.issues.push(tripLimitMessage);
+        continue;
+      }
+      const journeyParams = new URLSearchParams();
+      let stayMin: number | null = null;
+      for (const [key, value] of group) {
+        if (key === P.stay) {
+          stayMin = parseStay(value);
+          if (stayMin === null) state.issues.push(`Invalid ${prefix}.${key} value in this link.`);
+        } else if (key === P.route || key === P.label || /^(dep|arr)\d+$/.test(key)) journeyParams.set(key, value);
+        else state.issues.push(`Invalid ${prefix}.${key} parameter in this link.`);
+      }
+      const parsed = parseLink(`?${journeyParams}`);
+      state.issues.push(...parsed.issues.map((message) => `${prefix}. ${message}`));
+      (state.sections ??= []).push({
+        label: parsed.label ?? null,
+        stops: parsed.stops ?? [],
+        stayMin: normalizeStay(stayMin),
+      });
+    }
   const tokens = parseRouteParam(search);
   if (tokens !== null) {
     state.stops = tokens.map((token) => ({ ...parseRouteToken(token), arrival: null, departure: null }));
@@ -191,7 +268,9 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
       if (isLocale(value)) state.view.lang = value;
       else invalid(key);
     } else if (key === P.leg) {
-      if (/^[1-9]$/.test(value) && (!state.stops || +value < state.stops.length)) state.view.leg = +value;
+      const flights = linkFlightCount(state);
+      if (/^[1-9]\d?$/.test(value) && +value <= MAX_TRIP_FLIGHTS && (!state.stops || +value <= flights))
+        state.view.leg = +value;
       else invalid(key);
     }
   }
@@ -210,11 +289,21 @@ export interface SerializableJourney {
 }
 export type LinkDefaultKey = 'follow' | 'dayNight' | 'clock';
 
+export interface SerializableSection extends SerializableJourney {
+  stayMin: number | null;
+}
+export interface LinkExtra {
+  label?: string | null;
+  compare?: SerializableJourney[];
+  /** A trip's journeys after the first; never together with `compare`. */
+  sections?: SerializableSection[];
+}
+
 export function serializeLink(
   stops: SerializableLinkStop[],
   view: Partial<LinkView> = {},
   explicitDefaults: boolean | readonly LinkDefaultKey[] = false,
-  extra?: { label?: string | null; compare?: SerializableJourney[] },
+  extra?: LinkExtra,
 ): string {
   const includeDefault = (key: LinkDefaultKey) =>
     explicitDefaults === true || (Array.isArray(explicitDefaults) && explicitDefaults.includes(key));
@@ -222,7 +311,8 @@ export function serializeLink(
   const appendJourney = (stops: SerializableLinkStop[], label: string | null | undefined, prefix: string) => {
     const list = stops.slice(0, MAX_STOPS);
     const route = routeTokens(list).join('-');
-    if (route || prefix || extra?.compare?.length) params.push([`${prefix}${P.route}`, route]);
+    if (route || prefix || extra?.compare?.length || extra?.sections?.length)
+      params.push([`${prefix}${P.route}`, route]);
     list.forEach((s, i) => {
       if (i > 0 && s.arrival) params.push([`${prefix}${P.arrival}${i + 1}`, formatDocumentTime(s.arrival)]);
       if (i < list.length - 1 && s.departure)
@@ -236,10 +326,18 @@ export function serializeLink(
     }
   };
   if ((extra?.compare?.length ?? 0) >= MAX_JOURNEYS) throw new RangeError(comparisonLimitMessage);
+  if ((extra?.sections?.length ?? 0) >= MAX_SECTIONS) throw new RangeError(tripLimitMessage);
+  if (extra?.compare?.length && extra.sections?.length) throw new TypeError(mixedMessage);
   appendJourney(stops, extra?.label, '');
   extra?.compare?.forEach((journey, index) =>
     appendJourney(journey.stops, journey.label, JOURNEY_LINK_PREFIXES[index]),
   );
+  extra?.sections?.forEach((section, index) => {
+    const prefix = SECTION_LINK_PREFIXES[index];
+    appendJourney(section.stops, section.label, prefix);
+    const stay = normalizeStay(section.stayMin);
+    if (stay !== null) params.push([`${prefix}${P.stay}`, formatStay(stay)]);
+  });
   if (view.time != null) params.push([P.time, formatIsoInstant(view.time)]);
   if (view.play) params.push([P.play, '1']);
   if (view.live) params.push([P.live, '1']);
@@ -253,6 +351,8 @@ export function serializeLink(
   if (view.lang) params.push([P.lang, view.lang]);
   if (view.names !== undefined) params.push([P.names, view.names ? '1' : '0']);
   if (view.borders !== undefined) params.push([P.borders, view.borders ? '1' : '0']);
+  if (view.airspace !== undefined) params.push([P.airspace, view.airspace ? '1' : '0']);
+  if (view.diversion !== undefined) params.push([P.diversion, view.diversion ? '1' : '0']);
   if (view.leg !== undefined) params.push([P.leg, String(view.leg)]);
   const query = params.length
     ? `?${params.map(([key, value]) => `${key}=${encodeURIComponent(value).replace(/%3A/gi, ':')}`).join('&')}`
@@ -265,7 +365,7 @@ export function buildLinkUrl(
   stops: SerializableLinkStop[],
   view: Partial<LinkView> = {},
   explicitDefaults: boolean | readonly LinkDefaultKey[] = false,
-  extra?: { label?: string | null; compare?: SerializableJourney[] },
+  extra?: LinkExtra,
 ): string {
   const url = new URL(base);
   url.search = serializeLink(stops, { ...view, lang: undefined }, explicitDefaults, extra);

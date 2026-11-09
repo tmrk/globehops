@@ -7,8 +7,9 @@ import type { DistanceUnit, Layover, Leg } from '../types.ts';
 import type { Journey } from '../lib/schedule.ts';
 import { airportCode } from '../data/airports.ts';
 
-import { IconAlert, IconDetour, IconInfo } from './Icons.tsx';
-import { airspaceWarning, detourKm, keepTogether } from './airspaceText.ts';
+import { IconAlert, IconDetour, IconDiversion, IconInfo } from './Icons.tsx';
+import { routingNotes, type RoutingStatus } from './airspaceText.ts';
+import { DEFAULT_DIVERSION_PROFILE, diversionRadiusKm } from '../lib/diversion.ts';
 
 interface SummaryProps {
   journey: Journey;
@@ -16,14 +17,14 @@ interface SummaryProps {
   legs: Leg[];
   layovers: Layover[];
   unit: DistanceUnit;
-  /** Present while airspace avoidance is on. */
-  airspace?: { reviewed: string | null; failed: boolean } | null;
+  /** Route avoidance and diversion-aware routing, while each is on; `reviewed` dates the airspace list. */
+  routing?: RoutingStatus & { reviewed: string | null };
   /** The primary action beside the totals (Play), if any. */
   action?: React.ReactNode;
 }
 
 /** Journey totals, pinned to the bottom of the panel like the total on a ticket. */
-export function Summary({ journey, onCheckLeg, legs, layovers, unit, airspace, action }: SummaryProps) {
+export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing, action }: SummaryProps) {
   const { t, fmt } = useI18n();
 
   const [showInfo, setShowInfo] = useState(false);
@@ -66,19 +67,15 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, airspace, a
           arrives: t('summary.arrival', fmt.clock(journey.end.epochMs, journey.end.zone), airportCode(destination)),
         }
       : null;
-  // One line, only when avoidance changes something: a flight it can't protect, or the extra distance.
-  const unprotected = legs.findIndex((leg) => airspaceWarning(leg.route));
-  const extraKm = legs.reduce((sum, leg) => sum + detourKm(leg.route), 0);
-  const airspaceNote = airspace?.failed
-    ? { warn: true, text: t('airspace.unavailable') }
-    : unprotected >= 0
-      ? {
-          warn: true,
-          text: flights === 1 ? t('airspace.notAvoided') : t('airspace.notAvoidedOnFlight', unprotected + 1),
-        }
-      : extraKm >= 1
-        ? { warn: false, text: t('airspace.summaryDetour', keepTogether(fmt.distance(extraKm, unit))) }
-        : null;
+  // A line only when routing changes something: a flight it can't protect, or the extra distance.
+  const notes = routing
+    ? routingNotes(
+        legs.map((leg) => leg.route),
+        unit,
+        routing,
+        { t, fmt },
+      )
+    : [];
   const issue = journey.issues.find((i) => i.severity === 'error');
   const issueLeg = issue?.leg ?? (issue?.field === 'arrival' ? Math.max(0, (issue.stop ?? 1) - 1) : (issue?.stop ?? 0));
 
@@ -126,12 +123,18 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, airspace, a
           </p>
         ) : null}
       </div>
-      {airspaceNote ? (
-        <p className={`summary__airspace${airspaceNote.warn ? ' is-warning' : ''}`}>
-          {airspaceNote.warn ? <IconAlert size={14} /> : <IconDetour size={14} />}
-          <span>{airspaceNote.text}</span>
+      {notes.map((note) => (
+        <p key={note.kind} className={`summary__airspace${note.warn ? ' is-warning' : ''}`}>
+          {note.warn ? (
+            <IconAlert size={14} />
+          ) : note.kind === 'diversion' ? (
+            <IconDiversion size={14} />
+          ) : (
+            <IconDetour size={14} />
+          )}
+          <span>{note.text}</span>
         </p>
-      ) : null}
+      ))}
       {issue ? (
         <button type="button" className="text-btn schedule-error" onClick={() => onCheckLeg(issueLeg)}>
           {t('summary.checkTimes', issueLeg + 1)}
@@ -140,8 +143,23 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, airspace, a
       <div id={infoId} className="summary__info" hidden={!showInfo}>
         <p>{t('summary.method', speed, m.overheadMinutes)}</p>
         <p>{t('summary.connectionMethod', fmt.layover(DEFAULT_LAYOVER_MIN))}</p>
-        {airspace?.reviewed ? <p>{t('summary.airspaceMethod', fmt.shortDate(airspace.reviewed))}</p> : null}
+        {routing?.airspace && routing.reviewed ? (
+          <p>{t('summary.airspaceMethod', fmt.shortDate(routing.reviewed))}</p>
+        ) : null}
+        {routing?.diversion ? <DiversionMethod unit={unit} /> : null}
       </div>
     </section>
   );
+}
+
+/** The assumed diversion profile, in the reader's units: minutes, one-engine speed and the reach it gives. */
+export function DiversionMethod({ unit }: { unit: DistanceUnit }) {
+  const { t, fmt } = useI18n();
+  const profile = DEFAULT_DIVERSION_PROFILE;
+  const speed =
+    unit === 'km'
+      ? `${fmt.number(Math.round((profile.oeiSpeedKt * 1.852) / 10) * 10)} km/h`
+      : `${fmt.number(profile.oeiSpeedKt)} kt`;
+  const reach = fmt.distance(Math.round(diversionRadiusKm(profile) / 10) * 10, unit);
+  return <p>{t('summary.diversionMethod', fmt.number(profile.maxDiversionMin), speed, reach)}</p>;
 }

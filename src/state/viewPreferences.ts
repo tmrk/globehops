@@ -3,6 +3,7 @@ import type { LinkDefaultKey, LinkView } from './link.ts';
 import type { DistanceUnit } from '../types.ts';
 import {
   loadAvoidAirspace,
+  loadDiversionRouting,
   loadBorders,
   loadClockZone,
   loadCountryNames,
@@ -44,6 +45,7 @@ export interface ViewPreferences {
   myLocation: boolean;
   reduceMotionPref: boolean | null;
   avoidAirspace: boolean;
+  diversionRouting: boolean;
 }
 
 export function loadViewPreferences(defaultUnit: DistanceUnit): ViewPreferences {
@@ -59,6 +61,7 @@ export function loadViewPreferences(defaultUnit: DistanceUnit): ViewPreferences 
     myLocation: loadMyLocation() ?? false,
     reduceMotionPref: loadReduceMotion(),
     avoidAirspace: loadAvoidAirspace() ?? true,
+    diversionRouting: loadDiversionRouting() ?? true,
   };
 }
 
@@ -73,5 +76,7 @@ export function resolveViewPreferences(defaultUnit: DistanceUnit, view: LinkView
     followAircraft: explicit.includes('follow') ? view.follow : saved.followAircraft,
     dayNight: explicit.includes('dayNight') ? view.dayNight : saved.dayNight,
     clockZone: explicit.includes('clock') ? view.clock : saved.clockZone,
+    avoidAirspace: view.airspace ?? saved.avoidAirspace,
+    diversionRouting: view.diversion ?? saved.diversionRouting,
   };
 }

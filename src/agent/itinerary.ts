@@ -1,14 +1,18 @@
 import { isLocale, type Locale } from '../i18n/locales.ts';
-import type { LinkState, LinkStop, LinkView } from '../state/link.ts';
+import type { LinkSection, LinkState, LinkStop, LinkView } from '../state/link.ts';
 import type { LocalTimeInput } from '../types.ts';
 import {
   MAX_STOPS,
   MAX_JOURNEYS,
+  MAX_SECTIONS,
+  MAX_STAY_MIN,
+  MAX_TRIP_FLIGHTS,
   MAX_LAYOVER_MIN,
   MAX_ITINERARY_PARAM_LENGTH,
   PLAYBACK_SPEEDS,
   isNamedClock,
 } from './contract.ts';
+import { normalizeStay } from '../lib/trip.ts';
 import { normalizeJourneyLabel, MAX_LABEL_LENGTH } from '../lib/journeyLabel.ts';
 import { formatIsoInstant, formatIsoOffset, parseIsoInstant } from '../lib/timezone.ts';
 
@@ -22,6 +26,10 @@ export interface StopDoc {
 export interface JourneyDoc {
   label?: string;
   stops: StopDoc[];
+}
+/** A trip journey; `stayMinutes` (after the first) is the stay before it, used until its times fix the stay. */
+export interface SectionDoc extends JourneyDoc {
+  stayMinutes?: number;
 }
 interface DocumentBase {
   $schema?: string;
@@ -37,11 +45,17 @@ interface DocumentBase {
     lang?: Locale;
     names?: boolean;
     borders?: boolean;
+    airspace?: boolean;
+    diversion?: boolean;
     leg?: number;
   };
 }
 export type ItineraryDocument = DocumentBase &
-  ({ stops: StopDoc[]; journeys?: never } | { stops?: never; journeys: JourneyDoc[] });
+  (
+    | { stops: StopDoc[]; journeys?: never; sections?: never }
+    | { stops?: never; journeys: JourneyDoc[]; sections?: never }
+    | { stops?: never; journeys?: never; sections: SectionDoc[] }
+  );
 export type View = NonNullable<ItineraryDocument['view']>;
 export const LABEL_PATTERN =
   '^[^\\u0000-\\u001f\\u007f-\\u009f]*[^\\s\\u0000-\\u001f\\u007f-\\u009f][^\\u0000-\\u001f\\u007f-\\u009f]*$';
@@ -71,7 +85,7 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
   };
   if (!object(raw))
     return { ok: false, issues: [{ path: '', code: 'type', message: 'An itinerary must be an object.' }] };
-  properties(raw, ['$schema', 'version', 'stops', 'journeys', 'view'], '');
+  properties(raw, ['$schema', 'version', 'stops', 'journeys', 'sections', 'view'], '');
   if (raw.$schema !== undefined && typeof raw.$schema !== 'string')
     issue('/$schema', 'type', '$schema must be a string.');
   if (raw.version !== 1) issue('/version', 'const', 'Use itinerary version 1.');
@@ -113,9 +127,47 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
       });
     }
   };
-  if ((raw.stops !== undefined) === (raw.journeys !== undefined))
-    issue('', 'oneOf', 'Supply exactly one of stops or journeys.');
+  if ([raw.stops, raw.journeys, raw.sections].filter((value) => value !== undefined).length !== 1)
+    issue('', 'oneOf', 'Supply exactly one of stops, journeys or sections.');
   if (raw.stops !== undefined) validateStops(raw.stops, '/stops');
+  const validateLabel = (label: unknown, path: string) => {
+    if (
+      label !== undefined &&
+      (typeof label !== 'string' ||
+        normalizeJourneyLabel(label) === null ||
+        // JSON Schema counts the untrimmed string; readable links allow padding.
+        Array.from(label).length > MAX_LABEL_LENGTH)
+    )
+      issue(`${path}/label`, 'pattern', `Use a label of 1–${MAX_LABEL_LENGTH} characters without control characters.`);
+  };
+  if (raw.sections !== undefined) {
+    if (!Array.isArray(raw.sections)) issue('/sections', 'type', 'Sections must be an array.');
+    else {
+      if (raw.sections.length < 1 || raw.sections.length > MAX_SECTIONS)
+        issue('/sections', 'items', `Use 1 to ${MAX_SECTIONS} trip sections.`);
+      raw.sections.slice(0, MAX_SECTIONS).forEach((section: unknown, index: number) => {
+        const path = `/sections/${index}`;
+        if (!object(section)) {
+          issue(path, 'type', 'Each section must be an object.');
+          return;
+        }
+        properties(section, ['label', 'stayMinutes', 'stops'], path);
+        validateLabel(section.label, path);
+        if (section.stayMinutes !== undefined) {
+          if (
+            typeof section.stayMinutes !== 'number' ||
+            !Number.isInteger(section.stayMinutes) ||
+            section.stayMinutes < 0 ||
+            section.stayMinutes > MAX_STAY_MIN
+          )
+            issue(`${path}/stayMinutes`, 'range', `Stay minutes must be an integer from 0 to ${MAX_STAY_MIN}.`);
+          if (index === 0)
+            issue(`${path}/stayMinutes`, 'position', 'A stay comes before a later section, not the first.');
+        }
+        validateStops(section.stops, `${path}/stops`);
+      });
+    }
+  }
   if (raw.journeys !== undefined) {
     if (!Array.isArray(raw.journeys)) issue('/journeys', 'type', 'Journeys must be an array.');
     else {
@@ -128,18 +180,7 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
           return;
         }
         properties(journey, ['label', 'stops'], path);
-        if (
-          journey.label !== undefined &&
-          (typeof journey.label !== 'string' ||
-            normalizeJourneyLabel(journey.label) === null ||
-            // JSON Schema counts the untrimmed string; readable links allow padding.
-            Array.from(journey.label).length > MAX_LABEL_LENGTH)
-        )
-          issue(
-            `${path}/label`,
-            'pattern',
-            `Use a label of 1–${MAX_LABEL_LENGTH} characters without control characters.`,
-          );
+        validateLabel(journey.label, path);
         validateStops(journey.stops, `${path}/stops`);
       });
     }
@@ -150,18 +191,32 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
       const view = raw.view;
       properties(
         view,
-        ['time', 'play', 'speed', 'clock', 'units', 'dayNight', 'follow', 'lang', 'names', 'borders', 'leg'],
+        [
+          'time',
+          'play',
+          'speed',
+          'clock',
+          'units',
+          'dayNight',
+          'follow',
+          'lang',
+          'names',
+          'borders',
+          'airspace',
+          'diversion',
+          'leg',
+        ],
         '/view',
       );
       if (view.time !== undefined && (typeof view.time !== 'string' || !new RegExp(INSTANT_PATTERN).test(view.time)))
         issue('/view/time', 'pattern', 'Use an ISO instant with Z or an explicit UTC offset.');
-      for (const key of ['play', 'dayNight', 'follow', 'names', 'borders'])
+      for (const key of ['play', 'dayNight', 'follow', 'names', 'borders', 'airspace', 'diversion'])
         if (view[key] !== undefined && typeof view[key] !== 'boolean')
           issue(`/view/${key}`, 'type', `${key} must be a boolean.`);
       if (view.lang !== undefined && !isLocale(view.lang)) issue('/view/lang', 'enum', 'Use en, hu or sv.');
       if (
         view.leg !== undefined &&
-        (typeof view.leg !== 'number' || !Number.isInteger(view.leg) || view.leg < 1 || view.leg >= MAX_STOPS)
+        (typeof view.leg !== 'number' || !Number.isInteger(view.leg) || view.leg < 1 || view.leg > MAX_TRIP_FLIGHTS)
       )
         issue('/view/leg', 'range', 'Use a one-based flight number within this route.');
       if (view.speed !== undefined && !PLAYBACK_SPEEDS.some((s) => s.value === view.speed))
@@ -235,11 +290,16 @@ export function documentToLinkState(doc: ItineraryDocument): LinkState {
       if (s.departure && !departure) issues.push(`Stop ${i + 1}: invalid departure time.`);
       return { code: s.airport.toUpperCase(), layoverMin: s.layoverMinutes ?? null, arrival, departure };
     });
-  const primary = doc.journeys?.[0];
+  const primary = doc.journeys?.[0] ?? doc.sections?.[0];
   const stops = mapStops(primary?.stops ?? doc.stops ?? []);
   const compare = doc.journeys
     ?.slice(1)
     .map((journey) => ({ label: journey.label?.trim() ?? null, stops: mapStops(journey.stops) }));
+  const sections = doc.sections?.slice(1).map((section): LinkSection => ({
+    label: section.label?.trim() ?? null,
+    stops: mapStops(section.stops),
+    stayMin: normalizeStay(section.stayMinutes),
+  }));
   const source = doc.view;
   const time = source?.time ? parseIsoInstant(source.time) : null;
   if (source?.time && time === null) issues.push('The itinerary view time is invalid.');
@@ -255,6 +315,8 @@ export function documentToLinkState(doc: ItineraryDocument): LinkState {
     ...(source?.lang !== undefined ? { lang: source.lang } : {}),
     ...(source?.names !== undefined ? { names: source.names } : {}),
     ...(source?.borders !== undefined ? { borders: source.borders } : {}),
+    ...(source?.airspace !== undefined ? { airspace: source.airspace } : {}),
+    ...(source?.diversion !== undefined ? { diversion: source.diversion } : {}),
     ...(source?.leg !== undefined ? { leg: source.leg } : {}),
   };
   return {
@@ -263,6 +325,7 @@ export function documentToLinkState(doc: ItineraryDocument): LinkState {
     issues,
     ...(primary?.label !== undefined ? { label: primary.label.trim() } : {}),
     ...(compare?.length ? { compare } : {}),
+    ...(sections?.length ? { sections } : {}),
   };
 }
 export function linkStateToDocument(s: LinkState): ItineraryDocument {
@@ -274,19 +337,31 @@ export function linkStateToDocument(s: LinkState): ItineraryDocument {
       ...(i > 0 && i < all.length - 1 && stop.layoverMin !== null ? { layoverMinutes: stop.layoverMin } : {}),
     }));
   const stops = mapStops(s.stops ?? []);
-  return {
-    version: ITINERARY_VERSION,
-    ...(s.compare?.length
+  const body: Pick<ItineraryDocument, 'stops' | 'journeys' | 'sections'> = s.compare?.length
+    ? {
+        journeys: [
+          { ...(s.label ? { label: s.label } : {}), stops },
+          ...s.compare.map((journey) => ({
+            ...(journey.label ? { label: journey.label } : {}),
+            stops: mapStops(journey.stops),
+          })),
+        ],
+      }
+    : s.sections?.length
       ? {
-          journeys: [
+          sections: [
             { ...(s.label ? { label: s.label } : {}), stops },
-            ...s.compare.map((journey) => ({
-              ...(journey.label ? { label: journey.label } : {}),
-              stops: mapStops(journey.stops),
+            ...s.sections.map((section) => ({
+              ...(section.label ? { label: section.label } : {}),
+              ...(section.stayMin !== null ? { stayMinutes: section.stayMin } : {}),
+              stops: mapStops(section.stops),
             })),
           ],
         }
-      : { stops }),
+      : { stops };
+  return {
+    version: ITINERARY_VERSION,
+    ...(body as { stops: StopDoc[] }),
     view: {
       ...(s.view.time !== null ? { time: formatIsoInstant(s.view.time) } : {}),
       play: s.view.play,
@@ -298,6 +373,8 @@ export function linkStateToDocument(s: LinkState): ItineraryDocument {
       ...(s.view.lang !== undefined ? { lang: s.view.lang } : {}),
       ...(s.view.names !== undefined ? { names: s.view.names } : {}),
       ...(s.view.borders !== undefined ? { borders: s.view.borders } : {}),
+      ...(s.view.airspace !== undefined ? { airspace: s.view.airspace } : {}),
+      ...(s.view.diversion !== undefined ? { diversion: s.view.diversion } : {}),
       ...(s.view.leg !== undefined ? { leg: s.view.leg } : {}),
     },
   };

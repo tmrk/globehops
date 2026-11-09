@@ -4,6 +4,8 @@ import { IconCheck, IconPencil, IconReset, IconShare } from './Icons.tsx';
 
 interface JourneyPanelHeaderProps {
   comparing: boolean;
+  /** The journeys are a trip's (outbound, return, …). */
+  trip?: boolean;
   hasAirports: boolean;
   canArrange: boolean;
   arranging: boolean;
@@ -20,6 +22,7 @@ interface JourneyPanelHeaderProps {
  */
 export function JourneyPanelHeader({
   comparing,
+  trip = false,
   hasAirports,
   canArrange,
   arranging,
@@ -53,6 +56,7 @@ export function JourneyPanelHeader({
 
   const title = () => {
     if (comparing) return t('compare.title');
+    if (trip) return t('trip.title');
     return t(hasAirports ? 'panel.yourJourney' : 'panel.showAFlight');
   };
   return (

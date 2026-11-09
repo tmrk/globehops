@@ -233,3 +233,26 @@ export const IconCompare = (p: IconProps) => (
     <path d="M3 7c4-5 10-5 14 0M3 15c4-5 10-5 14 0M14 4l3 3-3 2M14 12l3 3-3 2" />
   </Icon>
 );
+/** A flight out and back: the return-flight action. */
+export const IconReturn = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3.5 7h9.2a3.8 3.8 0 0 1 0 7.6H5" />
+    <path d="M7.8 11.8L5 14.6l2.8 2.8" />
+  </Icon>
+);
+/** A bed: a stay between two journeys. */
+export const IconBed = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2.8 15.5v-10M2.8 12.6h14.4v2.9" />
+    <path d="M8 12.6V9.4h6.2a3 3 0 0 1 3 3" />
+    <circle cx="5.4" cy="10.4" r="1.3" />
+  </Icon>
+);
+/** A route with a dashed branch down to an airport: diversion-aware routing. */
+export const IconDiversion = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2.8 13.2C6 7.4 10.5 5.1 17.2 4.8" />
+    <path d="M8.8 8.3c1.7 1.8 2.6 4 2.6 6.4" strokeDasharray="1.6 1.6" />
+    <circle cx="11.4" cy="16.6" r="1.3" />
+  </Icon>
+);

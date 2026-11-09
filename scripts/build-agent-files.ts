@@ -1,7 +1,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { format } from 'prettier';
-import { createAgentContext, planComparison, planItinerary, SCHEDULE_ISSUES } from '../src/agent/plan.ts';
+import {
+  createAgentContext,
+  planComparison,
+  planItinerary,
+  planTrip,
+  SCHEDULE_ISSUES,
+  TRIP_ISSUES,
+} from '../src/agent/plan.ts';
 import { ITINERARY_SCHEMA } from '../src/agent/schema.ts';
 import {
   CONTRACT_VERSION,
@@ -12,7 +19,12 @@ import {
   MAX_TIMELINE_SAMPLES,
   MAX_ITINERARY_PARAM_LENGTH,
   MAX_LAYOVER_MIN,
+  MAX_SECTIONS,
+  MAX_STAY_MIN,
+  MAX_TRIP_FLIGHTS,
 } from '../src/agent/contract.ts';
+import { DEFAULT_STAY_MIN } from '../src/lib/trip.ts';
+import { DEFAULT_DIVERSION_PROFILE, diversionRadiusKm } from '../src/lib/diversion.ts';
 import type { ItineraryDocument } from '../src/agent/itinerary.ts';
 import { decodeDataset } from '../src/data/airports.ts';
 import { decodeTimeZones } from '../src/data/timezones.ts';
@@ -31,6 +43,43 @@ const ctx = () =>
     now: () => Date.UTC(2026, 0, 1),
   });
 const exampleSpecs: { title: string; description: string; itinerary: ItineraryDocument }[] = [
+  {
+    title: 'Round trip with five days in Nairobi',
+    description:
+      'Two sections separated by an explicit stay: each section keeps its own connections (AMS, CDG); the stay is never a layover.',
+    itinerary: {
+      version: 1,
+      sections: [
+        {
+          stops: [
+            { airport: 'CPH', departure: '2026-11-15T07:00' },
+            { airport: 'AMS', arrival: '2026-11-15T08:20', departure: '2026-11-15T10:20' },
+            { airport: 'NBO', arrival: '2026-11-15T20:55' },
+          ],
+        },
+        {
+          stops: [
+            { airport: 'NBO', departure: '2026-11-20T23:55' },
+            { airport: 'CDG', arrival: '2026-11-21T06:50', departure: '2026-11-21T09:30' },
+            { airport: 'CPH', arrival: '2026-11-21T11:25' },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    title: 'Multi-stage trip being planned',
+    description:
+      'Only the first departure is known; later sections are placed through their stays (stayMinutes, default 7 days) and marked as estimated or assumed.',
+    itinerary: {
+      version: 1,
+      sections: [
+        { stops: [{ airport: 'LHR', departure: '2026-06-01T09:00' }, { airport: 'FCO' }] },
+        { label: 'Milan to Paris', stayMinutes: 6 * 1440, stops: [{ airport: 'MXP' }, { airport: 'CDG' }] },
+        { stayMinutes: 2 * 1440, stops: [{ airport: 'CDG' }, { airport: 'LHR' }] },
+      ],
+    },
+  },
   {
     title: 'Compare direct and connecting journeys',
     description: 'Entered local times stay absolute; the undated alternative aligns to the earliest dated departure.',
@@ -141,6 +190,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
     urlTemplates: {
       simple: `${DEFAULT_BASE_URL}?route={route}`,
       comparison: `${DEFAULT_BASE_URL}?route={routeA}&label={labelA}&b.route={routeB}&b.label={labelB}`,
+      trip: `${DEFAULT_BASE_URL}?route={outbound}&dep1={localDeparture}&2.route={return}&2.dep1={localDeparture}&2.stay={stay}`,
       localized: `${DEFAULT_BASE_URL}{lang}/?route={route}`,
       scheduled: `${DEFAULT_BASE_URL}?route={route}&dep1={localDeparture}`,
       document: `${DEFAULT_BASE_URL}?itinerary={base64urlJson}`,
@@ -159,6 +209,27 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         'prefix + route|depN|arrN|label',
         ['b.route=BUD-JFK', 'c.dep1=2026-12-01T08:00'],
         'Journeys B–D in order; gaps compact. Each group requires route. Parameter keys are case-insensitive. Other view parameters remain unprefixed; leg refers to A, clock may name any compared airport.',
+      ),
+      '2.–6.': parameter(
+        'trip section group',
+        false,
+        'prefix + route|depN|arrN|label|stay',
+        ['2.route=NBO-CDG-CPH', '2.dep1=2026-11-20T23:55', '2.stay=5d'],
+        `A trip's sections after the first (up to ${MAX_SECTIONS} in all), in order; the first uses the unprefixed parameters. Sections are sequential journeys separated by explicit stays; connections stay inside a section. stay (days d, hours h or minutes m) places a section without times after the previous one (default ${DEFAULT_STAY_MIN / 1440} days). Never combined with b.–d. comparisons; leg counts flights across the trip.`,
+      ),
+      airspace: parameter(
+        'string',
+        false,
+        '0 or 1',
+        ['0'],
+        'Restricted-airspace avoidance for this visit (app default on); overrides the saved preference.',
+      ),
+      diversion: parameter(
+        'string',
+        false,
+        '0 or 1',
+        ['1'],
+        'Diversion-aware routing for this visit (app default on): keep flights within modelled reach of potential diversion airports. Not an ETOPS authorisation.',
       ),
       route: parameter(
         'string',
@@ -231,7 +302,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         false,
         '1-based flight number',
         [1, 2],
-        'Frames the selected flight; must exist in the route. Does not change the simulation instant.',
+        `Frames the selected flight; must exist in the route (in a trip, flights count across sections, up to ${MAX_TRIP_FLIGHTS}). Does not change the simulation instant.`,
       ),
       itinerary: parameter(
         'string',
@@ -248,10 +319,37 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       metrics:
         'Fastest is shortest total journey duration; arrives first is earliest final UTC arrival. Exact ties have no winner. Invalid or fewer-than-two-stop journeys are excluded; arrival comparison requires every valid journey to have an end.',
     },
+    trips: {
+      document: `Version 1; sections: 1–${MAX_SECTIONS} sequential journeys, each with stops and an optional label; later sections may carry stayMinutes (0–${MAX_STAY_MIN}).`,
+      stays:
+        'A stay is the time between one section arriving and the next departing, at the same airport or an open jaw. It is never a layover and is never inferred from duration. Its length comes from both sections’ times, else from stayMinutes (default 7 days), with estimated/assumed provenance.',
+      playback:
+        'One traveller flies the sections in order on one UTC clock; automatic playback skips stays without changing any instant. Comparisons (journeys) and trips (sections) never combine.',
+      outputs:
+        'calculate_route returns kind "trip" with sections (journey details), stays (minutes, calendar days, source, provenance) and trip totals; get_journey_timeline reports a "stay" phase between sections.',
+    },
+    routing: {
+      default: 'Agent and MCP results follow great circles unless routing is requested; the app routes by default.',
+      request: '{ "avoidAirspace": boolean, "diversion": boolean | minutes 60–370 }',
+      airspace:
+        'Routes around EASA conflict-zone bulletins valid on the flight date, assuming an EU/EEA operator. See data/AIRSPACE.md.',
+      diversion: {
+        profile: DEFAULT_DIVERSION_PROFILE.id,
+        maxDiversionMinutes: DEFAULT_DIVERSION_PROFILE.maxDiversionMin,
+        oneEngineInoperativeSpeedKt: DEFAULT_DIVERSION_PROFILE.oeiSpeedKt,
+        radiusKm: Math.round(diversionRadiusKm(DEFAULT_DIVERSION_PROFILE) * 10) / 10,
+        semantics:
+          'ETOPS/EDTO-inspired: keeps flights within still-air reach of potential diversion airports (open large/medium airports with a paved runway of at least 2,000 m by 45 m, OurAirports) or their own endpoints. Covered keeps the route, adjusted re-routes within a modest allowance, gap keeps the unconstrained route and reports the longest modelled diversion time. Not an operator authorisation; winds, tracks, airways and ATC are not modelled. See data/DIVERSION.md.',
+      },
+      legFields:
+        'distanceKm is the flown (routed or great-circle) distance used for estimates; greatCircleKm is always present; distanceModel says which; route.airspace and route.diversion describe the modelled constraints.',
+    },
     schema: ITINERARY_SCHEMA.$id,
     limits: {
       stops: MAX_STOPS,
       journeys: MAX_JOURNEYS,
+      tripSections: MAX_SECTIONS,
+      maximumStayMinutes: MAX_STAY_MIN,
       minimumDocumentStops: 1,
       urlCharacters: MAX_URL_LENGTH,
       itineraryParamCharacters: MAX_ITINERARY_PARAM_LENGTH,
@@ -291,14 +389,19 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       'lang',
       'names',
       'borders',
+      'airspace',
+      'diversion',
       'leg',
     ],
     validation: {
       valid:
         'No error issues; warnings and info preserve validity. Structural validation precedes semantic resolution. Tolerant readable links keep usable values.',
       issues: Object.entries(SCHEDULE_ISSUES).map(([code, [severity, meaning]]) => ({ code, severity, meaning })),
+      tripIssues: Object.entries(TRIP_ISSUES).map(([code, [severity, meaning]]) => ({ code, severity, meaning })),
       agentIssues: [
         ['use_compare_journeys', 'Multi-journey documents require compare_journeys for calculations and timelines.'],
+        ['use_trip_sections', 'Multi-section trips are planned as trips (calculate_route), not as one journey.'],
+        ['invalid_routing', 'routing.diversion must be a boolean or 60–370 minutes.'],
         ['unknown_airport', 'Unrecognised airport skipped.'],
         ['no_airports', 'No known airport supplied.'],
         ['invalid_link', 'Readable route syntax or limits invalid.'],
@@ -312,6 +415,11 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         ['link_too_large', 'Cannot encode within sharing limits.'],
       ].map(([code, meaning]) => ({ code, severity: 'error', meaning })),
       warnings: [
+        {
+          code: 'routing_unavailable',
+          severity: 'warning',
+          meaning: 'Requested routing data is not available here; those flights follow great circles.',
+        },
         {
           code: 'document_link_too_large',
           severity: 'warning',
@@ -380,6 +488,15 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
     },
   };
   const examples = exampleSpecs.map((spec) => {
+    if (spec.itinerary.sections) {
+      const plan = planTrip(context, spec.itinerary);
+      return {
+        ...spec,
+        url: plan.url,
+        itineraryParamUrl: plan.itineraryParamUrl,
+        expected: { totals: plan.totals, stays: plan.stays, issues: plan.issues, valid: plan.valid },
+      };
+    }
     if (spec.itinerary.journeys) {
       const plan = planComparison(context, spec.itinerary);
       return {

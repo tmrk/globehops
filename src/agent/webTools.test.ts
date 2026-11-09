@@ -138,3 +138,28 @@ describe('browser comparisons', () => {
     }
   });
 });
+
+describe('trip and routing commands', () => {
+  it('sets routing overrides for the visit and loads trips', () => {
+    expect(parseWebCommand('set_view', { airspace: false, diversion: true }, 2)).toEqual({
+      type: 'set_view',
+      view: { airspace: false, diversion: true },
+    });
+    const command = parseWebCommand(
+      'set_route',
+      {
+        itinerary: {
+          version: 1,
+          sections: [
+            { stops: [{ airport: 'CPH' }, { airport: 'NBO' }] },
+            { stayMinutes: 7200, stops: [{ airport: 'NBO' }, { airport: 'CPH' }] },
+          ],
+        },
+      },
+      0,
+    );
+    expect(command.type === 'set_route' && command.link.sections?.[0]).toMatchObject({ stayMin: 7200 });
+    // Trip flight numbers count across journeys.
+    expect(parseWebCommand('select_flight', { leg: 4 }, 4)).toEqual({ type: 'select_flight', leg: 4 });
+  });
+});

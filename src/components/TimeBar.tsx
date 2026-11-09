@@ -7,6 +7,9 @@ import { useClock } from '../hooks/useClock.ts';
 
 import type { Journey } from '../lib/schedule.ts';
 import { journeyStateAt, type Timeline } from '../lib/timeline.ts';
+import { tripStateAt, type Trip } from '../lib/trip.ts';
+import { composedAxis } from '../lib/timeAxis.ts';
+import { stayLength } from './tripText.ts';
 import {
   isSupportedTimeZone,
   browserTimeZone,
@@ -23,6 +26,8 @@ import { LiveButton } from './LiveButton.tsx';
 import { IconChevronDown, IconBack, IconChevronRight, IconClose, IconFollow, IconPause, IconPlay } from './Icons.tsx';
 interface Props {
   comparison?: ComparedJourney[];
+  /** A trip's single traveller: every journey, their names and the journey playback is limited to (or null). */
+  trip?: { trip: Trip; names: string[]; scope: number | null };
   active?: number;
   onActivate?: (index: number) => void;
   onEditJourneyLeg?: (index: number, leg: number) => void;
@@ -44,6 +49,7 @@ interface Props {
 export function TimeBar({
   clock,
   comparison,
+  trip,
   active,
   onActivate,
   onEditJourneyLeg,
@@ -63,8 +69,22 @@ export function TimeBar({
 
   const snapshot = useClock(clock);
   const browserZone = browserTimeZone();
-  const allJourneys = useMemo(() => comparison?.map((entry) => entry.journey) ?? [journey], [comparison, journey]);
-  const sharedRange = useMemo(() => (comparison ? comparisonRange(comparison) : timeline), [comparison, timeline]);
+  const allJourneys = useMemo(
+    () =>
+      trip?.trip.sections.map((section) => section.journey) ?? comparison?.map((entry) => entry.journey) ?? [journey],
+    [trip, comparison, journey],
+  );
+  const sharedRange = useMemo(
+    () =>
+      trip
+        ? trip.scope !== null
+          ? (trip.trip.sections[trip.scope]?.timeline ?? null)
+          : trip.trip.timeline
+        : comparison
+          ? comparisonRange(comparison)
+          : timeline,
+    [trip, comparison, timeline],
+  );
   const metrics = useMemo(() => (comparison ? compareMetrics(comparison) : null), [comparison]);
   const requestedZone =
     clockZone === 'local'
@@ -74,12 +94,42 @@ export function TimeBar({
         : (allJourneys.flatMap((entry) => entry.stops).find((s) => airportCode(s.airport) === clockZone)?.zone ??
           browserZone);
   const zone = isSupportedTimeZone(requestedZone) ? requestedZone : browserZone;
-  const state = timeline ? journeyStateAt(journey, timeline, snapshot.time) : null;
+  const state = !trip && timeline ? journeyStateAt(journey, timeline, snapshot.time) : null;
   const text = state
     ? fmt.describeState(journey, state)
     : { title: t('timebar.dayAndNight'), detail: t('timebar.exploreSunlightAroundTheWorld') };
   if (state?.phase === 'before')
     text.detail = t('timebar.departsIn', fmt.duration((state.nextDeparture - snapshot.time) / 60000));
+  if (trip?.trip.timeline) {
+    const { names } = trip;
+    const tripState = tripStateAt(trip.trip, trip.trip.timeline, snapshot.time);
+    if (tripState.phase === 'stay') {
+      const stay = trip.trip.stays.find((s) => s.section === tripState.section);
+      const next = trip.trip.sections[tripState.section].journey.start;
+      text.title = t('trip.stayTitle', stay ? fmt.city(stay.arrivalAirport) : '');
+      text.detail =
+        snapshot.skipping && stay && next
+          ? t(
+              'trip.skipping',
+              stayLength(stay.minutes, stay.days, { t, fmt }),
+              fmt.clock(next.epochMs, next.zone, { weekday: true, date: true }),
+            )
+          : t('trip.stayDetail', names[tripState.section], fmt.duration(tripState.untilDepartureMin));
+    } else {
+      const section = trip.trip.sections[tripState.section];
+      const local = tripState.state;
+      const described = fmt.describeState(section.journey, local);
+      const last = tripState.section === trip.trip.timeline.sections.at(-1)?.index;
+      text.title = described.title;
+      text.detail = `${names[tripState.section]} · ${
+        local.phase === 'before'
+          ? t('timebar.departsIn', fmt.duration((local.nextDeparture - snapshot.time) / 60000))
+          : local.phase === 'after' && last
+            ? t('trip.complete')
+            : described.detail
+      }`;
+    }
+  }
   if (comparison && metrics) {
     const arrival = metrics.firstArrival ? comparison.find((entry) => entry.id === metrics.firstArrival) : null;
     const fastest = metrics.fastest;
@@ -101,12 +151,23 @@ export function TimeBar({
         : t('compare.sharedClock');
   }
   const errorJourney = allJourneys.findIndex((entry) => entry.issues.some((issue) => issue.severity === 'error'));
-  const error = allJourneys[errorJourney]?.issues.find((i) => i.severity === 'error');
-  const editError = () => (comparison ? onEditJourneyLeg?.(errorJourney, errorLeg) : onEditLeg(errorLeg));
-  const errorLeg = error?.leg ?? (error?.field === 'arrival' ? Math.max(0, (error.stop ?? 1) - 1) : (error?.stop ?? 0));
-  if (error) {
+  const journeyError = allJourneys[errorJourney]?.issues.find((i) => i.severity === 'error');
+  const overlap = trip?.trip.issues[0];
+  const error = journeyError ?? overlap;
+  const errorLeg = journeyError
+    ? (journeyError.leg ??
+      (journeyError.field === 'arrival' ? Math.max(0, (journeyError.stop ?? 1) - 1) : (journeyError.stop ?? 0)))
+    : 0;
+  const editError = () =>
+    comparison || trip
+      ? onEditJourneyLeg?.(journeyError ? errorJourney : (overlap?.section ?? 0), errorLeg)
+      : onEditLeg(errorLeg);
+  if (journeyError) {
     text.title = t('timebar.fixTimes', errorLeg + 1);
-    text.detail = `${comparison ? `${comparison[errorJourney].id} · ` : ''}${t('timebar.checkTheLocalDatesAndTimes')}`;
+    text.detail = `${comparison ? `${comparison[errorJourney].id} · ` : trip ? `${trip.names[errorJourney]} · ` : ''}${t('timebar.checkTheLocalDatesAndTimes')}`;
+  } else if (overlap && trip) {
+    text.title = t('trip.departsBefore', trip.names[overlap.section]);
+    text.detail = t('timebar.checkTheLocalDatesAndTimes');
   }
   const local = utcToLocal(zone, snapshot.time);
   const date = formatLocalDateTime(local).slice(0, 10);
@@ -150,6 +211,29 @@ export function TimeBar({
     return choices;
   }, [allJourneys, fmt, browserZone, clockZone, t]);
   const laneRange = useMemo(() => ({ start, end }), [start, end]);
+  // A whole trip shows its stays as short breaks, so flights stay readable; other timelines are linear in ms.
+  const stays = trip && trip.scope === null ? trip.trip.timeline?.stays : undefined;
+  const axis = useMemo(() => (stays?.length ? composedAxis(start, end, stays) : null), [stays, start, end]);
+  const scale = axis
+    ? { min: 0, max: axis.length, step: 1, toPos: axis.toPos, toTime: axis.toTime }
+    : { min: start, max: end, step: 60000, toPos: (time: number) => time, toTime: (pos: number) => pos };
+  const at = (time: number) => (100 * (scale.toPos(time) - scale.min)) / Math.max(1, scale.max - scale.min);
+  const trackSegments = trip
+    ? (trip.scope === null
+        ? trip.trip.timeline?.sections
+        : trip.trip.timeline?.sections.filter((s) => s.index === trip.scope)
+      )?.flatMap((entry) =>
+        entry.timeline.segments.map((segment) => ({
+          ...segment,
+          color: segment.kind === 'flight' ? legColor(entry.legOffset + segment.leg) : undefined,
+        })),
+      )
+    : !comparison
+      ? timeline?.segments.map((segment) => ({
+          ...segment,
+          color: segment.kind === 'flight' ? legColor(segment.leg ?? 0) : undefined,
+        }))
+      : undefined;
   return (
     <section
       className={`time-bar${docked ? ' time-bar--docked' : ''}`}
@@ -173,7 +257,15 @@ export function TimeBar({
           type="button"
           className="time-bar__play"
           aria-label={
-            snapshot.playing ? t('timebar.pausePlayback') : comparison ? t('compare.playAll') : t('timebar.playJourney')
+            snapshot.playing
+              ? t('timebar.pausePlayback')
+              : comparison
+                ? t('compare.playAll')
+                : trip
+                  ? trip.scope === null
+                    ? t('trip.play')
+                    : t('trip.playSection', trip.names[trip.scope])
+                  : t('timebar.playJourney')
           }
           disabled={!sharedRange || !!error}
           onClick={onToggle}
@@ -191,7 +283,7 @@ export function TimeBar({
             )}
           </div>
           <div className="time-bar__detail">
-            {!comparison && !journey.dated && timeline && snapshot.time <= timeline.start + 60000 ? (
+            {!comparison && !trip && !journey.dated && timeline && snapshot.time <= timeline.start + 60000 ? (
               <>
                 {t('timebar.exampleDeparture')} ·{' '}
                 <button type="button" className="text-btn" onClick={() => onEditLeg(0)}>
@@ -225,28 +317,51 @@ export function TimeBar({
       )}
       <div className="time-bar__scrubber">
         <div className="time-bar__track" aria-hidden="true">
-          {!comparison &&
-            timeline?.segments.map((segment, index) => (
-              <span
-                key={index}
-                className={`time-bar__segment time-bar__segment--${segment.kind}`}
-                style={{
-                  left: `${(100 * (segment.start - start)) / (end - start)}%`,
-                  width: `${(100 * (segment.end - segment.start)) / (end - start)}%`,
-                  backgroundColor: segment.kind === 'flight' ? legColor(segment.leg ?? 0) : undefined,
-                }}
-              />
-            ))}
+          {trackSegments?.map((segment, index) => (
+            <span
+              key={index}
+              className={`time-bar__segment time-bar__segment--${segment.kind}`}
+              style={{
+                left: `${at(segment.start)}%`,
+                width: `${at(segment.end) - at(segment.start)}%`,
+                backgroundColor: segment.color,
+              }}
+            />
+          ))}
         </div>
+        {axis && (
+          <div className="time-bar__breaks" aria-hidden="true">
+            {axis?.breaks.map((gap) => {
+              const stay = trip?.trip.stays.find((s) => s.arrival?.epochMs === gap.start);
+              return (
+                <span
+                  key={gap.start}
+                  className={`time-bar__break${
+                    snapshot.skipping && snapshot.skipping.from >= gap.start && snapshot.skipping.to <= gap.end
+                      ? ' is-skipping'
+                      : snapshot.time >= gap.start && snapshot.time < gap.end
+                        ? ' is-current'
+                        : ''
+                  }`}
+                  style={{ left: `${at(gap.start)}%`, width: `${at(gap.end) - at(gap.start)}%` }}
+                >
+                  {stay && (
+                    <span className="time-bar__break-label">{stayLength(stay.minutes, stay.days, { t, fmt })}</span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        )}
         <input
           aria-label={t('timebar.journeyTime')}
           aria-valuetext={`${spoken}. ${text.title}. ${text.detail}`}
           type="range"
-          min={start}
-          max={end}
-          step={60000}
-          value={snapshot.time}
-          onChange={(e) => seek(Number(e.target.value))}
+          min={scale.min}
+          max={scale.max}
+          step={scale.step}
+          value={scale.toPos(snapshot.time)}
+          onChange={(e) => seek(scale.toTime(Number(e.target.value)))}
         />
       </div>
       <div className="time-bar__foot">

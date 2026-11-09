@@ -27,10 +27,18 @@ MCP `compare_journeys` example: `{"journeys":[{"label":"Direct","route":"BUD-JFK
 
 `visualize_route` and `validate_itinerary` accept journeys documents; visualization adds comparison and A's summary totals. Multi-journey calculation/timeline requests direct agents to compare_journeys. Browser parsing accepts compare_journeys without assumeDeparture and set_route with journeys documents; App/rendering integration is tracked in [the comparison model](https://github.com/tmrk/globehops/blob/main/docs/ROUTE_COMPARISON.md).
 
+## Round trips and multi-stage trips
+
+A trip is a sequence of journeys separated by explicit stays (never layovers), not a comparison. The first section uses ordinary keys; later ones use `2.route`/`2.depN`/`2.arrN`/`2.label`/`2.stay` through `6.*`. Example: `https://tmrk.github.io/globehops/?route=CPH-AMS-NBO&dep1=2026-11-15T07:00&2.route=NBO-CDG-CPH&2.dep1=2026-11-20T23:55`. `N.stay` (`5d`, `36h`, `90m`) places a section without times after the previous one (default 7 days, marked estimated/assumed). Documents use `{"version":1,"sections":[{"stops":[…]},{"label":"Home","stayMinutes":7200,"stops":[…]}]}` (1–6 sections). `calculate_route` returns `kind:"trip"`, sections, stays (minutes, calendar days, source, provenance) and trip totals; timelines add a `stay` phase. `leg` counts flights across the trip.
+
+## Routing
+
+Results use great circles unless a call requests `routing: {"avoidAirspace": true, "diversion": true}` (or `diversion` as 60–370 minutes; default 180 min at 400 kt on one engine). Legs then report `distanceKm` (used for estimates), `greatCircleKm`, `distanceModel` and `route.airspace`/`route.diversion` (`covered`, `adjusted` or `gap`, with the longest modelled diversion time). Diversion coverage is modelled reach of potential diversion airports from runway data, not an ETOPS authorisation or an airline's route. Links can set `airspace=0|1` and `diversion=0|1` for a visit.
+
 ## Contract and limits
 
 - [Capabilities](https://tmrk.github.io/globehops/agent/capabilities.json): parameters, limits, issue vocabulary and estimation model.
-- [Itinerary v1 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json): exactly one of stops (1–10) or journeys (1–4 labelled stop arrays); transfer-only integer layovers 0–10080 minutes. No unknown properties except a top-level string `$schema`.
+- [Itinerary v1 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json): exactly one of stops (1–10), journeys (1–4 labelled stop arrays) or sections (1–6 trip journeys with optional stays); transfer-only integer layovers 0–10080 minutes. No unknown properties except a top-level string `$schema`.
 - [External agent integration](https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md): link construction, validation and local MCP setup.
 
 Use IATA, ICAO, alphanumeric OurAirports ident or numeric airport id strings; unknown codes are reported and skipped. Hyphenated idents require numeric IDs in readable links. Maximum URL: 8000 characters; itinerary parameter: 6000 characters. Supported calendar years: 1900–2100.
@@ -39,7 +47,7 @@ Local times: `YYYY-MM-DDTHH:MM`, optional `:00` seconds and `±HH:MM` or `Z`. Of
 
 ## Estimates and provenance
 
-Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distances use great circles on a sphere of radius 6371.0088 km. Winds, actual routing, airline timetables and aircraft types are not modelled. Aircraft positions and altitudes are illustrative, not live tracking. Entered and estimated times are labelled. Undated comparisons align to the earliest dated departure, else an explicit assumed departure; without either they have totals but no timeline. Time-zone rules come from runtime Intl and may change for future dates.
+Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distances use great circles on a sphere of radius 6371.0088 km unless routing is requested. Winds, oceanic tracks, airways, airline timetables and aircraft types are not modelled. Aircraft positions and altitudes are illustrative, not live tracking. Entered and estimated times are labelled. Undated comparisons align to the earliest dated departure, else an explicit assumed departure; without either they have totals but no timeline. Time-zone rules come from runtime Intl and may change for future dates.
 
 - [Dataset freshness](https://tmrk.github.io/globehops/agent/dataset.json): build date, upstream airport commit, counts and time-zone release metadata.
 - [Data sources](https://github.com/tmrk/globehops/blob/main/docs/DATA_SOURCES.md): OurAirports public domain, timezone-boundary-builder/OSM ODbL-1.0, NASA imagery and Natural Earth borders.
@@ -56,6 +64,6 @@ MCP also exposes resources `globehops://agent/capabilities.json`, `globehops://a
 
 ## Experimental browser tools (WebMCP)
 
-When the browser offers model-context tools, the live page registers `get_journey` (stops, legs, totals, times, issues, current view/link), `set_route` (exactly one route string or v1 itinerary), `set_view` (partial t/play/speed/follow/dayNight/names/borders/units/clock/lang/leg), `select_flight` (one-based leg or null for overview), and `get_share_link` (open timeline instant/play state and locale; a live globe stays live). `t` is an ISO instant here; documents use `view.time`. No data is sent anywhere. Invalid arguments return actionable errors without partial changes. Explicit browser-tool playback acts like pressing Play; link autoplay respects reduced motion. No supported API means no registration and no change to normal UI behaviour.
+When the browser offers model-context tools, the live page registers `get_journey` (stops, legs, totals, times, issues, current view/link), `set_route` (exactly one route string or v1 itinerary), `set_view` (partial t/play/speed/follow/dayNight/names/borders/airspace/diversion/units/clock/lang/leg), `select_flight` (one-based leg or null for overview), and `get_share_link` (open timeline instant/play state and locale; a live globe stays live). `t` is an ISO instant here; documents use `view.time`. No data is sent anywhere. Invalid arguments return actionable errors without partial changes. Explicit browser-tool playback acts like pressing Play; link autoplay respects reduced motion. No supported API means no registration and no change to normal UI behaviour.
 
 Supports the current draft `document.modelContext.registerTool` with AbortSignal cleanup and legacy `navigator.modelContext` registerTool/unregisterTool or provideContext. This experimental API may change. DOM agents can use accessible airport comboboxes, named flight buttons and timeline controls; names follow the selected language. See the integration guide for exact arguments and lifecycle details.

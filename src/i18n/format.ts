@@ -36,6 +36,8 @@ function createFormatters(locale: Locale) {
   });
   const shortDates = new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const dayMarks = new Intl.DateTimeFormat(tag, { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
+  const dayMonths = new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const noon = (isoDate: string) => new Date(`${isoDate}T12:00:00Z`);
   const clocks = new Map<string, Intl.DateTimeFormat>();
   function duration(minutes: number, layover = false): string {
     if (locale === 'en') return layover ? formatLayover(minutes) : formatDuration(minutes);
@@ -74,6 +76,9 @@ function createFormatters(locale: Locale) {
       }
     },
     shortDate: (isoDate: string) => shortDates.format(new Date(`${isoDate}T12:00:00Z`)),
+    /** Two local calendar dates as a compact range: “15–20 Nov”, “30 Nov – 2 Dec”; one date when equal. */
+    dateRange: (fromIso: string, toIso: string) =>
+      fromIso === toIso ? dayMonths.format(noon(fromIso)) : dayMonths.formatRange(noon(fromIso), noon(toIso)),
     /** A day on a time scale: “Sun 8”. */
     dayMark: (isoDate: string) => dayMarks.format(new Date(`${isoDate}T12:00:00Z`)),
     /** “Fri 20 Nov 2026”; without the year (“Fri 20 Nov”) where the year goes without saying. */

@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { DistanceUnit } from '../types.ts';
 import {
   IconDetour,
+  IconDiversion,
   IconLanguage,
   IconWaves,
   IconMotion,
@@ -34,6 +35,8 @@ interface MapToolsProps {
   unit: DistanceUnit;
   avoidAirspace: boolean;
   onToggleAvoidAirspace: () => void;
+  diversionRouting: boolean;
+  onToggleDiversionRouting: () => void;
   /** Label for the re-centre button, or null when there is nothing to frame. */
   frameLabel: string | null;
   onToggleBorders: () => void;
@@ -240,6 +243,12 @@ export function MapTools(props: MapToolsProps) {
             icon={<IconDetour size={18} />}
             on={props.avoidAirspace}
             onClick={props.onToggleAvoidAirspace}
+          />
+          <Toggle
+            label={t('maptools.diversionRouting')}
+            icon={<IconDiversion size={18} />}
+            on={props.diversionRouting}
+            onClick={props.onToggleDiversionRouting}
           />
           <Toggle
             label={t('maptools.reduceMotion')}

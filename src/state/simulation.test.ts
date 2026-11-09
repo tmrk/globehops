@@ -4,7 +4,8 @@ import { computeJourney } from '../lib/schedule.ts';
 import { buildTimeline } from '../lib/timeline.ts';
 import { subsolarPoint } from '../lib/sun.ts';
 import { SimulationClock } from './clock.ts';
-import { createSimulationFeed, simFrameAt, skyAt, type SimulationContext } from './simulation.ts';
+import { createSimulationFeed, simFrameAt, skyAt, tripFrameAt, type SimulationContext } from './simulation.ts';
+import { computeTrip } from '../lib/trip.ts';
 const airports: Airport[] = ['CPH', 'LHR', 'JFK'].map((code, i) => ({
   id: i,
   ident: code,
@@ -298,4 +299,59 @@ it('shares the clock subscription and releases it after the last listener leaves
   expect(first).toHaveBeenCalledTimes(2);
   offAgain();
   clock.dispose();
+});
+
+describe('trip frames', () => {
+  const [cph, lhr, jfk] = airports;
+  const stop = (airport: Airport, departure: string | null = null) => ({
+    airport,
+    zone: 'UTC',
+    layoverMin: null,
+    arrival: null,
+    departure: departure ? { local: departure, offsetMin: null } : null,
+  });
+  // CPH → LHR → JFK, three days in New York, then JFK → CPH.
+  const trip = computeTrip(
+    [
+      { label: null, stayMin: null, input: { id: 'x', stops: [stop(cph, '2026-11-15T07:00'), stop(lhr), stop(jfk)] } },
+      { label: null, stayMin: null, input: { id: 'y', stops: [stop(jfk, '2026-11-20T18:00'), stop(cph)] } },
+    ],
+    { assumedStart: null, now: Date.UTC(2026, 10, 9) },
+  );
+  const tl = trip.timeline!;
+  it('flies one traveller on the trip-wide legs and parks it where it landed during the stay', () => {
+    const outbound = tl.sections[0].timeline;
+    const flying = tripFrameAt(trip, tl, outbound.start + 30 * 60_000, false);
+    expect(flying.aircraft).toMatchObject({ kind: 'air', leg: 0 });
+    expect(flying.highlightLeg).toBe(0);
+    expect(flying.fleet).toBeUndefined();
+    const staying = tripFrameAt(trip, tl, Date.UTC(2026, 10, 18), true);
+    expect(staying.aircraft).toEqual({ kind: 'ground', leg: 1, at: 'end' });
+    expect(staying.sky).not.toBeNull();
+    const home = tripFrameAt(trip, tl, tl.sections[1].timeline.start + 60 * 60_000, false);
+    expect(home.aircraft).toMatchObject({ kind: 'air', leg: 2 });
+    const waiting = tripFrameAt(trip, tl, tl.sections[1].timeline.start - 10 * 60_000, false);
+    expect(waiting.aircraft).toMatchObject({ kind: 'ground', at: 'end' });
+    expect(tripFrameAt(trip, null, Date.UTC(2026, 10, 18), false).aircraft).toBeNull();
+  });
+  it('feeds trip frames, with the playback velocity of the one traveller', () => {
+    const clock = new SimulationClock({ now: () => tl.start, requestFrame: () => 1, cancelFrame: () => {} });
+    const context: SimulationContext = {
+      journey: trip.sections[0].journey,
+      timeline: trip.sections[0].timeline,
+      open: true,
+      dayNight: false,
+      follow: true,
+      trip: { trip, timeline: tl },
+    };
+    const feed = createSimulationFeed(clock, () => context);
+    clock.setRange(tl.start, tl.end);
+    clock.seek(tl.sections[1].timeline.start + 60 * 60_000);
+    clock.play();
+    const frame = feed.getFrame();
+    expect(frame.aircraft).toMatchObject({ kind: 'air', leg: 2 });
+    expect(frame.follow).toBe(true);
+    if (frame.aircraft?.kind === 'air') expect(frame.aircraft.fractionPerSecond).toBeGreaterThan(0);
+    clock.dispose();
+  });
 });

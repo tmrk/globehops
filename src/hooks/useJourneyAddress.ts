@@ -5,14 +5,15 @@ import { airportCode } from '../data/airports.ts';
 import { serializeLink, type LinkView } from '../state/link.ts';
 import { saveLastJourney } from '../state/storage.ts';
 import { replaceUrl } from '../analytics.ts';
-import type { CompareState } from '../state/compare.ts';
+import type { PlanState } from '../state/plan.ts';
+import { tripRouteCodes } from '../lib/tripView.ts';
 import type { useJourneyModel } from './useJourneyModel.ts';
 import type { useViewPreferences } from './useViewPreferences.ts';
 
 interface JourneyAddressOptions {
   model: ReturnType<typeof useJourneyModel>;
   preferences: ReturnType<typeof useViewPreferences>;
-  comparison: CompareState;
+  plan: PlanState;
   timeOpen: boolean;
   playing: boolean;
   live: boolean;
@@ -25,7 +26,7 @@ interface JourneyAddressOptions {
 export function useJourneyAddress({
   model,
   preferences,
-  comparison,
+  plan,
   timeOpen,
   playing,
   live,
@@ -35,7 +36,7 @@ export function useJourneyAddress({
   updatePickerAddress,
 }: JourneyAddressOptions) {
   const { t } = useI18n();
-  const { primaryStops, filledStops, linkExtra, serializedJourneys } = model;
+  const { primaryStops, filledStops, linkExtra, serializedJourneys, kind, legOffsets } = model;
   const {
     clockZone,
     linkUnits,
@@ -46,7 +47,10 @@ export function useJourneyAddress({
     showBorders,
     explicitDefaults,
   } = preferences;
-  const comparing = comparison.journeys.length > 1;
+  const comparing = kind === 'compare';
+  // Link flight numbers name the first journey's flights, or a trip's flights across its journeys.
+  const selected = plan.journeys[kind === 'trip' ? plan.active : 0].route.selectedLeg;
+  const leg = selected === null ? undefined : (kind === 'trip' ? legOffsets[plan.active] : 0) + selected + 1;
   const query = useMemo(
     () =>
       serializeLink(
@@ -61,10 +65,9 @@ export function useJourneyAddress({
           follow: followAircraft,
           names: linkLayers.names !== undefined ? showCountryNames : undefined,
           borders: linkLayers.borders !== undefined ? showBorders : undefined,
-          leg:
-            comparison.journeys[0].route.selectedLeg !== null
-              ? comparison.journeys[0].route.selectedLeg + 1
-              : undefined,
+          airspace: linkLayers.airspace !== undefined ? preferences.avoidAirspace : undefined,
+          diversion: linkLayers.diversion !== undefined ? preferences.diversionRouting : undefined,
+          leg,
         },
         explicitDefaults,
         linkExtra,
@@ -72,7 +75,7 @@ export function useJourneyAddress({
     [
       primaryStops,
       linkExtra,
-      comparison.journeys,
+      leg,
       timeOpen,
       playing,
       live,
@@ -85,6 +88,8 @@ export function useJourneyAddress({
       linkLayers,
       showCountryNames,
       showBorders,
+      preferences.avoidAirspace,
+      preferences.diversionRouting,
       explicitDefaults,
     ],
   );
@@ -95,16 +100,19 @@ export function useJourneyAddress({
     if (!initialized) return;
     if (addressUrl !== window.location.href) replaceUrl(addressUrl);
     saveLastJourney(serializeLink(primaryStops, { speed }, false, linkExtra));
-    document.title = comparing
-      ? t(
-          'compare.documentTitle',
-          serializedJourneys
-            .map((entry) => entry.stops.map((stop) => airportCode(stop.airport)).join(' → '))
-            .join(', '),
-        )
-      : filledStops.length
-        ? t('panel.routeTitle', filledStops.map((s) => airportCode(s.airport)).join(' → '))
-        : t('common.documentTitle');
+    document.title =
+      kind === 'trip'
+        ? t('panel.routeTitle', tripRouteCodes(serializedJourneys.map((entry) => entry.stops.map((s) => s.airport))))
+        : comparing
+          ? t(
+              'compare.documentTitle',
+              serializedJourneys
+                .map((entry) => entry.stops.map((stop) => airportCode(stop.airport)).join(' → '))
+                .join(', '),
+            )
+          : filledStops.length
+            ? t('panel.routeTitle', filledStops.map((s) => airportCode(s.airport)).join(' → '))
+            : t('common.documentTitle');
   }, [
     addressUrl,
     updatePickerAddress,
@@ -112,6 +120,7 @@ export function useJourneyAddress({
     primaryStops,
     linkExtra,
     comparing,
+    kind,
     serializedJourneys,
     initialized,
     speed,

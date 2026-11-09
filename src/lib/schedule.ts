@@ -42,6 +42,12 @@ export interface ScheduleOptions {
   flightModel?: FlightTimeModel;
   /** Airspace-aware routes by leg index; their distance replaces the great circle's. */
   routes?: readonly (LegRoute | undefined)[];
+  /**
+   * Places an undated journey from a neighbouring section of a trip: its first departure (`start`) or
+   * last arrival (`end`) at this instant, with the given provenance for every derived time. Ignored once
+   * any time was entered; takes precedence over `assumedStart`.
+   */
+  anchor?: { at: 'start' | 'end'; epochMs: number; provenance: 'estimated' | 'assumed' } | null;
 }
 export interface JourneyLeg {
   id: string;
@@ -247,20 +253,35 @@ export function computeJourney(input: JourneyInput, opts: ScheduleOptions = {}):
       }
     }
   };
+  const backward = () => {
+    for (let s = n - 2; s >= 0; s--) {
+      if (!dep[s] && arr[s + 1]) {
+        dep[s] = derived(arr[s + 1], s, -(legs[s].estimatedMin ?? 0));
+        edges.add(`L${s + 1}`);
+      }
+      if (s >= 1 && !arr[s] && dep[s]) {
+        arr[s] = derived(dep[s], s, -(stops[s].layoverMin ?? DEFAULT_LAYOVER_MIN));
+        edges.add(`T${s}`);
+      }
+    }
+  };
   forward();
-  for (let s = n - 2; s >= 0; s--) {
-    if (!dep[s] && arr[s + 1]) {
-      dep[s] = derived(arr[s + 1], s, -(legs[s].estimatedMin ?? 0));
-      edges.add(`L${s + 1}`);
+  backward();
+  const zoneAt = (stop: number) => {
+    const zone = stops[stop].zone;
+    return zone && isSupportedTimeZone(zone) ? zone : 'UTC';
+  };
+  const anchor = opts.anchor;
+  if (!dated && n > 1 && anchor && Number.isFinite(anchor.epochMs)) {
+    if (anchor.at === 'start') {
+      dep[0] = point(anchor.epochMs, zoneAt(0), anchor.provenance);
+      forward();
+    } else {
+      arr[n - 1] = point(anchor.epochMs, zoneAt(n - 1), anchor.provenance);
+      backward();
     }
-    if (s >= 1 && !arr[s] && dep[s]) {
-      arr[s] = derived(dep[s], s, -(stops[s].layoverMin ?? DEFAULT_LAYOVER_MIN));
-      edges.add(`T${s}`);
-    }
-  }
-  if (!dated && n > 1 && opts.assumedStart != null && Number.isFinite(opts.assumedStart)) {
-    const zone = stops[0].zone;
-    dep[0] = point(opts.assumedStart, zone && isSupportedTimeZone(zone) ? zone : 'UTC', 'assumed');
+  } else if (!dated && n > 1 && opts.assumedStart != null && Number.isFinite(opts.assumedStart)) {
+    dep[0] = point(opts.assumedStart, zoneAt(0), 'assumed');
     forward();
   }
   for (const leg of legs) {

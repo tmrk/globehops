@@ -31,7 +31,7 @@ export const WEB_TOOL_DEFINITIONS = [
   {
     name: 'set_route',
     description:
-      'Replace the route with 1–10 airport codes (transfer suffix _minutes), or an itinerary v1 document. Local times belong to each airport. Supply exactly one input; an empty route clears the journey.',
+      'Replace the route with 1–10 airport codes (transfer suffix _minutes), or an itinerary v1 document (sections for a round trip or multi-stage trip with explicit stays). Local times belong to each airport. Supply exactly one input; an empty route clears the journey.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -48,7 +48,7 @@ export const WEB_TOOL_DEFINITIONS = [
   {
     name: 'set_view',
     description:
-      'Patch the view for this visit. t is an ISO instant with offset; speed is simulation seconds per second (auto ≈15s journey). Explicit play is a user-requested action. No preferences are saved.',
+      'Patch the view for this visit. t is an ISO instant with offset; speed is simulation seconds per second (auto ≈15s journey). airspace/diversion switch restricted-airspace avoidance and diversion-aware routing for the visit. In a trip, leg counts flights across its journeys. Explicit play is a user-requested action. No preferences are saved.',
     inputSchema: {
       ...ITINERARY_SCHEMA.properties.view,
       properties: {
@@ -125,7 +125,21 @@ export function parseWebCommand(name: WebToolName, raw: unknown, flights: number
     if (link.issues.length) throw new TypeError(link.issues.join(' '));
     return { type: name, link, search };
   }
-  keys(['t', 'play', 'speed', 'clock', 'units', 'dayNight', 'follow', 'lang', 'names', 'borders', 'leg']);
+  keys([
+    't',
+    'play',
+    'speed',
+    'clock',
+    'units',
+    'dayNight',
+    'follow',
+    'lang',
+    'names',
+    'borders',
+    'airspace',
+    'diversion',
+    'leg',
+  ]);
   if (raw.leg !== undefined && (typeof raw.leg !== 'number' || raw.leg > flights))
     throw new TypeError(`leg must be a flight number from 1 to ${flights}.`);
   const { t, ...view } = raw;

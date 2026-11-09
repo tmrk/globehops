@@ -4,6 +4,7 @@ import { displayCode } from '../data/airports.ts';
 import { legColor } from './legColors.ts';
 import { pathSignature } from './routePath.ts';
 import { comparisonRange, type ComparedJourney } from './compare.ts';
+import type { Journey } from './schedule.ts';
 
 /** Shared offsets keep globe selection, fleet aircraft and the editor on the same leg. */
 export function journeyLegOffsets(list: ComparedJourney[]): number[] {
@@ -23,16 +24,14 @@ export function localLegAt(list: ComparedJourney[], globalLeg: number): { index:
   return index < 0 ? null : { index, leg: globalLeg - offsets[index] };
 }
 
-export function comparisonGlobeRoute(
-  list: ComparedJourney[],
-  active: number,
-  open: boolean,
+/** One marker per airport across journeys; an airport's strongest role wins (origin, destination, transfer). */
+export function routeMarkers(
+  journeys: readonly Pick<Journey, 'stops'>[],
   city: (airport: Airport) => string,
-): GlobeRoute {
-  const comparing = list.length > 1;
+): GlobeRoute['markers'] {
   const markers = new Map<number, GlobeRoute['markers'][number]>();
   const rank = { single: 0, transfer: 1, destination: 2, origin: 3 };
-  for (const { journey } of list) {
+  for (const journey of journeys) {
     journey.stops.forEach(({ airport }, i, stops) => {
       const role =
         stops.length === 1 ? 'single' : i === 0 ? 'origin' : i === stops.length - 1 ? 'destination' : 'transfer';
@@ -48,8 +47,21 @@ export function comparisonGlobeRoute(
       });
     });
   }
+  return [...markers.values()];
+}
+
+export function comparisonGlobeRoute(
+  list: ComparedJourney[],
+  active: number,
+  open: boolean,
+  city: (airport: Airport) => string,
+): GlobeRoute {
+  const comparing = list.length > 1;
   return {
-    markers: [...markers.values()],
+    markers: routeMarkers(
+      list.map(({ journey }) => journey),
+      city,
+    ),
     legs: list.flatMap(({ id, index, color, journey }) => {
       const counts = new Map<string, number>();
       return journey.legs.map((leg, i) => {

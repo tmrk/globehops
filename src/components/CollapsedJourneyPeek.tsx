@@ -5,6 +5,10 @@ import { IconPlane } from './Icons.tsx';
 
 interface CollapsedJourneyPeekProps {
   airports: Airport[];
+  /** A trip's route (its journeys' ends) in place of the active journey's airports. */
+  routeText?: string;
+  /** Replaces the distance and time line, e.g. a trip's distance and dates. */
+  detail?: string;
   hasLegs: boolean;
   totalKm: number;
   totalMin: number;
@@ -19,6 +23,8 @@ interface CollapsedJourneyPeekProps {
  */
 export function CollapsedJourneyPeek({
   airports,
+  routeText,
+  detail,
   hasLegs,
   totalKm,
   totalMin,
@@ -38,12 +44,16 @@ export function CollapsedJourneyPeek({
     );
   return (
     <button type="button" className="peek peek--route" onClick={onExpand} aria-label={t('panel.showJourneyDetails')}>
-      <span className="peek__route">{airports.map(airportCode).join(' → ')}</span>
-      {hasLegs && (
-        <span className="peek__totals">
-          {fmt.distance(totalKm, unit)}
-          {totalMin ? ` · ${estimated ? '≈ ' : ''}${fmt.duration(totalMin)}` : ''}
-        </span>
+      <span className="peek__route">{routeText ?? airports.map(airportCode).join(' → ')}</span>
+      {detail ? (
+        <span className="peek__totals">{detail}</span>
+      ) : (
+        hasLegs && (
+          <span className="peek__totals">
+            {fmt.distance(totalKm, unit)}
+            {totalMin ? ` · ${estimated ? '≈ ' : ''}${fmt.duration(totalMin)}` : ''}
+          </span>
+        )
       )}
     </button>
   );

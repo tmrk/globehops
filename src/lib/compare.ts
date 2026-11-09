@@ -29,7 +29,7 @@ export type LegRouter = (from: Airport, to: Airport, departureMs: number) => Leg
  * Two passes when routing: departure dates from the great-circle schedule pick the advisories
  * that apply, then the schedule is recomputed with the routes' distances.
  */
-function routedJourney(input: JourneyInput, opts: ScheduleOptions, route: LegRouter | undefined): Journey {
+export function routedJourney(input: JourneyInput, opts: ScheduleOptions, route: LegRouter | undefined): Journey {
   const journey = computeJourney(input, opts);
   if (!route) return journey;
   const now = opts.now ?? Date.now();

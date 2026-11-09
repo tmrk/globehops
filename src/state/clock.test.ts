@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { AMBIENT_TICK_MS, playbackRate, SimulationClock, TRACKING_TICK_MS } from './clock.ts';
+import { AMBIENT_TICK_MS, playbackRate, SimulationClock, SKIP_DWELL_MS, TRACKING_TICK_MS } from './clock.ts';
 function fakeClock() {
   let now = 1000,
     id = 0;
@@ -226,5 +226,65 @@ describe('simulation clock', () => {
     clock.play();
     expect(clock.getSnapshot()).toMatchObject({ time: 42, playing: false });
     expect(frames.size).toBe(0);
+  });
+
+  describe('skipped stays', () => {
+    const H = 3_600_000;
+    // A 14 h journey, a five-day stay, a 13 h journey: Auto spreads only the flying part over 15 s.
+    const setup = () => {
+      const fake = fakeClock();
+      const { clock } = fake;
+      clock.setRange(0, 152 * H);
+      clock.setSkips([{ from: 14 * H, to: 139 * H }]);
+      clock.seek(0);
+      return fake;
+    };
+    it('bases Auto on the time it plays, not the stay', () => {
+      const { clock } = setup();
+      expect(clock.rate).toBe((27 * H) / 15000);
+      clock.setSkips([]);
+      expect(clock.rate).toBe((152 * H) / 15000);
+    });
+    it('lingers at the stay, then jumps across it and keeps playing', () => {
+      const { clock, frame } = setup();
+      clock.play();
+      let t = 0;
+      frame(t);
+      while (clock.getSnapshot().time < 14 * H) frame((t += 100));
+      expect(clock.getSnapshot()).toMatchObject({
+        time: 14 * H,
+        playing: true,
+        skipping: { from: 14 * H, to: 139 * H },
+      });
+      frame((t += SKIP_DWELL_MS / 2));
+      expect(clock.getSnapshot().time).toBe(14 * H);
+      frame((t += SKIP_DWELL_MS));
+      expect(clock.getSnapshot()).toMatchObject({ time: 139 * H, playing: true, skipping: null });
+      frame((t += 100));
+      expect(clock.getSnapshot().time).toBeGreaterThan(139 * H);
+      while (clock.getSnapshot().playing) frame((t += 100));
+      expect(clock.getSnapshot()).toMatchObject({ time: 152 * H, playing: false });
+    });
+    it('skips from inside a stay when playback starts there, and seeking or pausing cancels the pause', () => {
+      const { clock, frame } = setup();
+      clock.seek(50 * H);
+      clock.play();
+      frame(0);
+      frame(100);
+      expect(clock.getSnapshot()).toMatchObject({ time: 50 * H, skipping: { to: 139 * H } });
+      clock.seek(10 * H);
+      expect(clock.getSnapshot()).toMatchObject({ time: 10 * H, skipping: null });
+      clock.play();
+      frame(1000);
+      clock.pause();
+      expect(clock.getSnapshot().skipping).toBeNull();
+    });
+    it('never skips while scrubbing, live or past the range', () => {
+      const { clock } = setup();
+      clock.seek(60 * H);
+      expect(clock.getSnapshot().time).toBe(60 * H);
+      clock.setSkips([{ from: 5, to: 1 }]);
+      expect(clock.rate).toBe((152 * H) / 15000);
+    });
   });
 });

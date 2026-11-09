@@ -2,8 +2,9 @@ import type { Journey } from '../lib/schedule.ts';
 import { moonAt } from '../lib/moon.ts';
 import { subsolarPoint, sunDistanceKm } from '../lib/sun.ts';
 import { journeyStateAt, type Timeline } from '../lib/timeline.ts';
+import { tripStateAt, type Trip, type TripTimeline } from '../lib/trip.ts';
 import type { AircraftView, FleetAircraft, SimFrame, SimulationFeed, Sky } from '../globe/simFeed.ts';
-import { playbackRate, type SimulationClock } from './clock.ts';
+import type { SimulationClock } from './clock.ts';
 
 export const skyAt = (time: number): Sky => ({
   sun: subsolarPoint(time),
@@ -62,6 +63,50 @@ export function simFrameAt(
       : { kind: 'ground', leg: frame.highlightLeg, at: state.phase === 'before' ? 'start' : 'end' };
   return frame;
 }
+/**
+ * A trip's single traveller on the flattened globe legs of all its journeys: flying, connecting or waiting
+ * like a journey's aircraft, and parked where it landed during a stay.
+ */
+export function tripFrameAt(trip: Trip, timeline: TripTimeline | null, time: number, dayNight: boolean): SimFrame {
+  const frame: SimFrame = { sky: dayNight ? skyAt(time) : null, aircraft: null, highlightLeg: null, follow: false };
+  if (!timeline) return frame;
+  const state = tripStateAt(trip, timeline, time);
+  if (state.phase === 'stay') {
+    const before = trip.sections[state.after];
+    const leg = before.legOffset + before.journey.legs.length - 1;
+    frame.highlightLeg = leg;
+    frame.aircraft = { kind: 'ground', leg, at: 'end' };
+    return frame;
+  }
+  const local = state.state;
+  const leg = state.legOffset + (local.phase === 'transfer' ? local.leg - 1 : local.leg);
+  frame.highlightLeg = leg;
+  frame.aircraft =
+    local.phase === 'flight'
+      ? { kind: 'air', leg: state.legOffset + local.leg, fraction: local.distanceFraction }
+      : { kind: 'ground', leg, at: local.phase === 'before' ? 'start' : 'end' };
+  return frame;
+}
+
+/** The primary aircraft's flown fraction at an instant, on its global leg; null when not airborne. */
+function airborneAt(ctx: SimulationContext, time: number): { leg: number; fraction: number } | null {
+  if (ctx.trip) {
+    if (!ctx.trip.timeline) return null;
+    const state = tripStateAt(ctx.trip.trip, ctx.trip.timeline, time);
+    return state.phase === 'journey' && state.state.phase === 'flight'
+      ? { leg: state.legOffset + state.state.leg, fraction: state.state.distanceFraction }
+      : null;
+  }
+  const primary = ctx.fleet?.[ctx.primary ?? 0];
+  const journey = ctx.fleet === undefined ? ctx.journey : primary?.journey;
+  const timeline = ctx.fleet === undefined ? ctx.timeline : primary?.timeline;
+  if (!journey || !timeline) return null;
+  const state = journeyStateAt(journey, timeline, time);
+  return state.phase === 'flight'
+    ? { leg: state.leg + (primary?.legOffset ?? 0), fraction: state.distanceFraction }
+    : null;
+}
+
 export interface SimulationContext {
   journey: Journey;
   timeline: Timeline | null;
@@ -72,6 +117,8 @@ export interface SimulationContext {
   fleet?: { journey: Journey; timeline: Timeline | null; legOffset: number; color: string; tag: string }[];
   /** Index into fleet, before entries without timelines are filtered out. */
   primary?: number;
+  /** A trip's journeys with one traveller (instead of `journey`/`fleet`); its timeline spans every journey. */
+  trip?: { trip: Trip; timeline: TripTimeline | null };
 }
 const EMPTY_FLEET: NonNullable<SimulationContext['fleet']> = [];
 function sameAircraft(a: AircraftView | null, b: AircraftView | null): boolean {
@@ -116,28 +163,23 @@ export function createSimulationFeed(
   const getFrame = () => {
     const ctx = getContext();
     const snapshot = clock.getSnapshot();
-    const frame = simFrameAt(
-      ctx.journey,
-      ctx.open ? ctx.timeline : null,
-      snapshot.time,
-      ctx.dayNight,
-      ctx.fleet === undefined ? undefined : ctx.open ? ctx.fleet : EMPTY_FLEET,
-      ctx.primary,
-    );
+    const frame = ctx.trip
+      ? tripFrameAt(ctx.trip.trip, ctx.open ? ctx.trip.timeline : null, snapshot.time, ctx.dayNight)
+      : simFrameAt(
+          ctx.journey,
+          ctx.open ? ctx.timeline : null,
+          snapshot.time,
+          ctx.dayNight,
+          ctx.fleet === undefined ? undefined : ctx.open ? ctx.fleet : EMPTY_FLEET,
+          ctx.primary,
+        );
     const moving = snapshot.playing || snapshot.live;
     frame.follow = ctx.open && ctx.follow && moving;
-    const primary = ctx.fleet?.[ctx.primary ?? 0];
-    const primaryJourney = ctx.fleet === undefined ? ctx.journey : primary?.journey;
-    const primaryTimeline = ctx.fleet === undefined ? ctx.timeline : primary?.timeline;
-    if (frame.aircraft?.kind === 'air' && primaryJourney && primaryTimeline && moving) {
-      const span = snapshot.start !== null && snapshot.end !== null ? snapshot.end - snapshot.start : 15000;
-      const rate = snapshot.live ? 1 : playbackRate(snapshot.speed, span);
-      const next = journeyStateAt(primaryJourney, primaryTimeline, snapshot.time + rate * 100);
+    if (frame.aircraft?.kind === 'air' && moving) {
+      const next = airborneAt(ctx, snapshot.time + clock.rate * 100);
       // Local distance velocity, in real seconds, predicts through the camera's smoothing lag.
       frame.aircraft.fractionPerSecond =
-        next.phase === 'flight' && next.leg + (primary?.legOffset ?? 0) === frame.aircraft.leg
-          ? Math.max(0, (next.distanceFraction - frame.aircraft.fraction) / 0.1)
-          : 0;
+        next && next.leg === frame.aircraft.leg ? Math.max(0, (next.fraction - frame.aircraft.fraction) / 0.1) : 0;
     }
     if (!cached || !sameFrame(frame, cached)) cached = frame;
     return cached;

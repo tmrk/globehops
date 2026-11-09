@@ -20,7 +20,7 @@ function browserDefaultUnit() {
 
 export function useViewPreferences() {
   const [values, setValues] = useState(() => loadViewPreferences(browserDefaultUnit()));
-  const [linkLayers, setLinkLayers] = useState<Pick<LinkView, 'names' | 'borders'>>({});
+  const [linkLayers, setLinkLayers] = useState<Pick<LinkView, 'names' | 'borders' | 'airspace' | 'diversion'>>({});
   const [linkUnits, setLinkUnits] = useState<DistanceUnit | null>(null);
   const [explicitDefaults, setExplicitDefaults] = useState<LinkDefaultKey[]>([]);
   const systemReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
@@ -43,7 +43,7 @@ export function useViewPreferences() {
       reduceMotionPref: previous.reduceMotionPref,
     }));
     setExplicitDefaults(explicit);
-    setLinkLayers({ names: view.names, borders: view.borders });
+    setLinkLayers({ names: view.names, borders: view.borders, airspace: view.airspace, diversion: view.diversion });
     setLinkUnits(view.units);
   }, []);
   const patchView = (patch: Partial<LinkView>) => {
@@ -53,10 +53,14 @@ export function useViewPreferences() {
       ...(patch.clock !== undefined ? { clockZone: patch.clock } : {}),
       ...(patch.names !== undefined ? { showCountryNames: patch.names, showWaterNames: patch.names } : {}),
       ...(patch.borders !== undefined ? { showBorders: patch.borders } : {}),
+      ...(patch.airspace !== undefined ? { avoidAirspace: patch.airspace } : {}),
+      ...(patch.diversion !== undefined ? { diversionRouting: patch.diversion } : {}),
       ...(patch.units != null ? { unit: patch.units } : {}),
     });
     if (patch.names !== undefined) setLinkLayers((previous) => ({ ...previous, names: patch.names }));
     if (patch.borders !== undefined) setLinkLayers((previous) => ({ ...previous, borders: patch.borders }));
+    if (patch.airspace !== undefined) setLinkLayers((previous) => ({ ...previous, airspace: patch.airspace }));
+    if (patch.diversion !== undefined) setLinkLayers((previous) => ({ ...previous, diversion: patch.diversion }));
     if (patch.units != null) setLinkUnits(patch.units);
     setExplicitDefaults((previous) => [...new Set([...previous, ...explicitViewDefaults(patch)])]);
   };
@@ -105,7 +109,14 @@ export function useViewPreferences() {
     toggleAvoidAirspace() {
       const next = !values.avoidAirspace;
       setVisit({ avoidAirspace: next });
+      if (linkLayers.airspace !== undefined) setLinkLayers((previous) => ({ ...previous, airspace: next }));
       storage.saveAvoidAirspace(next);
+    },
+    toggleDiversionRouting() {
+      const next = !values.diversionRouting;
+      setVisit({ diversionRouting: next });
+      if (linkLayers.diversion !== undefined) setLinkLayers((previous) => ({ ...previous, diversion: next }));
+      storage.saveDiversionRouting(next);
     },
     toggleMyLocation() {
       const next = !values.myLocation;

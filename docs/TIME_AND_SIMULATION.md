@@ -66,6 +66,7 @@ Errors prevent playback. Warnings and information preserve validity. Stop/leg in
 | `unusual_flight_time`    | Warning     | Entered/mixed duration is below `0.6 × estimate − 20` or above `1.6 × estimate + 60` minutes. |
 | `long_layover`           | Warning     | Ground time exceeds seven days.                                                               |
 | `future_rules`           | Information | An entered instant is in the future; current runtime rules may change.                        |
+| `stay_overlap`           | Error       | Trip only: a journey departs before the previous journey arrives.                             |
 
 ## Progress and timeline semantics
 
@@ -108,6 +109,14 @@ The timeline provides a native range slider, previous/next flight controls, cloc
 **Time dial.** With no flights in any journey, `TimeDial` replaces the timeline: an hour tape (24 px per hour, ticks drawn in the zone's offset at the needle, a day mark at midnight) under a fixed needle, a clock-zone menu (your time or UTC), a native date field and the same Live toggle. Drag, flick (exponential momentum, off under reduced motion), wheel and keys (arrows ±15 minutes, Shift ±1 hour, Page Up/Down ±1 day, Home for Live) seek the clock within 1900–2100. The first seek opens time, so the moment is written to `t` after the usual debounce; Live closes it again and returns the clock to the ambient 30-second cadence. While Live, the head shows seconds and the dial asks for 1-second ticks, aligned to the wall clock's whole seconds; the seconds fold away once the time moves, and the ambient cadence returns when the dial leaves. On phones the dial docks into the collapsed sheet above **Show a flight**; opening the planner hides it.
 
 Paused scrubs are debounced into `t` after 450 ms in App. Playback never writes `t` per frame: Safari throttles `history.replaceState`. Remembered journeys omit `t`, `play` and link-specific units. Legacy route/layover links remain readable; see [external agent integration](AGENT_INTEGRATION.md) for the complete v1 link/document contract.
+
+## Trips and stays
+
+A trip's journeys are scheduled independently; only the **stay** between two journeys links them. Its length comes from the two journeys' own times when both have them (`source: times`), measured between instants, so daylight-saving changes and the date line are handled; the stay also reports its **calendar days** at the arrival airport (local dates: arriving 15 November and leaving 20 November is five days). A journey without entered times is placed through its stay setting (default seven days, changeable from six hours to four weeks, or any whole minute up to a year in links): its first departure follows the previous journey's last arrival plus the stay, or, failing that, its last arrival precedes the next journey's first departure by it. Times derived from a chosen stay are `estimated`; from the default stay, or from the example start of a wholly untimed trip, `assumed`. Entered anchors are never moved; journeys that overlap report `stay_overlap` and prevent playback. Journeys without flights (an empty new journey) are skipped when linking stays.
+
+The trip has one UTC timeline and one traveller. Before the first departure it waits at the origin; between journeys it is `stay` (parked where it landed, with the next departure's countdown); after the last arrival it rests at the final destination. Boundaries belong to the later segment, so the moment of landing begins the stay.
+
+**Playback.** Playing the whole trip skips each stay: the clock reaches 20 minutes after landing, lingers there for 900 ms of real time (the timeline shows the stay and a `Skipping …` detail, and its break mark turns amber), then continues from 30 minutes before the next departure. Stays shorter than about two hours play through. Auto spreads only the played time over about 15 seconds, so a week away does not speed up the flights. Seeking, scrubbing and Live never skip; the instant, daylight and Sun/Moon always follow true time. Playing one journey of a trip (its row's play button) limits the clock to that journey, without skips. On the whole-trip scrubber each stay is a short break (6% of the played time, labelled with its length) and flights keep their true proportions; a single journey's or a comparison's slider is unchanged (epoch milliseconds).
 
 ## Aircraft follow
 

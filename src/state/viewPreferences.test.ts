@@ -44,6 +44,7 @@ describe('view preferences', () => {
       myLocation: false,
       reduceMotionPref: null,
       avoidAirspace: true,
+      diversionRouting: true,
     });
     data.set('globehops:countryNames', 'on');
     expect(loadViewPreferences('km').showWaterNames).toBe(true);

@@ -1,5 +1,205 @@
 [
   {
+    "title": "Round trip with five days in Nairobi",
+    "description": "Two sections separated by an explicit stay: each section keeps its own connections (AMS, CDG); the stay is never a layover.",
+    "itinerary": {
+      "version": 1,
+      "sections": [
+        {
+          "stops": [
+            { "airport": "CPH", "departure": "2026-11-15T07:00" },
+            { "airport": "AMS", "arrival": "2026-11-15T08:20", "departure": "2026-11-15T10:20" },
+            { "airport": "NBO", "arrival": "2026-11-15T20:55" }
+          ]
+        },
+        {
+          "stops": [
+            { "airport": "NBO", "departure": "2026-11-20T23:55" },
+            { "airport": "CDG", "arrival": "2026-11-21T06:50", "departure": "2026-11-21T09:30" },
+            { "airport": "CPH", "arrival": "2026-11-21T11:25" }
+          ]
+        }
+      ]
+    },
+    "url": "https://tmrk.github.io/globehops/?route=CPH-AMS-NBO&dep1=2026-11-15T07:00&arr2=2026-11-15T08:20&dep2=2026-11-15T10:20&arr3=2026-11-15T20:55&2.route=NBO-CDG-CPH&2.dep1=2026-11-20T23:55&2.arr2=2026-11-21T06:50&2.dep2=2026-11-21T09:30&2.arr3=2026-11-21T11:25",
+    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzZWN0aW9ucyI6W3sic3RvcHMiOlt7ImFpcnBvcnQiOiJDUEgiLCJkZXBhcnR1cmUiOiIyMDI2LTExLTE1VDA3OjAwIn0seyJhaXJwb3J0IjoiQU1TIiwiYXJyaXZhbCI6IjIwMjYtMTEtMTVUMDg6MjAiLCJkZXBhcnR1cmUiOiIyMDI2LTExLTE1VDEwOjIwIn0seyJhaXJwb3J0IjoiTkJPIiwiYXJyaXZhbCI6IjIwMjYtMTEtMTVUMjA6NTUifV19LHsic3RvcHMiOlt7ImFpcnBvcnQiOiJOQk8iLCJkZXBhcnR1cmUiOiIyMDI2LTExLTIwVDIzOjU1In0seyJhaXJwb3J0IjoiQ0RHIiwiYXJyaXZhbCI6IjIwMjYtMTEtMjFUMDY6NTAiLCJkZXBhcnR1cmUiOiIyMDI2LTExLTIxVDA5OjMwIn0seyJhaXJwb3J0IjoiQ1BIIiwiYXJyaXZhbCI6IjIwMjYtMTEtMjFUMTE6MjUifV19XX0",
+    "expected": {
+      "totals": {
+        "distanceKm": 14809.3,
+        "distanceMi": 9202.1,
+        "flightMinutes": 1245,
+        "connectionMinutes": 280,
+        "stayMinutes": 7380,
+        "tripMinutes": 8905,
+        "flights": 4,
+        "connections": 2,
+        "sections": 2,
+        "stays": 1,
+        "departure": {
+          "local": "2026-11-15T07:00",
+          "utc": "2026-11-15T06:00Z",
+          "offset": "+01:00",
+          "timeZone": "Europe/Copenhagen",
+          "provenance": "entered"
+        },
+        "arrival": {
+          "local": "2026-11-21T11:25",
+          "utc": "2026-11-21T10:25Z",
+          "offset": "+01:00",
+          "timeZone": "Europe/Copenhagen",
+          "provenance": "entered"
+        },
+        "provenance": "entered"
+      },
+      "stays": [
+        {
+          "afterSection": 0,
+          "beforeSection": 1,
+          "arrivalAirport": "NBO",
+          "departureAirport": "NBO",
+          "openJaw": false,
+          "arrival": {
+            "local": "2026-11-15T20:55",
+            "utc": "2026-11-15T17:55Z",
+            "offset": "+03:00",
+            "timeZone": "Africa/Nairobi",
+            "provenance": "entered"
+          },
+          "departure": {
+            "local": "2026-11-20T23:55",
+            "utc": "2026-11-20T20:55Z",
+            "offset": "+03:00",
+            "timeZone": "Africa/Nairobi",
+            "provenance": "entered"
+          },
+          "minutes": 7380,
+          "days": 5,
+          "source": "times",
+          "provenance": "entered"
+        }
+      ],
+      "issues": [
+        {
+          "code": "future_rules",
+          "severity": "info",
+          "message": "Future times use today's time-zone rules, which can change",
+          "path": "/sections/0"
+        },
+        {
+          "code": "future_rules",
+          "severity": "info",
+          "message": "Future times use today's time-zone rules, which can change",
+          "path": "/sections/1"
+        }
+      ],
+      "valid": true
+    }
+  },
+  {
+    "title": "Multi-stage trip being planned",
+    "description": "Only the first departure is known; later sections are placed through their stays (stayMinutes, default 7 days) and marked as estimated or assumed.",
+    "itinerary": {
+      "version": 1,
+      "sections": [
+        { "stops": [{ "airport": "LHR", "departure": "2026-06-01T09:00" }, { "airport": "FCO" }] },
+        { "label": "Milan to Paris", "stayMinutes": 8640, "stops": [{ "airport": "MXP" }, { "airport": "CDG" }] },
+        { "stayMinutes": 2880, "stops": [{ "airport": "CDG" }, { "airport": "LHR" }] }
+      ]
+    },
+    "url": "https://tmrk.github.io/globehops/?route=LHR-FCO&dep1=2026-06-01T09:00&2.route=MXP-CDG&2.label=Milan%20to%20Paris&2.stay=6d&3.route=CDG-LHR&3.stay=2d",
+    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzZWN0aW9ucyI6W3sic3RvcHMiOlt7ImFpcnBvcnQiOiJMSFIiLCJkZXBhcnR1cmUiOiIyMDI2LTA2LTAxVDA5OjAwIn0seyJhaXJwb3J0IjoiRkNPIn1dfSx7ImxhYmVsIjoiTWlsYW4gdG8gUGFyaXMiLCJzdGF5TWludXRlcyI6ODY0MCwic3RvcHMiOlt7ImFpcnBvcnQiOiJNWFAifSx7ImFpcnBvcnQiOiJDREcifV19LHsic3RheU1pbnV0ZXMiOjI4ODAsInN0b3BzIjpbeyJhaXJwb3J0IjoiQ0RHIn0seyJhaXJwb3J0IjoiTEhSIn1dfV19",
+    "expected": {
+      "totals": {
+        "distanceKm": 2389.4,
+        "distanceMi": 1484.7,
+        "flightMinutes": 255,
+        "connectionMinutes": 0,
+        "stayMinutes": 11520,
+        "tripMinutes": 11775,
+        "flights": 3,
+        "connections": 0,
+        "sections": 3,
+        "stays": 2,
+        "departure": {
+          "local": "2026-06-01T09:00",
+          "utc": "2026-06-01T08:00Z",
+          "offset": "+01:00",
+          "timeZone": "Europe/London",
+          "provenance": "entered"
+        },
+        "arrival": {
+          "local": "2026-06-09T13:15",
+          "utc": "2026-06-09T12:15Z",
+          "offset": "+01:00",
+          "timeZone": "Europe/London",
+          "provenance": "estimated"
+        },
+        "provenance": "estimated"
+      },
+      "stays": [
+        {
+          "afterSection": 0,
+          "beforeSection": 1,
+          "arrivalAirport": "FCO",
+          "departureAirport": "MXP",
+          "openJaw": true,
+          "arrival": {
+            "local": "2026-06-01T12:10",
+            "utc": "2026-06-01T10:10Z",
+            "offset": "+02:00",
+            "timeZone": "Europe/Rome",
+            "provenance": "estimated"
+          },
+          "departure": {
+            "local": "2026-06-07T12:10",
+            "utc": "2026-06-07T10:10Z",
+            "offset": "+02:00",
+            "timeZone": "Europe/Rome",
+            "provenance": "estimated"
+          },
+          "minutes": 8640,
+          "days": 6,
+          "source": "setting",
+          "provenance": "estimated"
+        },
+        {
+          "afterSection": 1,
+          "beforeSection": 2,
+          "arrivalAirport": "CDG",
+          "departureAirport": "CDG",
+          "openJaw": false,
+          "arrival": {
+            "local": "2026-06-07T13:20",
+            "utc": "2026-06-07T11:20Z",
+            "offset": "+02:00",
+            "timeZone": "Europe/Paris",
+            "provenance": "estimated"
+          },
+          "departure": {
+            "local": "2026-06-09T13:20",
+            "utc": "2026-06-09T11:20Z",
+            "offset": "+02:00",
+            "timeZone": "Europe/Paris",
+            "provenance": "estimated"
+          },
+          "minutes": 2880,
+          "days": 2,
+          "source": "setting",
+          "provenance": "estimated"
+        }
+      ],
+      "issues": [
+        {
+          "code": "future_rules",
+          "severity": "info",
+          "message": "Future times use today's time-zone rules, which can change",
+          "path": "/sections/0"
+        }
+      ],
+      "valid": true
+    }
+  },
+  {
     "title": "Compare direct and connecting journeys",
     "description": "Entered local times stay absolute; the undated alternative aligns to the earliest dated departure.",
     "itinerary": {

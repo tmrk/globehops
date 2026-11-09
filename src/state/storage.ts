@@ -63,6 +63,8 @@ export const { load: loadMyLocation, save: saveMyLocation } = booleanSetting('gl
 export const { load: loadDayNight, save: saveDayNight } = booleanSetting('globehops:daynight');
 /** Route flights around restricted airspace; unset means on. */
 export const { load: loadAvoidAirspace, save: saveAvoidAirspace } = booleanSetting('globehops:avoidAirspace');
+/** Keep long oceanic routes within modelled reach of potential diversion airports; unset means on. */
+export const { load: loadDiversionRouting, save: saveDiversionRouting } = booleanSetting('globehops:diversionRouting');
 
 const JOURNEY_KEY = 'globehops:lastJourney';
 const CLOCK_ZONE_KEY = 'globehops:clockZone';

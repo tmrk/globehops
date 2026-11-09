@@ -1,19 +1,11 @@
 import type { ClockSnapshot } from './clock.ts';
-import {
-  parseLink,
-  serializeLink,
-  type LinkView,
-  type SerializableLinkStop,
-  type SerializableJourney,
-} from './link.ts';
+import { parseLink, serializeLink, type LinkExtra, type LinkView, type SerializableLinkStop } from './link.ts';
 import type { Locale } from '../i18n/locales.ts';
 import { localizedPath } from '../i18n/detect.ts';
 import { linkStateToDocument } from '../agent/itinerary.ts';
-import { planComparison, planItinerary, type AgentContext } from '../agent/plan.ts';
+import { planComparison, planItinerary, planTrip, type AgentContext } from '../agent/plan.ts';
 import { formatIsoInstant } from '../lib/timezone.ts';
 import type { Journey } from '../lib/schedule.ts';
-
-type LinkExtra = { label?: string | null; compare: SerializableJourney[] };
 
 export function createToolView(
   snapshot: ClockSnapshot,
@@ -59,7 +51,6 @@ interface ToolJourneyOptions {
   context: AgentContext;
   primaryStops: SerializableLinkStop[];
   linkExtra: LinkExtra;
-  serializedJourneys: SerializableJourney[];
   active: number;
   currentView: LinkView;
   snapshot: ClockSnapshot;
@@ -72,7 +63,6 @@ export function toolJourneyResponse({
   context,
   primaryStops,
   linkExtra,
-  serializedJourneys,
   active,
   currentView,
   snapshot,
@@ -85,8 +75,12 @@ export function toolJourneyResponse({
   );
   const assumption =
     currentView.time !== null ? { assumeDeparture: formatIsoInstant(assumedStart ?? snapshot.time) } : {};
-  const comparisonPlan = serializedJourneys.length > 1 ? planComparison(context, doc, assumption) : null;
-  const activeDoc = { version: 1 as const, stops: doc.journeys?.[active]?.stops ?? doc.stops ?? [] };
+  const comparisonPlan = linkExtra.compare?.length ? planComparison(context, doc, assumption) : null;
+  const tripPlan = linkExtra.sections?.length ? planTrip(context, doc, assumption) : null;
+  const activeDoc = {
+    version: 1 as const,
+    stops: doc.journeys?.[active]?.stops ?? doc.sections?.[active]?.stops ?? doc.stops ?? [],
+  };
   const plan = planItinerary(
     context,
     activeDoc,
@@ -98,6 +92,19 @@ export function toolJourneyResponse({
           comparison: {
             journeys: comparisonPlan.journeys,
             comparison: comparisonPlan.comparison,
+            url,
+          },
+        }
+      : {}),
+    ...(tripPlan
+      ? {
+          trip: {
+            activeSection: active,
+            humanSummary: tripPlan.humanSummary,
+            sections: tripPlan.sections,
+            stays: tripPlan.stays,
+            totals: tripPlan.totals,
+            issues: tripPlan.issues,
             url,
           },
         }

@@ -5,7 +5,7 @@ import { useMemo, type Dispatch, type SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import { useWebTools } from './useWebTools.ts';
 import { parseWebCommand } from '../agent/webTools.ts';
-import { createAgentContext, planItinerary, planComparison } from '../agent/plan.ts';
+import { createAgentContext, planItinerary, planComparison, planTrip } from '../agent/plan.ts';
 import { linkStateToDocument } from '../agent/itinerary.ts';
 import { isNamedClock } from '../agent/contract.ts';
 import { replaceUrl } from '../analytics.ts';
@@ -14,7 +14,8 @@ import { airportCode, type AirportDataset } from '../data/airports.ts';
 import type { TimeZoneTable } from '../data/timezones.ts';
 import type { SearchIndex } from '../data/search.ts';
 import type { LinkState } from '../state/link.ts';
-import type { CompareState, CompareAction } from '../state/compare.ts';
+import type { PlanState, PlanAction } from '../state/plan.ts';
+import { sectionOfFlight } from '../lib/trip.ts';
 import type { RouteAction } from '../state/route.ts';
 import type { useI18n } from '../i18n/I18nProvider.tsx';
 import type { useViewPreferences } from './useViewPreferences.ts';
@@ -27,12 +28,12 @@ interface AppWebToolsOptions {
   initialized: boolean;
   zonesLoaded: boolean;
   preferences: ReturnType<typeof useViewPreferences>;
-  comparison: CompareState;
+  plan: PlanState;
   model: ReturnType<typeof useJourneyModel>;
   playback: ReturnType<typeof useJourneyPlayback>;
   setEditing: Setter<number | null>;
   dispatch: Dispatch<RouteAction>;
-  compareDispatch: Dispatch<CompareAction>;
+  planDispatch: Dispatch<PlanAction>;
   applyLink: (link: LinkState, index: SearchIndex, search: string) => void;
   locale: ReturnType<typeof useI18n>['locale'];
   setVisitLocale: ReturnType<typeof useI18n>['setVisitLocale'];
@@ -46,12 +47,12 @@ export function useAppWebTools(options: AppWebToolsOptions) {
     initialized,
     zonesLoaded,
     preferences,
-    comparison,
+    plan,
     model,
     playback,
     setEditing,
     dispatch,
-    compareDispatch,
+    planDispatch,
     applyLink,
     locale,
     setVisitLocale,
@@ -67,9 +68,16 @@ export function useAppWebTools(options: AppWebToolsOptions) {
     setLinkedTime,
     setPausedTime,
   } = playback;
-  const { compared, journey, serializedJourneys, primaryStops, linkExtra, playbackRange } = model;
+  const { compared, trip, journey, primaryStops, linkExtra, playbackRange, legOffsets, serializedJourneys } = model;
   const { clockZone, unit, dayNight, followAircraft, showCountryNames, showBorders } = preferences;
-  const route = comparison.journeys[comparison.active].route;
+  const route = plan.journeys[plan.active].route;
+  const allJourneys = trip ? trip.sections.map((section) => section.journey) : compared.map((entry) => entry.journey);
+  /** Selects a one-based flight: of the trip (across its journeys), else of the first journey. */
+  const flightTarget = (leg: number) => {
+    if (!trip) return { index: 0, leg: leg - 1 };
+    const located = sectionOfFlight(trip, leg - 1);
+    return located ? { index: located.section, leg: located.leg } : null;
+  };
   const getAgentContext = useMemo(() => {
     let cached: ReturnType<typeof createAgentContext> | null = null;
     return () =>
@@ -85,7 +93,7 @@ export function useAppWebTools(options: AppWebToolsOptions) {
     const command = parseWebCommand(
       name,
       args,
-      name === 'set_view' ? compared[0].journey.legs.length : journey.legs.length,
+      trip ? trip.totals.flights : name === 'set_view' ? compared[0].journey.legs.length : journey.legs.length,
     );
     const context = getAgentContext();
     if (!context || !index) throw new Error('GlobeHops tools are not ready.');
@@ -102,7 +110,7 @@ export function useAppWebTools(options: AppWebToolsOptions) {
         borders: showBorders,
         lang: locale,
       },
-      route.selectedLeg,
+      route.selectedLeg === null ? null : (trip ? legOffsets[plan.active] : 0) + route.selectedLeg,
     );
     const currentLink = () =>
       createVisitShareLink(
@@ -111,7 +119,11 @@ export function useAppWebTools(options: AppWebToolsOptions) {
         locale,
         primaryStops,
         currentView,
-        comparison.journeys[0].route.selectedLeg,
+        trip
+          ? route.selectedLeg === null
+            ? null
+            : legOffsets[plan.active] + route.selectedLeg
+          : plan.journeys[0].route.selectedLeg,
         linkExtra,
       );
     if (command.type === 'get_share_link') return { url: currentLink() };
@@ -120,8 +132,7 @@ export function useAppWebTools(options: AppWebToolsOptions) {
         context,
         primaryStops,
         linkExtra,
-        serializedJourneys,
-        active: comparison.active,
+        active: plan.active,
         currentView,
         snapshot,
         assumedStart,
@@ -130,19 +141,33 @@ export function useAppWebTools(options: AppWebToolsOptions) {
       });
     }
     if (command.type === 'select_flight') {
+      const target = command.leg === null ? null : flightTarget(command.leg);
       flushSync(() => {
         preferences.setVisit({ followAircraft: false });
-        dispatch({ type: 'selectLeg', leg: command.leg === null ? null : command.leg - 1 });
+        if (!target) dispatch({ type: 'selectLeg', leg: null });
+        else {
+          if (trip) planDispatch({ type: 'activate', index: target.index });
+          planDispatch({
+            type: 'route',
+            index: trip ? target.index : plan.active,
+            action: { type: 'selectLeg', leg: target.leg },
+          });
+        }
       });
       return { applied: true, leg: command.leg };
     }
     if (command.type === 'set_route') {
-      const plan = command.link.stops?.length
-        ? (command.link.compare?.length ? planComparison : planItinerary)(context, linkStateToDocument(command.link))
+      const doc = linkStateToDocument(command.link);
+      const checked = command.link.stops?.length
+        ? command.link.compare?.length
+          ? planComparison(context, doc)
+          : command.link.sections?.length
+            ? planTrip(context, doc)
+            : planItinerary(context, doc)
         : null;
-      if (plan && !plan.valid)
+      if (checked && !checked.valid)
         throw new TypeError(
-          plan.issues
+          checked.issues
             .filter((i) => i.severity === 'error')
             .map((i) => `${i.path ?? i.code}: ${i.message}`)
             .join(' '),
@@ -151,7 +176,7 @@ export function useAppWebTools(options: AppWebToolsOptions) {
         replaceUrl(visitLocaleAddress(window.location.href, import.meta.env.BASE_URL, command.link.view.lang));
       flushSync(() => applyLink(command.link, index, command.search));
       if (command.link.view.lang) await setVisitLocale(command.link.view.lang);
-      return { applied: true, issues: plan?.issues ?? [] };
+      return { applied: true, issues: checked?.issues ?? [] };
     }
     if (
       command.view.clock &&
@@ -161,18 +186,20 @@ export function useAppWebTools(options: AppWebToolsOptions) {
       throw new TypeError('clock must name an airport in this route, local or utc.');
     if (
       command.view.play &&
-      (!compared.some((entry) => entry.journey.legs.length) ||
-        compared.some((entry) => entry.journey.issues.some((issue) => issue.severity === 'error')))
+      (!allJourneys.some((entry) => entry.legs.length) ||
+        allJourneys.some((entry) => entry.issues.some((issue) => issue.severity === 'error')) ||
+        (trip?.issues.length ?? 0) > 0)
     )
       throw new TypeError('Playback requires at least one flight and a valid schedule.');
     const patch = command.view;
     flushSync(() => {
       preferences.patchView(patch);
       if (patch.speed !== undefined) clock.setSpeed(patch.speed);
-      if (patch.leg !== undefined) {
+      const target = patch.leg !== undefined ? flightTarget(patch.leg) : null;
+      if (target) {
         if (patch.follow === undefined) preferences.setVisit({ followAircraft: false });
-        compareDispatch({ type: 'activate', index: 0 });
-        compareDispatch({ type: 'route', index: 0, action: { type: 'selectLeg', leg: patch.leg - 1 } });
+        planDispatch({ type: 'activate', index: target.index });
+        planDispatch({ type: 'route', index: target.index, action: { type: 'selectLeg', leg: target.leg } });
         setEditing(null);
       }
       if (patch.time !== undefined || patch.play !== undefined) {

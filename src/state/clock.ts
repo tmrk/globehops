@@ -18,7 +18,16 @@ export interface ClockSnapshot {
   live: boolean;
   start: number | null;
   end: number | null;
+  /** While playback lingers before jumping across a skipped interval (a stay): that interval. */
+  skipping: PlaybackSkip | null;
 }
+/** An interval playback jumps across instead of playing through, e.g. a stay between two journeys. */
+export interface PlaybackSkip {
+  from: number;
+  to: number;
+}
+/** Real time playback lingers at a skip before jumping, so the arrival and the jump both read. */
+export const SKIP_DWELL_MS = 900;
 export interface ClockDependencies {
   now?: () => number;
   requestFrame?: (cb: (t: number) => void) => number;
@@ -35,6 +44,9 @@ export class SimulationClock {
   private liveTick = AMBIENT_TICK_MS;
   private previousFrame: number | null = null;
   private disposed = false;
+  private skips: PlaybackSkip[] = [];
+  /** Animation-frame time until which playback lingers, and where it continues. */
+  private hold: { until: number; to: number } | null = null;
   constructor(deps: ClockDependencies = {}) {
     this.deps = {
       now: deps.now ?? Date.now,
@@ -43,7 +55,15 @@ export class SimulationClock {
       setTimeout: deps.setTimeout ?? ((cb, ms) => globalThis.setTimeout(cb, ms)),
       clearTimeout: deps.clearTimeout ?? ((id) => globalThis.clearTimeout(id)),
     };
-    this.snapshot = { time: this.deps.now(), playing: false, speed: 'auto', live: false, start: null, end: null };
+    this.snapshot = {
+      time: this.deps.now(),
+      playing: false,
+      speed: 'auto',
+      live: false,
+      start: null,
+      end: null,
+      skipping: null,
+    };
   }
   getSnapshot = (): ClockSnapshot => this.snapshot;
   subscribe = (listener: () => void): (() => void) => {
@@ -62,6 +82,35 @@ export class SimulationClock {
     if (this.timer !== null) this.deps.clearTimeout(this.timer);
     this.frame = this.timer = null;
     this.previousFrame = null;
+    this.hold = null;
+  }
+  /** The range's length less what playback skips: what Auto spreads over about 15 seconds. */
+  private playSpan(): number {
+    const { start, end } = this.snapshot;
+    if (start === null || end === null) return 15000;
+    const skipped = this.skips.reduce((sum, s) => sum + Math.max(0, Math.min(end, s.to) - Math.max(start, s.from)), 0);
+    return Math.max(1, end - start - skipped);
+  }
+  /** Simulated milliseconds per real millisecond while playing; 1 while live. */
+  get rate(): number {
+    return this.snapshot.live ? 1 : playbackRate(this.snapshot.speed, this.playSpan());
+  }
+  /** Intervals playback jumps across (after a short pause) rather than playing through. Seeking is unaffected. */
+  setSkips(skips: readonly PlaybackSkip[]): void {
+    const next = skips
+      .filter((s) => Number.isFinite(s.from) && Number.isFinite(s.to) && s.to > s.from)
+      .map((s) => ({ from: s.from, to: s.to }))
+      .sort((a, b) => a.from - b.from);
+    if (
+      next.length === this.skips.length &&
+      next.every((s, i) => s.from === this.skips[i].from && s.to === this.skips[i].to)
+    )
+      return;
+    this.skips = next;
+    if (this.hold) {
+      this.hold = null;
+      this.update({ skipping: null });
+    }
   }
   private clamp(time: number): number {
     return Math.min(this.snapshot.end ?? Infinity, Math.max(this.snapshot.start ?? -Infinity, time));
@@ -81,18 +130,37 @@ export class SimulationClock {
     if (!Number.isFinite(epochMs)) return;
     const wasLive = this.snapshot.live;
     if (wasLive) this.stopTimers();
-    this.update({ time: this.clamp(epochMs), live: false });
+    this.hold = null;
+    this.update({ time: this.clamp(epochMs), live: false, skipping: null });
   }
   private tick = (t: number): void => {
     this.frame = null;
     if (!this.snapshot.playing || this.disposed) return;
-    const delta = this.previousFrame === null ? 0 : Math.min(100, Math.max(0, t - this.previousFrame));
-    this.previousFrame = t;
-    const span =
-      this.snapshot.start !== null && this.snapshot.end !== null ? this.snapshot.end - this.snapshot.start : 15000;
-    const time = this.clamp(this.snapshot.time + delta * playbackRate(this.snapshot.speed, span));
+    let time: number;
+    if (this.hold) {
+      if (t < this.hold.until) {
+        this.frame = this.deps.requestFrame(this.tick);
+        return;
+      }
+      time = this.clamp(this.hold.to);
+      this.hold = null;
+      this.previousFrame = t;
+    } else {
+      const delta = this.previousFrame === null ? 0 : Math.min(100, Math.max(0, t - this.previousFrame));
+      this.previousFrame = t;
+      const from = this.snapshot.time;
+      time = this.clamp(from + delta * this.rate);
+      // Reaching (or starting inside) a skipped interval lingers there briefly, then continues after it.
+      const skip = this.skips.find((s) => from < s.to && time >= s.from);
+      if (skip) {
+        this.hold = { until: t + SKIP_DWELL_MS, to: skip.to };
+        this.update({ time: this.clamp(Math.max(from, skip.from)), skipping: { from: skip.from, to: skip.to } });
+        if (!this.disposed && this.snapshot.playing) this.frame = this.deps.requestFrame(this.tick);
+        return;
+      }
+    }
     const ended = this.snapshot.end !== null && time >= this.snapshot.end;
-    this.update({ time, playing: !ended });
+    this.update({ time, playing: !ended, skipping: null });
     if (!ended && !this.disposed && this.snapshot.playing) this.frame = this.deps.requestFrame(this.tick);
     else this.previousFrame = null;
   };
@@ -108,7 +176,7 @@ export class SimulationClock {
   pause(): void {
     if (this.snapshot.live) return;
     this.stopTimers();
-    this.update({ playing: false });
+    this.update({ playing: false, skipping: null });
   }
   toggle(): void {
     if (this.snapshot.playing) this.pause();
@@ -125,7 +193,7 @@ export class SimulationClock {
     if (this.disposed) return;
     this.stopTimers();
     this.liveTick = tickMs;
-    this.update({ time: this.deps.now(), playing: false, live: true });
+    this.update({ time: this.deps.now(), playing: false, live: true, skipping: null });
     this.scheduleLiveTick();
   }
   /**

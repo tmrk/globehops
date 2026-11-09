@@ -6,8 +6,8 @@ import type { Journey, JourneyLeg } from '../lib/schedule.ts';
 import { formatLocalDateTime, isSupportedTimeZone, utcToLocal } from '../lib/timezone.ts';
 import type { LocalTimeInput } from '../types.ts';
 import { DateTimeField } from './DateTimeField.tsx';
-import { IconAlert, IconClose, IconDetour } from './Icons.tsx';
-import { airspaceWarning, legAirspaceNote } from './airspaceText.ts';
+import { IconAlert, IconClose, IconDetour, IconDiversion } from './Icons.tsx';
+import { airspaceWarning, legAirspaceNote, legDiversionNote } from './airspaceText.ts';
 import type { DistanceUnit } from '../types.ts';
 
 interface Props {
@@ -27,6 +27,7 @@ export function LegSchedule({ journey, leg, onChange, onClose, unit }: Props) {
   const i18n = useI18n();
   const { t, fmt } = i18n;
   const airspaceNote = legAirspaceNote(leg.route, unit, i18n);
+  const diversionNote = legDiversionNote(leg.route, unit, i18n);
   const sectionRef = useRef<HTMLElement>(null);
   // Reveal the whole editor when a flight opens; on phones it would otherwise start below the fold.
   useEffect(() => {
@@ -155,6 +156,12 @@ export function LegSchedule({ journey, leg, onChange, onClose, unit }: Props) {
         <p className={`leg-schedule__airspace${airspaceWarning(leg.route) ? ' is-warning' : ''}`}>
           {airspaceWarning(leg.route) ? <IconAlert size={14} /> : <IconDetour size={14} />}
           <span>{airspaceNote}</span>
+        </p>
+      )}
+      {diversionNote && (
+        <p className="leg-schedule__airspace">
+          <IconDiversion size={14} />
+          <span>{diversionNote}</span>
         </p>
       )}
       <div className="leg-schedule__foot">

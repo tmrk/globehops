@@ -1,35 +1,32 @@
 import { useMemo } from 'react';
-import type { CompareState } from '../state/compare.ts';
+import { planKind, type PlanState } from '../state/plan.ts';
 import type { useAppLinks } from './useAppLinks.ts';
 import { zoneForAirport } from '../data/timezones.ts';
 import { computeComparison, compareMetrics, comparisonRange, JOURNEY_IDS, type LegRouter } from '../lib/compare.ts';
-import type { AirspaceRouter } from '../lib/airspace.ts';
 import { journeyLegOffsets } from '../lib/compareView.ts';
+import { computeTrip } from '../lib/trip.ts';
 import { computeLegs, computeLayovers } from '../state/route.ts';
-import type { SerializableLinkStop } from '../state/link.ts';
+import type { LinkExtra, SerializableLinkStop } from '../state/link.ts';
 
 /** Derive schedules and geometry only when journey inputs change, never on playback frames. */
 export function useJourneyModel(
-  comparison: CompareState,
+  plan: PlanState,
   { dataset, zones, lookup }: Pick<ReturnType<typeof useAppLinks>, 'dataset' | 'zones' | 'lookup'>,
   timeOpen: boolean,
   assumedStart: number | null,
-  /** Present while airspace avoidance is on and loaded; null keeps every flight on its great circle. */
-  airspace: AirspaceRouter | null = null,
+  /** Routes legs (restricted airspace, diversion coverage) while either is on; undefined keeps great circles. */
+  legRouter?: LegRouter,
 ) {
-  const route = comparison.journeys[comparison.active].route;
-  const comparing = comparison.journeys.length > 1;
+  const kind = planKind(plan);
+  const route = plan.journeys[plan.active].route;
+  const comparing = kind === 'compare';
   const directLegs = useMemo(() => (dataset ? computeLegs(route.stops, lookup) : []), [route.stops, dataset, lookup]);
   const layovers = useMemo(() => computeLayovers(route.stops, directLegs), [route.stops, directLegs]);
-  // Unknown airlines are treated as EU/EEA operators, the most restricted case (see data/AIRSPACE.md).
-  const legRouter = useMemo<LegRouter | undefined>(
-    () => (airspace ? (from, to, departureMs) => airspace.route(from, to, { epochMs: departureMs }) : undefined),
-    [airspace],
-  );
   const serializedJourneys = useMemo(
     () =>
-      comparison.journeys.map((draft) => ({
+      plan.journeys.map((draft) => ({
         label: draft.label,
+        stayMin: draft.stayMin,
         stops: draft.route.stops.flatMap<SerializableLinkStop>((stop) => {
           const airport = stop.airportId !== null ? lookup(stop.airportId) : undefined;
           return airport
@@ -37,30 +34,43 @@ export function useJourneyModel(
             : [];
         }),
       })),
-    [comparison.journeys, lookup],
+    [plan.journeys, lookup],
   );
-  const filledStops = serializedJourneys[comparison.active].stops;
+  const filledStops = serializedJourneys[plan.active].stops;
   const primaryStops = serializedJourneys[0].stops;
-  const linkExtra = useMemo(
-    () => ({ label: serializedJourneys[0].label, compare: serializedJourneys.slice(1) }),
-    [serializedJourneys],
+  const linkExtra = useMemo<LinkExtra>(
+    () =>
+      kind === 'trip'
+        ? { label: serializedJourneys[0].label, sections: serializedJourneys.slice(1) }
+        : { label: serializedJourneys[0].label, compare: serializedJourneys.slice(1) },
+    [serializedJourneys, kind],
   );
   const filledAirports = useMemo(() => filledStops.map((s) => s.airport), [filledStops]);
-  const compared = useMemo(
+  const inputs = useMemo(
     () =>
-      computeComparison(
-        serializedJourneys.map((entry, i) => ({
-          label: entry.label,
-          input: {
-            id: JOURNEY_IDS[i],
-            stops: entry.stops.map((stop) => ({ ...stop, zone: zoneForAirport(zones, stop.airport) })),
-          },
-        })),
-        { assumedStart: timeOpen ? assumedStart : null, route: legRouter },
-      ),
-    [serializedJourneys, zones, timeOpen, assumedStart, legRouter],
+      serializedJourneys.map((entry, i) => ({
+        label: entry.label,
+        stayMin: entry.stayMin,
+        input: {
+          id: JOURNEY_IDS[i] ?? `S${i + 1}`,
+          stops: entry.stops.map((stop) => ({ ...stop, zone: zoneForAirport(zones, stop.airport) })),
+        },
+      })),
+    [serializedJourneys, zones],
   );
-  const activeLegs = compared[comparison.active].journey.legs;
+  const start = timeOpen ? assumedStart : null;
+  const trip = useMemo(
+    () => (kind === 'trip' ? computeTrip(inputs, { assumedStart: start, route: legRouter }) : null),
+    [kind, inputs, start, legRouter],
+  );
+  // A trip's journeys are never compared; computing a comparison of them would be wasted work.
+  const compared = useMemo(
+    () => (kind === 'trip' ? [] : computeComparison(inputs, { assumedStart: start, route: legRouter })),
+    [kind, inputs, start, legRouter],
+  );
+  const journey = trip ? trip.sections[plan.active].journey : compared[plan.active].journey;
+  const timeline = trip ? trip.sections[plan.active].timeline : compared[plan.active].timeline;
+  const activeLegs = journey.legs;
   // The editor's legs carry the routed distance and estimate, so every total agrees with the globe.
   const legs = useMemo(
     () =>
@@ -73,12 +83,15 @@ export function useJourneyModel(
     [directLegs, activeLegs],
   );
   const metrics = useMemo(() => compareMetrics(compared), [compared]);
-  const scheduleErrors = compared.some((entry) => entry.journey.issues.some((issue) => issue.severity === 'error'));
-  const journey = compared[comparison.active].journey;
-  const timeline = compared[comparison.active].timeline;
+  const scheduleErrors = trip
+    ? trip.issues.length > 0 || trip.sections.some((s) => s.journey.issues.some((issue) => issue.severity === 'error'))
+    : compared.some((entry) => entry.journey.issues.some((issue) => issue.severity === 'error'));
   const range = useMemo(() => comparisonRange(compared), [compared]);
-  const playbackRange = comparing ? range : timeline;
-  const legOffsets = useMemo(() => journeyLegOffsets(compared), [compared]);
+  const playbackRange = trip ? trip.timeline : comparing ? range : timeline;
+  const legOffsets = useMemo(
+    () => (trip ? trip.sections.map((section) => section.legOffset) : journeyLegOffsets(compared)),
+    [trip, compared],
+  );
   const fleet = useMemo(
     () =>
       comparing
@@ -93,6 +106,7 @@ export function useJourneyModel(
     [compared, comparing, legOffsets],
   );
   return {
+    kind,
     legs,
     layovers,
     serializedJourneys,
@@ -101,6 +115,7 @@ export function useJourneyModel(
     linkExtra,
     filledAirports,
     compared,
+    trip,
     metrics,
     scheduleErrors,
     journey,

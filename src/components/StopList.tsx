@@ -19,6 +19,7 @@ import {
   IconClock,
   IconClose,
   IconDetour,
+  IconDiversion,
   IconGrip,
   IconPlane,
   IconPlus,
@@ -28,6 +29,8 @@ import { airspaceWarning } from './airspaceText.ts';
 
 export interface StopListProps {
   journeyColor?: string;
+  /** In a trip, the journey's first flight in trip order, so colours continue from earlier journeys. */
+  legOffset?: number;
   journey: Journey;
   activeLeg: number | null;
   activeStop: number | null;
@@ -98,6 +101,7 @@ export function StopList(props: StopListProps) {
   const { t, fmt, locale } = useI18n();
 
   const { stops, legs, lookup, unit, selectedLeg, editing, arranging } = props;
+  const colorOf = (index: number) => props.journeyColor ?? legColor((props.legOffset ?? 0) + index);
   const listRef = useRef<HTMLOListElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const count = stops.length;
@@ -162,7 +166,7 @@ export function StopList(props: StopListProps) {
           if (dragging) style.transform = `translateY(${drag.dy}px)`;
           const showDropAbove = drag && drag.target === i && drag.target < drag.index;
           const showDropBelow = drag && drag.target === i && drag.target > drag.index;
-          const color = leg ? (props.journeyColor ?? legColor(leg.index)) : undefined;
+          const color = leg ? colorOf(leg.index) : undefined;
           const layover = layoverByStop.get(i);
           const journeyLeg = leg ? props.journey.legs[leg.index] : null;
           const legTimes = journeyLeg && props.journey.dated ? formatLegTimes(journeyLeg) : null;
@@ -180,15 +184,19 @@ export function StopList(props: StopListProps) {
                     : t('stops.sameAirport')
               }`
             : '';
-          // A quiet mark beside the distance; the flight's details explain it.
-          const airspaceMark =
-            leg?.route && leg.route.status !== 'clear'
-              ? airspaceWarning(leg.route)
-                ? { icon: <IconAlert size={13} />, label: t('airspace.notAvoidedShort'), warn: true }
-                : leg.route.path
-                  ? { icon: <IconDetour size={13} />, label: t('airspace.detourShort'), warn: false }
-                  : null
-              : null;
+          // A quiet mark beside the distance: restricted airspace first, then diversion cover.
+          const route = leg?.route;
+          const airspaceMark = !route
+            ? null
+            : airspaceWarning(route)
+              ? { icon: <IconAlert size={13} />, label: t('airspace.notAvoidedShort'), warn: true }
+              : route.path && route.avoided.length
+                ? { icon: <IconDetour size={13} />, label: t('airspace.detourShort'), warn: false }
+                : route.diversion?.status === 'adjusted'
+                  ? { icon: <IconDiversion size={13} />, label: t('diversion.detourShort'), warn: false }
+                  : route.diversion?.status === 'gap'
+                    ? { icon: <IconDiversion size={13} />, label: t('diversion.gapShort'), warn: false }
+                    : null;
           const factsContent = (
             <>
               {airspaceMark && (
@@ -215,7 +223,7 @@ export function StopList(props: StopListProps) {
                 <Rail
                   top={top}
                   bottom={bottom}
-                  topColor={prevLeg ? (props.journeyColor ?? legColor(prevLeg.index)) : undefined}
+                  topColor={prevLeg ? colorOf(prevLeg.index) : undefined}
                   bottomColor={color}
                   node
                 />
