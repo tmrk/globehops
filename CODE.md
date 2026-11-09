@@ -76,8 +76,13 @@
 | `mcp/document-corpus.ts`                                                          | Shared document cases for schema/runtime/MCP parity tests.                                                          |
 | `mcp/*.test.ts`                                                                   | Tool validation and real stdio handshake/integration tests.                                                         |
 | `src/lib/geo.ts`                                                                  | Spherical geometry, great circles and enclosing caps.                                                               |
-| `src/lib/airspace.ts`, `src/lib/routePath.ts`                                     | Advisory applicability and grid A* detours around restricted airspace; polylines walked by distance fraction.       |
+| `src/lib/airspace.ts`, `src/lib/routePath.ts`                                     | Advisory applicability and combined airspace/coverage grid A*; polylines walked by distance fraction.               |
 | `src/data/airspace.ts`, `src/hooks/useAirspaceRouter.ts`                          | Airspace dataset decoding and exact zone test; one lazily loaded router per page while avoidance is on.             |
+| `src/lib/router.ts`, `src/lib/diversion.ts`                                       | Combined routing API; illustrative OEI profiles, exact coverage queries, spherical-cap grids and metrics.           |
+| `src/data/diversion.ts`, `src/data/generated/diversion-airports.json`             | Strict potential diversion airport decoder and separate public-domain runway-evidence dataset.                      |
+| `src/hooks/useRouting.ts`                                                         | Independent lazy dataset loading, shared promises and per-feature failure state; App integration is separate.       |
+| `scripts/build-diversion-airports.ts`, `scripts/lib/diversion.ts`                 | Validated OurAirports runway filtering, surface mapping, provenance and atomic output (`diversion:build`).          |
+| `scripts/bench-routing.ts`, `data/DIVERSION.md`                                   | Reproducible routing/grid timings, regression calibration, sources and operational limitations.                     |
 | `scripts/build-airspace.ts`, `scripts/lib/airspace.ts`                            | Advisory list validation and zone polygons from the pinned Natural Earth label sources (`airspace:build`).          |
 | `src/lib/flightTime.ts`                                                           | Configurable estimates, duration formatting and totals.                                                             |
 | `src/lib/altitude.ts`                                                             | Climb/cruise/descent profile, arc sampling and vertical exaggeration.                                               |

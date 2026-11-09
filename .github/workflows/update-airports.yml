@@ -61,6 +61,10 @@ jobs:
         if: steps.update.outputs.CHANGED == 'true'
         run: npm run timezones:build
 
+      - name: Rebuild potential diversion airports
+        if: steps.update.outputs.CHANGED == 'true'
+        run: npm run diversion:build -- --offline
+
       # Worked agent examples embed computed distances/times; keep them in sync with the data.
       - name: Regenerate agent discovery files
         if: steps.update.outputs.CHANGED == 'true'
@@ -82,7 +86,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/data/generated/airports.json data/airports-build.json src/data/generated/timezones.json data/timezones-build.json public/agent
+          git add src/data/generated/airports.json data/airports-build.json src/data/generated/timezones.json data/timezones-build.json src/data/generated/diversion-airports.json data/diversion-build.json public/agent
           if git diff --cached --quiet; then
             echo "Nothing to commit."; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi

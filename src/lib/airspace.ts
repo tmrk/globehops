@@ -1,10 +1,10 @@
 /**
- * Airspace-aware routing: keeps the great circle unless it crosses an applicable avoidance zone,
- * then finds a short, smooth detour on the sphere.
+ * Airspace/diversion-aware routing: keeps the great circle when it clears the requested constraints,
+ * otherwise finds a short, smooth detour on the sphere. The airspace-only adapter preserves legacy results.
  *
  * Zones are rasterised once onto a 0.5° grid: a cell blocks when a zone covers any part of it. A*
  * over that grid (16 directions, wrapping across the antimeridian and over the poles) finds the way
- * around; string-pulling and tightening turn the cell path into a few great-circle arcs that hug
+ * around (optionally also blocking uncovered cells); string-pulling and tightening turn the cell path into a few great-circle arcs that hug
  * the zones, and every corner is rounded into a gentle curve. Crossings are decided, and every
  * result validated, against the zones' own outlines; a missing or implausible detour keeps the
  * great circle and reports that avoidance is not guaranteed.
@@ -12,6 +12,16 @@
 import type { LatLng, LegRoute } from '../types.ts';
 import { zoneContains, type AirspaceDataset, type AirspaceZone, type OperatorGroup } from '../data/airspace.ts';
 import { EARTH_RADIUS_KM, fromVec3, greatCircleDistanceKm, slerpVec, toVec3, type Vec3 } from './geo.ts';
+import type { DiversionDataset } from '../data/diversion.ts';
+import {
+  coverageAllowanceKm,
+  coverageMetrics,
+  createCoverageModel,
+  DiversionIndex,
+  diversionRadiusKm,
+  pathCovered,
+  type DiversionProfile,
+} from './diversion.ts';
 import { altitudeProfile } from './altitude.ts';
 
 /** `other`: an airline none of the advisories address (none apply). */
@@ -25,6 +35,15 @@ export interface RouteOptions {
   epochMs: number;
   /** Defaults to an EASA (EU/EEA) operator when the airline is unknown. */
   operator?: Operator;
+  /** Avoid applicable restricted airspace; default true when the router has an airspace dataset. */
+  avoidAirspace?: boolean;
+  /** Diversion-coverage profile; null/undefined disables the diversion model entirely. */
+  diversion?: DiversionProfile | null;
+}
+export interface Router {
+  readonly airspace: AirspaceDataset | null;
+  readonly diversion: DiversionDataset | null;
+  route(from: RouteEndpoint, to: RouteEndpoint, options: RouteOptions): LegRoute;
 }
 export interface AirspaceRouter {
   readonly dataset: AirspaceDataset;
@@ -201,13 +220,17 @@ const POLAR_COST = RES * RAD; // across the pole between opposite cells of the f
 interface Search {
   grid: Uint32Array;
   mask: number;
+  coverage?: Uint8Array;
   to: Vec3;
   start: number;
   goal: number;
 }
 
 /** The airports' own cells stay open so flights can leave airports beside a zone. */
-const blocked = (s: Search, idx: number) => idx !== s.start && idx !== s.goal && (s.grid[idx] & s.mask) !== 0;
+const blocked = (s: Search, idx: number) =>
+  idx !== s.start &&
+  idx !== s.goal &&
+  ((s.grid[idx] & s.mask) !== 0 || (s.coverage !== undefined && s.coverage[idx] === 0));
 
 const vecAngle = (a: Vec3, b: Vec3) =>
   Math.atan2(
@@ -315,11 +338,17 @@ interface Buffers {
   generation: number;
 }
 
+/** Current edge cost is angular great-circle length. Costs must retain the heuristic lower bound. */
+const edgeCost = (greatCircleStep: number): number => greatCircleStep;
+
 function astar(s: Search, b: Buffers): number[] | null {
   const generation = ++b.generation;
   const { g, parent, seen, closed } = b;
   const cost = costs();
-  const heuristic = (idx: number) => Math.acos(Math.max(-1, Math.min(1, dotCell(idx, s.to))));
+  // The combined search targets the goal cell itself, so this is an admissible spherical lower bound.
+  // Preserve the legacy endpoint heuristic exactly for diversion-off shape compatibility.
+  const target = s.coverage ? cellVec(s.goal) : s.to;
+  const heuristic = (idx: number) => Math.acos(Math.max(-1, Math.min(1, dotCell(idx, target))));
   const heap = new MinHeap();
   g[s.start] = 0;
   parent[s.start] = -1;
@@ -327,7 +356,7 @@ function astar(s: Search, b: Buffers): number[] | null {
   heap.push(s.start, heuristic(s.start));
   const relax = (from: number, next: number, step: number) => {
     if (closed[next] === generation || blocked(s, next)) return;
-    const candidate = g[from] + step;
+    const candidate = g[from] + edgeCost(step);
     if (seen[next] === generation && candidate >= g[next]) return;
     g[next] = candidate;
     parent[next] = from;
@@ -519,7 +548,9 @@ const lengthOf = (points: Vec3[]) => points.reduce((sum, p, i) => (i ? sum + vec
 // ---------------------------------------------------------------------------------------------
 // Router
 
-export function createAirspaceRouter(dataset: AirspaceDataset): AirspaceRouter {
+export function createRouter(data: { airspace?: AirspaceDataset | null; diversion?: DiversionDataset | null }): Router {
+  const dataset: AirspaceDataset = data.airspace ?? { reviewed: '', index: '', zones: [] };
+  const coverage = data.diversion ? createCoverageModel(data.diversion) : null;
   let grid: Uint32Array | null = null;
   let buffers: Buffers | null = null;
   const cache = new Map<string, LegRoute>();
@@ -544,8 +575,9 @@ export function createAirspaceRouter(dataset: AirspaceDataset): AirspaceRouter {
     crossedPlaces: placesOf(crossed),
   });
 
-  function compute(from: RouteEndpoint, to: RouteEndpoint, options: RouteOptions): LegRoute {
+  function computeAirspace(from: RouteEndpoint, to: RouteEndpoint, options: RouteOptions): LegRoute {
     const greatCircleKm = greatCircleDistanceKm(from, to);
+    if (options.avoidAirspace === false) return result('clear', null, greatCircleKm, greatCircleKm);
     if (!(greatCircleKm >= 1)) return result('clear', null, greatCircleKm, greatCircleKm);
     const ctx: ApplicabilityContext = {
       day: dayOf(options.epochMs),
@@ -607,9 +639,119 @@ export function createAirspaceRouter(dataset: AirspaceDataset): AirspaceRouter {
     );
   }
 
+  function computeCoverage(
+    from: RouteEndpoint,
+    to: RouteEndpoint,
+    options: RouteOptions,
+    profile: DiversionProfile,
+  ): LegRoute {
+    const radius = diversionRadiusKm(profile);
+    const greatCircleKm = greatCircleDistanceKm(from, to);
+    const g = grid ?? (grid = rasterise(dataset.zones));
+    const ctx: ApplicabilityContext = {
+      day: dayOf(options.epochMs),
+      operator: options.operator ?? 'easa',
+      peakFl: peakFlightLevel(greatCircleKm),
+      countries: [from.countryCode, to.countryCode],
+    };
+    let mask = 0,
+      endpointMask = 0;
+    if (options.avoidAirspace !== false)
+      dataset.zones.forEach((zone, i) => {
+        if (!zoneApplies(zone, ctx)) return;
+        const bit = 1 << i;
+        const holds = (p: RouteEndpoint) =>
+          zoneContains(zone, p.lat, p.lng) || (zone.place === p.countryCode && (g[cellOf(p.lat, p.lng)] & bit) !== 0);
+        if (holds(from) || holds(to)) endpointMask |= bit;
+        else mask |= bit;
+      });
+    const excluded = new Set<number>();
+    for (const a of data.diversion!.airports)
+      if (dataset.zones.some((zone, i) => (mask & (1 << i)) !== 0 && zoneContains(zone, a.lat, a.lng)))
+        excluded.add(a.id);
+    const index = new DiversionIndex([...coverage!.airports(excluded), from, to]);
+    let baseline: LegRoute | null = null;
+    const getBaseline = () => (baseline ??= computeAirspace(from, to, options));
+    const annotate = (route: LegRoute, status: 'covered' | 'adjusted' | 'gap'): LegRoute => {
+      const metrics = coverageMetrics(route.path ?? [from, to], index, profile);
+      return {
+        ...route,
+        diversion: {
+          profile: profile.id,
+          limitMin: profile.maxDiversionMin,
+          status,
+          ...metrics,
+          outsideKm: status === 'gap' ? metrics.outsideKm : 0,
+          extraKm: status === 'adjusted' ? Math.max(0, route.distanceKm - getBaseline().distanceKm) : 0,
+        },
+      };
+    };
+    const u = toVec3(from),
+      v = toVec3(to);
+    // The common case performs exact queries only: no binary coverage grid is built.
+    const crossing = zonesAlong(dataset.zones, g, mask, [u, v]);
+    if (!crossing && pathCovered([u, v], index, radius))
+      return annotate(
+        result(endpointMask ? 'partial' : 'clear', null, greatCircleKm, greatCircleKm, [], idsOf(endpointMask)),
+        'covered',
+      );
+    // Exactly one search enforces BOTH constraints. The airspace-only search below supplies the
+    // allowance baseline and safe fallback, never an intermediate path subsequently patched for coverage.
+    const fallback = () => {
+      const base = getBaseline();
+      return annotate(base, pathCovered((base.path ?? [from, to]).map(toVec3), index, radius) ? 'covered' : 'gap');
+    };
+    const search: Search = {
+      grid: g,
+      mask,
+      coverage: coverage!.grid(radius, excluded, [from, to]),
+      to: v,
+      start: cellOf(from.lat, from.lng),
+      goal: cellOf(to.lat, to.lng),
+    };
+    buffers ??= {
+      g: new Float64Array(N),
+      parent: new Int32Array(N),
+      seen: new Uint32Array(N),
+      closed: new Uint32Array(N),
+      generation: 0,
+    };
+    const cells = search.start === search.goal ? null : astar(search, buffers);
+    if (!cells) return fallback();
+    const corners = tighten(search, stringPull(search, [u, ...cells.slice(1, -1).map(cellVec), v]));
+    const exactClear = (points: Vec3[]) =>
+      zonesAlong(dataset.zones, g, mask, points, true) === 0 && pathCovered(points, index, radius);
+    const path = [densify(roundCorners(search, corners, exactClear)), densify(corners)].find(exactClear);
+    if (!path) return fallback();
+    const km = lengthOf(path) * EARTH_RADIUS_KM;
+    const base = getBaseline();
+    if (pathCovered((base.path ?? [from, to]).map(toVec3), index, radius)) return annotate(base, 'covered');
+    if (
+      km > MAX_DETOUR_FACTOR * greatCircleKm + MAX_DETOUR_EXTRA_KM ||
+      km - base.distanceKm > coverageAllowanceKm(base.distanceKm)
+    )
+      return annotate(base, 'gap');
+    const latLngs = path.map(fromVec3);
+    latLngs[0] = { lat: from.lat, lng: from.lng };
+    latLngs[latLngs.length - 1] = { lat: to.lat, lng: to.lng };
+    return annotate(
+      result(
+        endpointMask ? 'partial' : crossing ? 'detour' : 'clear',
+        latLngs,
+        greatCircleKm,
+        km,
+        idsOf(crossing),
+        idsOf(endpointMask),
+      ),
+      'adjusted',
+    );
+  }
+
   return {
-    dataset,
+    airspace: data.airspace ?? null,
+    diversion: data.diversion ?? null,
     route(from, to, options) {
+      const profile = options.diversion;
       const key = [
         from.lat,
         from.lng,
@@ -617,17 +759,25 @@ export function createAirspaceRouter(dataset: AirspaceDataset): AirspaceRouter {
         to.lat,
         to.lng,
         to.countryCode ?? '',
-        dayOf(options.epochMs),
+        Number.isFinite(new Date(options.epochMs).getTime()) ? dayOf(options.epochMs) : 'invalid',
         options.operator ?? 'easa',
+        options.avoidAirspace !== false,
+        profile?.id ?? '',
+        profile?.version ?? '',
+        profile?.maxDiversionMin ?? '',
+        profile?.oeiSpeedKt ?? '',
+        data.diversion?.meta.contentHash ?? '',
+        dataset.reviewed,
       ].join('|');
       let routed = cache.get(key);
       if (!routed) {
         try {
-          routed = compute(from, to, options);
+          routed =
+            profile && coverage ? computeCoverage(from, to, options, profile) : computeAirspace(from, to, options);
         } catch {
-          // A routing bug must never break the journey: keep the great circle and say so.
+          // Internal failure: preserve editing and omit diversion rather than inventing coverage metrics.
           const km = greatCircleDistanceKm(from, to);
-          routed = result('unavoided', null, km, km);
+          routed = result(options.avoidAirspace === false || !data.airspace ? 'clear' : 'unavoided', null, km, km);
         }
         if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value!);
         cache.set(key, routed);
@@ -635,4 +785,10 @@ export function createAirspaceRouter(dataset: AirspaceDataset): AirspaceRouter {
       return routed;
     },
   };
+}
+
+/** Backwards-compatible airspace-only adapter; no diversion dataset is loaded implicitly. */
+export function createAirspaceRouter(dataset: AirspaceDataset): AirspaceRouter {
+  const router = createRouter({ airspace: dataset });
+  return { dataset, route: router.route };
 }

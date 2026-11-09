@@ -12,11 +12,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { buildDataset, FILE_NAMES, parseExclusions, serializeDataset } from './lib/dataset.ts';
 import type { DatasetInputs, FileName } from './lib/dataset.ts';
+import { buildDiversionAirports } from './lib/diversion.ts';
 export { buildDataset } from './lib/dataset.ts';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
-async function download(url: string, json = false): Promise<{ text: string; lastModified: string | null }> {
+export async function download(url: string, json = false): Promise<{ text: string; lastModified: string | null }> {
   let failure: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -51,7 +52,7 @@ async function readExisting(path: string): Promise<unknown> {
     throw error;
   }
 }
-async function atomicWrite(path: string, contents: string): Promise<void> {
+export async function atomicWrite(path: string, contents: string): Promise<void> {
   const temporary = `${path}.${process.pid}.tmp`;
   try {
     await writeFile(temporary, contents);
@@ -86,6 +87,9 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     inputs[r.name] = r.text;
     lastModified[r.name] = r.lastModified;
   }
+  const runwayInput = offline
+    ? { text: await readFile(resolve(ROOT, '.cache/ourairports/runways.csv'), 'utf8'), lastModified: null }
+    : await download('https://davidmegginson.github.io/ourairports-data/runways.csv');
   let upstreamCommit: string | null = null;
   if (!offline) {
     try {
@@ -106,12 +110,28 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     upstreamCommit,
     lastModified,
   });
+  const diversion = buildDiversionAirports(
+    { 'airports.csv': inputs['airports.csv'], 'runways.csv': runwayInput.text },
+    { excluded },
+  );
+  const previousDiversion = (await readExisting(resolve(ROOT, 'src/data/generated/diversion-airports.json'))) as {
+    meta?: { contentHash?: string };
+  } | null;
+  const diversionChanged = diversion.dataset.meta.contentHash !== previousDiversion?.meta?.contentHash;
   const changed = dataset.meta.contentHash !== previous?.meta?.contentHash;
   // No cache or generated file is touched until every validation has succeeded.
   if (!check) {
     if (!offline) {
       await mkdir(resolve(ROOT, '.cache/ourairports'), { recursive: true });
       for (const name of FILE_NAMES) await atomicWrite(resolve(ROOT, '.cache/ourairports', name), inputs[name]);
+      await atomicWrite(resolve(ROOT, '.cache/ourairports/runways.csv'), runwayInput.text);
+      await atomicWrite(
+        resolve(ROOT, '.cache/ourairports/diversion-inputs.json'),
+        JSON.stringify({
+          upstreamCommit,
+          lastModified: { 'airports.csv': lastModified['airports.csv'], 'runways.csv': runwayInput.lastModified },
+        }),
+      );
     }
     if (changed) {
       await mkdir(resolve(ROOT, 'src/data/generated'), { recursive: true });
@@ -123,7 +143,8 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   console.log(
     `${check ? 'Check' : 'Build'}: ${dataset.airports.length} airports (${dataset.meta.counts.scheduled} scheduled, ${dataset.meta.counts.withIata} IATA); dropped ${report.dropped}; excluded ${report.excluded.length}/${Object.keys(excluded).length}; duplicate codes: ${report.duplicates.iata} IATA, ${report.duplicates.icao} ICAO; ${changed ? (check ? 'would change' : 'changed') : 'unchanged'}.`,
   );
-  if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `CHANGED=${changed}\n`);
+  if (process.env.GITHUB_OUTPUT)
+    await appendFile(process.env.GITHUB_OUTPUT, `CHANGED=${changed || diversionChanged}\n`);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().catch((error: unknown) => {

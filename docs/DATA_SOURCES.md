@@ -36,7 +36,7 @@ Credit: **NASA's Scientific Visualization Studio; LRO/LROC data courtesy of NASA
 
 Inputs are [airports.csv](https://davidmegginson.github.io/ourairports-data/airports.csv), [countries.csv](https://davidmegginson.github.io/ourairports-data/countries.csv) and [regions.csv](https://davidmegginson.github.io/ourairports-data/regions.csv).
 
-Fields used: airport `id`, `ident`, `type`, `name`, `latitude_deg`, `longitude_deg`, `iso_country`, `iso_region`, `municipality`, `scheduled_service`, `icao_code`, `iata_code`, `gps_code` and `keywords`; country/region `code` and `name` provide display dictionaries. Frequencies, runways, comments and navaids are not downloaded.
+Fields used: airport `id`, `ident`, `type`, `name`, `latitude_deg`, `longitude_deg`, `iso_country`, `iso_region`, `municipality`, `scheduled_service`, `icao_code`, `iata_code`, `gps_code` and `keywords`; country/region `code` and `name` provide display dictionaries. Runways are downloaded separately for potential diversion airport evidence (below); frequencies, comments and navaids are not downloaded.
 
 Selection and cleaning in `scripts/lib/dataset.ts`:
 
@@ -95,6 +95,12 @@ Sources: Natural Earth v5.1.2 1:50m **Admin 0 – Countries** ([pinned GeoJSON](
 Countries use `NAME`/`NAME_HU`/`NAME_SV`, Natural Earth's label points, `MIN_LABEL` and `LABELRANK`. Seas use the largest polygon with longitude unwrapping, holes and cos(latitude)-scaled equirectangular projection; best-first subdivision finds a pole of inaccessibility. Seven ocean points and the Mediterranean point are hand-placed in open water for composition. All rounded marine points must remain inside their source polygons. Marine selection, zoom calibration, language review and every correction/abbreviation/point override are documented in [data/PLACE_NAMES.md](../data/PLACE_NAMES.md); the editable source is `data/place-names.json`.
 
 The layer defaults off and downloads on first use of the “Country names” or “Oceans and seas” toggle (each shows its own kinds). Oceans use larger blue italic caps, seas smaller blue italics. Visibility fades at minimum zoom and near the limb; labels yield to airport labels/dots, with countries ahead of equal-rank seas. Locale changes reuse the download and clear cached text metrics. The country preference retains `globehops:countryNames` in local storage for compatibility, and `globehops:waterNames` inherits it until set; links may temporarily override both with `names=1` or `names=0` without changing the saved choice.
+
+## Potential diversion airports
+
+Source: public-domain OurAirports [airports.csv](https://davidmegginson.github.io/ourairports-data/airports.csv) and [runways.csv](https://davidmegginson.github.io/ourairports-data/runways.csv), without accuracy guarantees. `npm run diversion:build` selects large/medium airports with an open recognised hard-surface runway at least 2,000 m long and 44 m wide (45 m with imperial-rounding tolerance). Unknown surfaces/widths are excluded; lighting is recorded, not required. No operational suitability is established.
+
+The separate compact `src/data/generated/diversion-airports.json` contains 2,626 potential diversion airports, 90,517 bytes (38,004 gzip), rounded to 0.01°. `data/diversion-build.json` records criteria, exclusion counts (314 uncertain runways), every observed surface mapping, input hashes/HTTP provenance and content hash. Both are generated atomically, never hand-edited. `-- --offline` requires cached airport/runway CSVs; `-- --refresh` downloads them again. `data:update` caches/validates runways without changing the airport-search content hash; daily automation rebuilds the diversion output when qualifying runway evidence changes too. This public-domain data remains separate from the ODbL time-zone table. See [DIVERSION.md](../data/DIVERSION.md) for regulatory sources, coverage maths, profiles, routing calibration and limitations.
 
 ## Restricted airspace
 
