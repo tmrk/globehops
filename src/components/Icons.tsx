@@ -61,6 +61,20 @@ export const IconFrame = (p: IconProps) => (
   </Icon>
 );
 /** Globe outline crossed by a dashed boundary: the country-borders layer. */
+/** A route bending around a restricted area. */
+export const IconDetour = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="10" cy="12.6" r="3" strokeWidth={1.3} strokeDasharray="1.6 1.4" />
+    <path d="M3.5 16.5C3.5 9 6.5 5 10 5s6.5 4 6.5 11.5" />
+    <path d="M14.3 14.4l2.2 2.1 2.1-2.3" />
+  </Icon>
+);
+export const IconAlert = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10 3.2l7.6 13.3H2.4z" />
+    <path d="M10 8.2v3.6M10 14.2v.1" />
+  </Icon>
+);
 export const IconBorders = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="10" cy="10" r="7" />

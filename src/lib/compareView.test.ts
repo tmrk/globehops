@@ -126,3 +126,28 @@ describe('comparison bars', () => {
     expect(b[2].left).toBeCloseTo(b[1].left + b[1].width);
   });
 });
+
+describe('globe legs along detours', () => {
+  it('passes a routed path to the globe and keys the leg by its shape', () => {
+    const route = (from: Airport, to: Airport) => ({
+      status: 'detour' as const,
+      path: [from, { lat: 70, lng: -30 }, to].map(({ lat, lng }) => ({ lat, lng })),
+      distanceKm: 9000,
+      greatCircleKm: 6000,
+      avoided: ['z'],
+      crossed: [],
+      avoidedPlaces: ['XX'],
+      crossedPlaces: [],
+    });
+    const direct = comparisonGlobeRoute(list().slice(0, 1), 0, false, (a) => a.city);
+    const routed = comparisonGlobeRoute(
+      computeComparison([input([0, 2])], { assumedStart: null, route }),
+      0,
+      false,
+      (a) => a.city,
+    );
+    expect(direct.legs[0]).toMatchObject({ key: '1>3#1', path: null });
+    expect(routed.legs[0].key).toMatch(/^1>3#1~[0-9a-z]+$/);
+    expect(routed.legs[0].path).toHaveLength(3);
+  });
+});

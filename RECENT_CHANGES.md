@@ -2,6 +2,13 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.17.0 — 2026-11-09 — Around restricted airspace
+
+- **Flights avoid restricted airspace.** Routes now curve around conflict zones and closed airspace the way an EU airline's would: Helsinki–Tokyo goes over the pole instead of across Russia, Frankfurt–Beijing through the Caucasus and Central Asia, Frankfurt–Dubai around Iraq and Iran. Detours are short and smooth, cross the date line and the poles when that is the way round, and their extra distance lengthens the estimated flight time, the totals and the playback.
+- **Based on current advisories.** The zones follow EASA's conflict-zone bulletins as of 9 November 2026 (Ukraine, western Russia, Iran, Iraq, Lebanon, the Persian Gulf and Gulf of Oman, Syria, Sudan, Yemen, and low-level areas such as Afghanistan and Libya for flights too short to climb above them), Belarus's EASA safety directive and Russia's closure of its airspace to EU airlines. Each counts only between its published dates, using the flight's date or today; caution-only advisories are not avoided. Every source, date and simplification is listed in the new airspace notes.
+- **Clear about its limits.** A small mark beside a flight's distance shows a detour, and its details name the countries avoided and the extra distance. A flight that starts or ends in a zone, or has no sensible way round, keeps its direct route with a warning. The totals show the combined detour. Routes are illustrative, not flight planning.
+- **One switch.** **Avoid restricted airspace** in the display menu is on by default and remembered; off brings back the plain great circles with exactly the previous distances and times. Long display-menu labels now wrap instead of being cut off.
+
 ## 1.16.0 — 2026-11-08 — Opens on the globe
 
 - **GlobeHops opens on the globe.** Instead of loading an example journey, the app now starts with the globe as large as the screen allows, lit as it is right now, and its clock beneath it. On phones the sheet starts lowered: the time dial, then a large amber **Show a flight** button that opens the planner with its three long-haul ideas. The empty globe grows and shrinks smoothly as the sheet opens and closes, unless you have zoomed it yourself. Shared links and your last journey still open as before.

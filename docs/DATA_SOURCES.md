@@ -96,6 +96,14 @@ Countries use `NAME`/`NAME_HU`/`NAME_SV`, Natural Earth's label points, `MIN_LAB
 
 The layer defaults off and downloads on first use of the “Country names” or “Oceans and seas” toggle (each shows its own kinds). Oceans use larger blue italic caps, seas smaller blue italics. Visibility fades at minimum zoom and near the limb; labels yield to airport labels/dots, with countries ahead of equal-rank seas. Locale changes reuse the download and clear cached text metrics. The country preference retains `globehops:countryNames` in local storage for compatibility, and `globehops:waterNames` inherits it until set; links may temporarily override both with `names=1` or `names=0` without changing the saved choice.
 
+## Restricted airspace
+
+Sources: [EASA Conflict Zone Information Bulletins](https://www.easa.europa.eu/en/domains/air-operations/czibs) (reviewed 9 November 2026), EASA Safety Directives SD-2021-02/SD-2021-03 (Belarus) and the Russian Federal Air Transport Agency's 28 February 2022 closure of Russian airspace to airlines of EU states and others. Only facts are used — bulletin numbers, areas, flight levels, operator groups and dates — with short paraphrased recommendations; EASA website content is © European Union and reusable with acknowledgement. GlobeHops is not affiliated with or endorsed by EASA.
+
+Geometry reuses the public-domain Natural Earth v5.1.2 1:50m **Admin 0 – Countries** and **Geography – Marine Polygons** already pinned for the label build (same URLs and `.cache/naturalearth/` files); nothing new is downloaded. `npm run airspace:build` reads the hand-maintained `data/airspace-advisories.json`, selects country polygons by ISO code (optionally one part, excluded parts or a meridian clip) and marine polygons by name, simplifies rings with Douglas–Peucker at 0.05°, drops parts under 0.05 square degrees, quantises to 0.01° and delta-encodes them. The committed `src/data/generated/airspace.json` holds 16 zones and 4,267 points (about 34 KB, 11 KB gzipped); the app fetches it once avoidance is on (the default), and the offline app precaches it. Never hand-edit it.
+
+Zones, validity dates, operator groups, level limits, exemptions, approximations (Syria's whole FIR, Yemen's territory only) and advisories deliberately not modelled (Saudi Arabia's waypoint-defined area, caution-only bulletins, Pakistan's provinces) are documented in [data/AIRSPACE.md](../data/AIRSPACE.md), with the update procedure.
+
 ## Airport city exonyms
 
 Source: Natural Earth v5.1.2 1:10m **Populated Places**, 7,342 points ([pinned GeoJSON](https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_10m_populated_places.geojson)), public domain; `NAME_HU`/`NAME_SV` are Wikidata-derived CC0 names. OurAirports municipalities/country codes and positions provide the matching targets.

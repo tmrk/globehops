@@ -1,7 +1,7 @@
 {
   "name": "globehops",
   "private": true,
-  "version": "1.16.0",
+  "version": "1.17.0",
   "description": "Visualise air journeys as great-circle routes on an interactive 3D globe.",
   "license": "MIT",
   "type": "module",
@@ -21,6 +21,7 @@
     "labels:build": "node scripts/build-country-labels.ts",
     "places:build": "node scripts/build-place-names.ts",
     "borders:build": "node scripts/build-borders.ts",
+    "airspace:build": "node scripts/build-airspace.ts",
     "textures:build": "node scripts/build-textures.ts",
     "icons:build": "node scripts/build-icons.ts",
     "format": "prettier --write .",

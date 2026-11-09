@@ -4,6 +4,7 @@ import { useI18n } from '../i18n/I18nProvider.tsx';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { DistanceUnit } from '../types.ts';
 import {
+  IconDetour,
   IconLanguage,
   IconWaves,
   IconMotion,
@@ -31,6 +32,8 @@ interface MapToolsProps {
   onToggleMyLocation: () => void;
   dayNight: boolean;
   unit: DistanceUnit;
+  avoidAirspace: boolean;
+  onToggleAvoidAirspace: () => void;
   /** Label for the re-centre button, or null when there is nothing to frame. */
   frameLabel: string | null;
   onToggleBorders: () => void;
@@ -232,6 +235,12 @@ export function MapTools(props: MapToolsProps) {
               ))}
             </span>
           </div>
+          <Toggle
+            label={t('maptools.avoidAirspace')}
+            icon={<IconDetour size={18} />}
+            on={props.avoidAirspace}
+            onClick={props.onToggleAvoidAirspace}
+          />
           <Toggle
             label={t('maptools.reduceMotion')}
             icon={<IconMotion size={18} />}

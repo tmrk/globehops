@@ -117,6 +117,7 @@ export const hu: Messages = {
   'sky.sun': 'Nap',
   'maptools.distance': 'Távolság',
   'maptools.distanceUnit': 'Távolság mértékegysége',
+  'maptools.avoidAirspace': 'Korlátozott légterek elkerülése',
   'stops.journeyStops': 'Az útvonal megállói',
   'stops.sameAirport': ' · azonos repülőtér',
   'stops.airportButton': '{0}: {1} ({2}). Repülőtér cseréje',
@@ -147,6 +148,22 @@ export const hu: Messages = {
   'summary.method':
     'A repülési idők becslések, nem menetrendi adatok: főkör menti távolság {0} átlagsebességgel, plusz {1} perc a fel- és leszállásra. A megadott időpontok a repülőterek helyi idejében értendők.',
   'summary.connectionMethod': 'Minden átszállás {0} várakozással számol, hacsak nem módosítod.',
+  'airspace.persianGulf': 'Perzsa-öböl',
+  'airspace.gulfOfOman': 'Ománi-öböl',
+  'airspace.legDetour': 'Kerülőút a korlátozott légtér körül ({0}): +{1}.',
+  'airspace.legPartial': 'Korlátozott légtérben ({0}) indul vagy érkezik, így nem kerülheti el.',
+  'airspace.legUnavoided':
+    'Nem sikerült kerülőutat találni a korlátozott légtér ({0}) körül; a közvetlen útvonal látható.',
+  'airspace.legUnavoidedUnknown':
+    'Nem sikerült kerülőutat találni a korlátozott légtér körül; a közvetlen útvonal látható.',
+  'airspace.detourShort': 'kerülőút korlátozott légtér körül',
+  'airspace.notAvoidedShort': 'a korlátozott légtér nincs elkerülve',
+  'airspace.summaryDetour': 'Kerülőutak korlátozott légterek körül: +{0}',
+  'airspace.notAvoided': 'Ezen a járaton a korlátozott légtér nem kerülhető el',
+  'airspace.notAvoidedOnFlight': '{0}. járat: a korlátozott légtér nem kerülhető el',
+  'airspace.unavailable': 'A korlátozott légterek adatai nem töltődtek be; a járatok közvetlen útvonalon haladnak.',
+  'summary.airspaceMethod':
+    'A korlátozott légterek elkerülése a repülés napján érvényes EASA-közlemények konfliktusövezetei körül vezeti a járatokat (állapot: {0}), mintha uniós légitársaság repülne. A valódi útvonalak eltérhetnek.',
   'timebar.dayAndNight': 'Nappal és éjszaka',
   'timebar.exploreSunlightAroundTheWorld': 'Fedezd fel, hol süt éppen a Nap',
   'timebar.departsIn': 'Indulásig: {0}',

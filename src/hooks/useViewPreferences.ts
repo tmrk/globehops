@@ -102,6 +102,11 @@ export function useViewPreferences() {
       setVisit({ dayNight: next });
       storage.saveDayNight(next);
     },
+    toggleAvoidAirspace() {
+      const next = !values.avoidAirspace;
+      setVisit({ avoidAirspace: next });
+      storage.saveAvoidAirspace(next);
+    },
     toggleMyLocation() {
       const next = !values.myLocation;
       setVisit({ myLocation: next });

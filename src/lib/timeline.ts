@@ -1,6 +1,7 @@
 import type { LatLng } from '../types.ts';
 import type { Journey } from './schedule.ts';
 import { interpolateGreatCircle } from './geo.ts';
+import { pointAlongPath } from './routePath.ts';
 import { altitudeAt, altitudeProfile, type AltitudeProfile } from './altitude.ts';
 import { progressModel, distanceFractionAt, flightPhaseAt, type ProgressModel } from './flightProgress.ts';
 type FlightSegment = { kind: 'flight'; leg: number; start: number; end: number };
@@ -89,7 +90,9 @@ export function journeyStateAt(j: Journey, tl: Timeline, epochMs: number): Journ
     leg: leg.index,
     timeFraction: elapsedMin / duration,
     distanceFraction,
-    position: interpolateGreatCircle(leg.from, leg.to, distanceFraction),
+    position: leg.route?.path
+      ? pointAlongPath(leg.route.path, distanceFraction)
+      : interpolateGreatCircle(leg.from, leg.to, distanceFraction),
     altitudeKm: altitudeAt(models.altitude, distanceFraction * leg.distanceKm),
     flightPhase: flightPhaseAt(models.progress, elapsedMin),
     elapsedMin,

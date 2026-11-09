@@ -43,11 +43,22 @@ describe('view preferences', () => {
       clockZone: 'local',
       myLocation: false,
       reduceMotionPref: null,
+      avoidAirspace: true,
     });
     data.set('globehops:countryNames', 'on');
     expect(loadViewPreferences('km').showWaterNames).toBe(true);
     data.set('globehops:waterNames', 'off');
     expect(loadViewPreferences('km')).toMatchObject({ showCountryNames: true, showWaterNames: false });
+  });
+
+  it('avoids restricted airspace unless the saved choice is off; links never change it', () => {
+    const { data } = stored();
+    data.set('globehops:avoidAirspace', 'off');
+    expect(loadViewPreferences('km').avoidAirspace).toBe(false);
+    const search = '?names=1&borders=0&follow=1';
+    expect(resolveViewPreferences('km', parseLink(search).view, linkViewDefaults(search)).avoidAirspace).toBe(false);
+    data.set('globehops:avoidAirspace', 'on');
+    expect(loadViewPreferences('km').avoidAirspace).toBe(true);
   });
 
   it('applies and removes visit overrides without overwriting saved choices', () => {

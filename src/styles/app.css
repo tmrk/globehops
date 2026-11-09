@@ -641,9 +641,11 @@ button.map-menu__item:hover {
 
 .map-menu__label {
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Long labels ("Avoid restricted airspace", Hungarian and Swedish ones) wrap rather than truncate. */
+  padding-block: 6px;
+  line-height: 1.2;
+  text-wrap: balance;
+  overflow-wrap: break-word;
 }
 
 .map-menu__value {
@@ -3853,4 +3855,41 @@ button.map-menu__item:hover {
 .layout-mobile .compare-summary__row {
   padding-block: 6px;
   row-gap: 4px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Restricted airspace                                                                        */
+
+.leg__airspace {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 6px;
+  color: var(--text-2);
+}
+
+.leg__airspace.is-warning,
+.summary__airspace.is-warning,
+.leg-schedule__airspace.is-warning {
+  color: var(--accent);
+}
+
+.summary__airspace,
+.leg-schedule__airspace {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  color: var(--text-2);
+}
+
+.summary__airspace svg,
+.leg-schedule__airspace svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.leg-schedule__airspace {
+  margin-top: 10px;
 }

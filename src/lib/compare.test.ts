@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Airport } from '../types.ts';
 import type { ComparisonInput } from './compare.ts';
 import { compareMetrics, comparisonRange, computeComparison, JOURNEY_COLORS, journeyColor } from './compare.ts';
+import { greatCircleDistanceKm } from './geo.ts';
 
 const airport = (code: string, lng: number): Airport => ({
   id: lng,
@@ -103,5 +104,62 @@ describe('comparison schedules', () => {
     expect(compareMetrics(list).firstArrival).toBeNull();
     expect(compute([input(), input(), input(), input(), input()])).toHaveLength(4);
     expect(journeyColor(5)).toBe(JOURNEY_COLORS[1]);
+  });
+});
+
+describe('comparison routing', () => {
+  const detour = (from: Airport, to: Airport) => {
+    const greatCircleKm = greatCircleDistanceKm(from, to);
+    return {
+      status: 'detour' as const,
+      path: [from, { lat: 60, lng: (from.lng + to.lng) / 2 }, to].map(({ lat, lng }) => ({ lat, lng })),
+      distanceKm: greatCircleKm * 1.2,
+      greatCircleKm,
+      avoided: ['zone'],
+      crossed: [],
+      avoidedPlaces: ['XX'],
+      crossedPlaces: [],
+    };
+  };
+
+  it('is unchanged without a router', () => {
+    const inputs = [input('2026-11-20T10:00', undefined, true)];
+    const plain = compute(inputs);
+    expect(plain[0].journey.legs.every((leg) => !('route' in leg))).toBe(true);
+    expect(plain).toEqual(compute(inputs));
+  });
+
+  it('schedules routed legs with their longer distance, routing on each departure date', () => {
+    const calls: number[] = [];
+    const route = (from: Airport, to: Airport, departureMs: number) => (calls.push(departureMs), detour(from, to));
+    const [direct] = compute([input('2026-11-20T10:00', undefined, true)]);
+    const [routed] = computeComparison([input('2026-11-20T10:00', undefined, true)], {
+      assumedStart: null,
+      now: Date.UTC(2027, 0, 1),
+      route,
+    });
+    expect(calls.slice(0, 2)).toEqual(direct.journey.legs.map((leg) => leg.departure!.epochMs));
+    routed.journey.legs.forEach((leg, i) => {
+      expect(leg.route?.status).toBe('detour');
+      expect(leg.distanceKm).toBeCloseTo(direct.journey.legs[i].distanceKm * 1.2, 6);
+      expect(leg.estimatedMin!).toBeGreaterThan(direct.journey.legs[i].estimatedMin!);
+    });
+    expect(routed.journey.end!.epochMs).toBeGreaterThan(direct.journey.end!.epochMs);
+  });
+
+  it('keeps great-circle schedules for flights the router leaves clear, recording the result', () => {
+    const clear = (from: Airport, to: Airport) => ({
+      ...detour(from, to),
+      status: 'clear' as const,
+      path: null,
+      distanceKm: greatCircleDistanceKm(from, to),
+      avoided: [],
+      avoidedPlaces: [],
+    });
+    const [direct] = compute([input()], start);
+    const [routed] = computeComparison([input()], { assumedStart: start, now: Date.UTC(2027, 0, 1), route: clear });
+    expect(routed.journey.end).toEqual(direct.journey.end);
+    expect(routed.journey.legs[0].route?.status).toBe('clear');
+    expect(routed.journey.legs[0].distanceKm).toBe(direct.journey.legs[0].distanceKm);
   });
 });

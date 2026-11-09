@@ -1,4 +1,4 @@
-import type { Airport, LocalTimeInput } from '../types.ts';
+import type { Airport, LegRoute, LocalTimeInput } from '../types.ts';
 import { displayCity } from '../data/airports.ts';
 import { estimateFlightMinutes, formatDuration, type FlightTimeModel } from './flightTime.ts';
 import { greatCircleDistanceKm } from './geo.ts';
@@ -40,6 +40,8 @@ export interface ScheduleOptions {
   assumedStart?: number | null;
   now?: number;
   flightModel?: FlightTimeModel;
+  /** Airspace-aware routes by leg index; their distance replaces the great circle's. */
+  routes?: readonly (LegRoute | undefined)[];
 }
 export interface JourneyLeg {
   id: string;
@@ -54,6 +56,8 @@ export interface JourneyLeg {
   arrival: TimePoint | null;
   durationMin: number | null;
   durationSource: 'entered' | 'estimated' | 'mixed' | null;
+  /** Present only when airspace avoidance routed this leg. */
+  route?: LegRoute;
 }
 export interface JourneyTransfer {
   id: string;
@@ -201,8 +205,10 @@ export function computeJourney(input: JourneyInput, opts: ScheduleOptions = {}):
   const dated = [...arr, ...dep].some((p) => p !== null);
   const legs: JourneyLeg[] = stops.slice(1).map((to, index) => {
     const from = stops[index];
-    const distanceKm = greatCircleDistanceKm(from.airport, to.airport);
+    const route = opts.routes?.[index];
+    const distanceKm = route ? route.distanceKm : greatCircleDistanceKm(from.airport, to.airport);
     return {
+      ...(route ? { route } : {}),
       id: `L${index + 1}`,
       index,
       fromStop: index,

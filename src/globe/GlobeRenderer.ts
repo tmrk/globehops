@@ -51,6 +51,7 @@ import {
 } from '../lib/altitude.ts';
 import { countSegments, decodeBorders, densifyLine } from '../lib/borders.ts';
 import { EARTH_RADIUS_KM, enclosingCap, greatCircleDistanceKm, greatCirclePath, slerpVec, toVec3 } from '../lib/geo.ts';
+import { mergeFractions, pathLengthKm, pathVertexFractions, vectorAlongPath } from '../lib/routePath.ts';
 import { SOLAR_SHADING_GLSL } from '../lib/sun.ts';
 import type { LatLng } from '../types.ts';
 import {
@@ -90,6 +91,8 @@ export interface GlobeLeg {
   key: string;
   from: LatLng;
   to: LatLng;
+  /** Detour waypoints around restricted airspace; absent or null follows the great circle. */
+  path?: readonly LatLng[] | null;
   color: string;
   /** Height multiplier; endpoints retain the same surface clearance. */
   lift?: number;
@@ -171,7 +174,7 @@ interface LegObject {
   profile: ReturnType<typeof altitudeProfile>;
   /** Fractions of the leg distance (0 … 1) at which ground/arc are sampled; denser in climb and descent. */
   fractions: number[];
-  ground: Vector3[]; // unit vectors along the great circle
+  ground: Vector3[]; // unit vectors along the route
   /** Sparse ground samples (≤ 2° apart) for camera framing; the enclosing-cap search is O(points). */
   frame: Vector3[];
   arc: Vector3[]; // lifted arc points
@@ -988,17 +991,23 @@ export class GlobeRenderer {
     const angle = latLngToVector3(leg.from.lat, leg.from.lng).angleTo(latLngToVector3(leg.to.lat, leg.to.lng));
     if (!(angle > 1e-4)) return null; // same airport: nothing to draw
     // Climb to cruising altitude, hold it, descend before landing (vertical axis exaggerated).
-    const distanceKm = greatCircleDistanceKm(leg.from, leg.to);
+    const path = leg.path && leg.path.length > 1 ? leg.path : null;
+    const distanceKm = path ? pathLengthKm(path) : greatCircleDistanceKm(leg.from, leg.to);
     const profile = altitudeProfile(distanceKm);
-    const fractions = profileFractions(profile);
+    // A detour is sampled at its own vertices too, so its turns are drawn where they are.
+    const fractions = path
+      ? mergeFractions(profileFractions(profile), pathVertexFractions(path))
+      : profileFractions(profile);
     const u = toVec3(leg.from);
     const v = toVec3(leg.to);
-    const ground = fractions.map((f) => ecefToScene(slerpVec(u, v, f)));
-    const frame = greatCirclePath(leg.from, leg.to, Math.max(2, Math.ceil((angle * 90) / Math.PI))).map((p) =>
-      ecefToScene(p),
-    );
+    const ground = fractions.map((f) => ecefToScene(path ? vectorAlongPath(path, f) : slerpVec(u, v, f)));
+    // Detour vertices are ≤ 1° apart; every other one is enough to frame the route.
+    const frame = path
+      ? path.filter((_, i) => i % 2 === 0 || i === path.length - 1).map((p) => ecefToScene(toVec3(p)))
+      : greatCirclePath(leg.from, leg.to, Math.max(2, Math.ceil((angle * 90) / Math.PI))).map((p) => ecefToScene(p));
     const n = ground.length - 1;
-    const followAngle = ground[0].angleTo(ground[n]);
+    // Follow distance and the plane's zoom profile use the flown length, not the end-to-end angle.
+    const followAngle = path ? distanceKm / EARTH_RADIUS_KM : ground[0].angleTo(ground[n]);
     const arc = ground.map((g, i) =>
       g
         .clone()

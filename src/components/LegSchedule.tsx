@@ -6,13 +6,16 @@ import type { Journey, JourneyLeg } from '../lib/schedule.ts';
 import { formatLocalDateTime, isSupportedTimeZone, utcToLocal } from '../lib/timezone.ts';
 import type { LocalTimeInput } from '../types.ts';
 import { DateTimeField } from './DateTimeField.tsx';
-import { IconClose } from './Icons.tsx';
+import { IconAlert, IconClose, IconDetour } from './Icons.tsx';
+import { airspaceWarning, legAirspaceNote } from './airspaceText.ts';
+import type { DistanceUnit } from '../types.ts';
 
 interface Props {
   journey: Journey;
   leg: JourneyLeg;
   onChange: (stop: number, field: 'departure' | 'arrival', value: LocalTimeInput | null) => void;
   onClose: () => void;
+  unit: DistanceUnit;
 }
 
 /**
@@ -20,8 +23,10 @@ interface Props {
  * estimate derived from the rest of the journey, so the whole schedule is visible and any value can
  * be overridden by tapping it. Instants and durations are computed in UTC by the schedule model.
  */
-export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
-  const { t, fmt } = useI18n();
+export function LegSchedule({ journey, leg, onChange, onClose, unit }: Props) {
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
+  const airspaceNote = legAirspaceNote(leg.route, unit, i18n);
   const sectionRef = useRef<HTMLElement>(null);
   // Reveal the whole editor when a flight opens; on phones it would otherwise start below the fold.
   useEffect(() => {
@@ -146,6 +151,12 @@ export function LegSchedule({ journey, leg, onChange, onClose }: Props) {
           </div>
         );
       })}
+      {airspaceNote && (
+        <p className={`leg-schedule__airspace${airspaceWarning(leg.route) ? ' is-warning' : ''}`}>
+          {airspaceWarning(leg.route) ? <IconAlert size={14} /> : <IconDetour size={14} />}
+          <span>{airspaceNote}</span>
+        </p>
+      )}
       <div className="leg-schedule__foot">
         <p className="leg-schedule__duration">
           {entered

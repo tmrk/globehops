@@ -7,7 +7,8 @@ import type { DistanceUnit, Layover, Leg } from '../types.ts';
 import type { Journey } from '../lib/schedule.ts';
 import { airportCode } from '../data/airports.ts';
 
-import { IconInfo } from './Icons.tsx';
+import { IconAlert, IconDetour, IconInfo } from './Icons.tsx';
+import { airspaceWarning, detourKm, keepTogether } from './airspaceText.ts';
 
 interface SummaryProps {
   journey: Journey;
@@ -15,12 +16,14 @@ interface SummaryProps {
   legs: Leg[];
   layovers: Layover[];
   unit: DistanceUnit;
+  /** Present while airspace avoidance is on. */
+  airspace?: { reviewed: string | null; failed: boolean } | null;
   /** The primary action beside the totals (Play), if any. */
   action?: React.ReactNode;
 }
 
 /** Journey totals, pinned to the bottom of the panel like the total on a ticket. */
-export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: SummaryProps) {
+export function Summary({ journey, onCheckLeg, legs, layovers, unit, airspace, action }: SummaryProps) {
   const { t, fmt } = useI18n();
 
   const [showInfo, setShowInfo] = useState(false);
@@ -63,6 +66,19 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
           arrives: t('summary.arrival', fmt.clock(journey.end.epochMs, journey.end.zone), airportCode(destination)),
         }
       : null;
+  // One line, only when avoidance changes something: a flight it can't protect, or the extra distance.
+  const unprotected = legs.findIndex((leg) => airspaceWarning(leg.route));
+  const extraKm = legs.reduce((sum, leg) => sum + detourKm(leg.route), 0);
+  const airspaceNote = airspace?.failed
+    ? { warn: true, text: t('airspace.unavailable') }
+    : unprotected >= 0
+      ? {
+          warn: true,
+          text: flights === 1 ? t('airspace.notAvoided') : t('airspace.notAvoidedOnFlight', unprotected + 1),
+        }
+      : extraKm >= 1
+        ? { warn: false, text: t('airspace.summaryDetour', keepTogether(fmt.distance(extraKm, unit))) }
+        : null;
   const issue = journey.issues.find((i) => i.severity === 'error');
   const issueLeg = issue?.leg ?? (issue?.field === 'arrival' ? Math.max(0, (issue.stop ?? 1) - 1) : (issue?.stop ?? 0));
 
@@ -110,6 +126,12 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
           </p>
         ) : null}
       </div>
+      {airspaceNote ? (
+        <p className={`summary__airspace${airspaceNote.warn ? ' is-warning' : ''}`}>
+          {airspaceNote.warn ? <IconAlert size={14} /> : <IconDetour size={14} />}
+          <span>{airspaceNote.text}</span>
+        </p>
+      ) : null}
       {issue ? (
         <button type="button" className="text-btn schedule-error" onClick={() => onCheckLeg(issueLeg)}>
           {t('summary.checkTimes', issueLeg + 1)}
@@ -118,6 +140,7 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, action }: S
       <div id={infoId} className="summary__info" hidden={!showInfo}>
         <p>{t('summary.method', speed, m.overheadMinutes)}</p>
         <p>{t('summary.connectionMethod', fmt.layover(DEFAULT_LAYOVER_MIN))}</p>
+        {airspace?.reviewed ? <p>{t('summary.airspaceMethod', fmt.shortDate(airspace.reviewed))}</p> : null}
       </div>
     </section>
   );

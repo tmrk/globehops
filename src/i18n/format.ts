@@ -65,6 +65,14 @@ function createFormatters(locale: Locale) {
       return [airport.city ? this.city(airport) : '', airport.region, this.country(airport)].filter(Boolean).join(', ');
     },
     list: (values: string[]) => lists.format(values),
+    /** A country or territory by ISO 3166-1 alpha-2 code, in the interface language. */
+    region(code: string): string {
+      try {
+        return regions.of(code) ?? code;
+      } catch {
+        return code;
+      }
+    },
     shortDate: (isoDate: string) => shortDates.format(new Date(`${isoDate}T12:00:00Z`)),
     /** A day on a time scale: “Sun 8”. */
     dayMark: (isoDate: string) => dayMarks.format(new Date(`${isoDate}T12:00:00Z`)),

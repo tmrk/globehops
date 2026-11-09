@@ -71,7 +71,7 @@ Errors prevent playback. Warnings and information preserve validity. Stop/leg in
 
 `flightProgress.ts` maps elapsed time to a monotonic distance fraction through climb, cruise and descent. The altitude model supplies climb/descent distances and average ground speeds. Short flights scale both phases to fill the available duration. With cruise distance remaining, those phases are compressed if necessary to leave at least 20% of duration for cruise. Progress is piecewise linear in time and clamped to [0, 1].
 
-Position follows a great circle on a spherical Earth; altitude follows the illustrative climb/cruise/descent profile. Display height is exaggerated 12×. The whole departure-to-arrival interval is treated as flight: taxi, winds, airways, aircraft type and real tracks are absent. Time fraction and distance fraction can differ; neither represents live tracking.
+Position follows a great circle on a spherical Earth, or the leg's detour around restricted airspace when avoidance is on (by fraction of the routed length, which also sets the estimate); altitude follows the illustrative climb/cruise/descent profile. Display height is exaggerated 12×. The whole departure-to-arrival interval is treated as flight: taxi, winds, airways, aircraft type and real tracks are absent. Time fraction and distance fraction can differ; neither represents live tracking.
 
 `buildTimeline` returns null unless the journey has at least one leg, known start/end and no error issues. A timeline has its journey ID, first departure, last arrival and positive-duration flight/ground segments in absolute UTC. `journeyStateAt` is deterministic for a journey, timeline and instant:
 

@@ -8,7 +8,8 @@ TBB 2026f ZIP + overrides + airports.json → build-timezones → timezones.json
   ↓
 URL / remembered journeys / example → compareReducer → active routeReducer + journey drafts A–D
   ↓
-computeComparison → Journey + issues/provenance + UTC flight/ground timeline per journey
+airspace-advisories.json + Natural Earth → build-airspace → airspace.json → airspace router (when on)
+computeComparison (+ routed legs) → Journey + issues/provenance + UTC flight/ground timeline per journey
   → compareView → flattened globe legs + shared-axis summary bars
   ↓
 SimulationClock (one UTC instant; live / paused / playing)
@@ -89,6 +90,8 @@ Leg replacement disposes line geometries/materials, including the remaining-trai
 Geographic calculations use a sphere with mean Earth radius 6,371.0088 km. ECEF vectors use Z north; scene vectors use Y north, longitude 0° at +X and 90°E at −Z. Ground tracks use spherical interpolation, including a deterministic antipodal fallback.
 
 Arcs lie in the same great-circle plane and follow `src/lib/altitude.ts`: climb to an 11 km cruise over 20 minutes at 600 km/h average ground speed (200 km), hold it, and descend over 25 minutes at 550 km/h (about 230 km). Climb and descent ease into cruise with zero slope at the top. Legs shorter than climb + descent shrink both phases proportionally and peak lower. Horizontal distances are true; height is exaggerated 12× (cruise ≈ 0.021 globe radii) above a 0.0018 base lift. Samples are dense through climb and descent and at most 60 km apart in cruise, so the arc reveal and the plane position map distance fractions to samples with `locateFraction` rather than assuming even spacing.
+
+With **Avoid restricted airspace** on (`globehops:avoidAirspace`, default on), `computeComparison` routes each leg as of its departure (or now) through `src/lib/airspace.ts`, then recomputes the schedule with routed distances; off passes no router, so journeys are exactly the great-circle ones. A detour is a `LegRoute.path` of ≤ 1° great-circle steps: the timeline places the aircraft on it by distance fraction (`routePath.ts`), the editor's legs and totals use its length, and the renderer samples the arc at both the altitude-profile fractions and the path's vertices. A changed path changes the globe leg key, so the leg is rebuilt and revealed afresh. See [restricted airspace](../data/AIRSPACE.md) for the zones and the search.
 
 Framing computes an enclosing spherical cap over sampled ground tracks (or markers when no leg exists). The cap radius and available field of view determine camera distance, including arc/label margin. Camera travel uses unit-vector slerp and a temporary distance lift for large rotations. If the overview limit cannot expose the full route, the HUD offers flight-by-flight inspection with a “Spans the globe” hint.
 

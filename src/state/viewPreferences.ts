@@ -2,6 +2,7 @@ import { decodeItineraryParam } from '../agent/itinerary.ts';
 import type { LinkDefaultKey, LinkView } from './link.ts';
 import type { DistanceUnit } from '../types.ts';
 import {
+  loadAvoidAirspace,
   loadBorders,
   loadClockZone,
   loadCountryNames,
@@ -42,6 +43,7 @@ export interface ViewPreferences {
   clockZone: string;
   myLocation: boolean;
   reduceMotionPref: boolean | null;
+  avoidAirspace: boolean;
 }
 
 export function loadViewPreferences(defaultUnit: DistanceUnit): ViewPreferences {
@@ -56,6 +58,7 @@ export function loadViewPreferences(defaultUnit: DistanceUnit): ViewPreferences 
     clockZone: loadClockZone() ?? 'local',
     myLocation: loadMyLocation() ?? false,
     reduceMotionPref: loadReduceMotion(),
+    avoidAirspace: loadAvoidAirspace() ?? true,
   };
 }
 

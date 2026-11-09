@@ -19,6 +19,7 @@ See [AGENTS.md](AGENTS.md).
 - Airport zones come from build-time TBB lookup; offsets and DST come from runtime `Intl`, whose rules can differ and change. Keep links backwards compatible.
 - Run `npm run labels:build` (country/marine sources), `npm run places:build` (city exonyms), `npm run timezones:build`, `npm run agent:build` and `npm run mcp` as needed. Never hand-edit generated labels, `city-names.json`, `timezones.json` or `public/agent/*.json`; document place overrides in `data/PLACE_NAMES.md`.
 - City exonyms load lazily for hu/sv; locale-aware search reuses the English index until ready. Keep the compatible `globehops:countryNames` key for “Country names” (`globehops:waterNames` inherits it).
+- Airspace avoidance (`globehops:avoidAirspace`, default on) must leave great-circle routing and every number exactly unchanged when off. Zones come only from `data/airspace-advisories.json` (sources, dates, operator groups, level limits; see `data/AIRSPACE.md`) built with `npm run airspace:build` from existing Natural Earth polygons; never hand-edit `airspace.json` or invent coordinates. Agent/MCP results stay great-circle.
 - Keep the ODbL time-zone database and its notices separate from public-domain airports; commit generated time zones with their build record.
 - `docs/AGENT_INTEGRATION.md` is for external agents using GlobeHops, not contributors; follow `AGENTS.md` for codebase work.
 

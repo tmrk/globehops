@@ -34,6 +34,29 @@ export interface LatLng {
 
 export type DistanceUnit = 'km' | 'mi';
 
+/**
+ * How a flight relates to restricted airspace: `clear` (the great circle crosses none), `detour`
+ * (routed around every applicable zone), `partial` (it starts or ends inside a zone, which it must
+ * cross; any others are avoided) or `unavoided` (no valid detour, so the great circle is kept).
+ */
+export type AirspaceStatus = 'clear' | 'detour' | 'partial' | 'unavoided';
+
+export interface LegRoute {
+  status: AirspaceStatus;
+  /** Waypoints from origin to destination at most ~1° apart; null follows the great circle. */
+  path: LatLng[] | null;
+  /** Length of the flown route: the path, or the great circle when there is none. */
+  distanceKm: number;
+  greatCircleKm: number;
+  /** Zone ids the great circle would cross and the route goes around. */
+  avoided: string[];
+  /** Applicable zone ids the shown route still crosses: avoidance is not guaranteed. */
+  crossed: string[];
+  /** Display places (ISO country codes or marine slugs) of `avoided` and `crossed`, deduplicated. */
+  avoidedPlaces: string[];
+  crossedPlaces: string[];
+}
+
 export interface LocalTimeInput {
   /** Local wall time (YYYY-MM-DDTHH:MM), or a date awaiting a time. */
   local: string;
@@ -68,6 +91,8 @@ export interface Leg {
   distanceKm: number;
   /** Estimated flight time in minutes, null for a zero-length leg. */
   durationMin: number | null;
+  /** Airspace-aware route, present only while avoidance is on. */
+  route?: LegRoute;
 }
 
 /** Time on the ground at a transfer stop, between two consecutive legs. */

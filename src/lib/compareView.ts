@@ -2,6 +2,7 @@ import type { GlobeRoute } from '../globe/GlobeRenderer.ts';
 import type { Airport } from '../types.ts';
 import { displayCode } from '../data/airports.ts';
 import { legColor } from './legColors.ts';
+import { pathSignature } from './routePath.ts';
 import { comparisonRange, type ComparedJourney } from './compare.ts';
 
 /** Shared offsets keep globe selection, fleet aircraft and the editor on the same leg. */
@@ -55,10 +56,13 @@ export function comparisonGlobeRoute(
         const base = `${leg.from.id}>${leg.to.id}`;
         const occurrence = (counts.get(base) ?? 0) + 1;
         counts.set(base, occurrence);
+        const path = leg.route?.path ?? null;
         return {
-          key: `${comparing ? `${id}:` : ''}${base}#${occurrence}`,
+          // A changed route is a new leg, so it is drawn (and revealed) afresh.
+          key: `${comparing ? `${id}:` : ''}${base}#${occurrence}${path ? `~${pathSignature(path)}` : ''}`,
           from: leg.from,
           to: leg.to,
+          path,
           color: comparing ? color : legColor(i),
           lift: comparing ? 1 + 0.22 * index : 1,
           muted: comparing && !open && index !== active,

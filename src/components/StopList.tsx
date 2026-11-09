@@ -13,7 +13,18 @@ import { formatLegTimes } from '../lib/journeyText.ts';
 import { LegSchedule } from './LegSchedule.tsx';
 import type { LocalTimeInput } from '../types.ts';
 import { CodeBadge } from './CodeBadge.tsx';
-import { IconChevronDown, IconClock, IconClose, IconGrip, IconPlane, IconPlus, IconSwap } from './Icons.tsx';
+import {
+  IconAlert,
+  IconChevronDown,
+  IconClock,
+  IconClose,
+  IconDetour,
+  IconGrip,
+  IconPlane,
+  IconPlus,
+  IconSwap,
+} from './Icons.tsx';
+import { airspaceWarning } from './airspaceText.ts';
 
 export interface StopListProps {
   journeyColor?: string;
@@ -169,6 +180,25 @@ export function StopList(props: StopListProps) {
                     : t('stops.sameAirport')
               }`
             : '';
+          // A quiet mark beside the distance; the flight's details explain it.
+          const airspaceMark =
+            leg?.route && leg.route.status !== 'clear'
+              ? airspaceWarning(leg.route)
+                ? { icon: <IconAlert size={13} />, label: t('airspace.notAvoidedShort'), warn: true }
+                : leg.route.path
+                  ? { icon: <IconDetour size={13} />, label: t('airspace.detourShort'), warn: false }
+                  : null
+              : null;
+          const factsContent = (
+            <>
+              {airspaceMark && (
+                <span className={`leg__airspace${airspaceMark.warn ? ' is-warning' : ''}`} title={airspaceMark.label}>
+                  {airspaceMark.icon}
+                </span>
+              )}
+              {facts}
+            </>
+          );
 
           return (
             <li
@@ -312,7 +342,7 @@ export function StopList(props: StopListProps) {
                           <span className="row__icon leg__icon">
                             <IconPlane size={15} />
                           </span>
-                          <span className="leg__facts">{facts}</span>
+                          <span className="leg__facts">{factsContent}</span>
                         </span>
                         {count < MAX_STOPS && (
                           <span className="row__tools">
@@ -340,7 +370,7 @@ export function StopList(props: StopListProps) {
                           leg.index + 1,
                           airportCode(leg.from),
                           airportCode(leg.to),
-                          fmt.distance(leg.distanceKm, unit),
+                          `${fmt.distance(leg.distanceKm, unit)}${airspaceMark ? `, ${airspaceMark.label}` : ''}`,
                           legTimes
                             ? t('stops.localTimes', legTimes.dep, legTimes.arr)
                             : leg.durationMin !== null
@@ -353,7 +383,7 @@ export function StopList(props: StopListProps) {
                         <span className="row__icon leg__icon">
                           <IconPlane size={15} />
                         </span>
-                        <span className="leg__facts">{facts}</span>
+                        <span className="leg__facts">{factsContent}</span>
                         {leg.durationMin !== null && (
                           <span className={`leg__when${legTimes ? ' has-times' : ''}`}>
                             {legTimes ? (
@@ -394,6 +424,7 @@ export function StopList(props: StopListProps) {
                   <LegSchedule
                     journey={props.journey}
                     leg={journeyLeg}
+                    unit={unit}
                     onChange={props.onTimeChange}
                     onClose={() => {
                       const index = leg.index;

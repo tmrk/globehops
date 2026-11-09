@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Airport } from '../types.ts';
 import { computeJourney } from './schedule.ts';
 import { buildTimeline, journeyStateAt } from './timeline.ts';
+import { pathLengthKm, pointAlongPath } from './routePath.ts';
 const airports: Airport[] = [
   ['CPH', 55.618, 12.656],
   ['LHR', 51.4706, -0.4619],
@@ -98,5 +99,36 @@ describe('journey timeline', () => {
     const ztl = buildTimeline(zero)!;
     expect(ztl.segments).toHaveLength(1);
     expect(journeyStateAt(zero, ztl, ztl.start)).toMatchObject({ phase: 'flight', leg: 1 });
+  });
+});
+
+describe('journey timeline along a detour', () => {
+  it('places the aircraft on the routed path by distance flown', () => {
+    const [from, to] = airports;
+    const path = [
+      { lat: from.lat, lng: from.lng },
+      { lat: 62, lng: 6 },
+      { lat: to.lat, lng: to.lng },
+    ];
+    const distanceKm = pathLengthKm(path);
+    const route = {
+      status: 'detour' as const,
+      path,
+      distanceKm,
+      greatCircleKm: distanceKm / 2,
+      avoided: [],
+      crossed: [],
+      avoidedPlaces: [],
+      crossedPlaces: [],
+    };
+    const j = computeJourney({ id: 'A', stops: stops.slice(0, 2) }, { routes: [route] });
+    const tl = buildTimeline(j)!;
+    expect(j.legs[0].route).toBe(route);
+    expect(j.legs[0].distanceKm).toBe(distanceKm);
+    const state = journeyStateAt(j, tl, (tl.start + tl.end) / 2);
+    if (state.phase !== 'flight') throw new Error('expected a flight');
+    const expected = pointAlongPath(path, state.distanceFraction);
+    expect(state.position.lat).toBeCloseTo(expected.lat, 9);
+    expect(state.position.lng).toBeCloseTo(expected.lng, 9);
   });
 });

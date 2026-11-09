@@ -61,6 +61,8 @@ export const { load: loadReduceMotion, save: saveReduceMotion } = booleanSetting
 /** Only permission is stored; coordinates stay in memory. */
 export const { load: loadMyLocation, save: saveMyLocation } = booleanSetting('globehops:myLocation');
 export const { load: loadDayNight, save: saveDayNight } = booleanSetting('globehops:daynight');
+/** Route flights around restricted airspace; unset means on. */
+export const { load: loadAvoidAirspace, save: saveAvoidAirspace } = booleanSetting('globehops:avoidAirspace');
 
 const JOURNEY_KEY = 'globehops:lastJourney';
 const CLOCK_ZONE_KEY = 'globehops:clockZone';

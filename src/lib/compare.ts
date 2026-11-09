@@ -1,4 +1,5 @@
-import { computeJourney, type Journey, type JourneyInput } from './schedule.ts';
+import type { Airport, LegRoute } from '../types.ts';
+import { computeJourney, type Journey, type JourneyInput, type ScheduleOptions } from './schedule.ts';
 import { buildTimeline, type Timeline } from './timeline.ts';
 
 export const JOURNEY_IDS = ['A', 'B', 'C', 'D'] as const;
@@ -21,21 +22,38 @@ export interface ComparedJourney {
   timeline: Timeline | null;
   anchor: 'entered' | 'assumed' | 'none';
 }
+/** Routes a leg around restricted airspace as of the flight's departure (UTC ms). */
+export type LegRouter = (from: Airport, to: Airport, departureMs: number) => LegRoute;
+
+/**
+ * Two passes when routing: departure dates from the great-circle schedule pick the advisories
+ * that apply, then the schedule is recomputed with the routes' distances.
+ */
+function routedJourney(input: JourneyInput, opts: ScheduleOptions, route: LegRouter | undefined): Journey {
+  const journey = computeJourney(input, opts);
+  if (!route) return journey;
+  const now = opts.now ?? Date.now();
+  const routes = journey.legs.map((leg) => route(leg.from, leg.to, leg.departure?.epochMs ?? now));
+  if (routes.every((r) => r.path === null))
+    return { ...journey, legs: journey.legs.map((leg, i) => ({ ...leg, route: routes[i] })) };
+  return computeJourney(input, { ...opts, routes });
+}
+
 /** Preserve entered schedules; align only journeys without any entered time. */
 export function computeComparison(
   inputs: ComparisonInput[],
-  opts: { assumedStart: number | null; now?: number },
+  opts: { assumedStart: number | null; now?: number; route?: LegRouter },
 ): ComparedJourney[] {
   const initial = inputs
     .slice(0, MAX_JOURNEYS)
-    .map(({ input }, index) => computeJourney({ ...input, id: JOURNEY_IDS[index] }, { now: opts.now }));
+    .map(({ input }, index) => routedJourney({ ...input, id: JOURNEY_IDS[index] }, { now: opts.now }, opts.route));
   const starts = initial.flatMap((journey) => (journey.dated && journey.start ? [journey.start.epochMs] : []));
   const assumedStart = starts.length ? Math.min(...starts) : opts.assumedStart;
   return initial.map((original, index) => {
     const entered = inputs[index].input.stops.some((stop) => stop.arrival !== null || stop.departure !== null);
     const journey = entered
       ? original
-      : computeJourney({ ...inputs[index].input, id: JOURNEY_IDS[index] }, { assumedStart, now: opts.now });
+      : routedJourney({ ...inputs[index].input, id: JOURNEY_IDS[index] }, { assumedStart, now: opts.now }, opts.route);
     return {
       id: JOURNEY_IDS[index],
       index,

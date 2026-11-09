@@ -34,6 +34,7 @@ import { usePanelInsets } from './hooks/usePanelInsets.ts';
 import { usePickerHistory } from './hooks/usePickerHistory.ts';
 import { useToast } from './hooks/useToast.ts';
 import { useViewPreferences } from './hooks/useViewPreferences.ts';
+import { useAirspaceRouter } from './hooks/useAirspaceRouter.ts';
 import { useVisualViewportVars } from './hooks/useVisualViewport.ts';
 import type { GlobeRoute } from './globe/GlobeRenderer.ts';
 import { useI18n } from './i18n/I18nProvider.tsx';
@@ -126,7 +127,8 @@ export default function App() {
     panelRef,
   });
 
-  const model = useJourneyModel(comparison, { dataset, zones, lookup }, timeOpen, assumedStart);
+  const airspace = useAirspaceRouter(preferences.avoidAirspace);
+  const model = useJourneyModel(comparison, { dataset, zones, lookup }, timeOpen, assumedStart, airspace.router);
   const {
     legs,
     layovers,
@@ -469,6 +471,11 @@ export default function App() {
         legs={legs}
         layovers={layovers}
         unit={unit}
+        airspace={
+          preferences.avoidAirspace
+            ? { reviewed: airspace.router?.dataset.reviewed ?? null, failed: airspace.failed }
+            : null
+        }
         action={
           timeOpen ? null : (
             <button type="button" className="play-btn" aria-label={t('panel.play')} onClick={togglePlayback}>
@@ -614,6 +621,8 @@ export default function App() {
           showCountryNames={showCountryNames}
           dayNight={dayNight}
           unit={unit}
+          avoidAirspace={preferences.avoidAirspace}
+          onToggleAvoidAirspace={preferences.toggleAvoidAirspace}
           frameLabel={
             legs.length
               ? route.selectedLeg !== null

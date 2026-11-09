@@ -76,6 +76,9 @@
 | `mcp/document-corpus.ts`                                                          | Shared document cases for schema/runtime/MCP parity tests.                                                          |
 | `mcp/*.test.ts`                                                                   | Tool validation and real stdio handshake/integration tests.                                                         |
 | `src/lib/geo.ts`                                                                  | Spherical geometry, great circles and enclosing caps.                                                               |
+| `src/lib/airspace.ts`, `src/lib/routePath.ts`                                     | Advisory applicability and grid A* detours around restricted airspace; polylines walked by distance fraction.       |
+| `src/data/airspace.ts`, `src/hooks/useAirspaceRouter.ts`                          | Airspace dataset decoding and exact zone test; one lazily loaded router per page while avoidance is on.             |
+| `scripts/build-airspace.ts`, `scripts/lib/airspace.ts`                            | Advisory list validation and zone polygons from the pinned Natural Earth label sources (`airspace:build`).          |
 | `src/lib/flightTime.ts`                                                           | Configurable estimates, duration formatting and totals.                                                             |
 | `src/lib/altitude.ts`                                                             | Climb/cruise/descent profile, arc sampling and vertical exaggeration.                                               |
 | `src/lib/layover.ts`                                                              | Default layover, menu choices, validation and formatting.                                                           |
