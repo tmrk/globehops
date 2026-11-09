@@ -38,12 +38,33 @@ export type DistanceUnit = 'km' | 'mi';
  * How a flight relates to restricted airspace: `clear` (the great circle crosses none), `detour`
  * (routed around every applicable zone), `partial` (it starts or ends inside a zone, which it must
  * cross; any others are avoided) or `unavoided` (no valid detour, so the great circle is kept).
+ * Paths may also come from diversion coverage.
  */
 export type AirspaceStatus = 'clear' | 'detour' | 'partial' | 'unavoided';
 
+export type DiversionStatus = 'covered' | 'adjusted' | 'gap';
+export interface DiversionCoverage {
+  /** Profile id, e.g. 'twin-180'. */
+  profile: string;
+  /** Profile limit in minutes at the assumed one-engine-inoperative speed. */
+  limitMin: number;
+  /** covered: the route without this constraint already stays within the limit; adjusted: re-routed to stay within it;
+   * gap: no plausible route stays within it, so the unconstrained route is shown. */
+  status: DiversionStatus;
+  /** Longest modelled diversion time along the shown route (minutes, rounded up). */
+  maxMin: number;
+  /** Distance of the shown route farther than the limit from any potential diversion airport (km, 0 unless gap). */
+  outsideKm: number;
+  /** Extra distance flown to stay within the limit compared with the route without this constraint (km, 0 unless adjusted). */
+  extraKm: number;
+  /** Distance of the shown route beyond the 60-minute threshold (km, informational). */
+  beyondThresholdKm: number;
+}
+
+/** A great circle or a path shaped by restricted airspace and/or diversion coverage. */
 export interface LegRoute {
   status: AirspaceStatus;
-  /** Waypoints from origin to destination at most ~1° apart; null follows the great circle. */
+  /** Waypoints shaped by airspace and/or diversion coverage, at most ~1° apart; null follows the great circle. */
   path: LatLng[] | null;
   /** Length of the flown route: the path, or the great circle when there is none. */
   distanceKm: number;
@@ -55,6 +76,8 @@ export interface LegRoute {
   /** Display places (ISO country codes or marine slugs) of `avoided` and `crossed`, deduplicated. */
   avoidedPlaces: string[];
   crossedPlaces: string[];
+  /** Present only when the diversion model ran. */
+  diversion?: DiversionCoverage;
 }
 
 export interface LocalTimeInput {

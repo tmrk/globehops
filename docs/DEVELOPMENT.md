@@ -4,27 +4,29 @@
 
 Use Node 22.18+ (CI: Node 24). Run `npm install`, then `npm run dev` and open the printed URL under `/globehops/`. `npm run build` produces `dist/`; `npm run preview -- --port 4173 --strictPort` serves it at `http://localhost:4173/globehops/`. The stack is React 19, TypeScript, Three.js and Vite, with Vitest, Playwright, ESLint, Prettier and sharp for development.
 
-| Command                   | Purpose                                                                                 |
-| ------------------------- | --------------------------------------------------------------------------------------- |
-| `npm install`             | Install dependencies; use `npm ci` for the lockfile in CI.                              |
-| `npm run dev`             | Start the Vite development server.                                                      |
-| `npm run build`           | Type-check and build `dist/`.                                                           |
-| `npm run preview`         | Serve the production build.                                                             |
-| `npm test`                | Run unit tests.                                                                         |
-| `npm run test:e2e`        | Build and test the Pages path in all four browser projects.                             |
-| `npm run lint`            | ESLint and TypeScript checks.                                                           |
-| `npm run format`          | Apply Prettier formatting.                                                              |
-| `npm run data:update`     | Download, validate and regenerate airport data if content changes.                      |
-| `npm run data:check`      | Validate a fresh download without writing files; report whether it would change.        |
-| `npm run labels:build`    | Build EN/HU/SV country/ocean/sea labels from pinned Natural Earth sources.              |
-| `npm run places:build`    | Build optional Hungarian/Swedish airport-city exonyms from pinned Natural Earth places. |
-| `npm run borders:build`   | Build country borders and coastlines from the pinned Natural Earth GeoJSON.             |
-| `npm run airspace:build`  | Build restricted-airspace zones from `data/airspace-advisories.json` and Natural Earth. |
-| `npm run timezones:build` | Build the separate airport-to-zone table from pinned TBB boundaries.                    |
-| `npm run agent:build`     | Regenerate static agent capabilities, schema and worked examples.                       |
-| `npm run mcp`             | Run the local MCP stdio server (not an HTTP listener).                                  |
-| `npm run textures:build`  | Build day and night-light WebP textures from downloaded NASA source images.             |
-| `npm run icons:build`     | Render stylised app icons, iOS splash screens and manifest screenshots.                 |
+| Command                         | Purpose                                                                                        |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm install`                   | Install dependencies; use `npm ci` for the lockfile in CI.                                     |
+| `npm run dev`                   | Start the Vite development server.                                                             |
+| `npm run build`                 | Type-check and build `dist/`.                                                                  |
+| `npm run preview`               | Serve the production build.                                                                    |
+| `npm test`                      | Run unit tests.                                                                                |
+| `npm run test:e2e`              | Build and test the Pages path in all four browser projects.                                    |
+| `npm run lint`                  | ESLint and TypeScript checks.                                                                  |
+| `npm run format`                | Apply Prettier formatting.                                                                     |
+| `npm run data:update`           | Download, validate and regenerate airport data if content changes.                             |
+| `npm run data:check`            | Validate a fresh download without writing files; report whether it would change.               |
+| `npm run labels:build`          | Build EN/HU/SV country/ocean/sea labels from pinned Natural Earth sources.                     |
+| `npm run places:build`          | Build optional Hungarian/Swedish airport-city exonyms from pinned Natural Earth places.        |
+| `npm run borders:build`         | Build country borders and coastlines from the pinned Natural Earth GeoJSON.                    |
+| `npm run airspace:build`        | Build restricted-airspace zones from `data/airspace-advisories.json` and Natural Earth.        |
+| `npm run diversion:build`       | Build potential diversion airports from OurAirports runway evidence (`--offline`/`--refresh`). |
+| `node scripts/bench-routing.ts` | Measure spherical-cap grid builds and real regression routes.                                  |
+| `npm run timezones:build`       | Build the separate airport-to-zone table from pinned TBB boundaries.                           |
+| `npm run agent:build`           | Regenerate static agent capabilities, schema and worked examples.                              |
+| `npm run mcp`                   | Run the local MCP stdio server (not an HTTP listener).                                         |
+| `npm run textures:build`        | Build day and night-light WebP textures from downloaded NASA source images.                    |
+| `npm run icons:build`           | Render stylised app icons, iOS splash screens and manifest screenshots.                        |
 
 Useful focused commands:
 
@@ -143,6 +145,8 @@ Agent files: `npm run agent:build` writes `public/agent/capabilities.json`, `iti
 Country borders and coastlines: `npm run borders:build` reads `.cache/naturalearth/ne_50m_admin_0_boundary_lines_land.geojson` and `.cache/naturalearth/ne_50m_coastline.geojson`, downloading the pinned Natural Earth v5.1.2 files first if the cache is missing. `-- --refresh` always downloads, `-- --offline` requires the cache, and a positional path replaces the border source only. The build simplifies coastlines to 0.02°, quantises coordinates to 0.01°, delta-encodes each line, validates ranges and minimum line/point counts for both layers, then atomically writes `src/data/generated/borders.json` and `coastlines.json`. Never hand-edit either. To move to a newer Natural Earth release, change the pinned URL in `scripts/lib/borders.ts`, rebuild and review the line/point counts it prints.
 
 Restricted airspace: `npm run airspace:build` validates `data/airspace-advisories.json` and builds zone outlines from the same cached Natural Earth country and marine files as the label build (`-- --offline` requires them; `-- --refresh` downloads the pinned files again), then atomically writes `src/data/generated/airspace.json`. `scripts/airspace.test.ts` fails if the generated metadata drifts from the list. Review procedure and zone table: [data/AIRSPACE.md](../data/AIRSPACE.md). Focused tests: `npm test -- scripts/airspace.test.ts src/lib/airspace.test.ts`; E2E: `e2e/airspace.spec.ts`.
+
+Diversion coverage: `npm run diversion:build` reads `.cache/ourairports/{airports,runways}.csv` (download if absent; `-- --offline` requires them, `-- --refresh` replaces both). The pure builder validates runway evidence, logs every surface mapping and atomically writes the independent compact dataset and `data/diversion-build.json`. `data:update` also caches/validates runways; they do not enter the airport-search hash. Never hand-edit the generated outputs. Focused tests: `npm test -- scripts/diversion.test.ts scripts/lib/diversion.test.ts src/data/diversion.test.ts src/lib/diversion.test.ts src/lib/router.test.ts src/hooks/useRouting.test.ts`. Run `node scripts/bench-routing.ts` for grid and cold-leg timings. Profiles, calibrated allowance and limitations: [data/DIVERSION.md](../data/DIVERSION.md). This core does not wire a UI toggle or agent parameters into App.
 
 Place labels: `npm run labels:build` reads `.cache/naturalearth/ne_50m_admin_0_countries.geojson` and `ne_50m_geography_marine_polys.geojson`, downloading pinned Natural Earth v5.1.2 sources if absent. `-- --offline` requires caches, `-- --refresh` downloads again, and optional positional paths replace country then marine inputs. Extraction applies `data/place-names.json` overrides, computes polygon-interior marine points, validates the complete EN/HU/SV table and atomically writes `src/data/generated/country-labels.json`. Never hand-edit it. Focused tests: `npm test -- scripts/countryLabels.test.ts src/lib/countryLabels.test.ts`.
 
