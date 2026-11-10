@@ -83,13 +83,12 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing, on
     if (!tracked.length) return null;
     const first = tracked[0].track!;
     const kind = first.kind === 'recorded' ? t('track.recordedShort') : t('track.plannedShort');
-    const points = fmt.number(tracked.reduce((sum, leg) => sum + leg.track!.points, 0));
     const text =
       tracked.length > 1 && tracked.some((leg) => leg.track!.kind !== first.kind)
         ? t('track.noteMany', fmt.number(tracked.length))
         : first.source.name && tracked.every((leg) => leg.track!.source.name === first.source.name)
-          ? t('track.noteSource', kind, first.source.name, points)
-          : t('track.note', kind, points);
+          ? t('track.noteSource', kind, first.source.name)
+          : kind;
     const extraKm = tracked.reduce((sum, leg) => sum + leg.distanceKm - greatCircleDistanceKm(leg.from, leg.to), 0);
     return { text, longer: extraKm >= 1 ? t('track.longer', fmt.distance(extraKm, unit)) : null };
   })();

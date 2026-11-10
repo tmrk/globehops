@@ -24,7 +24,16 @@ import { legColor } from '../lib/legColors.ts';
 import { PLAYBACK_SPEEDS, type PlaybackSpeed, type SimulationClock } from '../state/clock.ts';
 import { DateTimeField } from './DateTimeField.tsx';
 import { LiveButton } from './LiveButton.tsx';
-import { IconChevronDown, IconBack, IconChevronRight, IconClose, IconFollow, IconPause, IconPlay } from './Icons.tsx';
+import {
+  IconChevronDown,
+  IconChevronUp,
+  IconBack,
+  IconChevronRight,
+  IconClose,
+  IconFollow,
+  IconPause,
+  IconPlay,
+} from './Icons.tsx';
 interface Props {
   comparison?: ComparedJourney[];
   /** A trip's single traveller: every journey, their names and the journey playback is limited to (or null). */
@@ -54,6 +63,14 @@ interface Props {
   docked?: boolean;
   followAircraft: boolean;
   onFollowAircraft?: (enabled: boolean) => void;
+  /**
+   * Cinematic playback: only play/pause, what is happening and a progress line, so the globe gets the
+   * screen. Pausing, or Show controls, brings the full timeline back.
+   */
+  compact?: boolean;
+  onShowControls?: () => void;
+  /** While playing with the full timeline: back to the cinematic view. */
+  onHideControls?: () => void;
 }
 export function TimeBar({
   clock,
@@ -74,6 +91,9 @@ export function TimeBar({
   docked = false,
   followAircraft,
   onFollowAircraft,
+  compact = false,
+  onShowControls,
+  onHideControls,
 }: Props) {
   const { t, fmt } = useI18n();
 
@@ -168,14 +188,14 @@ export function TimeBar({
                 : [],
             )
             .join(' · ')
-        : t('compare.sharedClock');
+        : '';
   }
   if (trips) {
     const fastest = trips.metrics.fastest;
     text.title = fastest
       ? t('compare.fastestTitle', trips.list.find((entry) => entry.id === fastest)?.label ?? fastest)
       : t('trips.comparing', fmt.number(trips.list.length));
-    text.detail = t('trips.sharedClock');
+    text.detail = '';
   }
   const errorJourney = allJourneys.findIndex((entry) => entry.issues.some((issue) => issue.severity === 'error'));
   const journeyError = allJourneys[errorJourney]?.issues.find((i) => i.severity === 'error');
@@ -309,6 +329,89 @@ export function TimeBar({
           color: segment.kind === 'flight' ? legColor(segment.leg ?? 0) : undefined,
         }))
       : undefined;
+  const playLabel = snapshot.playing
+    ? t('timebar.pausePlayback')
+    : comparison || trips
+      ? t('compare.playAll')
+      : trip
+        ? trip.scope === null
+          ? t('trip.play')
+          : t('trip.playSection', trip.names[trip.scope])
+        : t('timebar.playJourney');
+  if (compact)
+    return (
+      <section
+        className={`time-bar time-bar--compact${docked ? ' time-bar--docked' : ''}`}
+        aria-label={t('timebar.timeline')}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <div className="time-bar__head">
+          <button type="button" className="time-bar__play" aria-label={playLabel} onClick={onToggle}>
+            {snapshot.playing ? <IconPause /> : <IconPlay />}
+          </button>
+          {/* A pointer can reach the controls from anywhere on the bar; the button beside it is the control. */}
+          <div className="time-bar__status" onClick={onShowControls}>
+            <div className="time-bar__title">{text.title}</div>
+            <div className="time-bar__detail">
+              <span className="time-bar__readout time-bar__clock-inline">{readout}</span>
+              {text.detail && ` · ${text.detail}`}
+            </div>
+          </div>
+          {snapshot.live && <LiveButton live onChange={onLive} />}
+          {onFollowAircraft && sharedRange && (
+            <button
+              type="button"
+              className="time-bar__follow"
+              aria-label={t('timebar.followAircraft')}
+              title={t('timebar.followAircraft')}
+              aria-pressed={followAircraft}
+              onClick={() => onFollowAircraft(!followAircraft)}
+            >
+              <IconFollow size={18} />
+            </button>
+          )}
+          {onShowControls && (
+            <button
+              type="button"
+              className="icon-btn icon-btn--quiet"
+              aria-label={t('timebar.showControls')}
+              title={t('timebar.showControls')}
+              onClick={onShowControls}
+            >
+              <IconChevronUp size={20} />
+            </button>
+          )}
+        </div>
+        <div className="time-bar__progress" aria-hidden="true">
+          {[false, true].map((elapsed) => (
+            <span
+              key={String(elapsed)}
+              className={`time-bar__progress-layer${elapsed ? ' is-elapsed' : ''}`}
+              style={elapsed ? { clipPath: `inset(0 ${Math.max(0, 100 - thumbAt)}% 0 0)` } : undefined}
+            >
+              {trackSegments ? (
+                trackSegments.map((segment, index) => (
+                  <span
+                    key={index}
+                    className={`time-bar__segment time-bar__segment--${segment.kind}`}
+                    style={{
+                      left: `${at(segment.start)}%`,
+                      width: `${at(segment.end) - at(segment.start)}%`,
+                      backgroundColor: segment.color,
+                    }}
+                  />
+                ))
+              ) : (
+                <span
+                  className="time-bar__segment"
+                  style={{ left: 0, width: '100%', backgroundColor: 'var(--accent)' }}
+                />
+              )}
+            </span>
+          ))}
+        </div>
+      </section>
+    );
   return (
     <section
       className={`time-bar${docked ? ' time-bar--docked' : ''}`}
@@ -331,17 +434,7 @@ export function TimeBar({
         <button
           type="button"
           className="time-bar__play"
-          aria-label={
-            snapshot.playing
-              ? t('timebar.pausePlayback')
-              : comparison || trips
-                ? t('compare.playAll')
-                : trip
-                  ? trip.scope === null
-                    ? t('trip.play')
-                    : t('trip.playSection', trip.names[trip.scope])
-                  : t('timebar.playJourney')
-          }
+          aria-label={playLabel}
           disabled={!sharedRange || !!error}
           onClick={onToggle}
         >
@@ -371,6 +464,17 @@ export function TimeBar({
           </div>
         </div>
         {allJourneys.some((entry) => entry.dated) && <LiveButton live={snapshot.live} onChange={onLive} />}
+        {onHideControls && (snapshot.playing || snapshot.live) && (
+          <button
+            type="button"
+            className="icon-btn icon-btn--quiet"
+            aria-label={t('timebar.hideControls')}
+            title={t('timebar.hideControls')}
+            onClick={onHideControls}
+          >
+            <IconChevronDown size={20} />
+          </button>
+        )}
         <button
           type="button"
           className="icon-btn icon-btn--quiet"

@@ -30,6 +30,6 @@ See [AGENTS.md](AGENTS.md).
 - Compare invariants: journey ids A–D are positional; alternatives use `b.*`/`c.*`/`d.*` link parameters while single-journey links stay unchanged; one UTC clock drives the fleet, with the active journey primary for camera follow.
 
 - Custom paths (`lib/track.ts`): never move, smooth or reorder imported geometry; recorded times/altitudes win over estimates (entered stop times still win); tracked legs are never routed; `trkN` links simplify only to fit; parsing stays DOM-free, local and never uploads. `npm run navaids:build` regenerates radio navaids (never hand-edit).
-- Playback's one home is `PlayLauncher` → `TimeBar` in the same place. Phones: sheet detents peek/half/full, one scroll container, editing grows to full. Landscape phones: side panel with the player docked at its top.
+- Playback's one home is `PlayLauncher` → `TimeBar` in the same place; playing is cinematic (mini player, chrome inert) until Show controls/Escape/pause. Phones: sheet detents peek/half/full, one scroll container, editing grows to full. Landscape phones: side panel with the player docked at its top.
 - Production PWA precaches same-origin build/public runtime files; new external runtime requests break offline. Service workers are blocked by default in E2E; the PWA spec opts in.
 - UI gestures must not zoom the page; globe wheel/trackpad/pinch/button zoom must still work. Never stop propagation in native-feel listeners; retain safe-area padding and iOS input sizing.

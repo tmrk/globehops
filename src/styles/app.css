@@ -2252,8 +2252,7 @@ button.map-menu__item:hover {
 }
 
 /* The play triangle's visual centre sits right of its box's centre. */
-.time-bar__play svg,
-.launcher__disc svg {
+.time-bar__play svg {
   translate: 1.5px 0;
 }
 
@@ -2494,19 +2493,21 @@ button.map-menu__item:hover {
 /* ------------------------------------------------------------------------------------------ */
 /* Launcher: the journey's player before it starts                                            */
 
-/* Where the open timeline will be, the same width, with its play disc in the same place. */
+/* Where the open timeline will be, the same width: Play beside the route, over its miniature timeline. */
 .launcher {
   position: relative;
-  display: flex;
-  align-items: center;
+  display: grid;
+  gap: 12px;
   width: min(560px, 100%);
   margin-inline: auto;
+  padding: 14px 16px 14px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-float);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
+  cursor: pointer;
   animation: launcher-in 0.36s var(--ease);
 }
 
@@ -2517,56 +2518,67 @@ button.map-menu__item:hover {
   }
 }
 
-/* The whole card plays: a large target with one clear meaning. */
-.launcher__main {
+.launcher__row {
   display: flex;
   align-items: center;
   gap: 14px;
-  flex: 1;
   min-width: 0;
-  padding: 12px 16px 12px 14px;
-  border-radius: inherit;
-  text-align: left;
-  transition: background-color 0.15s;
 }
 
-.launcher__main:hover {
-  background: rgba(255, 255, 255, 0.025);
-}
-
-.launcher__disc {
+/* Play: an amber wayfinding sign, black on yellow like the signs that point the way through an airport. */
+.launcher__play {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
   flex: none;
-  width: var(--disc);
-  height: var(--disc);
-  border-radius: var(--radius-full);
+  height: 54px;
+  padding: 0 24px 0 12px;
+  border-radius: var(--radius-btn);
   background: var(--accent);
   color: var(--accent-ink);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: 0.01em;
   box-shadow:
-    0 0 0 5px rgba(255, 194, 75, 0.12),
-    0 6px 22px rgba(255, 194, 75, 0.3);
+    0 0 0 1px rgba(255, 210, 120, 0.5) inset,
+    0 8px 26px rgba(255, 194, 75, 0.32);
   transition:
     background-color 0.15s,
     box-shadow 0.2s,
     transform 0.18s var(--ease);
 }
 
-.launcher__main:hover .launcher__disc {
+.launcher__play:hover,
+.launcher:hover .launcher__play {
   background: #ffcd69;
   box-shadow:
-    0 0 0 7px rgba(255, 194, 75, 0.16),
-    0 8px 26px rgba(255, 194, 75, 0.38);
-  transform: scale(1.04);
+    0 0 0 1px rgba(255, 220, 140, 0.6) inset,
+    0 10px 32px rgba(255, 194, 75, 0.42);
 }
 
-.launcher__main:active .launcher__disc {
-  transform: scale(0.95);
+.launcher__play:active {
+  transform: scale(0.97);
 }
 
-/* Until a first Play: two soft rings leave the disc once the route has drawn, then never again. */
-.launcher__main.is-cued .launcher__disc::after {
+/* The play mark: an ink disc with the amber triangle cut from it, the symbol everyone knows. */
+.launcher__glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--accent-ink);
+  color: var(--accent);
+}
+
+.launcher__glyph svg {
+  translate: 1.5px 0;
+}
+
+/* Until a first Play: two soft rings leave the sign once the route has drawn, then never again. */
+.launcher__play.is-cued::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -2577,41 +2589,34 @@ button.map-menu__item:hover {
 
 @keyframes launcher-cue {
   from {
-    box-shadow: 0 0 0 0 rgba(255, 194, 75, 0.55);
+    box-shadow: 0 0 0 0 rgba(255, 194, 75, 0.6);
   }
   to {
-    box-shadow: 0 0 0 20px rgba(255, 194, 75, 0);
+    box-shadow: 0 0 0 16px rgba(255, 194, 75, 0);
   }
 }
 
-.launcher__text {
+.launcher__info {
   display: grid;
   flex: 1;
   min-width: 0;
-  gap: 2px;
+  gap: 3px;
 }
 
-.launcher__title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  font-size: var(--text-lg);
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--text);
-}
-
-.launcher__label {
-  min-width: 0;
+.launcher__route {
   overflow: hidden;
+  font: 600 var(--text-lg) / 1.2 var(--mono);
+  font-stretch: var(--mono-stretch);
+  word-spacing: var(--mono-space);
+  letter-spacing: var(--track-code);
+  color: var(--text);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 .launcher__detail {
   overflow: hidden;
-  font: 500 var(--text-xs) / 1.35 var(--mono);
+  font: 500 var(--text-sm) / 1.3 var(--mono);
   font-stretch: var(--mono-stretch);
   word-spacing: var(--mono-space);
   color: var(--text-2);
@@ -2619,11 +2624,27 @@ button.map-menu__item:hover {
   text-overflow: ellipsis;
 }
 
-/* A miniature of the timeline Play opens: flights solid in their colours, connections dotted. */
+.launcher__detail:empty {
+  display: none;
+}
+
+/* A miniature of the timeline Play opens, the aircraft waiting at its start. */
 .launcher__strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.launcher__plane {
+  flex: none;
+  rotate: 90deg;
+  color: var(--text-2);
+}
+
+.launcher__lanes {
   display: grid;
+  flex: 1;
   gap: 3px;
-  margin-top: 6px;
 }
 
 .launcher__lane {
@@ -2648,41 +2669,36 @@ button.map-menu__item:hover {
   background-image: repeating-linear-gradient(to right, var(--text-3) 0 2px, transparent 2px 5px);
 }
 
-/* Desktop: Space plays too. */
-.launcher__key {
-  flex: none;
-  padding: 3px 6px;
-  border: 1px solid var(--line-strong);
-  border-bottom-width: 2px;
-  border-radius: var(--radius-xs);
-  font: 600 var(--text-2xs) / 1 var(--font);
-  letter-spacing: 0.04em;
-  color: var(--text-3);
+/* Times that cannot play: the sign says Fix and opens the flight to fix. */
+.launcher.has-problem .launcher__play {
+  background: rgba(255, 138, 122, 0.12);
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px rgba(255, 138, 122, 0.45);
 }
 
-/* Times that cannot play: the card says which flight to fix and opens it. */
-.launcher.has-problem .launcher__disc {
-  background: rgba(255, 138, 122, 0.14);
+.launcher.has-problem .launcher__glyph {
+  background: none;
   color: var(--danger);
-  box-shadow: none;
-  transform: none;
 }
 
-.launcher.has-problem .launcher__title {
+.launcher.has-problem .launcher__route {
   color: var(--danger);
+  font-family: var(--font);
+  font-stretch: normal;
+  letter-spacing: 0;
+  word-spacing: normal;
 }
 
 .launcher__more {
   flex: none;
-  margin-right: 6px;
+  margin: -6px -8px -6px 0;
 }
 
 /* Phones: the top of the journey sheet, just beneath the globe. */
 .launcher--docked {
-  flex: none;
   width: auto;
   margin: 0;
-  padding: 0 calc(var(--pad) - 10px) 0 0;
+  padding: 2px var(--pad) 14px;
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -2692,16 +2708,7 @@ button.map-menu__item:hover {
   animation: sheet-content-in 0.26s var(--ease);
 }
 
-.launcher--docked .launcher__main {
-  padding: 2px 6px 14px var(--pad);
-  border-radius: var(--radius-sm);
-}
-
-.launcher--docked .launcher__main:hover {
-  background: none;
-}
-
-.panel.is-collapsed .launcher--docked .launcher__main {
+.panel.is-collapsed .launcher--docked {
   padding-bottom: calc(14px + var(--safe-bottom));
 }
 
@@ -4972,10 +4979,8 @@ button.map-menu__item:hover {
     --disc: 44px;
   }
   /* The player docks at the top of the panel, as on phones, leaving the globe clear. */
-  .layout-desktop .time-bar--docked {
-    padding-top: 12px;
-  }
-  .layout-desktop .launcher--docked .launcher__main {
+  .layout-desktop .time-bar--docked,
+  .layout-desktop .launcher--docked {
     padding-top: 12px;
   }
 }
@@ -5296,5 +5301,143 @@ button.map-menu__item:hover {
   .route-import__secondary,
   .route-import__primary {
     min-height: 44px;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Cinematic playback: while a journey plays, the globe gets the screen                       */
+
+.topbar,
+.map-tools,
+.app-version {
+  transition: opacity 0.4s var(--ease);
+}
+
+.is-cinematic .topbar,
+.is-cinematic .map-tools,
+.is-cinematic .app-version {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Desktop: the planner glides off to the left, and the globe re-centres in the whole window. */
+.layout-desktop .panel {
+  transition:
+    transform 0.45s var(--ease),
+    opacity 0.3s var(--ease);
+}
+
+.layout-desktop.is-cinematic .panel {
+  transform: translateX(calc(-100% - 2 * var(--edge)));
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The mini player: play/pause, what is happening, the time, and a hairline of the journey so far. */
+.time-bar--compact {
+  width: min(480px, 100%);
+  padding: 10px 12px 12px 10px;
+  cursor: pointer;
+}
+
+.time-bar--compact .time-bar__head {
+  gap: 12px;
+}
+
+.time-bar--compact .time-bar__play {
+  width: 44px;
+  height: 44px;
+}
+
+.time-bar--compact .time-bar__title {
+  font-size: var(--text-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.time-bar--compact .time-bar__detail {
+  min-height: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.time-bar__clock-inline {
+  font: 500 var(--text-xs) / 1 var(--mono);
+  font-stretch: var(--mono-stretch);
+  word-spacing: var(--mono-space);
+  color: var(--text-2);
+}
+
+.time-bar--compact .icon-btn {
+  margin-right: -6px;
+}
+
+.time-bar__progress {
+  position: relative;
+  height: 3px;
+  margin: 10px 2px 0;
+  border-radius: var(--radius-full);
+  background: var(--line);
+  overflow: hidden;
+}
+
+.time-bar__progress-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0.32;
+}
+
+.time-bar__progress-layer.is-elapsed {
+  opacity: 1;
+}
+
+/* Phones: the sheet is only the mini player, flush with the bottom edge. */
+.time-bar--compact.time-bar--docked {
+  width: auto;
+  padding: 0 var(--pad) calc(12px + var(--safe-bottom));
+}
+
+.layout-mobile.is-cinematic .sheet-handle {
+  height: 16px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Alignment: cards and rows keep room inside their outlines and highlights                   */
+
+/* The planner's entry cards reach 8px past the columns, like row highlights, so their icons sit inside
+   the outline with room to spare while staying on the route line's axis. */
+.entries {
+  margin-inline: -8px;
+}
+.entries > .ai-entry {
+  padding-left: 8px;
+}
+
+/* In the phone list, the totals extend past the columns by the same 8px, so a selected row's highlight
+   (which paints 8px beyond its columns) is not clipped at the text. */
+.panel__scroll .summary {
+  margin-inline: -8px;
+  padding-inline: 8px;
+}
+
+/* Narrow phones: a tighter sign leaves the route its room. */
+@media (max-width: 380px) {
+  .launcher__row {
+    gap: 12px;
+  }
+  .launcher__play {
+    height: 50px;
+    gap: 9px;
+    padding: 0 18px 0 9px;
+    font-size: var(--text-lg);
+  }
+  .launcher__glyph {
+    width: 30px;
+    height: 30px;
+  }
+  .launcher__route {
+    font-size: var(--text-md);
   }
 }

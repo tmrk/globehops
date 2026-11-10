@@ -19,11 +19,24 @@ interface PanelLayout {
   floating: 'dial' | 'launcher' | 'timeline' | null;
   /** Phones: a full-height sheet covers the globe, so its framing waits for the sheet to come down. */
   frozen?: boolean;
+  /** Cinematic playback: the panel and the top bar step aside, and the globe takes their room. */
+  cinematic?: boolean;
 }
 
 export function usePanelInsets(panelRef: RefObject<HTMLElement | null>, layout: PanelLayout) {
-  const { isDesktop, collapsed, editing, stops, selectedLeg, timeOpen, initialized, arranging, floating, frozen } =
-    layout;
+  const {
+    isDesktop,
+    collapsed,
+    editing,
+    stops,
+    selectedLeg,
+    timeOpen,
+    initialized,
+    arranging,
+    floating,
+    frozen,
+    cinematic = false,
+  } = layout;
   const [insets, setInsets] = useState<Insets>(NO_INSETS);
   const [sheetInset, setSheetInset] = useState(0);
   useLayoutEffect(() => {
@@ -41,8 +54,8 @@ export function usePanelInsets(panelRef: RefObject<HTMLElement | null>, layout: 
           : null;
       const below = bar ? Math.round(window.innerHeight - bar.getBoundingClientRect().top) + 8 : 0;
       const next: Insets = isDesktop
-        ? { top: floating === 'dial' ? 56 : 0, right: 0, bottom: below, left: Math.round(r.right) }
-        : { top: 56, right: 0, bottom: sheet + 8, left: 0 };
+        ? { top: floating === 'dial' ? 56 : 0, right: 0, bottom: below, left: cinematic ? 0 : Math.round(r.right) }
+        : { top: cinematic ? 8 : 56, right: 0, bottom: sheet + 8, left: 0 };
       setInsets((prev) =>
         Math.abs(prev.left - next.left) < 2 && Math.abs(prev.bottom - next.bottom) < 2 && prev.top === next.top
           ? prev
@@ -59,7 +72,20 @@ export function usePanelInsets(panelRef: RefObject<HTMLElement | null>, layout: 
       ro.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [panelRef, isDesktop, collapsed, editing, stops, selectedLeg, timeOpen, initialized, arranging, floating, frozen]);
+  }, [
+    panelRef,
+    isDesktop,
+    collapsed,
+    editing,
+    stops,
+    selectedLeg,
+    timeOpen,
+    initialized,
+    arranging,
+    floating,
+    frozen,
+    cinematic,
+  ]);
 
   return { insets, sheetInset };
 }

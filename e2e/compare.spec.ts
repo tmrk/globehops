@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test, expect, stopButtons, airportField } from './fixtures.ts';
+import { showControls, test, expect, stopButtons, airportField } from './fixtures.ts';
 import { installTools, invoke, ready } from './webTools.ts';
 
 const dated =
@@ -221,6 +221,7 @@ test('four journeys keep the phone globe visible and tabs reachable', async ({ p
     expect(scroll!.height).toBeGreaterThan(100);
   }
   await page.getByRole('button', { name: 'Play all 4 journeys', exact: true }).click();
+  await showControls(page);
   await expect(bar(page).locator('.comparison-lane')).toHaveCount(4);
   await bar(page).getByRole('button', { name: 'Pause playback' }).click();
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
@@ -304,6 +305,7 @@ test('compared trips share one clock and skip the stay every traveller shares', 
   await page.screenshot({ path: `test-results/compare-trips-stay-${info.project.name}.png`, animations: 'disabled' });
   await page.goto(`./${trips}&t=2026-12-01T19:30Z`);
   await bar(page).getByRole('button', { name: 'Play all' }).click();
+  await showControls(page);
   await expect(lanes.nth(0)).toContainText(/Return · /, { timeout: 30_000 });
   await expect(bar(page).locator('.time-bar__readout')).toContainText(/1[01] Dec/);
 });

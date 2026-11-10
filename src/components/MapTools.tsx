@@ -22,6 +22,8 @@ import {
 interface MapToolsProps {
   /** False when WebGL is unavailable: only settings that still matter are offered. */
   globe: boolean;
+  /** Cinematic playback hides the controls; they leave the tab order too. */
+  hidden?: boolean;
   showBorders: boolean;
   showCountryNames: boolean;
   showWaterNames: boolean;
@@ -105,7 +107,7 @@ export function MapTools(props: MapToolsProps) {
   }, [open]);
 
   return (
-    <div className="map-tools" ref={rootRef}>
+    <div className="map-tools" ref={rootRef} inert={props.hidden}>
       <div className="float-group" role="group" aria-label={t('maptools.globeControls')}>
         <button
           ref={buttonRef}

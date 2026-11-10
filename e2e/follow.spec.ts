@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures.ts';
+import { showControls, test, expect } from './fixtures.ts';
 import type { Page } from '@playwright/test';
 
 const scheduled =
@@ -54,6 +54,7 @@ test('Follow aircraft approaches smoothly, tracks playback and exits on globe dr
 
   await bar(page).getByRole('button', { name: 'Play journey' }).click();
   await expect(followButton(page)).toHaveAttribute('aria-pressed', 'true');
+  await showControls(page);
   const slider = bar(page).getByRole('slider');
   await expect
     .poll(async () => Number(await slider.inputValue()), { timeout: 30000 })

@@ -84,6 +84,12 @@ import type { Airport, LocalTimeInput } from './types.ts';
 
 const GlobeView = lazy(() => import('./globe/GlobeView.tsx'));
 
+/** Whether keyboard focus is on one of the full timeline's controls (the scrubber, a menu, a button). */
+function keyboardInTimeline(): boolean {
+  const focused = document.activeElement;
+  return !!focused?.closest('.time-bar:not(.time-bar--compact)') && focused.matches(':focus-visible');
+}
+
 export default function App() {
   const { t, fmt, locale, setVisitLocale } = useI18n();
 
@@ -248,6 +254,21 @@ export default function App() {
   const phaseKey = useClockPhase(clock, journey, timeline, timeOpen, trip ?? activeTrip?.trip ?? null);
   const playing = phaseKey.startsWith('playing:');
   const live = phaseKey.startsWith('live:');
+  // The globe's own clock is live with the timeline closed; watching means a journey's timeline is running.
+  const watching = timeOpen && (playing || live);
+  /** While a journey plays, the visitor asked for the full controls; every new Play starts cinematic again. */
+  const [controlsShown, setControlsShown] = useState(false);
+  const [wasWatching, setWasWatching] = useState(watching);
+  if (watching !== wasWatching) {
+    setWasWatching(watching);
+    // A keyboard user playing from inside the timeline keeps it (and their focus); otherwise Play is cinematic.
+    if (watching) setControlsShown(keyboardInTimeline());
+  }
+  /**
+   * Cinematic playback: while a journey plays, the globe gets the screen and the timeline shrinks to a mini
+   * player. Pausing, Show controls, Escape or lifting the phone sheet brings everything back.
+   */
+  const cinematic = watching && !controlsShown && !globeFailed && (isDesktop || (collapsed && editing === null));
   const activeState = (() => {
     if (!timeOpen) return null;
     const time = clock.getSnapshot().time;
@@ -359,8 +380,9 @@ export default function App() {
     timeOpen,
     initialized,
     arranging,
+    cinematic,
     floating:
-      isDesktop && !shortScreen
+      isDesktop && (!shortScreen || cinematic)
         ? dialShown
           ? 'dial'
           : timeBarShown
@@ -528,9 +550,18 @@ export default function App() {
       if (hasFlights && !scheduleErrors) togglePlayback();
     };
   });
+  const cinematicRef = useRef(cinematic);
+  useLayoutEffect(() => {
+    cinematicRef.current = cinematic;
+  });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
+      // Escape brings the controls back during cinematic playback.
+      if (e.key === 'Escape' && cinematicRef.current) {
+        setControlsShown(true);
+        return;
+      }
       if (e.key !== ' ' && e.key.toLowerCase() !== 'k') return;
       const target = e.target instanceof Element ? e.target : null;
       const inGlobe = !!target?.closest('.stage');
@@ -824,7 +855,7 @@ export default function App() {
       setSheetFull(detent === 'full');
     },
     reducedMotion,
-    peek: timeBarShown ? 'timeline' : hasFlights ? 'launcher' : dialShown ? 'dial' : 'route',
+    peek: timeBarShown ? (cinematic ? 'cinema' : 'timeline') : hasFlights ? 'launcher' : dialShown ? 'dial' : 'route',
   });
   // On phones the totals scroll with the list (the launcher above it carries the route and its time),
   // so the sheet's height goes to the journey; short landscape screens do the same in the side panel.
@@ -948,19 +979,32 @@ export default function App() {
       : comparing
         ? t('launcher.compare', fmt.number(compared.filter((entry) => entry.journey.legs.length > 0).length))
         : t('timebar.playJourney');
-  const launcherDetail = (() => {
-    if (trips) return t('trips.sharedClock');
-    if (comparing) return t('compare.sharedClock');
+  /** The launcher's route (the board) and its length or dates: what Play will show. */
+  const launcherText = (() => {
+    const codes = (airports: readonly Airport[]) => airports.map(airportCode).join(' → ');
+    if (trips || comparing) {
+      // Alternatives between the same places show those places; otherwise how many there are.
+      const ends = (trips ? trips.map((entry) => entry.trip.sections[0]?.journey) : compared.map((e) => e.journey))
+        .filter((entry) => entry && entry.stops.length >= 2)
+        .map((entry) => [entry!.stops[0].airport, entry!.stops.at(-1)!.airport]);
+      const same = ends.length > 0 && ends.every(([a, b]) => a.id === ends[0][0].id && b.id === ends[0][1].id);
+      const count = trips
+        ? t('launcher.trips', fmt.number(trips.filter((entry) => entry.trip.totals.flights > 0).length))
+        : t('launcher.journeys', fmt.number(compared.filter((entry) => entry.journey.legs.length > 0).length));
+      return same ? { route: codes(ends[0]), detail: count } : { route: count, detail: '' };
+    }
     if (trip) {
-      const codes = tripRouteCodes(trip.sections.map((s) => s.journey.stops.map((stop) => stop.airport)));
-      const when =
+      const route = tripRouteCodes(trip.sections.map((s) => s.journey.stops.map((stop) => stop.airport)));
+      const detail =
         trip.start && trip.end
           ? `${trip.dated ? '' : '≈ '}${fmt.dateRange(trip.start.local.slice(0, 10), trip.end.local.slice(0, 10))}`
           : t('summary.flights', fmt.number(trip.totals.flights));
-      return `${codes} · ${when}`;
+      return { route, detail };
     }
-    const codes = filledAirports.map(airportCode).join(' → ');
-    return totalMin ? `${codes} · ${estimated ? '≈ ' : ''}${fmt.duration(totalMin)}` : codes;
+    return {
+      route: codes(filledAirports),
+      detail: totalMin ? `${estimated ? '≈ ' : ''}${fmt.duration(totalMin)}` : '',
+    };
   })();
   /** A schedule that cannot play: the launcher names the flight whose times to fix and opens it. */
   const launcherProblem = (() => {
@@ -999,7 +1043,8 @@ export default function App() {
   const launcher = (docked: boolean) => (
     <PlayLauncher
       label={launcherLabel}
-      detail={launcherDetail}
+      route={launcherText.route}
+      detail={launcherText.detail}
       lanes={launcherLanes}
       problem={launcherProblem}
       docked={docked}
@@ -1102,6 +1147,16 @@ export default function App() {
       onToggle={togglePlayback}
       onLive={changeLive}
       onEditLeg={editLeg}
+      compact={cinematic}
+      onShowControls={() => setControlsShown(true)}
+      onHideControls={
+        globeFailed
+          ? undefined
+          : () => {
+              setControlsShown(false);
+              if (!isDesktop && !collapsed) setCollapsed(true);
+            }
+      }
     />
   );
 
@@ -1216,7 +1271,7 @@ export default function App() {
 
   return (
     <div
-      className={`app ${isDesktop ? 'layout-desktop' : 'layout-mobile'}`}
+      className={`app ${isDesktop ? 'layout-desktop' : 'layout-mobile'}${cinematic ? ' is-cinematic' : ''}`}
       onDragEnter={(event) => {
         if (event.dataTransfer.types.includes('Files') && importContext) setFileOver(true);
       }}
@@ -1289,7 +1344,7 @@ export default function App() {
         )}
       </div>
 
-      <header className="topbar">
+      <header className="topbar" inert={cinematic}>
         <h1 className="sr-only">GlobeHops</h1>
         <Brand />
         <button
@@ -1308,6 +1363,7 @@ export default function App() {
 
       {initialized && (
         <MapTools
+          hidden={cinematic}
           globe={!globeFailed}
           showWaterNames={showWaterNames}
           reducedMotion={reducedMotion}
@@ -1340,7 +1396,8 @@ export default function App() {
         />
       )}
 
-      {((isDesktop && !shortScreen && (timeBarShown || launcherShown)) || (!globeFailed && !timeBarShown)) && (
+      {((isDesktop && (!shortScreen || cinematic) && (timeBarShown || launcherShown)) ||
+        (!globeFailed && !timeBarShown)) && (
         <div
           className="hud-wrap"
           style={
@@ -1353,7 +1410,7 @@ export default function App() {
           {!globeFailed && !timeOpen && (
             <GlobeHud legs={legs} selectedLeg={route.selectedLeg} fits={fits} onSelectLeg={selectLeg} />
           )}
-          {isDesktop && !shortScreen && timeBarShown && timeBar(false)}
+          {isDesktop && (!shortScreen || cinematic) && timeBarShown && timeBar(false)}
           {isDesktop && !shortScreen && launcherShown && launcher(false)}
           {isDesktop && dialShown && timeDial(false)}
         </div>
@@ -1363,6 +1420,7 @@ export default function App() {
         ref={panelRef}
         className={`panel${plan.journeys.length >= 3 || tripMode || comparingTrips ? ' has-many-journeys' : ''}${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && sheetFull && !sheetCollapsed ? ' is-full' : ''}${!isDesktop && timeBarShown ? ' has-timeline' : ''}`}
         aria-label={t('panel.journeyPlanner')}
+        inert={isDesktop && cinematic}
       >
         {!isDesktop && (
           <button
@@ -1377,7 +1435,7 @@ export default function App() {
         )}
 
         {/* Phones and short landscape screens: the player is the top of the panel, leaving the globe clear. */}
-        {(!isDesktop || shortScreen) && timeBarShown && timeBar(true)}
+        {(!isDesktop || (shortScreen && !cinematic)) && timeBarShown && timeBar(true)}
         {(!isDesktop || shortScreen) && launcherShown && launcher(true)}
         {/* The dial belongs to the globe view; the open planner needs the room. */}
         {!isDesktop && dialShown && sheetCollapsed && timeDial(true)}

@@ -82,6 +82,11 @@ export async function openPlanner(page: Page) {
 /** The play launcher: the journey's player before it starts (beneath the globe, or atop the phone sheet). */
 export const launcher = (page: Page) => page.getByRole('region', { name: 'Playback', exact: true });
 
+/** Cinematic playback shows a mini player; this brings back the full timeline (scrubber, menus, lanes). */
+export async function showControls(page: Page) {
+  await page.getByRole('button', { name: 'Show controls', exact: true }).click();
+}
+
 /** Opens the globe's display menu (map layers, distance unit, globe time) unless it is open. */
 export async function openDisplay(page: Page) {
   const button = page.getByRole('button', { name: 'Display options' });

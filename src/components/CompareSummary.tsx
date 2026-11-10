@@ -74,13 +74,11 @@ export function CompareSummary({ list, metrics, active, onActivate }: Props) {
         >
           <IconInfo size={16} />
         </button>
-        <span className="compare-summary__note">
-          {list.some((entry) => entry.anchor === 'assumed') && t('compare.assumed')}
-        </span>
       </div>
       <div id={infoId} className="summary__info" hidden={!showInfo}>
         <p>{t('summary.method', `${fmt.number(model.cruiseSpeedKmh)} km/h`, model.overheadMinutes)}</p>
         <p>{t('summary.connectionMethod', fmt.layover(DEFAULT_LAYOVER_MIN))}</p>
+        {list.some((entry) => entry.anchor === 'assumed') && <p>{t('compare.assumed')}</p>}
       </div>
     </section>
   );

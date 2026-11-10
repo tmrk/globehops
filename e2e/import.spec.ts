@@ -20,9 +20,10 @@ test('imports a recorded GPX track, plays it with its own times and shares it in
   // The recording's own times become the flight's, and its path travels in the link.
   await expect(stopButtons(page)).toHaveCount(2);
   await expect(page.getByRole('list', { name: 'Journey stops' })).toContainText(/11:22\s*→\s*13:54/);
-  await expect(page.getByRole('region', { name: 'Journey totals' })).toContainText(/Recorded path · Sample LHR-JFK/);
+  await expect(page.getByRole('region', { name: 'Journey totals' })).toContainText('Recorded path · Sample LHR-JFK');
   await expect(page).toHaveURL(/[?&]route=LHR-JFK&trk1=1r/);
-  await expect(launcher(page)).toContainText('LHR → JFK · 7h 32m');
+  await expect(launcher(page)).toContainText('LHR → JFK');
+  await expect(launcher(page)).toContainText('7h 32m');
   await page.screenshot({ path: `test-results/import-loaded-${info.project.name}.png`, animations: 'disabled' });
 
   // A shared link brings the same path back, and it plays.

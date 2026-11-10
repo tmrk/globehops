@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { openPlanner, test, expect, openDisplay } from './fixtures.ts';
+import { launcher, showControls, openPlanner, test, expect, openDisplay } from './fixtures.ts';
 import type { Page } from '@playwright/test';
 
 const scheduled =
@@ -53,7 +53,7 @@ test('undated route keeps exact estimates and progressively discloses local sche
   await expect(flight(page, 1)).toContainText('08:15');
   await expect(flight(page, 1)).toContainText('→');
   await expect(totals).toContainText('Journey time');
-  await expect(editor).toContainText('estimated');
+  await expect(editor).toContainText(/estimated/i);
   await editor.getByLabel('Arrival time', { exact: true }).fill('09:05');
   await expect(editor.getByLabel('Arrival date', { exact: true })).toHaveValue('2026-11-20');
   await expect(page).toHaveURL(/arr2=2026-11-20T09:05/);
@@ -128,6 +128,9 @@ test('scheduled playback advances, pauses, scrubs all phases, changes speed and 
   const initialClock = await bar.locator('.time-bar__clock').innerText();
   await bar.getByRole('button', { name: 'Play journey' }).click();
   if (isMobile) await expect(page.getByRole('button', { name: 'Show journey details' }).first()).toBeVisible();
+  // Playing is cinematic: a mini player until the controls are asked for.
+  await expect(bar.getByRole('slider')).toHaveCount(0);
+  await showControls(page);
   await expect.poll(() => slider.inputValue()).not.toBe(initial);
   await expect.poll(() => bar.locator('.time-bar__clock').innerText()).not.toBe(initialClock);
   await expect(page.locator('.globe-plane')).toHaveCSS('opacity', '1');
@@ -530,3 +533,30 @@ for (const [season, time] of [
     await page.screenshot({ path: testInfo.outputPath(`sunlight-${season}.png`), animations: 'disabled' });
   });
 }
+
+test('playing is cinematic: the globe gets the screen until the controls are asked for', async ({
+  page,
+  isMobile,
+}, info) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('./?route=CPH-LHR-JFK');
+  await launcher(page).getByRole('button', { name: 'Play journey', exact: true }).click();
+  const bar = timeline(page);
+  // A mini player: pause, what is happening and the time; the planner, title and globe tools step aside.
+  await expect(bar.getByRole('button', { name: 'Pause playback' })).toBeVisible();
+  await expect(bar.getByRole('slider')).toHaveCount(0);
+  await expect(page.locator('.topbar')).toHaveAttribute('inert', '');
+  await expect(page.locator('.map-tools')).toHaveAttribute('inert', '');
+  if (!isMobile) await expect(page.getByRole('main', { name: 'Journey planner' })).toHaveAttribute('inert', '');
+  await page.screenshot({ path: `test-results/cinematic-${info.project.name}.png`, animations: 'disabled' });
+  // Escape (or Show controls) brings the full timeline back while it plays; Hide controls returns to it.
+  await page.keyboard.press('Escape');
+  await expect(bar.getByRole('slider')).toBeVisible();
+  await expect(bar.getByRole('button', { name: 'Pause playback' })).toBeVisible();
+  await bar.getByRole('button', { name: 'Hide controls', exact: true }).click();
+  await expect(bar.getByRole('slider')).toHaveCount(0);
+  // Pausing ends it.
+  await bar.getByRole('button', { name: 'Pause playback' }).click();
+  await expect(bar.getByRole('slider')).toBeVisible();
+  await expect(page.locator('.topbar')).not.toHaveAttribute('inert');
+});

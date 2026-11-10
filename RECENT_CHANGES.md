@@ -2,6 +2,13 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.22.0 — 2026-11-10 — Cinematic playback and a clearer Play
+
+- **Cinematic playback.** Press Play and everything else steps aside: the planner, the title and the globe tools fade away and the globe fills the screen, with just a small player at the bottom showing what is happening, the time, follow aircraft and a thin line of the journey so far. **Show controls** (or Escape) brings back the full timeline while it keeps playing, and pausing brings back everything. On phones the journey sheet shrinks to the small player, so the flight has nearly the whole screen.
+- **A clearer Play.** Play is now an amber sign with a play mark and the word **Play**, like the black-on-yellow signs that point the way through an airport, beside the route and its length. The miniature timeline beneath it shows the aircraft waiting at the start.
+- **Less small print.** Lines such as “All trips on one clock” are gone, compared journeys show where they go and how many there are instead, and the note that untimed journeys start together now sits behind the totals' info button.
+- **Tidier edges.** The **Import a flight path** and **Map your booking with AI** cards give their icons room inside the outline, and on phones a selected row in the comparison table no longer touches the edges of its highlight.
+
 ## 1.21.0 — 2026-11-10 — Import flight paths, one big Play button and a new phone layout
 
 - **Import a flight path.** Show a flight exactly as it was flown or planned: choose **Import a flight path** in the planner, drop a file anywhere on the page or paste a route. GlobeHops reads GPX, KML/KMZ, GeoJSON, CSV (including Flightradar24 exports), IGC logs, Garmin FPL and Microsoft Flight Simulator/Little Navmap plans, and flight-plan routes such as `EGLL DCT CPT UL9 STU DCT 52N020W 53N030W DCT KJFK` (airports, VOR/NDB beacons and coordinates; airways and procedures are drawn direct, and the preview says so). A preview shows what it found before you show it on the globe.

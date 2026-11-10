@@ -143,6 +143,9 @@ for (const [locale, messages] of [
     const bar = page.locator('.time-bar');
     await expect(bar.getByRole('button', { name: messages['timebar.pausePlayback'] })).toBeVisible();
     await capture('playback');
+    // Playing is cinematic; the translated mini player brings the full timeline back.
+    await bar.getByRole('button', { name: messages['timebar.showControls'], exact: true }).click();
+    await capture('playback-controls');
     await bar.getByRole('button', { name: messages['timebar.closeTimeline'] }).click();
     await page.getByRole('button', { name: messages['panel.aboutGlobeHops'] }).click();
     await expect(page.getByRole('dialog')).toContainText(messages['about.method']);
