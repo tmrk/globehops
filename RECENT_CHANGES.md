@@ -2,13 +2,18 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.23.1 – 2026-11-10 – A smoother move for installed apps
+
+- **Installed apps move over sooner.** Once an app installed from the old `tmrk.github.io/globehops/` address has picked up the move, every launch opens the same page at `globehops.marki.im` straight away, and other pages at the old address no longer stall while it switches.
+- **New screenshots** of the live app in the README and in the install sheet.
+
 ## 1.23.0 – 2026-11-10 – A new home at globehops.marki.im
 
 - **New address.** GlobeHops now lives at [globehops.marki.im](https://globehops.marki.im/), on Cloudflare Pages and at the root of its own domain (`/`, `/en/`, `/hu/`, `/sv/`). Share links, the **Map your booking with AI** prompt, page and social-preview metadata, `llms.txt` (now at the site root), the agent capabilities, schema and worked examples, and MCP links all use it.
-- **Old links keep working.** `tmrk.github.io/globehops/` now only redirects: every journey, comparison, trip, language and agent link opens the same page on the new domain, with its query and fragment unchanged. Browsers and installed apps that kept the old offline copy are moved over on their next visit, and the old copy is removed. Old `/globehops/…` paths also redirect on the new domain.
+- **Old links keep working.** `tmrk.github.io/globehops/` now only redirects: every journey, comparison, trip, language and agent link opens the same page on the new domain, with its query and fragment unchanged. Browsers and installed apps that kept the old offline copy move over during their next visit (or, at the latest, the one after), and the old copy is removed. Old `/globehops/…` paths also redirect on the new domain.
 - **Deployment.** Every push to `main` is built on Cloudflare (unit tests first, then the production build) and goes live automatically; branches and pull requests get their own preview. GitHub Actions now only checks each change (lint, unit tests, build and the smoke tests), and release tags follow Cloudflare's production deployment. Hashed files are cached for a year, and unknown addresses show a short page in English, Hungarian and Swedish linking back to the app.
 - **Analytics** report only from `globehops.marki.im`, to the same property and with the same consent and privacy rules.
-- **A shorter README** around the live app, with new desktop and phone screenshots.
+- **A shorter README** around the live app, with the full walkthrough in a new [user guide](docs/USER_GUIDE.md).
 
 ## 1.22.1 – 2026-11-10 – A one-line small player
 

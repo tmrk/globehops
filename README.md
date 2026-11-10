@@ -8,9 +8,9 @@
 
 GlobeHops draws your flights as great-circle routes on an interactive 3D globe, with distances, estimated flight times, layovers and every airport's local time. Add your flight times if you like, press Play and watch the journey unfold across the sunlit and dark sides of the planet. It is free and open source, runs in any modern browser on phones, tablets and desktops, needs no account and works offline once installed as an app.
 
-![GlobeHops on a desktop: a journey drawn on the globe, with the journey panel on the left](docs/screenshot.png)
+![GlobeHops on a desktop: a Copenhagen–London–New York journey on the globe, the plane over the Atlantic and city lights on the night side, with the journey panel on the left and the timeline below](docs/screenshot.png)
 
-<p align="center"><img src="docs/screenshot-mobile.png" alt="GlobeHops on a phone: the globe above, the journey sheet below" width="300"></p>
+<p align="center"><img src="docs/screenshot-mobile.png" alt="GlobeHops on a phone: two ways from Budapest to New York compared on the globe, with the shared timeline showing that the direct flight arrives first" width="300"></p>
 
 ## What you can do
 

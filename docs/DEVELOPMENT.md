@@ -70,7 +70,7 @@ Before finishing: lint, unit tests, build, the E2E specs the change affects (e.g
 
 ## README screenshots
 
-Use Playwright compositor screenshots from a production preview, as for the rendering checks above; do not extract the WebGL drawing buffer or alter the UI with screenshot-only CSS. The 1.8.0 captures keep the previous Copenhagen–London–New York route and paused moment, with place names off for a clear route. Desktop is 1440×900; phone uses the Pixel 7 device preset (including its device scale). After `npm run build`, start `npm run preview -- --port 4180 --strictPort` in a separate terminal, then run from the checkout:
+Capture the README screenshots from the **deployed** site with Playwright compositor screenshots, as for the rendering checks above; do not extract the WebGL drawing buffer or alter the UI with screenshot-only CSS. The 1.23.0 captures show a paused Copenhagen–London–New York journey on desktop (1440×900) and a Budapest–New York comparison on the Pixel 7 device preset (including its device scale), with place names off for clear routes. Seeding `globehops:analytics=denied` answers the production-only consent question, as a returning visitor would have. Run from the checkout after the release is live:
 
 ```sh
 node --input-type=module <<'JS'
@@ -78,23 +78,26 @@ import { chromium, devices, expect } from '@playwright/test';
 const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
-const route = '?route=CPH-LHR-JFK&dep1=2026-11-20T08:15&arr2=2026-11-20T09:05'
-  + '&dep2=2026-11-20T11:00&arr3=2026-11-20T13:50&t=2026-11-20T16:10Z'
-  + '&clock=utc&names=0&follow=0';
-for (const [path, device] of [
-  ['docs/screenshot.png', { viewport: { width: 1440, height: 900 } }],
-  ['docs/screenshot-mobile.png', devices['Pixel 7']],
+const view = '&clock=utc&names=0&follow=0';
+for (const [path, device, route] of [
+  ['docs/screenshot.png', { viewport: { width: 1440, height: 900 } },
+    '?route=CPH-LHR-JFK&dep1=2026-11-20T08:15&arr2=2026-11-20T09:05&dep2=2026-11-20T11:00&arr3=2026-11-20T13:50'
+    + view + '&t=2026-11-20T16:10Z'],
+  ['docs/screenshot-mobile.png', devices['Pixel 7'],
+    '?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&label=Via%20Frankfurt&b.route=BUD-JFK&b.dep1=2026-12-01T09:00'
+    + '&b.label=Direct' + view + '&t=2026-12-01T13:00Z'],
 ]) {
   const context = await browser.newContext({
     ...device, locale: 'en-GB', timezoneId: 'UTC', reducedMotion: 'reduce',
   });
-  await context.addInitScript(() => localStorage.setItem('globehops:locale', 'en'));
+  await context.addInitScript(() => {
+    localStorage.setItem('globehops:locale', 'en');
+    localStorage.setItem('globehops:analytics', 'denied');
+  });
   const page = await context.newPage();
-  await page.goto('http://localhost:4180/' + route);
-  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await page.goto('https://globehops.marki.im/' + route);
+  await expect(page.locator('.stage')).toHaveClass(/is-ready/, { timeout: 60_000 });
   await expect(page.getByRole('application')).toHaveAttribute('data-camera-motion', 'settled');
-  await expect(page.getByRole('region', { name: 'Timeline', exact: true }).getByRole('slider'))
-    .toHaveValue(String(Date.parse('2026-11-20T16:10Z')));
   await page.evaluate(() => document.fonts.ready);
   await page.waitForLoadState('networkidle');
   await page.screenshot({ path, fullPage: true, animations: 'disabled' });
@@ -104,7 +107,7 @@ await browser.close();
 JS
 ```
 
-Inspect both PNGs before committing them. Keep additional picker, edited-route and optional place-name captures under `test-results/`, never in the commit. Local previews do not show the production-only analytics question.
+Inspect both PNGs before committing them, then convert them to the manifest's `public/screenshots/{wide,narrow}.webp` (WebP quality 82, as `npm run icons:build` does) so the install sheet matches. Keep additional picker, edited-route and optional place-name captures under `test-results/`, never in the commit. To capture a local preview instead, replace the address with `http://localhost:4180/` after `npm run build` and `npm run preview -- --port 4180 --strictPort`; local previews never show the analytics question.
 
 ## Releases and versions
 
