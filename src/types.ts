@@ -1,5 +1,7 @@
 /** Shared domain types. Keep this file dependency-free. */
 
+import type { CustomTrack, LegTrack, PathKind } from './lib/track.ts';
+
 export type AirportType = 'large' | 'medium' | 'small' | 'seaplane' | 'heliport';
 
 export interface Airport {
@@ -87,7 +89,14 @@ export interface LocalTimeInput {
   offsetMin: number | null;
 }
 
+export interface StopTrack {
+  track: CustomTrack;
+  /** Key of the landing stop; lapses when it is no longer the next filled stop. */
+  to: string;
+}
+
 export interface Stop {
+  track?: StopTrack | null;
   /** Stable key for React lists (not persisted). */
   key: string;
   airportId: number | null;
@@ -104,6 +113,8 @@ export interface RouteState {
 }
 
 export interface Leg {
+  track?: LegTrack;
+  pathKind?: PathKind;
   /** 0-based leg number. */
   index: number;
   from: Airport;

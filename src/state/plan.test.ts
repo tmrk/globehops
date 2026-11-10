@@ -244,3 +244,22 @@ describe('plan editor', () => {
     });
   });
 });
+
+it('loads tracks, compares them structurally, and starts the return with generated geometry', () => {
+  const track: import('../lib/track.ts').CustomTrack = {
+    kind: 'planned',
+    source: { format: 'document', name: null },
+    points: [
+      { lat: 0, lng: 0, altM: null, time: null },
+      { lat: 1, lng: 1, altM: null, time: null },
+    ],
+  };
+  const action = { type: 'load' as const, journeys: [{ airportIds: [1, 2], tracks: [track] }] };
+  const state = planReducer(createPlanState(), action);
+  expect(state.journeys[0].route.stops[0].track?.track).toBe(track);
+  expect(planReducer(state, structuredClone(action))).toBe(state);
+  const returned = planReducer(state, { type: 'addReturn' });
+  expect(returned.journeys[0].route.stops[0].track?.track).toBe(track);
+  expect(returned.journeys[1].route.stops.every((s) => !s.track)).toBe(true);
+  expect(planReducer(state, { ...action, journeys: [{ airportIds: [1, 2], tracks: [] }] })).not.toBe(state);
+});

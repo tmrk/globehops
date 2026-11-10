@@ -1,3 +1,4 @@
+import { trackSignature } from './track.ts';
 import type { GlobeRoute } from '../globe/GlobeRenderer.ts';
 import type { Airport } from '../types.ts';
 import { displayCode } from '../data/airports.ts';
@@ -68,13 +69,14 @@ export function comparisonGlobeRoute(
         const base = `${leg.from.id}>${leg.to.id}`;
         const occurrence = (counts.get(base) ?? 0) + 1;
         counts.set(base, occurrence);
-        const path = leg.route?.path ?? null;
+        const path = leg.track?.path ?? leg.route?.path ?? null;
         return {
           // A changed route is a new leg, so it is drawn (and revealed) afresh.
-          key: `${comparing ? `${id}:` : ''}${base}#${occurrence}${path ? `~${pathSignature(path)}` : ''}`,
+          key: `${comparing ? `${id}:` : ''}${base}#${occurrence}${leg.track ? `~t${trackSignature(leg.track)}` : path ? `~${pathSignature(path)}` : ''}`,
           from: leg.from,
           to: leg.to,
           path,
+          ...(leg.track ? { altitudes: leg.track.altitudesKm } : {}),
           color: comparing ? color : legColor(i),
           lift: comparing ? 1 + 0.22 * index : 1,
           muted: comparing && !open && index !== active,

@@ -1,3 +1,4 @@
+import { trackFractionAtTime, trackAltitudeKmAt, trackFlightPhaseAt } from './track.ts';
 import type { LatLng } from '../types.ts';
 import type { Journey } from './schedule.ts';
 import { interpolateGreatCircle } from './geo.ts';
@@ -84,17 +85,31 @@ export function journeyStateAt(j: Journey, tl: Timeline, epochMs: number): Journ
   const elapsedMin = (epochMs - segment.start) / 60000;
   const duration = (segment.end - segment.start) / 60000;
   const models = modelsFor(segment, leg.distanceKm, duration);
-  const distanceFraction = distanceFractionAt(models.progress, elapsedMin);
+  const track = leg.track;
+  const recordedTime = track?.times
+    ? track.times[0] + (elapsedMin / duration) * (track.times.at(-1)! - track.times[0])
+    : null;
+  const distanceFraction =
+    track && recordedTime !== null
+      ? trackFractionAtTime(track, recordedTime)
+      : distanceFractionAt(models.progress, elapsedMin);
   return {
     phase: 'flight',
     leg: leg.index,
     timeFraction: elapsedMin / duration,
     distanceFraction,
-    position: leg.route?.path
-      ? pointAlongPath(leg.route.path, distanceFraction)
-      : interpolateGreatCircle(leg.from, leg.to, distanceFraction),
-    altitudeKm: altitudeAt(models.altitude, distanceFraction * leg.distanceKm),
-    flightPhase: flightPhaseAt(models.progress, elapsedMin),
+    position: track
+      ? pointAlongPath(track.path, distanceFraction)
+      : leg.route?.path
+        ? pointAlongPath(leg.route.path, distanceFraction)
+        : interpolateGreatCircle(leg.from, leg.to, distanceFraction),
+    altitudeKm:
+      (track ? trackAltitudeKmAt(track, distanceFraction) : null) ??
+      altitudeAt(models.altitude, distanceFraction * leg.distanceKm),
+    flightPhase:
+      track && recordedTime !== null
+        ? trackFlightPhaseAt(track, recordedTime)
+        : flightPhaseAt(models.progress, elapsedMin),
     elapsedMin,
     remainingMin: duration - elapsedMin,
   };

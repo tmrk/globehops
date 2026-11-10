@@ -7,6 +7,7 @@
  * Journeys are stored flat, alternative by alternative: journey `s` of alternative `o` is
  * `journeys[o * sections + s]`.
  */
+import { sameTrack, type CustomTrack } from '../lib/track.ts';
 import type { LocalTimeInput, RouteState } from '../types.ts';
 import { MAX_LABEL_LENGTH } from '../lib/journeyLabel.ts';
 import { MAX_JOURNEYS } from '../lib/compare.ts';
@@ -48,6 +49,7 @@ type LoadedJourney = {
   label?: string | null;
   stayMin?: number | null;
   airportIds: (number | null)[];
+  tracks?: (CustomTrack | null)[];
   layovers?: (number | null)[];
   arrivals?: (LocalTimeInput | null)[];
   departures?: (LocalTimeInput | null)[];
@@ -84,7 +86,7 @@ function draft(source?: LoadedJourney): JourneyDraft {
   return {
     key: `j${++nextKey}`,
     label: normalizeLabel(source?.label),
-    route: createRouteState(source?.airportIds, source?.layovers, source?.arrivals, source?.departures),
+    route: createRouteState(source?.airportIds, source?.layovers, source?.arrivals, source?.departures, source?.tracks),
     stayMin: normalizeStay(source?.stayMin),
   };
 }
@@ -239,7 +241,8 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
                 stop.airportId === old.airportId &&
                 stop.layoverMin === old.layoverMin &&
                 sameTime(stop.arrival, old.arrival) &&
-                sameTime(stop.departure, old.departure)
+                sameTime(stop.departure, old.departure) &&
+                sameTrack(stop.track?.track, old.track?.track)
               );
             })
           );

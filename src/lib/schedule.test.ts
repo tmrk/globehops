@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { Airport, LocalTimeInput } from '../types.ts';
 import { computeJourney, type JourneyStopInput } from './schedule.ts';
+import { greatCircleDistanceKm } from './geo.ts';
+import { estimateFlightMinutes } from './flightTime.ts';
 import { formatLegTimes } from './journeyText.ts';
 
 const fixtures: [string, number, number, string, string][] = [
@@ -247,5 +249,87 @@ describe('journey schedules', () => {
     expect(j.start?.zone).toBe(stop(code).zone);
     expect(j.start?.local).toBe('2026-11-20T12:00');
     expect(j.playable).toBe(true);
+  });
+});
+
+const customTrack: import('./track.ts').CustomTrack = {
+  kind: 'recorded',
+  source: { format: 'gpx', name: null },
+  points: [
+    { lat: 55, lng: 12, altM: 0, time: Date.UTC(2026, 2, 1, 10) },
+    { lat: 60, lng: 5, altM: 10000, time: Date.UTC(2026, 2, 1, 10, 30) },
+    { lat: 51, lng: 0, altM: 0, time: Date.UTC(2026, 2, 1, 11) },
+  ],
+};
+describe('custom flight schedules', () => {
+  it('anchors recorded endpoints as entered and propagates connections without routing tracked legs', async () => {
+    const { routedJourney } = await import('./compare.ts');
+    const { legTrack } = await import('./track.ts');
+    const calls: string[] = [];
+    const j = routedJourney(
+      { id: 'A', stops: [stop('CPH', { track: customTrack }), stop('LHR'), stop('JFK')] },
+      { now: Date.UTC(2027, 0, 1) },
+      (from, to) => {
+        calls.push(from.iata!);
+        const distanceKm = greatCircleDistanceKm(from, to);
+        return {
+          status: 'clear',
+          path: null,
+          distanceKm,
+          greatCircleKm: distanceKm,
+          avoided: [],
+          crossed: [],
+          avoidedPlaces: [],
+          crossedPlaces: [],
+        };
+      },
+    );
+    expect(calls).toEqual(['LHR']);
+    expect(j.legs[0]).toMatchObject({
+      pathKind: 'recorded',
+      estimatedMin: 60,
+      durationMin: 60,
+      durationSource: 'entered',
+    });
+    expect(j.legs[0].track).toBe(legTrack(customTrack));
+    expect(j.legs[0].route).toBeUndefined();
+    expect(j.legs[0].distanceKm).toBeGreaterThan(j.legs[0].greatCircleKm);
+    expect(j.start).toMatchObject({ epochMs: Date.UTC(2026, 2, 1, 10), provenance: 'entered' });
+    expect(j.legs[0].arrival).toMatchObject({ epochMs: Date.UTC(2026, 2, 1, 11), provenance: 'entered' });
+    expect(j.legs[1].departure?.epochMs).toBe(j.legs[0].arrival!.epochMs + 90 * 60000);
+    expect(j.dated).toBe(true);
+  });
+  it('uses planned path distance for estimates without anchoring a clock', () => {
+    const j = journey([stop('CPH', { track: { ...customTrack, kind: 'planned' } }), stop('LHR')]);
+    expect(j.legs[0].pathKind).toBe('planned');
+    expect(j.start).toBeNull();
+    expect(j.dated).toBe(false);
+    expect(j.legs[0].estimatedMin).toBe(estimateFlightMinutes(j.legs[0].distanceKm));
+  });
+  it('lets explicit departure/arrival edits win independently, including chronology errors', () => {
+    const j = journey([
+      stop('CPH', { track: customTrack, departure: time('2026-03-01T09:00Z'.slice(0, -1), 0) }),
+      stop('LHR', { arrival: time('2026-03-01T12:00', 0) }),
+    ]);
+    // CPH uses local UTC+1; explicit offset must match the airport clock.
+    const valid = journey([
+      stop('CPH', { track: customTrack, departure: time('2026-03-01T10:00', 60) }),
+      stop('LHR', { arrival: time('2026-03-01T12:00', 0) }),
+    ]);
+    expect(valid.legs[0].durationMin).toBe(180);
+    expect(valid.legs[0].estimatedMin).toBe(60);
+    expect(valid.legs[0].durationSource).toBe('entered');
+    expect(j.issues.some((i) => i.code === 'offset_mismatch')).toBe(true);
+    const negative = journey([
+      stop('CPH', { track: customTrack, departure: time('2026-03-01T13:00', 60) }),
+      stop('LHR'),
+    ]);
+    expect(codes(negative)).toContain('negative_flight_time');
+    const overlap = journey([
+      stop('CPH', { track: customTrack }),
+      stop('LHR', { departure: time('2026-03-01T10:30', 0) }),
+      stop('JFK'),
+    ]);
+    expect(codes(overlap)).toContain('connection_overlap');
   });
 });

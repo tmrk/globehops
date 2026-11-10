@@ -163,3 +163,26 @@ describe('comparison routing', () => {
     expect(routed.journey.legs[0].distanceKm).toBe(direct.journey.legs[0].distanceKm);
   });
 });
+
+it('compares imported and generated paths between the same airports and aligns to a recording', () => {
+  const imported = input(),
+    generated = input();
+  const track: import('./track.ts').CustomTrack = {
+    kind: 'recorded',
+    source: { format: 'gpx', name: null },
+    points: [
+      { lat: 0, lng: 0, altM: 0, time: start },
+      { lat: 50, lng: 90, altM: 10000, time: start + 3600000 },
+      { lat: 0, lng: 180, altM: 0, time: start + 7200000 },
+    ],
+  };
+  imported.input.stops[0].track = track;
+  const result = compute([imported, generated]);
+  expect(result[0].anchor).toBe('entered');
+  expect(result[1].anchor).toBe('assumed');
+  expect(result[1].journey.start?.epochMs).toBe(start);
+  expect(result[0].journey.legs[0].distanceKm).not.toBe(result[1].journey.legs[0].distanceKm);
+  expect(result[0].journey.legs[0].pathKind).toBe('recorded');
+  expect(result[1].journey.legs[0].pathKind).toBe('generated');
+  expect(compareMetrics(result).journeys[0].flightMin).toBe(120);
+});

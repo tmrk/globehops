@@ -132,3 +132,55 @@ describe('journey timeline along a detour', () => {
     expect(state.position.lng).toBeCloseTo(expected.lng, 9);
   });
 });
+
+it('follows recorded timestamps by distance and scales them into an edited time window', () => {
+  const start = Date.UTC(2026, 2, 1, 10);
+  const track: import('./track.ts').CustomTrack = {
+    kind: 'recorded',
+    source: { format: 'gpx', name: null },
+    points: [
+      { lat: 0, lng: 0, altM: 0, time: start },
+      { lat: 0, lng: 1, altM: 1000, time: start + 10 * 60000 },
+      { lat: 0, lng: 4, altM: 1000, time: start + 60 * 60000 },
+    ],
+  };
+  const inputs = airports.slice(0, 2).map((airport, i) => ({
+    airport,
+    zone: 'UTC',
+    arrival: null,
+    departure: null,
+    layoverMin: null,
+    ...(i === 0 ? { track } : {}),
+  }));
+  const j = computeJourney({ id: 'A', stops: inputs }),
+    tl = buildTimeline(j)!;
+  const sample = journeyStateAt(j, tl, start + 10 * 60000);
+  expect(sample.phase).toBe('flight');
+  if (sample.phase !== 'flight') throw new Error('Expected flight');
+  expect(sample.distanceFraction).toBeCloseTo(0.25);
+  expect(sample.position.lng).toBeCloseTo(1);
+  expect(sample.altitudeKm).toBe(1);
+  expect(journeyStateAt(j, tl, start + 5 * 60000)).toMatchObject({ flightPhase: 'climb' });
+  const edited = computeJourney({
+    id: 'A',
+    stops: [
+      { ...inputs[0], departure: { local: '2026-03-01T12:00', offsetMin: 0 } },
+      { ...inputs[1], arrival: { local: '2026-03-01T14:00', offsetMin: 0 } },
+    ],
+  });
+  const scaled = journeyStateAt(edited, buildTimeline(edited)!, Date.UTC(2026, 2, 1, 12, 20));
+  expect(scaled).toMatchObject({ phase: 'flight', altitudeKm: 1 });
+  if (scaled.phase === 'flight') {
+    expect(scaled.distanceFraction).toBeCloseTo(0.25);
+    expect(scaled.position.lng).toBeCloseTo(1);
+  }
+  const planned = computeJourney(
+    { id: 'A', stops: [{ ...inputs[0], track: { ...track, kind: 'planned' } }, inputs[1]] },
+    { assumedStart: start },
+  );
+  const plannedTl = buildTimeline(planned)!;
+  const middle = journeyStateAt(planned, plannedTl, (plannedTl.start + plannedTl.end) / 2);
+  if (middle.phase !== 'flight') throw new Error('Expected flight');
+  expect(middle.position.lng).toBeCloseTo(4 * middle.distanceFraction);
+  expect(middle.altitudeKm).toBe(1);
+});

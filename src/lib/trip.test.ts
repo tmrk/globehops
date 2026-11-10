@@ -284,3 +284,27 @@ describe('trips', () => {
     expect(stayChoices(1440).filter((m) => m === 1440)).toHaveLength(1);
   });
 });
+
+it('propagates recorded sections through stays while keeping planned return geometry', () => {
+  const start = Date.UTC(2026, 2, 1, 10);
+  const track: import('./track.ts').CustomTrack = {
+    kind: 'recorded',
+    source: { format: 'gpx', name: null },
+    points: [
+      { lat: 0, lng: 0, altM: 0, time: start },
+      { lat: 0, lng: 5, altM: 1e4, time: start + 3600000 },
+    ],
+  };
+  const planned = { ...track, kind: 'planned' as const };
+  const trip = computeTrip(
+    [section([stop('CPH', { track }), stop('AMS')]), section([stop('AMS', { track: planned }), stop('CPH')], 1440)],
+    { assumedStart: null, now: NOW },
+  );
+  expect(trip.dated).toBe(true);
+  expect(trip.sections[0].anchor).toBe('entered');
+  expect(trip.sections[1].journey.start?.epochMs).toBe(start + 3600000 + 86400000);
+  expect(trip.sections[1].journey.legs[0].pathKind).toBe('planned');
+  const state = tripStateAt(trip, trip.timeline!, start + 1800000);
+  expect(state.phase).toBe('journey');
+  if (state.phase === 'journey' && state.state.phase === 'flight') expect(state.state.position.lng).toBeCloseTo(2.5);
+});

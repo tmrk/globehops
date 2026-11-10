@@ -174,3 +174,26 @@ describe('compared trips on the globe and in the fleet', () => {
     expect(frame.fleet?.[0].view).toMatchObject({ kind: 'air', leg: list[0].trip.sections[1].legOffset });
   });
 });
+
+it('uses recording dates to align counterpart sections in generated alternatives', () => {
+  const start = Date.UTC(2026, 2, 1, 10);
+  const track: import('./track.ts').CustomTrack = {
+    kind: 'recorded',
+    source: { format: 'gpx', name: null },
+    points: [
+      { lat: 0, lng: 0, altM: 0, time: start },
+      { lat: 0, lng: 5, altM: 10000, time: start + 3600000 },
+    ],
+  };
+  const options = [
+    option('Imported', [section([stop('BUD', { track }), stop('JFK')]), section([stop('JFK'), stop('BUD')])]),
+    nonstop(),
+  ];
+  const [a, b] = computeTripComparison(options, { assumedStart: null, now: NOW });
+  expect(a.anchor).toBe('entered');
+  expect(b.trip.sections[0].journey.start?.epochMs).toBe(start);
+  expect(a.trip.sections[0].journey.legs[0].pathKind).toBe('recorded');
+  expect(b.trip.sections[0].journey.legs[0].pathKind).toBe('generated');
+  expect(a.trip.sections[1].journey.start?.epochMs).toBe(b.trip.sections[1].journey.start?.epochMs);
+  expect(compareTripMetrics([a, b]).trips[0].distanceKm).toBe(a.trip.totals.distanceKm);
+});

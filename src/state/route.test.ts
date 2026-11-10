@@ -190,3 +190,86 @@ it('detects entered times including date-only inputs on empty stops', () => {
   });
   expect(hasEnteredTimes(state.stops)).toBe(true);
 });
+
+const plannedTrack: import('../lib/track.ts').CustomTrack = {
+  kind: 'planned',
+  source: { format: 'document', name: null },
+  points: [
+    { lat: 0, lng: 0, altM: 0, time: null },
+    { lat: 1, lng: 1, altM: 1000, time: null },
+    { lat: 0, lng: 2, altM: 0, time: null },
+  ],
+};
+describe('tracks belong to a specific flight', () => {
+  const tracked = () => reduce(createRouteState([1, 2, 3]), { type: 'setTrack', index: 0, track: plannedTrack });
+  it('requires filled endpoints, normalizes incoming geometry and preserves selection/no-ops', () => {
+    const empty = createRouteState([1]);
+    expect(reduce(empty, { type: 'setTrack', index: 0, track: plannedTrack })).toBe(empty);
+    const s = tracked();
+    expect(s.stops[0].track?.to).toBe(s.stops[1].key);
+    expect(reduce(s, { type: 'setTrack', index: 0, track: structuredClone(plannedTrack) })).toBe(s);
+    expect(reduce(s, { type: 'setTrack', index: 2, track: plannedTrack })).toBe(s);
+    expect(reduce(s, { type: 'setTrack', index: -1, track: plannedTrack })).toBe(s);
+    expect(reduce(s, { type: 'setTrack', index: 0, track: null }).stops[0].track).toBeNull();
+    expect(reduce(s, { type: 'setTrack', index: 0, track: { ...plannedTrack, points: [] } }).stops[0].track).toBeNull();
+  });
+  it.each<RouteAction>([
+    { type: 'setAirport', index: 0, airportId: 9 },
+    { type: 'setAirport', index: 1, airportId: 9 },
+    { type: 'removeStop', index: 0 },
+    { type: 'removeStop', index: 1 },
+    { type: 'insertStop', index: 1 },
+    { type: 'moveStop', from: 2, to: 1 },
+    { type: 'moveStop', from: 1, to: 2 },
+  ])('lapses after an endpoint/adjacency edit: %j', (action) => {
+    expect(reduce(tracked(), action).stops.every((s) => !s.track)).toBe(true);
+  });
+  it.each<RouteAction>([
+    { type: 'setAirport', index: 2, airportId: 9 },
+    { type: 'removeStop', index: 2 },
+    { type: 'insertStop', index: 0 },
+    { type: 'addStop' },
+    { type: 'selectLeg', leg: 0 },
+    { type: 'setLayover', index: 1, minutes: 180 },
+    { type: 'setTime', index: 0, field: 'departure', value: { local: '2026-03-01T10:00', offsetMin: 0 } },
+    { type: 'clearTimes' },
+  ])('keeps tracks after unrelated edits: %j', (action) => {
+    expect(reduce(tracked(), action).stops.find((s) => s.track)?.track?.track).toBe(plannedTrack);
+  });
+  it('invalidates a flight even when an empty stop is inserted/removed between its endpoints', () => {
+    let s = createRouteState([1, null, 2]);
+    s = reduce(s, { type: 'setTrack', index: 0, track: plannedTrack });
+    expect(s.stops[0].track?.to).toBe(s.stops[2].key);
+    expect(reduce(s, { type: 'removeStop', index: 1 }).stops[0].track).toBeNull();
+    expect(reduce(s, { type: 'setAirport', index: 1, airportId: 3 }).stops[0].track).toBeNull();
+    expect(reduce(s, { type: 'addStop' }).stops[0].track?.track).toBe(plannedTrack);
+  });
+  it('moves planned tracks to the new departure on reverse and drops recorded paths', () => {
+    const s = reduce(tracked(), { type: 'reverse' });
+    expect(s.stops[1].track?.to).toBe(s.stops[2].key);
+    expect(s.stops[1].track?.track.points).toEqual(plannedTrack.points.slice().reverse());
+    const recorded = {
+      ...plannedTrack,
+      kind: 'recorded' as const,
+      points: plannedTrack.points.map((p, i) => ({ ...p, time: i * 1000 })),
+    };
+    const r = reduce(createRouteState([1, 2]), { type: 'setTrack', index: 0, track: recorded });
+    expect(reduce(r, { type: 'reverse' }).stops.every((p) => !p.track)).toBe(true);
+  });
+  it('loads aligned tracks, ignores the last and includes structural equality in load no-ops', () => {
+    const load: RouteAction = { type: 'load', airportIds: [1, 2], tracks: [plannedTrack, plannedTrack] };
+    const s = reduce(createRouteState(), load);
+    expect(s.stops[0].track?.track).toBe(plannedTrack);
+    expect(s.stops[1].track).toBeUndefined();
+    expect(reduce(s, { ...load, tracks: [structuredClone(plannedTrack)] })).toBe(s);
+    expect(reduce(s, { ...load, tracks: [] })).not.toBe(s);
+  });
+  it('uses custom path length and duration in editor legs', () => {
+    const a = data.airports[0],
+      b = data.airports[1];
+    const s = reduce(createRouteState([a.id, b.id]), { type: 'setTrack', index: 0, track: plannedTrack });
+    const [leg] = computeLegs(s.stops, (id) => data.airports.find((a) => a.id === id));
+    expect(leg.pathKind).toBe('planned');
+    expect(leg.distanceKm).toBe(leg.track?.distanceKm);
+  });
+});
