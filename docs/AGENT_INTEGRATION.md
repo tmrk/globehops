@@ -338,6 +338,7 @@ Use `tools/list` for the full machine-readable schemas. `JourneyArgs` below mean
 | `calculate_route`      | `JourneyArgs`                                                                                                                                              |
 | `validate_itinerary`   | `JourneyArgs`                                                                                                                                              |
 | `visualize_route`      | `JourneyArgs & {view?: ItineraryDocument["view"]}`; view overrides document view fields                                                                    |
+| `import_route`         | Exactly one of `{text}` or `{base64}` (KMZ), plus `fileName?`, `format?`, `view?`, `routing?`, `compareWithGenerated?`                                     |
 | `get_journey_timeline` | `JourneyArgs & {at?: string[] (≤1000 ISO instants), samples?: integer (2–1000), assumeDeparture?: string (ISO instant)}`; `at` and `samples` are exclusive |
 
 `search_airports`:
@@ -463,16 +464,44 @@ The response contains three instants, including departure and arrival. Its middl
 
 Phases are `before`, `flight`, `transfer`, `after`. Ground states include `stopCode`; in-flight states include `distanceFraction` and illustrative altitude. For dated journeys use `at`, for example `["2026-11-20T09:30Z"]`, to request particular instants. Generated sample instants include the final arrival, whose phase is `after`.
 
+## Import a file or a flight plan
+
+Call `import_route` with a file's contents, without translating its positions into a document yourself:
+
+```json
+{
+  "fileName": "flight.gpx",
+  "text": "<gpx><trk><name>Copenhagen to Stockholm</name><trkseg><trkpt lat=\"55.6179\" lon=\"12.656\"><time>2026-11-01T10:00:00Z</time></trkpt><trkpt lat=\"59.6519\" lon=\"17.9186\"><time>2026-11-01T11:00:00Z</time></trkpt></trkseg></trk></gpx>"
+}
+```
+
+Or pass an aviation route string; airports and radio aids resolve against the local datasets:
+
+```json
+{ "text": "EGLL CPT DCT KJFK", "format": "route", "compareWithGenerated": true }
+```
+
+Supported formats are GPX, KML/KMZ, GeoJSON, CSV/TSV, IGC, Garmin FPL, MSFS/Little Navmap PLN and aviation route strings. `fileName` helps detection; optional `format` overrides it. Local MCP accepts exactly one of `text` (UTF-8 contents) or `base64` (standard padded Base64 KMZ ZIP bytes), up to 20 MiB decoded. `view` and `routing` have the same semantics as `visualize_route`. The itinerary document contract supports at most 20,000 points per flight; larger MCP imports return `too_large`.
+
+The result includes `format`, `name`, `flights` with matched `from`/`to` airport codes, `kind`, point count, path and great-circle distances in km, optional `recordedDurationMin`, and `fromDistanceKm`/`toDistanceKm` measuring endpoint-to-airport separation. `warnings` contain `code`, English `message` and `params`. `document` keeps exact points as `[lat,lng,altitudeMetres|null,ISO-time|null]`, track kind, format and source name (trimmed to the document's 80-character limit). Connecting flights form one journey (`stops`); an open jaw begins another journey of a trip (`sections`). Up to nine flights per journey and six sections fit the plan; overflow produces warnings. Stays are not inferred from duration.
+
+`url`, `itineraryParamUrl`, `humanSummary` and `summary` use the existing visualization planner. Long share paths simplify to fit the URL budget, reported in `summary.issues` as `track_simplified`; the document and calculation points remain exact. `compareWithGenerated: true` requires one imported journey and produces imported A (track/file name or "Imported path", shortened to 40 characters) versus B ("GlobeHops route") with the same airports. Structured errors have `isError: true` and `{code, message}`: `unrecognised`, `invalid`, `no_path`, `too_large`, `unsupported` or `empty`.
+
+WebMCP accepts `{text, fileName?, format?, mode?: "replace" | "compare"}` and returns format/name, flights, warnings and the resulting share `url`. It uses the same import action as the dialog; replace is the default, while compare adds one imported journey beside the current journey when there is room (at most four alternatives). Unsupported comparisons and invalid input leave the plan unchanged. Binary KMZ input is available through local MCP only.
+
+Parsing is local to the MCP process or browser; nothing is uploaded. Links contain positions, altitudes and times that their recipients can read. Route-string airways and procedures are direct approximations, and unknown fixes produce warnings; these datasets and paths are for visualization, not navigation.
+
 ## MCP resources and prompt
 
-`resources/list` exposes `globehops://agent/capabilities.json`, `globehops://agent/itinerary.schema.json`, `globehops://agent/examples.json` and `globehops://agent/usage`. Read them with `resources/read`; they are module-relative local files, with no network request. Generated resource contents match static discovery. `prompts/get` with name `plan_and_visualize` and a string `journey` argument gives concise instructions to search places, validate local times and produce a clickable visualisation link.
+`resources/list` exposes `globehops://agent/capabilities.json`, `globehops://agent/itinerary.schema.json`, `globehops://agent/examples.json` and `globehops://agent/usage`. Read them with `resources/read`; they are module-relative local files, with no network request. Generated resource contents match static discovery. `prompts/get` with name `plan_and_visualize` and a string `journey` argument gives concise instructions to search places, validate local times, use `import_route` for flight files or route strings, and produce a clickable visualisation link.
 
 ## Experimental in-page browser tools (WebMCP)
 
-When supported, the live app registers `get_journey`, `set_route`, `set_view`, `select_flight` and `get_share_link` once its airport and time-zone loading has settled. All execution is local; these tools introduce no network service or data transmission. With no supported API, the normal accessible UI remains available. Tool descriptions and JSON input schemas are discoverable through the browser's model-context API; errors return `isError: true` and a text block containing JSON with an actionable `error`.
+When supported, the live app registers `import_route`, `get_journey`, `set_route`, `compare_journeys`, `set_view`, `select_flight` and `get_share_link` once its airport and time-zone loading has settled. All execution is local; these tools introduce no network service or data transmission. With no supported API, the normal accessible UI remains available. Tool descriptions and JSON input schemas are discoverable through the browser's model-context API; errors return `isError: true` and a text block containing JSON with an actionable `error`.
 
 | Tool             | Arguments and result                                                                                                                                                                                                                                                                                                                                            |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `import_route`   | `{text, fileName?, format?, mode?}` (replace or compare) → parsed flights, warnings and resulting share link; uses the dialog import action.                                                                                                                                                                                                                    |
 | `get_journey`    | `{}` → stops, legs, transfers, km/mi totals, airport-local and UTC times, validation issues, current `view` and `url`. View time is read from the live simulation clock, even during playback.                                                                                                                                                                  |
 | `set_route`      | Exactly one of `{route: "CPH-LHR_180-JFK"}` or `{itinerary: <v1 document>}`. Uses shared parsing and semantic checks; errors leave the journey unchanged. Empty route clears it. Returns `applied` and issues.                                                                                                                                                  |
 | `set_view`       | A partial object: `t` (absolute ISO instant), `play`, `speed`, `clock`, `units`, `dayNight`, `follow`, `names`, `borders`, `lang`, `leg`. Uses `t` here, versus `view.time` in documents. Only supplied fields change. Explicit `play: true` may start playback with reduced motion enabled, like the Play button; link autoplay still respects reduced motion. |
@@ -548,4 +577,4 @@ fall back to the readable URL. The session and agent calculations retain exact i
 Tracks travel only inside the link or local itinerary document. Nothing is uploaded. Anyone receiving
 the link can read its positions, altitudes and times. See the planned North Atlantic and recorded
 Copenhagen–Stockholm examples in `agent/examples.json`. MCP and WebMCP accept these documents through
-existing tools; there is no file-import tool.
+existing tools, or parse flight-file contents directly with `import_route`.

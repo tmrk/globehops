@@ -382,6 +382,7 @@
       "calculate_route",
       "validate_itinerary",
       "visualize_route",
+      "import_route",
       "get_journey_timeline"
     ],
     "resources": [
@@ -394,10 +395,41 @@
     "documentation": "https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md",
     "remoteEndpoint": null
   },
+  "routeImport": {
+    "tool": "import_route",
+    "formats": ["gpx", "kml", "kmz", "geojson", "csv", "igc", "fpl", "pln", "route"],
+    "maxInputBytes": 20971520,
+    "mcp": "Exactly one of text or base64 (KMZ only), optional fileName, format, view, routing and compareWithGenerated. Returns flights, warnings, document and visualization URLs; documents support 20000 points per flight.",
+    "browser": "text, optional fileName, format and mode (replace by default, or compare with the current journey). KMZ requires the local MCP tool. Returns flights, warnings and the resulting share link.",
+    "grouping": "Consecutive flights sharing an airport form one journey (up to 9 flights); open jaws start a new trip section (up to 6). Overflow is reported in warnings.",
+    "privacy": "Parsing is local; nothing is uploaded. Shared links contain path coordinates, altitudes and times and simplify long paths within the URL budget.",
+    "errors": ["unrecognised", "invalid", "no_path", "too_large", "unsupported", "empty"],
+    "examples": [
+      {
+        "tool": "import_route",
+        "arguments": { "text": "EGLL CPT DCT KJFK", "format": "route", "compareWithGenerated": true }
+      },
+      {
+        "tool": "import_route",
+        "arguments": {
+          "text": "<gpx><trk><trkseg><trkpt lat=\"55.6179\" lon=\"12.656\"><time>2026-11-01T10:00:00Z</time></trkpt><trkpt lat=\"59.6519\" lon=\"17.9186\"><time>2026-11-01T11:00:00Z</time></trkpt></trkseg></trk></gpx>",
+          "fileName": "flight.gpx"
+        }
+      }
+    ]
+  },
   "webMcp": {
     "experimental": true,
     "api": "document.modelContext (AbortSignal cleanup), legacy navigator.modelContext registerTool/unregisterTool or provideContext",
-    "tools": ["get_journey", "set_route", "compare_journeys", "set_view", "select_flight", "get_share_link"],
+    "tools": [
+      "import_route",
+      "get_journey",
+      "set_route",
+      "compare_journeys",
+      "set_view",
+      "select_flight",
+      "get_share_link"
+    ],
     "network": false
   },
   "locales": ["en", "hu", "sv"],
