@@ -9,7 +9,7 @@ describe('analyticsAvailable', () => {
     expect(analyticsAvailable({ ...live, production: false })).toBe(false);
     expect(analyticsAvailable({ ...live, hostname: 'localhost' })).toBe(false);
     expect(analyticsAvailable({ ...live, hostname: 'someone.github.io' })).toBe(false);
-    // The former GitHub Pages host only redirects now, and preview deployments never report.
+    // The former GitHub Pages host and preview deployments never report.
     expect(analyticsAvailable({ ...live, hostname: 'tmrk.github.io' })).toBe(false);
     expect(analyticsAvailable({ ...live, hostname: 'globehops.pages.dev' })).toBe(false);
     expect(analyticsAvailable({ ...live, hostname: 'abc123.globehops.pages.dev' })).toBe(false);

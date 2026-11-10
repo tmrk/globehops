@@ -40,7 +40,7 @@ test('add, edit, share and remove an alternative without changing journey A', as
   await expect(stopButtons(page).nth(1)).toHaveAccessibleName(/\(LHR\)/);
   const summary = page.getByRole('region', { name: 'Journey comparison' });
   await expect(summary.locator('.compare-summary__row')).toHaveCount(2);
-  await expect(summary.locator('.compare-summary__row').nth(0)).toContainText('Fastest');
+  await expect(summary.locator('.compare-summary__row').nth(0)).not.toContainText(/Fastest|\+\d+h/);
   await expect(summary.locator('.compare-summary__row').nth(1)).toContainText(/\+\d+h/);
   await expect(page).toHaveURL(/b.route=BUD-LHR-JFK/);
   const strips = await summary
@@ -258,7 +258,7 @@ test('compares round trips: a way home for every journey, out and back side by s
   await expect(page).toHaveURL(/\?route=BUD-FRA-JFK&2\.route=JFK-BUD&b\.route=BUD-JFK&b\.2\.route=JFK-BUD$/);
   const rows = page.getByRole('region', { name: 'Trip comparison' }).locator('.trip-compare__row');
   await expect(rows).toHaveCount(2);
-  await expect(rows.nth(1)).toHaveAccessibleName(/^B Nonstop: Outbound ≈ .+, Return ≈ .+, Fastest$/);
+  await expect(rows.nth(1)).toHaveAccessibleName(/^B Nonstop: Outbound ≈ .+, Return ≈ .+$/);
   await expect(rows.nth(0)).toContainText(/\+\d+h/);
   // Switching trips keeps the way being edited, and switching ways keeps the trip.
   await trips.nth(1).click();

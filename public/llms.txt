@@ -2,7 +2,7 @@
 
 > GlobeHops visualises air journeys as great-circle routes on an interactive 3D globe, with shared distance, flight-time, layover, local-time and daylight calculations. Free, static, no account or API key.
 
-This guide lives at the site root, `https://globehops.marki.im/llms.txt`. GlobeHops moved here from `https://tmrk.github.io/globehops/`; old links still redirect, but build new ones on `https://globehops.marki.im/`. These discovery files describe GlobeHops's own contract; they do not claim conformance to a formal agent standard.
+This guide lives at the site root, `https://globehops.marki.im/llms.txt`. GlobeHops moved here from `https://tmrk.github.io/globehops/`, which no longer serves anything: build every link on `https://globehops.marki.im/` (an old link works once its host is replaced, keeping its `/globehops/` path). These discovery files describe GlobeHops's own contract; they do not claim conformance to a formal agent standard.
 
 ## Turn a booking into a link
 

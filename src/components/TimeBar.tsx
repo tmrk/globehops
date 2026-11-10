@@ -166,12 +166,9 @@ export function TimeBar({
   }
   if (comparison && metrics) {
     const arrival = metrics.firstArrival ? comparison.find((entry) => entry.id === metrics.firstArrival) : null;
-    const fastest = metrics.fastest;
     text.title = arrival
       ? t('compare.firstTitle', arrival.label ?? arrival.id)
-      : fastest
-        ? t('compare.fastestTitle', comparison.find((entry) => entry.id === fastest)?.label ?? fastest)
-        : t('compare.comparing', comparison.length);
+      : t('compare.comparing', comparison.length);
     const arrivalTime = arrival?.journey.end?.epochMs;
     text.detail =
       arrivalTime !== undefined
@@ -191,10 +188,7 @@ export function TimeBar({
         : '';
   }
   if (trips) {
-    const fastest = trips.metrics.fastest;
-    text.title = fastest
-      ? t('compare.fastestTitle', trips.list.find((entry) => entry.id === fastest)?.label ?? fastest)
-      : t('trips.comparing', fmt.number(trips.list.length));
+    text.title = t('trips.comparing', fmt.number(trips.list.length));
     text.detail = '';
   }
   const errorJourney = allJourneys.findIndex((entry) => entry.issues.some((issue) => issue.severity === 'error'));

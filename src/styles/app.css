@@ -2493,11 +2493,18 @@ button.map-menu__item:hover {
 /* ------------------------------------------------------------------------------------------ */
 /* Launcher: the journey's player before it starts                                            */
 
-/* Where the open timeline will be, the same width: Play beside the route, over its miniature timeline. */
+/* Where the open timeline will be, the same width. Two columns: the Play sign fills the left one at the
+   card's full height, and the route, its detail and the miniature timeline share one left edge beside it. */
 .launcher {
   position: relative;
   display: grid;
-  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'play info more'
+    'play strip strip';
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 10px;
   width: min(560px, 100%);
   margin-inline: auto;
   padding: 14px 16px 14px 14px;
@@ -2518,21 +2525,25 @@ button.map-menu__item:hover {
   }
 }
 
+/* Without a miniature timeline (nothing to preview yet), the sign and the route share one row. */
+.launcher--bare {
+  grid-template-areas: 'play info more';
+}
+
+/* The row only groups the sign, route and details for the DOM; the card's grid places them. */
 .launcher__row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
+  display: contents;
 }
 
 /* Play: an amber wayfinding sign, black on yellow like the signs that point the way through an airport. */
 .launcher__play {
   position: relative;
+  grid-area: play;
+  align-self: stretch;
   display: inline-flex;
   align-items: center;
   gap: 11px;
-  flex: none;
-  height: 54px;
+  min-height: 54px;
   padding: 0 24px 0 12px;
   border-radius: var(--radius-btn);
   background: var(--accent);
@@ -2597,8 +2608,8 @@ button.map-menu__item:hover {
 }
 
 .launcher__info {
+  grid-area: info;
   display: grid;
-  flex: 1;
   min-width: 0;
   gap: 3px;
 }
@@ -2630,9 +2641,11 @@ button.map-menu__item:hover {
 
 /* A miniature of the timeline Play opens, the aircraft waiting at its start. */
 .launcher__strip {
+  grid-area: strip;
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .launcher__plane {
@@ -2690,7 +2703,7 @@ button.map-menu__item:hover {
 }
 
 .launcher__more {
-  flex: none;
+  grid-area: more;
   margin: -6px -8px -6px 0;
 }
 
@@ -5429,11 +5442,11 @@ button.map-menu__item:hover {
 
 /* Narrow phones: a tighter sign leaves the route its room. */
 @media (max-width: 380px) {
-  .launcher__row {
-    gap: 12px;
+  .launcher {
+    column-gap: 12px;
   }
   .launcher__play {
-    height: 50px;
+    min-height: 50px;
     gap: 9px;
     padding: 0 18px 0 9px;
     font-size: var(--text-lg);

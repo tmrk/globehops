@@ -29,7 +29,7 @@ The [user guide](docs/USER_GUIDE.md) walks through every feature and explains [h
 
 ## Links and AI assistants
 
-Routes live in the address, e.g. [`globehops.marki.im/?route=CPH-LHR-JFK`](https://globehops.marki.im/?route=CPH-LHR-JFK); add times, return flights, comparisons and view options as described in the [link reference](docs/AGENT_INTEGRATION.md#link-reference-v1). Assistants and agents can build links from [`llms.txt`](https://globehops.marki.im/llms.txt), the [capabilities](https://globehops.marki.im/agent/capabilities.json), the [itinerary schema](https://globehops.marki.im/agent/itinerary.schema.json) and a local MCP server; see [agent integration](docs/AGENT_INTEGRATION.md). Older links to `tmrk.github.io/globehops` redirect to the same page here.
+Routes live in the address, e.g. [`globehops.marki.im/?route=CPH-LHR-JFK`](https://globehops.marki.im/?route=CPH-LHR-JFK); add times, return flights, comparisons and view options as described in the [link reference](docs/AGENT_INTEGRATION.md#link-reference-v1). Assistants and agents can build links from [`llms.txt`](https://globehops.marki.im/llms.txt), the [capabilities](https://globehops.marki.im/agent/capabilities.json), the [itinerary schema](https://globehops.marki.im/agent/itinerary.schema.json) and a local MCP server; see [agent integration](docs/AGENT_INTEGRATION.md). An old `tmrk.github.io/globehops/…` link opens here once its host is replaced with `globehops.marki.im`.
 
 ## Privacy
 

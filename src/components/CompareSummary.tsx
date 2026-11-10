@@ -48,13 +48,9 @@ export function CompareSummary({ list, metrics, active, onActivate }: Props) {
               </span>
               <ComparisonStrip entry={entry} list={list} />
               <span className="compare-summary__awards">
-                {ready &&
-                  metrics.fastest !== null &&
-                  (metrics.fastest === entry.id ? (
-                    <span className="compare-badge">{t('compare.fastest')}</span>
-                  ) : (
-                    <span className="compare-delta">+{fmt.duration(metrics.deltaMin[entry.id])}</span>
-                  ))}
+                {ready && metrics.fastest !== null && metrics.fastest !== entry.id && (
+                  <span className="compare-delta">+{fmt.duration(metrics.deltaMin[entry.id])}</span>
+                )}
                 {metrics.firstArrival === entry.id && metrics.firstArrival !== metrics.fastest && (
                   <span className="compare-badge compare-badge--arrival">{t('compare.arrivesFirst')}</span>
                 )}

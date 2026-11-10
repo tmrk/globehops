@@ -6,7 +6,7 @@ Everything [GlobeHops](https://globehops.marki.im/) can do, how to use it and ho
 
 GlobeHops runs in any modern browser on phones, tablets and desktops, with nothing to install and no account to create. You can also install it as an app (your browser's Install or Add to Home Screen): it then works offline after the first visit and checks for updates whenever it opens. When an update is ready, tap **Update**, or keep exploring and let it update itself after all app windows close. The version you are using is shown in About (ⓘ) and, on larger screens, faintly in the bottom-left corner.
 
-GlobeHops used to live at `tmrk.github.io/globehops`. Links to that address, including saved journeys and comparisons, open the same page at `globehops.marki.im` automatically. Preferences and remembered journeys are kept per address, so choose your settings once more on the new one, and reinstall an installed app from it.
+GlobeHops used to live at `tmrk.github.io/globehops`, which no longer works. To open an old link, replace `tmrk.github.io` with `globehops.marki.im` and keep the rest: `https://globehops.marki.im/globehops/?route=…` opens the same journey. Preferences and remembered journeys are kept per address, so choose your settings once more on the new one, and reinstall an installed app from it.
 
 ## What you can do
 
@@ -36,7 +36,7 @@ Choose **Add return flight** below your stops to make the journey a trip: a retu
 
 ### Compare journeys
 
-Choose **Compare journeys** below your stops to try up to four flight options. Each journey has its own colour and tab; a new option starts empty and offers a few similar routes between the same airports, such as nonstop or via a different hub, or you can choose any airports yourself. The ticket compares total time, marks the fastest option and shows which arrives first. **Play all** runs every journey on one shared clock, including layovers, with a live status lane for each. Share keeps all the options together. Journeys without times use a common example departure when you play them. Give each option a name in **Edit**, such as the airline or the person flying it: to see two people's travels together, name them “Anna” and “Ben”, and their names follow them to the tabs, table, timeline and the planes on the globe.
+Choose **Compare journeys** below your stops to try up to four flight options. Each journey has its own colour and tab; a new option starts empty and offers a few similar routes between the same airports, such as nonstop or via a different hub, or you can choose any airports yourself. The ticket compares total time, shows how much longer each slower option takes and which arrives first. **Play all** runs every journey on one shared clock, including layovers, with a live status lane for each. Share keeps all the options together. Journeys without times use a common example departure when you play them. Give each option a name in **Edit**, such as the airline or the person flying it: to see two people's travels together, name them “Anna” and “Ben”, and their names follow them to the tabs, table, timeline and the planes on the globe.
 
 ### Compare round trips
 

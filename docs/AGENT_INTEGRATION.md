@@ -20,7 +20,7 @@ The last example uses airport-local wall times, so 08:15 in Copenhagen and 09:05
 - [Worked examples](https://globehops.marki.im/agent/examples.json)
 - [Dataset freshness](https://globehops.marki.im/agent/dataset.json)
 
-The guide is at the site root, `https://globehops.marki.im/llms.txt`. GlobeHops moved there from `https://tmrk.github.io/globehops/`; old links redirect in a browser, but build new links on the new domain. HTML discovery links and WebApplication JSON-LD point to the same contract. These are project discovery conventions, with no claim of conformance to a formal agent standard.
+The guide is at the site root, `https://globehops.marki.im/llms.txt`. GlobeHops moved there from `https://tmrk.github.io/globehops/`, which no longer serves anything; build every link on the new domain (an old link works once its host is replaced, keeping its `/globehops/` path). HTML discovery links and WebApplication JSON-LD point to the same contract. These are project discovery conventions, with no claim of conformance to a formal agent standard.
 
 ## Link reference (v1)
 

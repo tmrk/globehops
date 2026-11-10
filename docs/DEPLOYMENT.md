@@ -1,6 +1,6 @@
 # Deployment
 
-GlobeHops is a static site on **Cloudflare Pages** at **https://globehops.marki.im/**. It moved there from GitHub Pages (`https://tmrk.github.io/globehops/`), which now serves only a redirect (see [Old GitHub Pages address](#old-github-pages-address)).
+GlobeHops is a static site on **Cloudflare Pages** at **https://globehops.marki.im/**. It moved there from GitHub Pages (`https://tmrk.github.io/globehops/`), which is now switched off (see [Old GitHub Pages address](#old-github-pages-address)).
 
 ## Cloudflare Pages
 
@@ -61,16 +61,7 @@ gh run list --repo tmrk/globehops --workflow update-airports.yml
 
 ## Old GitHub Pages address
 
-GitHub Pages (**Settings → Pages → Source: GitHub Actions**) no longer hosts the app. `.github/workflows/pages-redirect.yml` publishes the small site in `.github/pages-redirect/` whenever those files change (or on manual dispatch):
-
-- `index.html`, copied to `404.html` and to `en/`, `hu/` and `sv/` (with their own canonical address), replaces the location with `https://globehops.marki.im` plus the path below `/globehops/`, the query and the fragment. Every itinerary, compare, trip, locale and agent link therefore opens unchanged on the new domain. Without JavaScript, a meta refresh opens the new home page. GitHub Pages cannot send HTTP 301s for a project site; the canonical links and immediate client-side redirect are the permanent-redirect signal.
-- `sw.js` replaces the app's offline worker for browsers and installed apps that still have the old version. Their next update check downloads it and it asks to activate at once; Chrome then waits until the old worker has no work in flight (about half a minute in tests) or until the app is next opened. Activation only deletes GlobeHops's own `globehops-` caches (other projects share the `tmrk.github.io` origin) and takes control, because pages in scope wait for it; the old app then reloads itself, every page load in scope is redirected (301 from the worker) to the same path, query and fragment on the new domain, windows still open 1.5 s later are navigated there, and the worker unregisters itself. Tested by installing the 1.22.1 build under `/globehops/` locally and swapping in this site. Saved preferences and remembered journeys belong to each origin, so they do not move; installed home-screen apps keep opening the old address until reinstalled from the new one, and are redirected each time.
-- `llms.txt` tells agents that fetch the old guide where the current one is.
-
-```sh
-gh workflow run pages-redirect.yml --repo tmrk/globehops --ref main
-curl -s https://tmrk.github.io/globehops/llms.txt
-```
+GitHub Pages is switched off for this repository: its site, the `github-pages` environment and its deployment history were deleted on 2026-11-10, after a short-lived redirect site (1.23.0–1.23.1). `https://tmrk.github.io/globehops/…` now returns GitHub's 404, so old links no longer redirect. An old link opens on the new domain once its host is replaced: `_redirects` sends `https://globehops.marki.im/globehops/…` to the same path, query and fragment at the root. Browsers or installed apps that kept the old offline copy and never received the retiring worker keep that copy at the old address until their storage is cleared; install again from the new address. Do not re-enable GitHub Pages for the app.
 
 ## Verify a release
 
@@ -85,7 +76,7 @@ Also verify:
 - Direct reloads of `/en/`, `/hu/` and `/sv/` work, with translated HTML metadata and selectors. Ordinary Share links use the neutral root; Hungarian/Swedish UI loads city exonyms and localized place names.
 - Follow aircraft tracks the plane, manual camera input exits it, and reduced motion re-centres only as needed. A combined `follow=1&leg=2` link preserves the aircraft camera without overwriting saved preferences.
 - The hashed time-zone JSON loads, and visible credits retain TBB/OSM attribution and the ODbL link.
-- An unknown path returns the 404 page with status 404, `/globehops/?route=CPH-JFK` redirects to `/?route=CPH-JFK`, and `https://tmrk.github.io/globehops/hu/?route=CPH-JFK#x` opens `https://globehops.marki.im/hu/?route=CPH-JFK#x`.
+- An unknown path returns the 404 page with status 404, and `/globehops/hu/?route=CPH-JFK` redirects to `/hu/?route=CPH-JFK`.
 
 MCP is **not deployed**. `mcp/server.ts` is a local stdio process using a checkout and installed dependencies; Pages has no MCP endpoint. Its integration test is part of the unit suite.
 

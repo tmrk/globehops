@@ -47,7 +47,7 @@ export function PlayLauncher({
   const act = problem ? problem.onFix : onPlay;
   return (
     <section
-      className={`launcher${docked ? ' launcher--docked' : ''}${problem ? ' has-problem' : ''}`}
+      className={`launcher${docked ? ' launcher--docked' : ''}${lanes.length ? '' : ' launcher--bare'}${problem ? ' has-problem' : ''}`}
       aria-label={t('launcher.region')}
       // The whole card plays for a pointer; the sign is the one control for keyboards and screen readers.
       onClick={(event) => {

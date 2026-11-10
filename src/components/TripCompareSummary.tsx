@@ -20,7 +20,7 @@ interface Props {
 /**
  * Compared trips as a small table: one row per trip, one column per journey (outbound, return, …) and the
  * total time travelling. A bar under each time shows it against the same journey of the other trips; the
- * quickest of each column stands out, and the quickest trip overall is marked Fastest.
+ * quickest of each column stands out, and slower trips show how much longer they take in total.
  */
 export function TripCompareSummary({ list, metrics, captions, columns, active, onActivate }: Props) {
   const { t, fmt } = useI18n();
@@ -69,7 +69,7 @@ export function TripCompareSummary({ list, metrics, captions, columns, active, o
                         )
                         .join(', '),
                       time(metric.travelMin, metric.estimated),
-                    ) + (fastest ? `, ${t('compare.fastest')}` : '')
+                    )
                   : `${entry.id} ${captions[i]}`
               }
               onClick={() => onActivate(i)}
@@ -102,11 +102,7 @@ export function TripCompareSummary({ list, metrics, captions, columns, active, o
                   {metric.complete ? time(metric.travelMin, metric.estimated) : '–'}
                 </span>
                 {metric.complete && metrics.fastest !== null ? (
-                  fastest ? (
-                    <span className="compare-badge">{t('compare.fastest')}</span>
-                  ) : (
-                    <span className="compare-delta">+{fmt.duration(metrics.deltaMin[entry.id])}</span>
-                  )
+                  !fastest && <span className="compare-delta">+{fmt.duration(metrics.deltaMin[entry.id])}</span>
                 ) : (
                   <span className="trip-compare__bar">
                     {metric.complete && <span style={{ width: `${(100 * metric.travelMin) / longestTotal}%` }} />}

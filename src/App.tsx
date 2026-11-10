@@ -814,26 +814,8 @@ export default function App() {
     };
   };
   const cancelEditor = () => closeEditor({ cancelled: true });
-  const fastestJourney = compared.find((entry) => entry.id === metrics.fastest);
-  const fastestTrip = tripMetrics?.trips.find((entry) => entry.id === tripMetrics.fastest);
-  const tripsAnnouncement = trips
-    ? fastestTrip
-      ? t(
-          'trips.announcement',
-          fmt.number(trips.length),
-          trips.find((entry) => entry.id === fastestTrip.id)?.label ?? fastestTrip.id,
-          fmt.duration(fastestTrip.travelMin),
-        )
-      : t('trips.comparing', fmt.number(trips.length))
-    : '';
-  const comparisonAnnouncement = fastestJourney
-    ? t(
-        'compare.announcement',
-        compared.length,
-        fastestJourney.label ?? fastestJourney.id,
-        fmt.duration(fastestJourney.journey.totals.journeyMin),
-      )
-    : t('compare.comparing', compared.length);
+  const tripsAnnouncement = trips ? t('trips.comparing', fmt.number(trips.length)) : '';
+  const comparisonAnnouncement = t('compare.comparing', compared.length);
   const totalKm = legs.reduce((s, l) => s + l.distanceKm, 0);
   const flightMin = journey.dated ? journey.totals.flightMin : sumDurations(legs.map((l) => l.durationMin));
   const totalMin = journey.dated

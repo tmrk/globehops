@@ -2,6 +2,12 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.24.0 – 2026-11-10 – A tidier Play and plainer comparisons
+
+- **A tidier Play.** The amber Play sign now fills the left of its card at full height, with the route, its length and the miniature timeline lined up beside it, beneath the globe and at the top of the phone sheet alike.
+- **No more “fastest”.** Compared journeys and trips no longer carry a **Fastest** tag, and the player no longer announces which one “is fastest”. Slower options still show how much longer they take, and timed comparisons still say which arrives first.
+- **The old address is switched off.** `tmrk.github.io/globehops/` no longer serves anything. To open an old link, replace `tmrk.github.io` with `globehops.marki.im` and keep the rest; its `/globehops/` path still works there.
+
 ## 1.23.1 – 2026-11-10 – A smoother move for installed apps
 
 - **Installed apps move over sooner.** Once an app installed from the old `tmrk.github.io/globehops/` address has picked up the move, every launch opens the same page at `globehops.marki.im` straight away, and other pages at the old address no longer stall while it switches.
