@@ -50,13 +50,17 @@ export interface LinkView {
   /** One-based flight number; in a trip, counted across all its journeys. */
   leg?: number;
 }
+/** A trip journey after the first, with the stay before it (null for the default). */
+export interface LinkSection {
+  label: string | null;
+  stops: LinkStop[];
+  stayMin: number | null;
+}
 export interface LinkJourney {
   label: string | null;
   stops: LinkStop[];
-}
-/** A trip journey after the first, with the stay before it (null for the default). */
-export interface LinkSection extends LinkJourney {
-  stayMin: number | null;
+  /** Compared trips: this alternative's journeys after its first (`b.2.*`…`d.6.*`). */
+  sections?: LinkSection[];
 }
 export interface LinkState {
   stops: LinkStop[] | null;
@@ -64,7 +68,10 @@ export interface LinkState {
   issues: string[];
   label?: string | null;
   compare?: LinkJourney[];
-  /** A trip's journeys after the first (which uses `stops`/`label`). Never combined with `compare`. */
+  /**
+   * A trip's journeys after the first (which uses `stops`/`label`). With `compare`, these are alternative
+   * A's further journeys, and each compared alternative may have its own `sections`: compared trips.
+   */
   sections?: LinkSection[];
 }
 const BOOLEAN_VIEW_PARAMS = {
@@ -286,16 +293,20 @@ export interface SerializableLinkStop {
 export interface SerializableJourney {
   label: string | null;
   stops: SerializableLinkStop[];
+  /** Compared trips: this alternative's journeys after its first. */
+  sections?: SerializableSection[];
 }
 export type LinkDefaultKey = 'follow' | 'dayNight' | 'clock';
 
-export interface SerializableSection extends SerializableJourney {
+export interface SerializableSection {
+  label: string | null;
+  stops: SerializableLinkStop[];
   stayMin: number | null;
 }
 export interface LinkExtra {
   label?: string | null;
   compare?: SerializableJourney[];
-  /** A trip's journeys after the first; never together with `compare`. */
+  /** A trip's journeys after the first; with `compare`, alternative A's (compared trips). */
   sections?: SerializableSection[];
 }
 

@@ -83,35 +83,41 @@ export interface ComparisonMetrics {
   firstArrival: JourneyId | null;
   deltaMin: Record<JourneyId, number>;
 }
+/** Whether any of a journey's durations or times is an estimate rather than the traveller's own. */
+export function journeyEstimated(journey: Journey): boolean {
+  return (
+    journey.legs.some(
+      (leg) =>
+        leg.durationSource !== 'entered' ||
+        leg.departure?.provenance !== 'entered' ||
+        leg.arrival?.provenance !== 'entered',
+    ) ||
+    journey.transfers.some(
+      (transfer) =>
+        transfer.source !== 'times' ||
+        transfer.arrival?.provenance !== 'entered' ||
+        transfer.departure?.provenance !== 'entered',
+    )
+  );
+}
+/** The alternative with the smallest value; none with fewer than two, or on an exact tie. */
+export function winner(values: { id: JourneyId; value: number }[]): JourneyId | null {
+  if (values.length < 2) return null;
+  const sorted = [...values].sort((a, b) => a.value - b.value);
+  return sorted[0].value === sorted[1].value ? null : sorted[0].id;
+}
 export function compareMetrics(list: ComparedJourney[]): ComparisonMetrics {
   const journeys = list.map(({ id, journey }): JourneyMetrics => ({
     id,
     start: journey.start?.epochMs ?? null,
     end: journey.end?.epochMs ?? null,
     ...journey.totals,
-    estimated:
-      journey.legs.some(
-        (leg) =>
-          leg.durationSource !== 'entered' ||
-          leg.departure?.provenance !== 'entered' ||
-          leg.arrival?.provenance !== 'entered',
-      ) ||
-      journey.transfers.some(
-        (transfer) =>
-          transfer.source !== 'times' ||
-          transfer.arrival?.provenance !== 'entered' ||
-          transfer.departure?.provenance !== 'entered',
-      ),
+    estimated: journeyEstimated(journey),
   }));
   const valid = journeys.filter(
     (_, index) =>
       list[index].journey.stops.length >= 2 && !list[index].journey.issues.some((issue) => issue.severity === 'error'),
   );
-  const winner = (values: { id: JourneyId; value: number }[]): JourneyId | null => {
-    if (values.length < 2) return null;
-    const sorted = [...values].sort((a, b) => a.value - b.value);
-    return sorted[0].value === sorted[1].value ? null : sorted[0].id;
-  };
   const minimum = valid.length ? Math.min(...valid.map((journey) => journey.journeyMin)) : 0;
   const deltaMin: Record<JourneyId, number> = { A: 0, B: 0, C: 0, D: 0 };
   for (const journey of valid) deltaMin[journey.id] = journey.journeyMin - minimum;

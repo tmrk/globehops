@@ -130,6 +130,14 @@ export interface TripOptions {
   assumedStart: number | null;
   now?: number;
   route?: LegRouter;
+  /**
+   * Compared trips: for a trip without any entered time, the start (UTC ms) of the same journey in the
+   * timed trips it is compared with. Each journey lines up with its counterpart, except that a stay the
+   * traveller chose keeps its length. Ignored when the trip has entered times of its own.
+   */
+  align?: readonly (number | null)[];
+  /** Journey ids are `${idPrefix}1`, `${idPrefix}2`, …; compared trips use their letter. */
+  idPrefix?: string;
 }
 
 const hasFlights = (journey: Journey) => journey.legs.length > 0;
@@ -141,14 +149,14 @@ function calendarDays(zone: string, from: number, to: number): number {
 
 export function computeTrip(inputs: TripSectionInput[], opts: TripOptions): Trip {
   const list = inputs.slice(0, MAX_SECTIONS);
-  const ids = list.map((_, i) => `S${i + 1}`);
+  const ids = list.map((_, i) => `${opts.idPrefix ?? 'S'}${i + 1}`);
   const stay = (k: number) => list[k].stayMin ?? DEFAULT_STAY_MIN;
   const compute = (k: number, anchor: Parameters<typeof routedJourney>[1]['anchor'] = null) =>
     routedJourney({ ...list[k].input, id: ids[k] }, { now: opts.now, anchor }, opts.route);
 
   const journeys = list.map((_, k) => compute(k));
   const anchors: SectionAnchor[] = journeys.map((j) => (j.dated ? 'entered' : 'none'));
-  /** Neighbour each untimed journey was placed from: -1 earlier, +1 later. */
+  /** Neighbour each untimed journey was placed from: -1 earlier, +1 later; 2 when lined up with another trip. */
   const placedFrom = list.map(() => 0);
   const timed = list.map((_, k) => journeys[k].dated);
   const withFlights = list.map((_, k) => k).filter((k) => hasFlights(journeys[k]));
@@ -178,6 +186,20 @@ export function computeTrip(inputs: TripSectionInput[], opts: TripOptions): Trip
       if (start) place(k, 'end', start.epochMs - stay(n) * 60000, provenance(start, n), 1);
     }
   };
+  // An untimed trip lines up journey by journey with the timed trips it is compared with, unless the
+  // traveller chose the stay before a journey, or lining up would leave before the previous one lands.
+  if (opts.align && !timed.some(Boolean))
+    for (const k of withFlights) {
+      const start = opts.align[k];
+      const p = previous(k);
+      const landed = p === undefined ? undefined : journeys[p].end?.epochMs;
+      if (start != null && (p === undefined || list[k].stayMin === null) && (landed === undefined || start >= landed)) {
+        journeys[k] = compute(k, { at: 'start', epochMs: start, provenance: 'assumed' });
+        anchors[k] = 'assumed';
+        placedFrom[k] = 2;
+      } else if (p !== undefined && anchors[p] !== 'none' && journeys[p].end)
+        place(k, 'start', journeys[p].end!.epochMs + stay(k) * 60000, provenance(journeys[p].end!, k), -1);
+    }
   forward();
   backward();
   const first = withFlights[0];
@@ -215,7 +237,7 @@ export function computeTrip(inputs: TripSectionInput[], opts: TripOptions): Trip
       departure = after.start;
     const arrivalAirport = before.stops[before.stops.length - 1].airport;
     const minutes = arrival && departure ? (departure.epochMs - arrival.epochMs) / 60000 : stay(k);
-    const fromSetting = placedFrom[k] === -1 || placedFrom[p] === 1 || !arrival || !departure;
+    const fromSetting = placedFrom[k] === -1 || placedFrom[k] === 2 || placedFrom[p] === 1 || !arrival || !departure;
     if (minutes < 0)
       issues.push({
         code: 'stay_overlap',
