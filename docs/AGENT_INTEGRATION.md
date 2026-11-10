@@ -248,7 +248,7 @@ Rankings include only complete alternatives and measure flights plus connections
 
 ## Routing: restricted airspace and diversion airports
 
-Agent and MCP results follow great circles by default, so existing workflows keep their numbers. Request modelled routing per call with `routing`:
+Generated agent and MCP paths follow great circles by default; explicit custom tracks always apply. Request modelled routing per call with `routing`:
 
 ```json
 { "route": "JNB-PER", "routing": { "avoidAirspace": true, "diversion": true } }
@@ -267,11 +267,11 @@ Semantic issue codes, severities and meanings are published in `capabilities.jso
 
 Limits are 1–4 document journeys, 1–6 trip sections, stays up to 525600 minutes, 10 stops per journey, 8000 URL characters, 6000 itinerary-parameter characters, layover settings up to 10080 minutes and calendar years 1900–2100. Search returns 8 matches by default, at most 100. Timelines accept up to 1000 explicit instants or 2–1000 evenly spaced samples (default 10). A single airport has no flight timeline.
 
-Distances use great circles on a spherical Earth, radius 6371.0088 km. Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distance results round to 0.1 km/mi; durations round to integer minutes. Totals are rounded from unrounded shared calculations, so rounded leg distances may differ from totals by 0.1.
+Distances sum great-circle arcs on a spherical Earth, radius 6371.0088 km: directly between airports for generated great circles, or along routed/custom vertices. Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distance results round to 0.1 km/mi; durations round to integer minutes. Totals are rounded from unrounded shared calculations, so rounded leg distances may differ from totals by 0.1.
 
 Entered timepoints carry `provenance: "entered"`; propagated endpoints carry `"estimated"`; explicitly anchored undated journeys carry `"assumed"`. Legs report `durationSource`; transfers report their shared `source` (`setting` or `times`) and provenance; totals distinguish entered, estimated and mixed durations. An unanchored undated route returns null timepoints and estimated durations. A timeline requires `assumeDeparture` for such a route; the server never silently assumes “now.” Timeline instants distinguish entered requests from estimated samples and identify whether their journey anchor was entered or assumed.
 
-Positions use the shared flight-progress model along a great circle, or along the routed path when `routing` was requested (`position.model: "routed"`). The website routes flights around restricted airspace and within reach of diversion airports for people viewing a link (both on by default in the display menu); without `routing`, agent tools and MCP results use great circles, so the page may show longer distances and times for such flights. Altitude is illustrative. These are not live aircraft locations. Daylight uses the shared solar model, with civil twilight, at the requested position and instant. Actual routes, winds, aircraft and airline schedules are not modelled. Time conversion uses the runtime's Intl IANA database; its vintage may differ between machines, and future rules can change.
+Generated positions use the shared flight-progress model along a great circle, or along the routed path when `routing` was requested (`position.model: "routed"`). Custom positions follow the supplied path (`position.model: "planned"` or `"recorded"`); recordings use timestamped distance and supplied altitude. The website routes flights around restricted airspace and within reach of diversion airports for people viewing a link (both on by default in the display menu); without `routing` or a custom track, agent tools and MCP results use great circles, so the page may show longer distances and times for such flights. Altitude is illustrative when a custom track has no usable altitude data. These are not live aircraft locations. Daylight uses the shared solar model, with civil twilight, at the requested position and instant. Actual routes, winds, aircraft and airline schedules are not modelled. Time conversion uses the runtime's Intl IANA database; its vintage may differ between machines, and future rules can change.
 
 ## Dataset freshness and licences
 
@@ -494,3 +494,58 @@ A hosted MCP service would need a separate runtime and a Streamable HTTP transpo
 ## Rebuilding and verifying discovery files
 
 `npm run agent:build` deterministically regenerates capabilities, schema and worked examples. It uses the real datasets and `planItinerary`/`planTrip`/`planComparison`; it adds no generation timestamp. Example diagnostics use a fixed reference clock of 2026-01-01 so future-rule information does not drift with the day a contributor runs the command. `scripts/agent-files.test.ts` checks committed bytes, schema validity and both URL round-trips. The production build separately emits the current dataset freshness record.
+
+## Custom flight paths
+
+A departing stop may carry a `track` (never the last stop). It preserves supplied geometry, even when
+its ends differ from the matched airports. Planned paths contain positions and optional planned
+altitudes; recorded paths contain at least two timestamps. Both bypass generated routing, including
+when agent routing is omitted. Each flight reports `path.kind`, `distanceKm`, `greatCircleKm`, `points`,
+optional `source`, and `recordedDurationMin` for a recording.
+
+```json
+{
+  "version": 1,
+  "stops": [
+    {
+      "airport": "LHR",
+      "track": {
+        "kind": "planned",
+        "format": "document",
+        "points": [
+          [51.47, -0.46, 0],
+          [55, -20, 10668],
+          [57, -40, 11278],
+          [40.64, -73.78, 0]
+        ]
+      }
+    },
+    { "airport": "JFK" }
+  ]
+}
+```
+
+`track` accepts exactly one of `points` (2–20,000 tuples `[lat,lng,altitudeMetres|null,ISO-time|null]`,
+with the last two entries optional) or `encoded` (the share-link codec). Optional `kind` defaults to
+recorded when at least two points have times, else planned. Optional `format` records provenance;
+`name` is 1–80 characters without controls. Time strings require Z or an explicit offset. Coordinates
+and altitude ranges are validated; track timestamps may include milliseconds; backwards times become unknown during normalization.
+
+Recorded first/last times fill missing departure/arrival inputs as entered times; explicit stop inputs
+win and playback scales the recording into that window. Recorded playback follows timestamped distance,
+while planned playback uses the flight model on the supplied path length. At least two known altitudes
+are interpolated along distance, replacing the illustrative profile.
+
+Readable links use `trkN` for the path departing stop N (one-based), with the same prefixes as times:
+`trk1`, `b.trk1`, `2.trk1`, `b.2.trk1`. Values use versioned URL-safe delta encoding; invalid tracks are
+ignored with an issue and the route still loads. Links retain format but omit source names and waypoint
+names. Coordinates round to 1e-5°, altitudes to metres, timestamps to seconds. Large tracks are simplified
+only in the shared copy to keep the complete URL within 8,000 characters; the result warns with
+`track_simplified`. If even endpoints cannot fit, later tracks are omitted. Missing times/altitudes at retained vertices use
+the original path’s interpolation. Oversized `itinerary` links
+fall back to the readable URL. The session and agent calculations retain exact imported points.
+
+Tracks travel only inside the link or local itinerary document. Nothing is uploaded. Anyone receiving
+the link can read its positions, altitudes and times. See the planned North Atlantic and recorded
+Copenhagen–Stockholm examples in `agent/examples.json`. MCP and WebMCP accept these documents through
+existing tools; there is no file-import tool.
