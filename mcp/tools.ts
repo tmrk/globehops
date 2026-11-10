@@ -16,14 +16,54 @@ import {
 import { linkStateToDocument, type ItineraryDocument } from '../src/agent/itinerary.ts';
 import { parseLink } from '../src/state/link.ts';
 import { MAX_LABEL_LENGTH } from '../src/lib/journeyLabel.ts';
-import { MAX_JOURNEYS, MAX_URL_LENGTH, MAX_TIMELINE_SAMPLES } from '../src/agent/contract.ts';
+import {
+  MAX_JOURNEYS,
+  MAX_SECTIONS,
+  MAX_STAY_MIN,
+  MAX_URL_LENGTH,
+  MAX_TIMELINE_SAMPLES,
+} from '../src/agent/contract.ts';
 import { ITINERARY_SCHEMA } from '../src/agent/schema.ts';
 
 // Derive the MCP document description and validation directly from the published schema.
 // Zod's JSON Schema importer treats oneOf as the whole schema, ignoring sibling constraints.
 // Import each complete form, then retain the document's exclusive choice with z.xor.
 function documentForm(field: 'stops' | 'journeys' | 'sections') {
-  const schema = { ...ITINERARY_SCHEMA, $id: undefined, oneOf: undefined, required: ['version', field] };
+  const journeys = ITINERARY_SCHEMA.properties.journeys;
+  const { sections, stops, ...shared } = journeys.items.properties;
+  // Expand the homogeneous alternatives into complete schemas: Zod's importer drops sibling constraints
+  // alongside oneOf/anyOf. The published schema keeps the compact, explicit journey-item oneOf.
+  const journeyForms = [
+    { ...journeys.items, oneOf: undefined, required: ['stops'], properties: { ...shared, stops } },
+    ...Array.from({ length: MAX_SECTIONS }, (_, i) => ({
+      ...journeys.items,
+      oneOf: undefined,
+      required: ['sections'],
+      properties: { ...shared, sections: { ...sections, anyOf: [sections.anyOf[i]] } },
+    })),
+  ];
+  const schema = {
+    ...ITINERARY_SCHEMA,
+    $id: undefined,
+    oneOf: undefined,
+    required: ['version', field],
+    // Stable local definition IDs keep repeated stop/section schemas as references on MCP export.
+    $defs: Object.fromEntries(
+      Object.entries(ITINERARY_SCHEMA.$defs).map(([name, value]) => [
+        name,
+        { ...value, id: `Itinerary_${field}_${name}` },
+      ]),
+    ),
+    properties: {
+      $schema: ITINERARY_SCHEMA.properties.$schema,
+      version: ITINERARY_SCHEMA.properties.version,
+      view: ITINERARY_SCHEMA.properties.view,
+      [field]:
+        field === 'journeys'
+          ? { anyOf: journeyForms.map((items) => ({ ...journeys, anyOf: undefined, items })) }
+          : ITINERARY_SCHEMA.properties[field],
+    },
+  };
   return z.fromJSONSchema(JSON.parse(JSON.stringify(schema)));
 }
 const itinerary = z
@@ -69,6 +109,18 @@ const comparisonStops = z.fromJSONSchema(
     }),
   ),
 );
+const stay = z.union([z.number().int().min(0).max(MAX_STAY_MIN), z.string().regex(/^\d{1,6}[mhd]?$/i)]);
+const comparisonSection = z
+  .strictObject({
+    route: route.optional(),
+    stops: comparisonStops.optional(),
+    label: z.string().min(1).max(MAX_LABEL_LENGTH).optional(),
+    stay: stay.optional(),
+  })
+  .refine(
+    (section) => (section.route !== undefined) !== (section.stops !== undefined),
+    'Supply exactly one of route or stops.',
+  );
 const comparisonJourney = z
   .strictObject({
     label: z
@@ -79,10 +131,16 @@ const comparisonJourney = z
       .optional(),
     route: route.optional(),
     stops: comparisonStops.optional(),
+    sections: z.array(comparisonSection).min(1).max(MAX_SECTIONS).optional(),
+    returnRoute: route.optional(),
+    stay: stay.optional(),
   })
   .refine(
-    (journey) => (journey.route !== undefined) !== (journey.stops !== undefined),
-    'Supply exactly one of route or stops.',
+    (journey) =>
+      [journey.route, journey.stops, journey.sections].filter((value) => value !== undefined).length === 1 &&
+      (journey.returnRoute === undefined || journey.route !== undefined) &&
+      (journey.stay === undefined || journey.returnRoute !== undefined),
+    'Supply exactly one of route, stops or sections; returnRoute requires route, and stay requires returnRoute.',
   );
 export const INPUT_SCHEMAS = {
   search_airports: z.strictObject({
@@ -129,7 +187,7 @@ export const INPUT_SCHEMAS = {
 export type ToolName = keyof typeof INPUT_SCHEMAS;
 const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   compare_journeys:
-    'Compare 2–4 alternative journeys (e.g. different airlines/connections between the same cities) and return a single GlobeHops link that plays them simultaneously on one clock, with per-journey totals and which is fastest/arrives first. Use airport-local wall times from the timetable; undated journeys align to the earliest dated departure or assumeDeparture.',
+    'Compare 2–4 alternative journeys or round trips and return one GlobeHops link on a shared clock. Each alternative supplies route, stops or sections; route plus returnRoute and optional stay is a round-trip shorthand. Trips require equal section counts and rank travel time excluding stays, with section-by-section winners. Plain journeys report fastest/first arrival. Use airport-local timetable times; untimed trip sections align with the earliest timed counterpart unless the traveller chose the stay; assumeDeparture anchors undated alternatives.',
   search_airports: 'Find airports using GlobeHops ranking, with coordinates and IANA time zones.',
   calculate_route:
     'Calculate 1–10 airport stops (or a trip of up to 6 sections with explicit stays), distances in km/mi (great circle by default; routing opts into restricted-airspace and diversion-aware routes), durations in minutes, airport-local and UTC times, canonical links and issues. Flight estimates (850 km/h + 30 min) are not airline schedules.',
@@ -165,8 +223,11 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
     }
     if (name === 'compare_journeys') {
       const args = INPUT_SCHEMAS.compare_journeys.parse(raw);
-      const { assumeDeparture, ...input } = args;
-      const plan = planComparison(ctx, input, { assumeDeparture, ...(args.routing ? { routing: args.routing } : {}) });
+      const { assumeDeparture, routing: requestedRouting, ...input } = args;
+      const plan = planComparison(ctx, input, {
+        assumeDeparture,
+        ...(requestedRouting ? { routing: requestedRouting } : {}),
+      });
       return result(plan, !plan.valid);
     }
     const args = checked.data as {
@@ -404,6 +465,26 @@ const comparisonOutput = z.object({
     z.object({ id: z.enum(['A', 'B', 'C', 'D']), journeyMinutes: z.number(), deltaMinutes: z.number() }),
   ),
 });
+const tripComparisonOutput = z.object({
+  fastest: z.enum(['A', 'B', 'C', 'D']).nullable(),
+  ranking: z.array(z.object({ id: z.enum(['A', 'B', 'C', 'D']), travelMinutes: z.number(), deltaMinutes: z.number() })),
+  sections: z.array(
+    z.object({
+      name: z.string(),
+      fastest: z.enum(['A', 'B', 'C', 'D']).nullable(),
+      deltaMinutes: z.object({ A: z.number(), B: z.number(), C: z.number(), D: z.number() }),
+    }),
+  ),
+});
+const comparedTripOutput = z.object({
+  id: z.enum(['A', 'B', 'C', 'D']),
+  label: z.string().nullable(),
+  color: z.string(),
+  anchor: z.enum(['entered', 'assumed', 'none']),
+  sections: z.array(sectionOutput),
+  stays: z.array(stayOutput),
+  totals: tripTotalsOutput.extend({ travelMinutes: z.number().int() }),
+});
 const singleOutputs = {
   search_airports: z.object({ airports: z.array(airportOutput) }),
   calculate_route: z.object({
@@ -429,8 +510,12 @@ const singleOutputs = {
     url: z.string().nullable(),
     itineraryParamUrl: z.string().nullable(),
     humanSummary: z.string(),
-    summary: z.object({ valid: z.boolean(), issues: issuesOutput, totals: totalsOutput.optional() }),
-    comparison: comparisonOutput.optional(),
+    summary: z.object({
+      valid: z.boolean(),
+      issues: issuesOutput,
+      totals: z.union([totalsOutput, tripTotalsOutput]).optional(),
+    }),
+    comparison: z.union([comparisonOutput, tripComparisonOutput]).optional(),
     trip: z.object({ totals: tripTotalsOutput, stays: z.array(stayOutput) }).optional(),
   }),
   get_journey_timeline: z.object({
@@ -474,21 +559,25 @@ export const OUTPUT_SCHEMAS = {
     itineraryParamUrl: z.string().nullable(),
     routing: routingOutput,
     humanSummary: z.string(),
-    journeys: z.array(
-      z.object({
-        id: z.enum(['A', 'B', 'C', 'D']),
-        label: z.string().nullable(),
-        color: z.string(),
-        stops: z.array(airportOutput),
-        legs: z.array(legOutput),
-        transfers: z.array(transferOutput),
-        totals: totalsOutput,
-        departure: timeOutput,
-        arrival: timeOutput,
-        anchor: z.enum(['entered', 'assumed', 'none']),
-      }),
-    ),
-    comparison: comparisonOutput,
+    kind: z.enum(['comparison', 'trip_comparison']),
+    journeys: z.union([
+      z.array(
+        z.object({
+          id: z.enum(['A', 'B', 'C', 'D']),
+          label: z.string().nullable(),
+          color: z.string(),
+          stops: z.array(airportOutput),
+          legs: z.array(legOutput),
+          transfers: z.array(transferOutput),
+          totals: totalsOutput,
+          departure: timeOutput,
+          arrival: timeOutput,
+          anchor: z.enum(['entered', 'assumed', 'none']),
+        }),
+      ),
+      z.array(comparedTripOutput),
+    ]),
+    comparison: z.union([comparisonOutput, tripComparisonOutput]),
   }),
 };
 export function registerTools(server: McpServer, ctx: AgentContext) {

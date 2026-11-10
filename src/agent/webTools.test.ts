@@ -163,3 +163,43 @@ describe('trip and routing commands', () => {
     expect(parseWebCommand('select_flight', { leg: 4 }, 4)).toEqual({ type: 'select_flight', leg: 4 });
   });
 });
+
+it('accepts compared round-trip shorthand and documents in browser route commands', () => {
+  const input = {
+    journeys: [
+      { label: 'Direct', route: 'BUD-JFK', returnRoute: 'JFK-BUD', stay: '5d' },
+      { sections: [{ route: 'BUD-FRA-JFK' }, { route: 'JFK-FRA-BUD', stay: 7200 }] },
+    ],
+  };
+  const command = parseWebCommand('compare_journeys', input, 0);
+  expect(command.type).toBe('set_route');
+  if (command.type !== 'set_route') throw new Error('Expected route command.');
+  expect(command.link.sections?.[0]).toMatchObject({ stayMin: 7200 });
+  expect(command.link.compare?.[0].sections?.[0].stops.map((stop) => stop.code)).toEqual(['JFK', 'FRA', 'BUD']);
+  const itinerary = parseLink(command.search);
+  expect(itinerary).toEqual(command.link);
+  const doc = {
+    version: 1,
+    journeys: [
+      {
+        sections: [
+          { stops: [{ airport: 'BUD' }, { airport: 'JFK' }] },
+          { stops: [{ airport: 'JFK' }, { airport: 'BUD' }] },
+        ],
+      },
+      {
+        sections: [
+          { stops: [{ airport: 'BUD' }, { airport: 'JFK' }] },
+          { stops: [{ airport: 'JFK' }, { airport: 'BUD' }] },
+        ],
+      },
+    ],
+  };
+  expect(parseWebCommand('set_route', { itinerary: doc }, 0)).toMatchObject({
+    type: 'set_route',
+    link: { sections: expect.any(Array), compare: expect.any(Array) },
+  });
+  expect(() => parseWebCommand('compare_journeys', { journeys: [input.journeys[0], { route: 'BUD-JFK' }] }, 0)).toThrow(
+    /same number of sections/,
+  );
+});

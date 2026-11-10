@@ -36,7 +36,7 @@ export const LINK_PARAMS = {
 
 /** Journey A uses unprefixed route/depN/arrN/label; B–D use b., c., d. (case-insensitive). */
 export const JOURNEY_LINK_PREFIXES = ['b.', 'c.', 'd.'] as const;
-/** A trip's first journey uses the unprefixed parameters; the following ones 2.–6., each with an optional stay. */
+/** Composable after b./c./d. for compared trips (b.2.route … d.6.stay). A trip's first journey uses the unprefixed parameters; the following ones 2.–6., each with an optional stay. */
 export const SECTION_LINK_PREFIXES = Array.from({ length: MAX_SECTIONS - 1 }, (_, i) => `${i + 2}.`);
 /** Flight numbers in a trip count every journey's flights in order. */
 export const MAX_TRIP_FLIGHTS = MAX_SECTIONS * (MAX_STOPS - 1);

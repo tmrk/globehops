@@ -42,7 +42,7 @@ export const WEB_TOOL_DEFINITIONS = [
   {
     name: 'compare_journeys',
     description:
-      'Compare 2–4 alternative journeys on one shared clock. Use airport-local timetable times; undated alternatives align to the earliest dated departure. Replaces the route for this visit.',
+      'Compare 2–4 alternative journeys or round trips on one shared clock. Use airport-local timetable times; undated alternatives align to the earliest dated departure. Replaces the route for this visit.',
     inputSchema: COMPARISON_INPUT_SCHEMA,
   },
   {

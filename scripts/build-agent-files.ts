@@ -171,6 +171,30 @@ const exampleSpecs: { title: string; description: string; itinerary: ItineraryDo
       view: { clock: 'JFK', units: 'km', dayNight: true },
     },
   },
+  {
+    title: 'Compared round trips',
+    description:
+      'Via Frankfurt versus nonstop, outbound and return compared separately; stays excluded from travel ranking.',
+    itinerary: {
+      version: 1,
+      journeys: [
+        {
+          label: 'Via Frankfurt',
+          sections: [
+            { stops: [{ airport: 'BUD', departure: '2026-12-01T07:10' }, { airport: 'FRA' }, { airport: 'JFK' }] },
+            { stops: [{ airport: 'JFK', departure: '2026-12-10T18:00' }, { airport: 'FRA' }, { airport: 'BUD' }] },
+          ],
+        },
+        {
+          label: 'Nonstop',
+          sections: [
+            { stops: [{ airport: 'BUD' }, { airport: 'JFK' }] },
+            { stops: [{ airport: 'JFK' }, { airport: 'BUD' }] },
+          ],
+        },
+      ],
+    },
+  },
 ];
 const parameter = (
   type: string,
@@ -191,6 +215,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       simple: `${DEFAULT_BASE_URL}?route={route}`,
       comparison: `${DEFAULT_BASE_URL}?route={routeA}&label={labelA}&b.route={routeB}&b.label={labelB}`,
       trip: `${DEFAULT_BASE_URL}?route={outbound}&dep1={localDeparture}&2.route={return}&2.dep1={localDeparture}&2.stay={stay}`,
+      tripComparison: `${DEFAULT_BASE_URL}?route={outboundA}&2.route={returnA}&b.route={outboundB}&b.2.route={returnB}`,
       localized: `${DEFAULT_BASE_URL}{lang}/?route={route}`,
       scheduled: `${DEFAULT_BASE_URL}?route={route}&dep1={localDeparture}`,
       document: `${DEFAULT_BASE_URL}?itinerary={base64urlJson}`,
@@ -201,21 +226,21 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         false,
         `1–${MAX_LABEL_LENGTH} characters without controls`,
         ['Via London'],
-        'Trimmed journey A label; URL-encode Unicode and reserved characters.',
+        'Trimmed journey/alternative A label; URL-encode Unicode and reserved characters.',
       ),
       'b./c./d.': parameter(
         'journey group',
         false,
-        'prefix + route|depN|arrN|label',
-        ['b.route=BUD-JFK', 'c.dep1=2026-12-01T08:00'],
-        'Journeys B–D in order; gaps compact. Each group requires route. Parameter keys are case-insensitive. Other view parameters remain unprefixed; leg refers to A, clock may name any compared airport.',
+        'prefix + route|depN|arrN|label or nested 2.–6. section groups',
+        ['b.route=BUD-JFK', 'b.2.route=JFK-BUD', 'c.dep1=2026-12-01T08:00'],
+        'Journeys B–D in order; gaps compact. Each group requires route. Parameter keys are case-insensitive. Other view parameters remain unprefixed; leg refers to A, clock may name any airport across all alternatives and their sections.',
       ),
       '2.–6.': parameter(
         'trip section group',
         false,
         'prefix + route|depN|arrN|label|stay',
         ['2.route=NBO-CDG-CPH', '2.dep1=2026-11-20T23:55', '2.stay=5d'],
-        `A trip's sections after the first (up to ${MAX_SECTIONS} in all), in order; the first uses the unprefixed parameters. Sections are sequential journeys separated by explicit stays; connections stay inside a section. stay (days d, hours h or minutes m) places a section without times after the previous one (default ${DEFAULT_STAY_MIN / 1440} days). Never combined with b.–d. comparisons; leg counts flights across the trip.`,
+        `A trip's sections after the first (up to ${MAX_SECTIONS} in all), in order; the first uses the unprefixed parameters. Sections are sequential journeys separated by explicit stays; connections stay inside a section. stay (days d, hours h or minutes m) places a section without times after the previous one (default ${DEFAULT_STAY_MIN / 1440} days). Compose with b.–d. for compared trips (b.2.* through d.6.*); leg counts flights across A’s sections.`,
       ),
       airspace: parameter(
         'string',
@@ -265,7 +290,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         false,
         'local|utc|airport code',
         ['local', 'utc', 'JFK'],
-        'Timeline display zone; airport code must belong to any compared journey.',
+        'Timeline display zone; airport code must belong to any journey or section of any alternative.',
       ),
       units: parameter('string', false, 'km|mi', ['km', 'mi'], 'Distance display only.'),
       follow: parameter(
@@ -313,7 +338,8 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       ),
     },
     comparison: {
-      document: 'Version 1; exactly one of stops or journeys (1–4 labelled stop arrays).',
+      document:
+        'Version 1; exactly one of stops, journeys or sections. Journeys: 1–4 labelled alternatives, each exactly one of stops or sections; every alternative uses the same form and section count (1–6).',
       alignment:
         'Entered schedules remain absolute. Undated journeys align to the earliest dated departure, else assumeDeparture; without either they have no timeline.',
       metrics:
@@ -324,9 +350,21 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       stays:
         'A stay is the time between one section arriving and the next departing, at the same airport or an open jaw. It is never a layover and is never inferred from duration. Its length comes from both sections’ times, else from stayMinutes (default 7 days), with estimated/assumed provenance.',
       playback:
-        'One traveller flies the sections in order on one UTC clock; automatic playback skips stays without changing any instant. Comparisons (journeys) and trips (sections) never combine.',
+        'One traveller flies the sections in order on one UTC clock; automatic playback skips stays without changing any instant. Compared trips use one clock across alternatives, each with sequential sections; shared stays can be skipped without changing instants.',
       outputs:
         'calculate_route returns kind "trip" with sections (journey details), stays (minutes, calendar days, source, provenance) and trip totals; get_journey_timeline reports a "stay" phase between sections.',
+    },
+    comparedTrips: {
+      links:
+        'A: unprefixed plus 2.*–6.*; B–D: b.* plus b.2.*–b.6.*, through d.6.*. Links tolerate unequal counts; documents pad empty sections then fail validation until filled.',
+      alignment:
+        'An untimed trip lines up journey by journey with the earliest timed counterpart unless the traveller chose the stay. Entered times remain absolute.',
+      metrics:
+        'Only complete valid trips are ranked by travelMinutes (flights plus connections across sections), excluding stays. Per-section winners/deltas compare section k with section k. Ties have no winner.',
+      input:
+        'compare_journeys: each alternative supplies route, stops or sections; sections supply route or stops, label?, stay? (integer minutes or 5d/36h/90m). route plus returnRoute and optional stay is a two-section shorthand. Equal section counts required.',
+      output:
+        'kind trip_comparison; journeys: id/label/color/anchor/sections/stays/totals (trip totals plus travelMinutes). comparison: fastest, ranking (id/travelMinutes/deltaMinutes), sections (name/fastest/per-ID deltaMinutes). Plain comparisons add kind comparison. get_journey_timeline remains single journey/trip only.',
     },
     routing: {
       default: 'Agent and MCP results follow great circles unless routing is requested; the app routes by default.',
@@ -437,6 +475,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         'position',
         'enum',
         'additionalProperties',
+        'sections_mismatch',
       ],
     },
     versioning:

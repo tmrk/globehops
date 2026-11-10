@@ -10,7 +10,7 @@ import { daylightAt, subsolarPoint } from '../lib/sun.ts';
 import {
   createAgentContext,
   planItinerary,
-  planComparison,
+  planComparison as planAnyComparison,
   resolveItinerary,
   searchAirports,
   timelineAt,
@@ -20,6 +20,12 @@ import { validateItineraryDocument } from './itinerary.ts';
 import { ITINERARY_SCHEMA } from './schema.ts';
 import { parseLink } from '../state/link.ts';
 
+// These regression cases exercise the existing single-journey comparison variant.
+function planComparison(...args: Parameters<typeof planAnyComparison>) {
+  const result = planAnyComparison(...args);
+  if (result.kind !== 'comparison') throw new Error('Expected a journey comparison.');
+  return result;
+}
 const read = (name: string): unknown =>
   JSON.parse(readFileSync(new URL(`../data/generated/${name}.json`, import.meta.url), 'utf8'));
 const ctx = createAgentContext({
@@ -376,5 +382,154 @@ describe('agent comparisons', () => {
     expect(
       validateItinerary(ctx, { version: 1, journeys }).some((issue) => issue.code === 'use_compare_journeys'),
     ).toBe(false);
+  });
+});
+
+describe('agent compared trips', () => {
+  const journeys = [
+    {
+      label: 'Via Frankfurt',
+      sections: [
+        {
+          stops: [
+            { airport: 'BUD', departure: '2026-12-01T07:10' },
+            { airport: 'FRA', arrival: '2026-12-01T08:40', departure: '2026-12-01T10:10' },
+            { airport: 'JFK', arrival: '2026-12-01T13:05' },
+          ],
+        },
+        {
+          stops: [
+            { airport: 'JFK', departure: '2026-12-10T18:00' },
+            { airport: 'FRA', arrival: '2026-12-11T07:00', departure: '2026-12-11T08:00' },
+            { airport: 'BUD', arrival: '2026-12-11T09:20' },
+          ],
+        },
+      ],
+    },
+    {
+      label: 'Nonstop',
+      sections: [
+        {
+          stops: [
+            { airport: 'BUD', departure: '2026-12-01T08:00' },
+            { airport: 'JFK', arrival: '2026-12-01T12:00' },
+          ],
+        },
+        {
+          stops: [
+            { airport: 'JFK', departure: '2026-12-12T18:00' },
+            { airport: 'BUD', arrival: '2026-12-13T08:15' },
+          ],
+        },
+      ],
+    },
+  ];
+  it('ranks travel across sections, excludes stays and emits both link forms', () => {
+    const doc = { version: 1, journeys, view: { leg: 4, clock: 'EDDF' } };
+    const plan = planAnyComparison(ctx, doc);
+    expect(plan.kind).toBe('trip_comparison');
+    if (plan.kind !== 'trip_comparison') throw new Error('Expected trips.');
+    expect(plan.valid).toBe(true);
+    expect(plan.journeys.map((journey) => journey.sections.map((section) => section.index))).toEqual([
+      [0, 1],
+      [0, 1],
+    ]);
+    expect(plan.journeys[0].totals.travelMinutes).toBe(715 + 560);
+    expect(plan.journeys[1].totals.tripMinutes).toBeGreaterThan(plan.journeys[0].totals.tripMinutes);
+    expect(plan.comparison).toMatchObject({
+      fastest: 'B',
+      ranking: [
+        { id: 'B', travelMinutes: 1095, deltaMinutes: 0 },
+        { id: 'A', travelMinutes: 1275, deltaMinutes: 180 },
+      ],
+      sections: [
+        { name: 'Outbound', fastest: 'B' },
+        { name: 'Return', fastest: 'B' },
+      ],
+    });
+    expect(plan.humanSummary).toContain('A Via Frankfurt: outbound BUD → FRA → JFK');
+    expect(plan.humanSummary).toContain('21h 15m travelling');
+    expect(plan.humanSummary).toContain('fastest');
+    expect(plan.url).toContain('&b.2.route=JFK-BUD');
+    expect(plan.url).toContain('clock=FRA');
+    expect(parseLink(new URL(plan.url!).search).issues).toEqual([]);
+    const encoded = parseLink(new URL(plan.itineraryParamUrl!).search);
+    expect(encoded.compare?.[0].sections?.[0].stops.map((stop) => stop.code)).toEqual(['JFK', 'BUD']);
+    expect(validateItinerary(ctx, doc).some((issue) => issue.severity === 'error')).toBe(false);
+    expect(planItinerary(ctx, doc).issues).toContainEqual(expect.objectContaining({ code: 'use_compare_journeys' }));
+    expect(timelineAt(ctx, doc, { samples: 2 }).issues).toContainEqual(
+      expect.objectContaining({ code: 'use_compare_journeys' }),
+    );
+  });
+  it('aligns untimed sections individually, preserves chosen stays and supports assumptions and routing', () => {
+    const input = { journeys: [journeys[0], { sections: [{ route: 'BUD-JFK' }, { route: 'JFK-BUD' }] }] };
+    const plan = planAnyComparison(ctx, input);
+    if (plan.kind !== 'trip_comparison') throw new Error('Expected trips.');
+    expect(plan.journeys[1].anchor).toBe('assumed');
+    for (let k = 0; k < 2; k++)
+      expect(plan.journeys[1].sections[k].departure?.utc).toBe(plan.journeys[0].sections[k].departure?.utc);
+    const custom = planAnyComparison(ctx, {
+      journeys: [journeys[0], { route: 'BUD-JFK', returnRoute: 'JFK-BUD', stay: '2d' }],
+    });
+    if (custom.kind !== 'trip_comparison') throw new Error('Expected trips.');
+    expect(custom.journeys[1].stays[0]).toMatchObject({ minutes: 2880, source: 'setting' });
+    expect(custom.journeys[1].sections[1].departure?.utc).not.toBe(plan.journeys[1].sections[1].departure?.utc);
+    const assumed = planAnyComparison(
+      ctx,
+      {
+        journeys: [
+          { route: 'BUD-JFK', returnRoute: 'JFK-BUD' },
+          { route: 'BUD-FRA-JFK', returnRoute: 'JFK-FRA-BUD' },
+        ],
+      },
+      { assumeDeparture: '2026-12-01T07:00Z', routing: { avoidAirspace: true } },
+    );
+    expect(assumed.kind).toBe('trip_comparison');
+    expect(assumed.routing?.avoidAirspace).toBe(true);
+    expect(assumed.issues).toContainEqual(
+      expect.objectContaining({ code: 'routing_unavailable', severity: 'warning' }),
+    );
+    if (assumed.kind === 'trip_comparison')
+      expect(assumed.journeys[0].sections[0].departure?.utc).toBe('2026-12-01T07:00Z');
+  });
+  it('keeps nested issue pointers after skipped stops and excludes incomplete or invalid trips', () => {
+    const invalid = {
+      label: 'Broken',
+      sections: [
+        journeys[0].sections[0],
+        { stops: [{ airport: 'JFK', departure: '2026-03-08T02:30' }, { airport: 'ZZZ' }, { airport: 'BUD' }] },
+      ],
+    };
+    const plan = planAnyComparison(ctx, { version: 1, journeys: [journeys[0], invalid] });
+    if (plan.kind !== 'trip_comparison') throw new Error('Expected trips.');
+    expect(plan.valid).toBe(false);
+    expect(plan.issues).toContainEqual(
+      expect.objectContaining({ code: 'unknown_airport', path: '/journeys/1/sections/1/stops/1/airport' }),
+    );
+    expect(plan.issues).toContainEqual(
+      expect.objectContaining({ code: 'nonexistent_local_time', path: '/journeys/1/sections/1/stops/0/departure' }),
+    );
+    expect(plan.comparison.fastest).toBeNull();
+    expect(plan.comparison.ranking.map((entry) => entry.id)).toEqual(['A']);
+    const missingFlight = planAnyComparison(ctx, {
+      version: 1,
+      journeys: [journeys[0], { sections: [journeys[0].sections[0], { stops: [{ airport: 'JFK' }] }] }],
+    });
+    expect(missingFlight.comparison.ranking.map((entry) => entry.id)).toEqual(['A']);
+  });
+  it('retains per-section diagnostics when no alternative can be ranked', () => {
+    const invalid = {
+      sections: [
+        { stops: [{ airport: 'BUD' }, { airport: 'ZZZ' }, { airport: 'JFK' }] },
+        { stops: [{ airport: 'JFK' }, { airport: 'BUD' }] },
+      ],
+    };
+    const plan = planAnyComparison(ctx, { version: 1, journeys: [invalid, invalid] });
+    if (plan.kind !== 'trip_comparison') throw new Error('Expected trips.');
+    expect(plan.comparison.ranking).toEqual([]);
+    expect(plan.comparison.sections).toEqual([
+      { name: 'Outbound', fastest: null, deltaMinutes: { A: 0, B: 0, C: 0, D: 0 } },
+      { name: 'Return', fastest: null, deltaMinutes: { A: 0, B: 0, C: 0, D: 0 } },
+    ]);
   });
 });

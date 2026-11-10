@@ -1,6 +1,6 @@
-import { MAX_JOURNEYS, MAX_URL_LENGTH } from './contract.ts';
+import { MAX_JOURNEYS, MAX_SECTIONS, MAX_URL_LENGTH } from './contract.ts';
 import { linkStateToDocument, validateItineraryDocument, type DocIssue, type DocumentResult } from './itinerary.ts';
-import { parseLink } from '../state/link.ts';
+import { parseLink, parseStay } from '../state/link.ts';
 
 const object = (raw: unknown): raw is Record<string, unknown> =>
   typeof raw === 'object' && raw !== null && !Array.isArray(raw);
@@ -14,36 +14,88 @@ export function comparisonDocument(raw: unknown): DocumentResult {
     return checked;
   }
   const issues: DocIssue[] = [];
-  const pointerKey = (key: string) => key.replace(/~/g, '~0').replace(/\//g, '~1');
-  for (const key of Object.keys(raw))
-    if (!['journeys', 'view'].includes(key))
-      issues.push({ path: `/${pointerKey(key)}`, code: 'additionalProperties', message: `Unknown property ${key}.` });
+  const keys = (value: Record<string, unknown>, allowed: string[], path: string) => {
+    for (const key of Object.keys(value))
+      if (!allowed.includes(key))
+        issues.push({
+          path: `${path}/${key.replace(/~/g, '~0').replace(/\//g, '~1')}`,
+          code: 'additionalProperties',
+          message: `Unknown property ${key}.`,
+        });
+  };
+  const routeStops = (route: unknown, path: string) => {
+    if (typeof route !== 'string' || route.length > MAX_URL_LENGTH) {
+      issues.push({ path, code: 'type', message: `route must be a string of at most ${MAX_URL_LENGTH} characters.` });
+      return [];
+    }
+    const link = parseLink(`?route=${encodeURIComponent(route)}`);
+    issues.push(...link.issues.map((message) => ({ path, code: 'invalid_link', message })));
+    return linkStateToDocument(link).stops;
+  };
+  const section = (value: unknown, path: string) => {
+    if (!object(value)) return value;
+    keys(value, ['label', 'route', 'stops', 'stay'], path);
+    if ((value.route !== undefined) === (value.stops !== undefined))
+      issues.push({ path, code: 'oneOf', message: 'Supply exactly one of route or stops.' });
+    const stayMinutes = typeof value.stay === 'string' ? parseStay(value.stay) : value.stay;
+    if (value.stay !== undefined && stayMinutes === null)
+      issues.push({
+        path: `${path}/stay`,
+        code: 'range',
+        message: 'Use stay minutes or a duration such as 5d, 36h or 90m.',
+      });
+    return {
+      ...(value.label !== undefined ? { label: value.label } : {}),
+      ...(value.stay !== undefined ? { stayMinutes } : {}),
+      stops: value.route !== undefined ? routeStops(value.route, `${path}/route`) : value.stops,
+    };
+  };
+  keys(raw, ['journeys', 'view'], '');
   const journeys = Array.isArray(raw.journeys)
     ? raw.journeys.slice(0, MAX_JOURNEYS).map((journey: unknown, index: number) => {
         const path = `/journeys/${index}`;
         if (!object(journey)) return journey;
-        for (const key of Object.keys(journey))
-          if (!['label', 'route', 'stops'].includes(key))
-            issues.push({
-              path: `${path}/${pointerKey(key)}`,
-              code: 'additionalProperties',
-              message: `Unknown property ${key}.`,
-            });
-        if ((journey.route !== undefined) === (journey.stops !== undefined))
-          issues.push({ path, code: 'oneOf', message: 'Supply exactly one of route or stops.' });
-        if (journey.route === undefined) return journey;
-        if (typeof journey.route !== 'string' || journey.route.length > MAX_URL_LENGTH) {
+        keys(journey, ['label', 'route', 'stops', 'sections', 'returnRoute', 'stay'], path);
+        if ([journey.route, journey.stops, journey.sections].filter((value) => value !== undefined).length !== 1)
+          issues.push({ path, code: 'oneOf', message: 'Supply exactly one of route, stops or sections.' });
+        if (journey.returnRoute !== undefined && journey.route === undefined)
+          issues.push({ path: `${path}/returnRoute`, code: 'required', message: 'returnRoute requires route.' });
+        if (journey.stay !== undefined && journey.returnRoute === undefined)
           issues.push({
-            path: `${path}/route`,
-            code: 'type',
-            message: `route must be a string of at most ${MAX_URL_LENGTH} characters.`,
+            path: `${path}/stay`,
+            code: 'required',
+            message: 'stay requires returnRoute (or put stay on a later section).',
           });
-          return { stops: [] };
+        const label = journey.label !== undefined ? { label: journey.label } : {};
+        if (journey.returnRoute !== undefined)
+          return {
+            ...label,
+            sections: [
+              section({ route: journey.route }, `${path}/sections/0`),
+              section(
+                { route: journey.returnRoute, ...(journey.stay !== undefined ? { stay: journey.stay } : {}) },
+                `${path}/sections/1`,
+              ),
+            ],
+          };
+        if (journey.sections !== undefined) {
+          if (Array.isArray(journey.sections) && journey.sections.length > MAX_SECTIONS)
+            issues.push({
+              path: `${path}/sections`,
+              code: 'items',
+              message: `Use 1 to ${MAX_SECTIONS} trip sections.`,
+            });
+          return {
+            ...label,
+            sections: Array.isArray(journey.sections)
+              ? journey.sections.slice(0, MAX_SECTIONS).map((value, i) => section(value, `${path}/sections/${i}`))
+              : journey.sections,
+          };
         }
-        const link = parseLink(`?route=${encodeURIComponent(journey.route)}`);
-        issues.push(...link.issues.map((message) => ({ path: `${path}/route`, code: 'invalid_link', message })));
-        const doc = linkStateToDocument(link);
-        return { ...(journey.label !== undefined ? { label: journey.label } : {}), stops: doc.stops };
+        return {
+          ...label,
+          stops: journey.route !== undefined ? routeStops(journey.route, `${path}/route`) : journey.stops,
+        };
       })
     : raw.journeys;
   if (Array.isArray(raw.journeys) && raw.journeys.length > MAX_JOURNEYS)

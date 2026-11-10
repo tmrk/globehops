@@ -24,6 +24,7 @@ import {
 } from '../lib/diversion.ts';
 import { greatCircleDistanceKm } from '../lib/geo.ts';
 import { computeTrip, sectionRole, tripStateAt, type Trip, type TripIssueCode, type TripStay } from '../lib/trip.ts';
+import { computeTripComparison, compareTripMetrics } from '../lib/compareTrips.ts';
 import { comparisonDocument } from './comparisonInput.ts';
 import { formatDuration } from '../lib/flightTime.ts';
 import { KM_PER_MILE } from '../lib/units.ts';
@@ -493,6 +494,21 @@ export function planTrip(ctx: AgentContext, raw: unknown, opts: PlanOptions = {}
       )
     : null;
   const itineraryParamUrl = document ? documentLink(url ?? ctx.baseUrl, document, issues) : null;
+  return {
+    contractVersion: CONTRACT_VERSION,
+    kind: 'trip' as const,
+    input: raw,
+    url,
+    itineraryParamUrl,
+    routing: routing.summary,
+    ...tripDetails(ctx, trip),
+    issues,
+    valid: !issues.some((issue) => issue.severity === 'error'),
+    notes: TRIP_NOTES,
+  };
+}
+
+function tripDetails(ctx: AgentContext, trip: Trip) {
   const stays = trip.stays.map(stayDetails);
   const sections = trip.sections.map((section) => ({
     index: section.index,
@@ -514,12 +530,6 @@ export function planTrip(ctx: AgentContext, raw: unknown, opts: PlanOptions = {}
     })
     .join(' · ');
   return {
-    contractVersion: CONTRACT_VERSION,
-    kind: 'trip' as const,
-    input: raw,
-    url,
-    itineraryParamUrl,
-    routing: routing.summary,
     humanSummary,
     sections,
     stays,
@@ -543,9 +553,6 @@ export function planTrip(ctx: AgentContext, raw: unknown, opts: PlanOptions = {}
             ? 'estimated'
             : 'mixed',
     },
-    issues,
-    valid: !issues.some((issue) => issue.severity === 'error'),
-    notes: TRIP_NOTES,
   };
 }
 
@@ -682,8 +689,9 @@ export function planComparison(ctx: AgentContext, raw: unknown, opts: PlanOption
   const checked = comparisonDocument(raw);
   const issues: AgentIssue[] = checked.ok ? [] : checked.issues.map((issue) => ({ ...issue, severity: 'error' }));
   const document = checked.ok ? checked.doc : null;
+  if (document?.journeys?.[0]?.sections) return planTripComparison(ctx, document, opts);
   const resolved = (document?.journeys ?? []).map((journey, index) => {
-    const result = resolveItinerary(ctx, { version: 1, stops: journey.stops });
+    const result = resolveItinerary(ctx, { version: 1, stops: journey.stops ?? journey.sections?.[0]?.stops ?? [] });
     issues.push(...result.issues.map((issue) => ({ ...issue, path: `/journeys/${index}${issue.path ?? ''}` })));
     return result;
   });
@@ -767,9 +775,156 @@ export function planComparison(ctx: AgentContext, raw: unknown, opts: PlanOption
     .join(' · ');
   return {
     contractVersion: CONTRACT_VERSION,
+    kind: 'comparison' as const,
     valid: !issues.some((issue) => issue.severity === 'error'),
     issues,
     notes: ESTIMATE_NOTES,
+    url,
+    itineraryParamUrl,
+    routing: routing.summary,
+    humanSummary,
+    journeys,
+    comparison,
+  };
+}
+
+/** Compared trips use the shared trip engine; stays never contribute to the ranking. */
+function planTripComparison(ctx: AgentContext, document: ItineraryDocument, opts: PlanOptions) {
+  const issues: AgentIssue[] = [];
+  const docs = document.journeys ?? [];
+  const resolved = docs.map((journey, j) =>
+    (journey.sections ?? []).map((section, k) => {
+      const result = resolveItinerary(ctx, { version: 1, stops: section.stops });
+      issues.push(
+        ...result.issues.map((issue) => ({ ...issue, path: `/journeys/${j}/sections/${k}${issue.path ?? ''}` })),
+      );
+      return result;
+    }),
+  );
+  const assumedStart = parseAssumedDeparture(opts, issues);
+  const routing = routingFor(ctx, opts.routing, issues);
+  const compared = computeTripComparison(
+    docs.map((journey, j) => ({
+      label: (journey.label ?? journey.sections?.[0]?.label)?.trim() ?? null,
+      sections: (journey.sections ?? []).map((section, k) => ({
+        label: section.label?.trim() ?? null,
+        stayMin: section.stayMinutes ?? null,
+        input: resolved[j][k].input,
+      })),
+    })),
+    { assumedStart, now: ctx.now(), route: routing.route },
+  );
+  for (const entry of compared) {
+    entry.trip.sections.forEach((section, k) =>
+      issues.push(
+        ...scheduleIssues(
+          section.journey,
+          resolved[entry.index][k].stopPaths,
+          `/journeys/${entry.index}/sections/${k}`,
+        ),
+      ),
+    );
+    issues.push(
+      ...entry.trip.issues.map((issue) => ({
+        code: issue.code,
+        severity: issue.severity,
+        message: issue.message,
+        path: `/journeys/${entry.index}/sections/${issue.section}`,
+      })),
+    );
+  }
+  const link = documentToLinkState(document);
+  issues.push(...link.issues.map((message): AgentIssue => ({ code: 'invalid_time', severity: 'error', message })));
+  const clockAirport = validateClock(
+    ctx,
+    link.view.clock,
+    (airport) =>
+      resolved.some((sections) =>
+        sections.some((result) => result.input.stops.some((stop) => stop.airport.id === airport.id)),
+      ),
+    'a compared journey',
+    issues,
+  );
+  if (link.view.leg !== undefined && link.view.leg > (compared[0]?.trip.totals.flights ?? 0))
+    issues.push({
+      code: 'invalid_leg',
+      severity: 'error',
+      message: 'leg must be a one-based flight number within trip A (counted across sections).',
+      path: '/view/leg',
+    });
+  const serializable = compared.map((entry) => ({
+    label: entry.label,
+    stops: resolved[entry.index][0]?.input.stops ?? [],
+    sections: entry.trip.sections.slice(1).map((section) => ({
+      label: section.label,
+      stayMin: docs[entry.index].sections?.[section.index].stayMinutes ?? null,
+      stops: resolved[entry.index][section.index].input.stops,
+    })),
+  }));
+  const primary = serializable[0];
+  const url = readableLink(
+    ctx,
+    document,
+    primary,
+    clockAirport ? { ...link.view, clock: airportCode(clockAirport) } : link.view,
+    issues,
+    { sections: primary.sections, compare: serializable.slice(1) },
+  );
+  const itineraryParamUrl = documentLink(url ?? ctx.baseUrl, document, issues);
+  // Resolution errors must exclude an alternative even when skipping the unknown stop leaves usable flights.
+  const metrics = compareTripMetrics(
+    compared.filter(
+      (entry) => !resolved[entry.index].some((result) => result.issues.some((issue) => issue.severity === 'error')),
+    ),
+  );
+  const journeys = compared.map((entry) => {
+    const details = tripDetails(ctx, entry.trip);
+    return {
+      id: entry.id,
+      label: entry.label,
+      color: entry.color,
+      anchor: entry.anchor,
+      sections: details.sections,
+      stays: details.stays,
+      totals: {
+        ...details.totals,
+        travelMinutes: Math.round(entry.trip.totals.flightMin + entry.trip.totals.connectionMin),
+      },
+    };
+  });
+  const comparison = {
+    fastest: metrics.fastest,
+    ranking: metrics.trips
+      .filter((trip) => trip.complete)
+      .map((trip) => ({
+        id: trip.id,
+        travelMinutes: trip.travelMin,
+        deltaMinutes: metrics.deltaMin[trip.id],
+      }))
+      .sort((a, b) => a.travelMinutes - b.travelMinutes),
+    sections: Array.from({ length: journeys[0].sections.length }, (_, k) => ({
+      name: journeys[0].sections[k].name,
+      fastest: metrics.sections[k]?.fastest ?? null,
+      deltaMinutes: metrics.sections[k]?.deltaMin ?? { A: 0, B: 0, C: 0, D: 0 },
+    })),
+  };
+  const humanSummary = journeys
+    .map((journey) => {
+      const descriptions = journey.sections.map((section) => {
+        const name = section.label ?? section.name.toLowerCase();
+        return `${name} ${section.stops.map((stop) => stop.code).join(' → ')} ${formatDuration(section.totals.journeyMinutes)}`;
+      });
+      const title = `${journey.id}${journey.label ? ` ${journey.label}:` : ''}`;
+      const award = comparison.fastest === journey.id ? ', fastest' : '';
+      return `${title} ${descriptions.join(', ')}, ${formatDuration(journey.totals.travelMinutes)} travelling${award}`;
+    })
+    .join(' · ');
+  return {
+    contractVersion: CONTRACT_VERSION,
+    kind: 'trip_comparison' as const,
+    valid: !issues.some((issue) => issue.severity === 'error'),
+    issues,
+    notes: TRIP_NOTES,
     url,
     itineraryParamUrl,
     routing: routing.summary,

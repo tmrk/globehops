@@ -52,6 +52,7 @@ interface ToolJourneyOptions {
   primaryStops: SerializableLinkStop[];
   linkExtra: LinkExtra;
   active: number;
+  activeSection?: number;
   currentView: LinkView;
   snapshot: ClockSnapshot;
   assumedStart: number | null;
@@ -64,6 +65,7 @@ export function toolJourneyResponse({
   primaryStops,
   linkExtra,
   active,
+  activeSection = 0,
   currentView,
   snapshot,
   assumedStart,
@@ -76,10 +78,15 @@ export function toolJourneyResponse({
   const assumption =
     currentView.time !== null ? { assumeDeparture: formatIsoInstant(assumedStart ?? snapshot.time) } : {};
   const comparisonPlan = linkExtra.compare?.length ? planComparison(context, doc, assumption) : null;
-  const tripPlan = linkExtra.sections?.length ? planTrip(context, doc, assumption) : null;
+  const tripPlan = !comparisonPlan && linkExtra.sections?.length ? planTrip(context, doc, assumption) : null;
   const activeDoc = {
     version: 1 as const,
-    stops: doc.journeys?.[active]?.stops ?? doc.sections?.[active]?.stops ?? doc.stops ?? [],
+    stops:
+      doc.journeys?.[active]?.sections?.[activeSection]?.stops ??
+      doc.journeys?.[active]?.stops ??
+      doc.sections?.[active]?.stops ??
+      doc.stops ??
+      [],
   };
   const plan = planItinerary(
     context,
@@ -90,6 +97,7 @@ export function toolJourneyResponse({
     ...(comparisonPlan
       ? {
           comparison: {
+            ...(comparisonPlan.kind === 'trip_comparison' ? { kind: comparisonPlan.kind } : {}),
             journeys: comparisonPlan.journeys,
             comparison: comparisonPlan.comparison,
             url,

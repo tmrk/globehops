@@ -23,14 +23,16 @@ export interface StopDoc {
   departure?: string;
   layoverMinutes?: number;
 }
-export interface JourneyDoc {
+export interface StopsJourneyDoc {
   label?: string;
   stops: StopDoc[];
 }
 /** A trip journey; `stayMinutes` (after the first) is the stay before it, used until its times fix the stay. */
-export interface SectionDoc extends JourneyDoc {
+export interface SectionDoc extends StopsJourneyDoc {
   stayMinutes?: number;
 }
+export type JourneyDoc =
+  (StopsJourneyDoc & { sections?: never }) | { label?: string; sections: SectionDoc[]; stops?: never };
 interface DocumentBase {
   $schema?: string;
   version: 1;
@@ -140,13 +142,13 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
     )
       issue(`${path}/label`, 'pattern', `Use a label of 1–${MAX_LABEL_LENGTH} characters without control characters.`);
   };
-  if (raw.sections !== undefined) {
-    if (!Array.isArray(raw.sections)) issue('/sections', 'type', 'Sections must be an array.');
+  const validateSections = (sections: unknown, basePath: string) => {
+    if (!Array.isArray(sections)) issue(basePath, 'type', 'Sections must be an array.');
     else {
-      if (raw.sections.length < 1 || raw.sections.length > MAX_SECTIONS)
-        issue('/sections', 'items', `Use 1 to ${MAX_SECTIONS} trip sections.`);
-      raw.sections.slice(0, MAX_SECTIONS).forEach((section: unknown, index: number) => {
-        const path = `/sections/${index}`;
+      if (sections.length < 1 || sections.length > MAX_SECTIONS)
+        issue(basePath, 'items', `Use 1 to ${MAX_SECTIONS} trip sections.`);
+      sections.slice(0, MAX_SECTIONS).forEach((section: unknown, index: number) => {
+        const path = `${basePath}/${index}`;
         if (!object(section)) {
           issue(path, 'type', 'Each section must be an object.');
           return;
@@ -167,21 +169,38 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
         validateStops(section.stops, `${path}/stops`);
       });
     }
-  }
+  };
+  if (raw.sections !== undefined) validateSections(raw.sections, '/sections');
   if (raw.journeys !== undefined) {
     if (!Array.isArray(raw.journeys)) issue('/journeys', 'type', 'Journeys must be an array.');
     else {
       if (raw.journeys.length < 1 || raw.journeys.length > MAX_JOURNEYS)
         issue('/journeys', 'items', `Use 1 to ${MAX_JOURNEYS} journeys.`);
+      const first: unknown = raw.journeys[0];
       raw.journeys.slice(0, MAX_JOURNEYS).forEach((journey: unknown, index: number) => {
         const path = `/journeys/${index}`;
         if (!object(journey)) {
           issue(path, 'type', 'Each journey must be an object.');
           return;
         }
-        properties(journey, ['label', 'stops'], path);
+        properties(journey, ['label', 'stops', 'sections'], path);
         validateLabel(journey.label, path);
-        validateStops(journey.stops, `${path}/stops`);
+        if ((journey.stops !== undefined) === (journey.sections !== undefined))
+          issue(path, 'oneOf', 'Supply exactly one of stops or sections.');
+        if (journey.stops !== undefined) validateStops(journey.stops, `${path}/stops`);
+        if (journey.sections !== undefined) validateSections(journey.sections, `${path}/sections`);
+        if (
+          object(first) &&
+          ((journey.sections !== undefined) !== (first.sections !== undefined) ||
+            (Array.isArray(journey.sections) &&
+              Array.isArray(first.sections) &&
+              journey.sections.length !== first.sections.length))
+        )
+          issue(
+            `${path}/sections`,
+            'sections_mismatch',
+            'Compared trips need the same number of sections in every journey.',
+          );
       });
     }
   }
@@ -290,16 +309,22 @@ export function documentToLinkState(doc: ItineraryDocument): LinkState {
       if (s.departure && !departure) issues.push(`Stop ${i + 1}: invalid departure time.`);
       return { code: s.airport.toUpperCase(), layoverMin: s.layoverMinutes ?? null, arrival, departure };
     });
-  const primary = doc.journeys?.[0] ?? doc.sections?.[0];
+  const mapSections = (sections: SectionDoc[] | undefined): LinkSection[] | undefined =>
+    sections?.slice(1).map((section) => ({
+      label: section.label?.trim() ?? null,
+      stops: mapStops(section.stops),
+      stayMin: normalizeStay(section.stayMinutes),
+    }));
+  const primaryJourney = doc.journeys?.[0];
+  const primary = primaryJourney?.sections?.[0] ?? primaryJourney ?? doc.sections?.[0];
+  const label = primaryJourney?.label ?? primary?.label;
   const stops = mapStops(primary?.stops ?? doc.stops ?? []);
-  const compare = doc.journeys
-    ?.slice(1)
-    .map((journey) => ({ label: journey.label?.trim() ?? null, stops: mapStops(journey.stops) }));
-  const sections = doc.sections?.slice(1).map((section): LinkSection => ({
-    label: section.label?.trim() ?? null,
-    stops: mapStops(section.stops),
-    stayMin: normalizeStay(section.stayMinutes),
+  const compare = doc.journeys?.slice(1).map((journey) => ({
+    label: (journey.label ?? journey.sections?.[0]?.label)?.trim() ?? null,
+    stops: mapStops(journey.sections?.[0]?.stops ?? journey.stops ?? []),
+    ...(journey.sections && journey.sections.length > 1 ? { sections: mapSections(journey.sections) } : {}),
   }));
+  const sections = mapSections(primaryJourney?.sections ?? doc.sections);
   const source = doc.view;
   const time = source?.time ? parseIsoInstant(source.time) : null;
   if (source?.time && time === null) issues.push('The itinerary view time is invalid.');
@@ -323,7 +348,7 @@ export function documentToLinkState(doc: ItineraryDocument): LinkState {
     stops,
     view,
     issues,
-    ...(primary?.label !== undefined ? { label: primary.label.trim() } : {}),
+    ...(label !== undefined ? { label: label.trim() } : {}),
     ...(compare?.length ? { compare } : {}),
     ...(sections?.length ? { sections } : {}),
   };
@@ -337,27 +362,32 @@ export function linkStateToDocument(s: LinkState): ItineraryDocument {
       ...(i > 0 && i < all.length - 1 && stop.layoverMin !== null ? { layoverMinutes: stop.layoverMin } : {}),
     }));
   const stops = mapStops(s.stops ?? []);
+  const mapSection = (section: LinkSection): SectionDoc => ({
+    ...(section.label ? { label: section.label } : {}),
+    ...(section.stayMin !== null ? { stayMinutes: section.stayMin } : {}),
+    stops: mapStops(section.stops),
+  });
+  const alternatives = [{ label: s.label, stops: s.stops ?? [], sections: s.sections }, ...(s.compare ?? [])];
+  const sectionCount = Math.max(...alternatives.map((journey) => 1 + (journey.sections?.length ?? 0)));
   const body: Pick<ItineraryDocument, 'stops' | 'journeys' | 'sections'> = s.compare?.length
     ? {
-        journeys: [
-          { ...(s.label ? { label: s.label } : {}), stops },
-          ...s.compare.map((journey) => ({
-            ...(journey.label ? { label: journey.label } : {}),
-            stops: mapStops(journey.stops),
-          })),
-        ],
+        journeys: alternatives.map((journey) => ({
+          ...(journey.label ? { label: journey.label } : {}),
+          ...(sectionCount > 1
+            ? {
+                sections: Array.from({ length: sectionCount }, (_, i) =>
+                  i === 0
+                    ? { stops: mapStops(journey.stops) }
+                    : journey.sections?.[i - 1]
+                      ? mapSection(journey.sections[i - 1])
+                      : { stops: [] },
+                ),
+              }
+            : { stops: mapStops(journey.stops) }),
+        })),
       }
     : s.sections?.length
-      ? {
-          sections: [
-            { ...(s.label ? { label: s.label } : {}), stops },
-            ...s.sections.map((section) => ({
-              ...(section.label ? { label: section.label } : {}),
-              ...(section.stayMin !== null ? { stayMinutes: section.stayMin } : {}),
-              stops: mapStops(section.stops),
-            })),
-          ],
-        }
+      ? { sections: [{ ...(s.label ? { label: s.label } : {}), stops }, ...s.sections.map(mapSection)] }
       : { stops };
   return {
     version: ITINERARY_VERSION,

@@ -360,25 +360,94 @@ describe('trip links', () => {
     // The default stay never reaches a link.
     expect(parseLink('?route=CPH-JFK&2.route=JFK-CPH&2.stay=7d').sections?.[0].stayMin).toBeNull();
   });
-  it('reports trip limits, missing routes and mixing with comparisons', () => {
+  it('reports trip limits and missing routes, and allows compared trips', () => {
     expect(parseLink('?route=CPH-JFK&7.route=JFK-CPH').issues).toContain('A trip has at most 6 journeys.');
     expect(parseLink('?route=CPH-JFK&2.dep1=2026-11-15T07:00').issues).toContain(
       'Journey 2 has parameters but no route.',
     );
     const mixed = parseLink('?route=CPH-JFK&b.route=CPH-LHR&2.route=JFK-CPH');
-    expect(mixed.sections).toBeUndefined();
+    expect(mixed.sections).toHaveLength(1);
     expect(mixed.compare).toHaveLength(1);
-    expect(mixed.issues[0]).toMatch(/compare journeys or plan a trip/);
+    expect(mixed.issues).toEqual([]);
     expect(() =>
       serializeLink(out, {}, false, {
         compare: [{ label: null, stops: out }],
         sections: [{ label: null, stops: back, stayMin: null }],
       }),
-    ).toThrow(TypeError);
+    ).not.toThrow();
   });
   it('carries visit-only routing overrides', () => {
     const query = serializeLink(out, { airspace: false, diversion: true });
     expect(query).toContain('airspace=0&diversion=1');
     expect(parseLink(query).view).toMatchObject({ airspace: false, diversion: true });
+  });
+});
+
+describe('compared trip links', () => {
+  it('parses nested keys case-insensitively, including times, labels, stays and empty sections', () => {
+    const link = parseLink(
+      '?route=CPH-LHR-JFK&2.route=JFK-CPH&B.ROUTE=CPH-JFK&B.2.ROUTE=JFK-LHR-CPH&B.2.DEP1=2026-12-10T18:00&B.2.ARR3=2026-12-11T10:00&B.2.LABEL=Home&B.2.STAY=5d&c.route=&c.2.route=&leg=3&clock=LHR',
+    );
+    expect(link.issues).toEqual([]);
+    expect(linkFlightCount(link)).toBe(3);
+    expect(link.view).toMatchObject({ leg: 3, clock: 'LHR' });
+    expect(link.compare?.[0].sections?.[0]).toMatchObject({
+      label: 'Home',
+      stayMin: 7200,
+      stops: [
+        { code: 'JFK', departure: { local: '2026-12-10T18:00', offsetMin: null } },
+        { code: 'LHR' },
+        { code: 'CPH', arrival: { local: '2026-12-11T10:00', offsetMin: null } },
+      ],
+    });
+    expect(link.compare?.[1].sections?.[0].stops).toEqual([]);
+  });
+  it('serializes each alternative before the next and view parameters last', () => {
+    const outbound = [stops[0], stops[2]];
+    const back = [...outbound].reverse();
+    const section = { label: 'Home', stops: back, stayMin: 2160 };
+    const query = serializeLink(outbound, { clock: 'LHR', leg: 2 }, false, {
+      label: 'A',
+      sections: [section],
+      compare: [
+        { label: 'B', stops, sections: [section, { label: null, stops: [], stayMin: null }] },
+        { label: null, stops: outbound, sections: [section] },
+      ],
+    });
+    expect(query).toBe(
+      '?route=CPH-JFK&label=A&2.route=JFK-CPH&2.label=Home&2.stay=36h&b.route=CPH-LHR_180-JFK&b.label=B&b.2.route=JFK-CPH&b.2.label=Home&b.2.stay=36h&b.3.route=&c.route=CPH-JFK&c.2.route=JFK-CPH&c.2.label=Home&c.2.stay=36h&clock=LHR&leg=2',
+    );
+    expect(parseLink(query).issues).toEqual([]);
+    expect(parseLink(query).compare?.[0].sections).toHaveLength(2);
+  });
+  it('finds airports in any section for clocks and empty-plan detection', () => {
+    const link = parseLink('?route=&b.route=&b.2.route=JFK-LHR&clock=LHR');
+    expect(linkHasStops(link)).toBe(true);
+    expect(link.issues).toEqual([]);
+    expect(parseLink('?route=CPH-JFK&2.route=JFK-LHR&clock=LHR').issues).toEqual([]);
+    expect(parseLink('?route=CPH-JFK&b.route=CPH-JFK&b.2.route=JFK-LHR&clock=SYD').issues).toContain(
+      'Invalid clock value in this link.',
+    );
+  });
+  it('reports nested limits and unknown fields and enforces serialization limits', () => {
+    const prefix = '?route=CPH-JFK&b.route=CPH-JFK';
+    expect(parseLink(`${prefix}&b.7.route=JFK-CPH&b.20.route=JFK-CPH`).issues).toEqual([
+      'b. A trip has at most 6 journeys.',
+    ]);
+    expect(parseLink(`${prefix}&b.2.route=JFK-CPH&b.2.wrong=x&b.2.stay=oops`).issues).toEqual([
+      'b. Invalid 2.wrong parameter in this link.',
+      'b. Invalid 2.stay value in this link.',
+    ]);
+    expect(parseLink(`${prefix}&b.2.dep1=2026-12-10T18:00`).issues).toEqual([
+      'b. Journey 2 has parameters but no route.',
+    ]);
+    const section = { label: null, stops, stayMin: null };
+    for (const extra of [
+      { sections: Array(6).fill(section) },
+      { compare: [{ label: null, stops, sections: Array(6).fill(section) }] },
+      { compare: Array(4).fill({ label: null, stops }) },
+    ])
+      expect(() => serializeLink(stops, {}, false, extra)).toThrow(RangeError);
+    expect(parseLink(`${prefix}&2.route=JFK-CPH&leg=3`).issues).toContain('Invalid leg value in this link.');
   });
 });

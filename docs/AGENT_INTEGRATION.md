@@ -28,7 +28,7 @@ The guide is at the project path `/globehops/llms.txt`, not the domain-root `/ll
 | ------------------- | ---------------------------------------------------------------------- | ------------------------------ |
 | `route`             | Airport tokens separated by hyphens; custom transfer minutes after `_` | `CPH-LHR_180-JFK`              |
 | `label`             | Journey A label, trimmed, 1–40 characters without controls             | `Via%20London`                 |
-| `b.*`, `c.*`, `d.*` | Additional journeys: route, depN, arrN and label                       | `b.route=BUD-JFK`              |
+| `b.*`, `c.*`, `d.*` | Additional alternatives: route/times/label, with b.2._–d.6._ sections  | `b.route=BUD-JFK`              |
 | `2.*` … `6.*`       | A trip's later sections: route, depN, arrN, label and `stay`           | `2.route=NBO-CDG-CPH`          |
 | `N.stay`            | Stay before section N while its times don't fix it (`d`, `h`, `m`)     | `2.stay=5d`                    |
 | `depN`, `arrN`      | Local departure/arrival at 1-based stop N                              | `dep1=2026-11-20T08:15`        |
@@ -72,7 +72,7 @@ Instants (`t`, timeline `at`, `assumeDeparture`) use ISO date/time with `Z` or `
 }
 ```
 
-Validate with the [draft 2020-12 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json). `version: 1` and exactly one of `stops` or `journeys` are required. Each stop requires `airport`; optional fields are `arrival`, `departure`, `layoverMinutes`. Layovers are integers 0–10080 and apply only to transfer stops. All view fields are optional: `time`, `play` (boolean), `speed` (`"auto"` or numeric 1800/3600/7200), `clock`, `units`, `dayNight` (boolean), `follow` (boolean, default false), `lang` (`en`/`hu`/`sv`), `names` and `borders` (booleans), `leg` (integer 1–9, must identify a flight in this route). Unknown properties are rejected at every level; a top-level string `$schema` is allowed.
+Validate with the [draft 2020-12 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json). `version: 1` and exactly one of `stops`, `journeys` or `sections` are required. Each stop requires `airport`; optional fields are `arrival`, `departure`, `layoverMinutes`. Layovers are integers 0–10080 and apply only to transfer stops. All view fields are optional: `time`, `play` (boolean), `speed` (`"auto"` or numeric 1800/3600/7200), `clock`, `units`, `dayNight` (boolean), `follow` (boolean, default false), `lang` (`en`/`hu`/`sv`), `names` and `borders` (booleans), `leg` (integer 1–54, must identify a flight in A (counting across its trip sections)). Unknown properties are rejected at every level; a top-level string `$schema` is allowed.
 
 Encode compact JSON as base64url UTF-8 without padding, then append `?itinerary=<encoded>`. Each journey must contain 1–10 stops; one stop shows a single airport. Do not encode private information into links you share.
 
@@ -128,7 +128,7 @@ The same comparison fits the existing v1 document and `?itinerary=` encoding:
 
 Documents accept 1–4 journeys, each with optional `label` (1–40 characters, no controls) and the usual stop array. Entered schedules stay at their absolute UTC instants. Undated alternatives align to the earliest dated departure; with no dated journey, MCP `assumeDeparture` supplies the shared anchor. Without either, totals are still available but times are null. All timelines use one clock.
 
-Call local MCP `compare_journeys` with 2–4 alternatives, each containing exactly one of `route` or `stops`:
+Call local MCP `compare_journeys` with 2–4 alternatives, each containing exactly one of `route`, `stops` or `sections`:
 
 ```json
 {
@@ -141,13 +141,13 @@ Call local MCP `compare_journeys` with 2–4 alternatives, each containing exact
 }
 ```
 
-It returns both URLs, `humanSummary`, per-journey airports/legs/transfers/totals, start/end times, colours and anchors, plus `comparison.fastest`, `firstArrival` and duration-sorted `ranking` with deltas in minutes. Fastest measures total elapsed journey time; first arrival measures final UTC arrival. Exact ties have no winner. Invalid/empty journeys are excluded, and arrival comparison requires an end for every valid journey. Estimates remain illustrative.
+For plain journeys it returns `kind: "comparison"`, both URLs, `humanSummary`, per-journey airports/legs/transfers/totals, start/end times, colours and anchors, plus `comparison.fastest`, `firstArrival` and duration-sorted `ranking` with deltas in minutes. Fastest measures total elapsed journey time; first arrival measures final UTC arrival. Exact ties have no winner. Invalid/empty journeys are excluded, and arrival comparison requires an end for every valid journey. Estimates remain illustrative.
 
 `visualize_route` and `validate_itinerary` also accept journeys documents. Visualization adds `comparison` and uses A for `summary.totals`. `calculate_route` and `get_journey_timeline` direct multi-journey documents to `compare_journeys`; a one-journey document works with either single-journey tool. See [comparison model and policy](ROUTE_COMPARISON.md).
 
 ## Round trips and multi-stage trips
 
-A trip is a sequence of journeys (sections) separated by explicit stays, not a comparison: alternatives are compared side by side, while a trip's sections follow one another. A link or document is one or the other, never both. Readable links keep the first section unprefixed and add later ones with numeric prefixes:
+A trip is a sequence of journeys (sections) separated by explicit stays, not a comparison: alternatives are compared side by side, while a trip's sections follow one another. Compared trips combine these: each alternative has the same sequence of section slots. Readable links keep the first section unprefixed and add later ones with numeric prefixes:
 
 ```text
 https://tmrk.github.io/globehops/?route=CPH-AMS-NBO&dep1=2026-11-15T07:00&arr2=2026-11-15T08:20&dep2=2026-11-15T10:20&arr3=2026-11-15T20:55&2.route=NBO-CDG-CPH&2.dep1=2026-11-20T23:55&2.arr2=2026-11-21T06:50&2.dep2=2026-11-21T09:30&2.arr3=2026-11-21T11:25
@@ -182,6 +182,70 @@ Connections belong inside a section; the time between sections is a **stay**, ne
 
 `calculate_route`, `visualize_route`, `validate_itinerary` and `get_journey_timeline` accept trip documents. `calculate_route` returns `kind: "trip"`, `sections` (each with `name` — the label or Outbound/Return/Journey n — `anchor`, stops, legs, transfers, totals and times), `stays` (`afterSection`, `beforeSection`, airports, `openJaw`, arrival/departure, `minutes`, calendar `days` at the arrival airport, `source`, `provenance`) and trip `totals` (`flightMinutes`, `connectionMinutes`, `stayMinutes`, `tripMinutes`, counts and first/last times). Timelines add `section` and `globalLeg`, and a `stay` phase at the arrival airport between sections. `leg` and `select_flight` count flights across the whole trip. The app plays one traveller through the trip on one clock and skips stays during automatic playback without changing any instant.
 
+## Compare round trips
+
+Compare 2–4 alternatives with the same 1–6 sections each. Compare outbound with outbound, return with return, and so on. A connection stays within the route; time at the destination separates sections. Links are lenient about section counts and export pads shorter alternatives with empty sections; documents reject those empty stops until filled.
+
+Readable link (A via Frankfurt, B nonstop, both returning):
+
+```text
+https://tmrk.github.io/globehops/?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&2.route=JFK-FRA-BUD&2.dep1=2026-12-10T18:00&label=Via%20Frankfurt&b.route=BUD-JFK&b.dep1=2026-12-01T08:00&b.label=Nonstop&b.2.route=JFK-BUD&b.2.dep1=2026-12-10T18:00
+```
+
+A uses ordinary keys and `2.*`–`6.*`; B uses `b.*` and `b.2.*`–`b.6.*`, through D's `d.6.*`. Each section restarts stop numbering at 1. Labels name alternatives (`label`/`b.label`); later section labels and stays use `2.label`/`2.stay` or `b.2.label`/`b.2.stay`. Prefixed empty routes serialize explicitly. Shared `leg` counts A's flights across its sections; `clock` may name any airport in any section or alternative.
+
+Document:
+
+```json
+{
+  "version": 1,
+  "journeys": [
+    {
+      "label": "Via Frankfurt",
+      "sections": [
+        {
+          "stops": [{ "airport": "BUD", "departure": "2026-12-01T07:10" }, { "airport": "FRA" }, { "airport": "JFK" }]
+        },
+        { "stops": [{ "airport": "JFK", "departure": "2026-12-10T18:00" }, { "airport": "FRA" }, { "airport": "BUD" }] }
+      ]
+    },
+    {
+      "label": "Nonstop",
+      "sections": [
+        { "stops": [{ "airport": "BUD" }, { "airport": "JFK" }] },
+        { "stops": [{ "airport": "JFK" }, { "airport": "BUD" }] }
+      ]
+    }
+  ]
+}
+```
+
+Every journey item supplies exactly one of `stops` or `sections`, and all items use the same form. Compared trips must have equal section counts; otherwise issues use `sections_mismatch` and a pointer such as `/journeys/1/sections`. Section documents use `label?`, `stayMinutes?`, `stops`; stays precede later sections only. A journey label names the alternative, with its first section label used only as a fallback when absent. Later section labels/stays map to numeric groups. Readable links cannot preserve an independent first-section label alongside the alternative label.
+
+MCP `compare_journeys` supports section shorthand and a shorter round-trip form in the same call:
+
+```json
+{
+  "journeys": [
+    { "label": "Via Frankfurt", "route": "BUD-FRA-JFK", "returnRoute": "JFK-FRA-BUD", "stay": "5d" },
+    { "label": "Nonstop", "sections": [{ "route": "BUD-JFK" }, { "route": "JFK-BUD", "stay": 7200 }] }
+  ],
+  "assumeDeparture": "2026-12-01T07:00Z",
+  "routing": { "avoidAirspace": true }
+}
+```
+
+An alternative supplies exactly one of route/stops/sections; `returnRoute` requires route. A shorthand section supplies exactly one of route/stops, optional label and stay (integer minutes or `5d`, `36h`, `90m`). Stay is allowed only before a later section; the round-trip shorthand's stay belongs before its return. `assumeDeparture` and routing work as for plain comparisons.
+
+The result has `kind: "trip_comparison"`, `url`, `itineraryParamUrl`, `humanSummary`, issues/validity/routing, and:
+
+- `journeys[i]`: `id`, `label`, `color`, `anchor`, `sections` shaped like `planTrip` sections (`index`, `name`, `label`, `anchor`, stops/legs/transfers/totals, departure/arrival), `stays` and trip `totals` plus `travelMinutes`.
+- `comparison`: `fastest`, `ranking: [{ id, travelMinutes, deltaMinutes }]`, `sections: [{ name, fastest, deltaMinutes: { A, B, C, D } }]`.
+
+Rankings include only complete alternatives and measure flights plus connections across all sections, excluding stays. Exact ties have no winner. An untimed trip lines up journey by journey with the earliest timed counterpart unless the traveller chose the stay. Entered schedules remain absolute; alignment/stay-derived times retain their provenance. `humanSummary` names each alternative and its outbound/return routes and travelling time.
+
+`visualize_route` and `validate_itinerary` accept these documents. `calculate_route` and `get_journey_timeline` keep directing multi-journey documents to `compare_journeys`; compared-trip timelines are not added. Browser `compare_journeys` accepts the same journey shapes and view, without MCP's assumption/routing arguments; `set_route.itinerary` accepts compared-trip documents. Both produce `set_route` commands with A's `link.sections` and each alternative's `link.compare[i].sections`. `toolJourneyResponse(options)` accepts `activeSection?: number` (default 0): `active` selects the alternative, while `activeSection` selects its section. `get_journey` includes `comparison: { kind: 'trip_comparison', journeys, comparison, url }` and top-level stops/legs/totals for that section.
+
 ## Routing: restricted airspace and diversion airports
 
 Agent and MCP results follow great circles by default, so existing workflows keep their numbers. Request modelled routing per call with `routing`:
@@ -199,7 +263,7 @@ Results then include a top-level `routing` summary and, per leg, `distanceKm` (t
 
 Structural checks enforce types, patterns, required fields, additional-property rules, stop counts and transfer-only layovers. They intentionally do not validate calendar dates, zone offsets, airport existence or chronology. `validateItinerary` adds shared semantic issues to structural issues. MCP argument validation also rejects malformed tool envelopes and documents; these failures are returned as `isError` results with clear messages.
 
-Semantic issue codes, severities and meanings are published in `capabilities.json`. Calendar errors, unsupported/missing zones, DST gaps, invalid offsets, negative flight durations and overlapping connections are errors. Ambiguous repeated hours warn and choose the earlier instant unless an offset is supplied. Short connections (<20 minutes), unusual flight durations, ignored endpoint times and layovers over seven days warn; future-rule uncertainty is informational. Issue paths refer to document stops/fields or legs, prefixed with `/journeys/i` for comparisons. `valid` means there are no errors, not that an airline operates the route or a connection is feasible.
+Semantic issue codes, severities and meanings are published in `capabilities.json`. Calendar errors, unsupported/missing zones, DST gaps, invalid offsets, negative flight durations and overlapping connections are errors. Ambiguous repeated hours warn and choose the earlier instant unless an offset is supplied. Short connections (<20 minutes), unusual flight durations, ignored endpoint times and layovers over seven days warn; future-rule uncertainty is informational. Issue paths refer to document stops/fields or legs, prefixed with `/journeys/i` for comparisons and `/journeys/i/sections/k` for compared trips. `valid` means there are no errors, not that an airline operates the route or a connection is feasible.
 
 Limits are 1–4 document journeys, 1–6 trip sections, stays up to 525600 minutes, 10 stops per journey, 8000 URL characters, 6000 itinerary-parameter characters, layover settings up to 10080 minutes and calendar years 1900–2100. Search returns 8 matches by default, at most 100. Timelines accept up to 1000 explicit instants or 2–1000 evenly spaced samples (default 10). A single airport has no flight timeline.
 
@@ -270,7 +334,7 @@ Use `tools/list` for the full machine-readable schemas. `JourneyArgs` below mean
 | Tool                   | Input schema                                                                                                                                               |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `search_airports`      | `{query: string (≤500 chars), limit?: integer (1–100, default 8)}`                                                                                         |
-| `compare_journeys`     | `{journeys: [{label?, route? OR stops?}] (2–4), view?, assumeDeparture?: ISO instant}`                                                                     |
+| `compare_journeys`     | `{journeys: [{label?, route OR stops OR sections, returnRoute?, stay?}] (2–4), view?, assumeDeparture?: ISO instant}`                                      |
 | `calculate_route`      | `JourneyArgs`                                                                                                                                              |
 | `validate_itinerary`   | `JourneyArgs`                                                                                                                                              |
 | `visualize_route`      | `JourneyArgs & {view?: ItineraryDocument["view"]}`; view overrides document view fields                                                                    |
@@ -429,4 +493,4 @@ A hosted MCP service would need a separate runtime and a Streamable HTTP transpo
 
 ## Rebuilding and verifying discovery files
 
-`npm run agent:build` deterministically regenerates capabilities, schema and worked examples. It uses the real datasets and `planItinerary`; it adds no generation timestamp. Example diagnostics use a fixed reference clock of 2026-01-01 so future-rule information does not drift with the day a contributor runs the command. `scripts/agent-files.test.ts` checks committed bytes, schema validity and both URL round-trips. The production build separately emits the current dataset freshness record.
+`npm run agent:build` deterministically regenerates capabilities, schema and worked examples. It uses the real datasets and `planItinerary`/`planTrip`/`planComparison`; it adds no generation timestamp. Example diagnostics use a fixed reference clock of 2026-01-01 so future-rule information does not drift with the day a contributor runs the command. `scripts/agent-files.test.ts` checks committed bytes, schema validity and both URL round-trips. The production build separately emits the current dataset freshness record.

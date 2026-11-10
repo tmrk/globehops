@@ -7,6 +7,7 @@
     "simple": "https://tmrk.github.io/globehops/?route={route}",
     "comparison": "https://tmrk.github.io/globehops/?route={routeA}&label={labelA}&b.route={routeB}&b.label={labelB}",
     "trip": "https://tmrk.github.io/globehops/?route={outbound}&dep1={localDeparture}&2.route={return}&2.dep1={localDeparture}&2.stay={stay}",
+    "tripComparison": "https://tmrk.github.io/globehops/?route={outboundA}&2.route={returnA}&b.route={outboundB}&b.2.route={returnB}",
     "localized": "https://tmrk.github.io/globehops/{lang}/?route={route}",
     "scheduled": "https://tmrk.github.io/globehops/?route={route}&dep1={localDeparture}",
     "document": "https://tmrk.github.io/globehops/?itinerary={base64urlJson}"
@@ -17,21 +18,21 @@
       "required": false,
       "format": "1–40 characters without controls",
       "examples": ["Via London"],
-      "semantics": "Trimmed journey A label; URL-encode Unicode and reserved characters."
+      "semantics": "Trimmed journey/alternative A label; URL-encode Unicode and reserved characters."
     },
     "b./c./d.": {
       "type": "journey group",
       "required": false,
-      "format": "prefix + route|depN|arrN|label",
-      "examples": ["b.route=BUD-JFK", "c.dep1=2026-12-01T08:00"],
-      "semantics": "Journeys B–D in order; gaps compact. Each group requires route. Parameter keys are case-insensitive. Other view parameters remain unprefixed; leg refers to A, clock may name any compared airport."
+      "format": "prefix + route|depN|arrN|label or nested 2.–6. section groups",
+      "examples": ["b.route=BUD-JFK", "b.2.route=JFK-BUD", "c.dep1=2026-12-01T08:00"],
+      "semantics": "Journeys B–D in order; gaps compact. Each group requires route. Parameter keys are case-insensitive. Other view parameters remain unprefixed; leg refers to A, clock may name any airport across all alternatives and their sections."
     },
     "2.–6.": {
       "type": "trip section group",
       "required": false,
       "format": "prefix + route|depN|arrN|label|stay",
       "examples": ["2.route=NBO-CDG-CPH", "2.dep1=2026-11-20T23:55", "2.stay=5d"],
-      "semantics": "A trip's sections after the first (up to 6 in all), in order; the first uses the unprefixed parameters. Sections are sequential journeys separated by explicit stays; connections stay inside a section. stay (days d, hours h or minutes m) places a section without times after the previous one (default 7 days). Never combined with b.–d. comparisons; leg counts flights across the trip."
+      "semantics": "A trip's sections after the first (up to 6 in all), in order; the first uses the unprefixed parameters. Sections are sequential journeys separated by explicit stays; connections stay inside a section. stay (days d, hours h or minutes m) places a section without times after the previous one (default 7 days). Compose with b.–d. for compared trips (b.2.* through d.6.*); leg counts flights across A’s sections."
     },
     "airspace": {
       "type": "string",
@@ -87,7 +88,7 @@
       "required": false,
       "format": "local|utc|airport code",
       "examples": ["local", "utc", "JFK"],
-      "semantics": "Timeline display zone; airport code must belong to any compared journey."
+      "semantics": "Timeline display zone; airport code must belong to any journey or section of any alternative."
     },
     "units": {
       "type": "string",
@@ -147,15 +148,22 @@
     }
   },
   "comparison": {
-    "document": "Version 1; exactly one of stops or journeys (1–4 labelled stop arrays).",
+    "document": "Version 1; exactly one of stops, journeys or sections. Journeys: 1–4 labelled alternatives, each exactly one of stops or sections; every alternative uses the same form and section count (1–6).",
     "alignment": "Entered schedules remain absolute. Undated journeys align to the earliest dated departure, else assumeDeparture; without either they have no timeline.",
     "metrics": "Fastest is shortest total journey duration; arrives first is earliest final UTC arrival. Exact ties have no winner. Invalid or fewer-than-two-stop journeys are excluded; arrival comparison requires every valid journey to have an end."
   },
   "trips": {
     "document": "Version 1; sections: 1–6 sequential journeys, each with stops and an optional label; later sections may carry stayMinutes (0–525600).",
     "stays": "A stay is the time between one section arriving and the next departing, at the same airport or an open jaw. It is never a layover and is never inferred from duration. Its length comes from both sections’ times, else from stayMinutes (default 7 days), with estimated/assumed provenance.",
-    "playback": "One traveller flies the sections in order on one UTC clock; automatic playback skips stays without changing any instant. Comparisons (journeys) and trips (sections) never combine.",
+    "playback": "One traveller flies the sections in order on one UTC clock; automatic playback skips stays without changing any instant. Compared trips use one clock across alternatives, each with sequential sections; shared stays can be skipped without changing instants.",
     "outputs": "calculate_route returns kind \"trip\" with sections (journey details), stays (minutes, calendar days, source, provenance) and trip totals; get_journey_timeline reports a \"stay\" phase between sections."
+  },
+  "comparedTrips": {
+    "links": "A: unprefixed plus 2.*–6.*; B–D: b.* plus b.2.*–b.6.*, through d.6.*. Links tolerate unequal counts; documents pad empty sections then fail validation until filled.",
+    "alignment": "An untimed trip lines up journey by journey with the earliest timed counterpart unless the traveller chose the stay. Entered times remain absolute.",
+    "metrics": "Only complete valid trips are ranked by travelMinutes (flights plus connections across sections), excluding stays. Per-section winners/deltas compare section k with section k. Ties have no winner.",
+    "input": "compare_journeys: each alternative supplies route, stops or sections; sections supply route or stops, label?, stay? (integer minutes or 5d/36h/90m). route plus returnRoute and optional stay is a two-section shorthand. Equal section counts required.",
+    "output": "kind trip_comparison; journeys: id/label/color/anchor/sections/stays/totals (trip totals plus travelMinutes). comparison: fastest, ranking (id/travelMinutes/deltaMinutes), sections (name/fastest/per-ID deltaMinutes). Plain comparisons add kind comparison. get_journey_timeline remains single journey/trip only."
   },
   "routing": {
     "default": "Agent and MCP results follow great circles unless routing is requested; the app routes by default.",
@@ -330,7 +338,8 @@
       "range",
       "position",
       "enum",
-      "additionalProperties"
+      "additionalProperties",
+      "sections_mismatch"
     ]
   },
   "versioning": "Additive compatible changes retain v1. Breaking changes require document version 2 and a v2 link parameter/version contract; existing v1 links remain readable.",

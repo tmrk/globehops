@@ -86,11 +86,10 @@ const BOOLEAN_VIEW_PARAMS = {
 } as const satisfies Record<string, keyof LinkView>;
 const comparisonLimitMessage = `Only ${MAX_JOURNEYS} journeys can be compared.`;
 const tripLimitMessage = `A trip has at most ${MAX_SECTIONS} journeys.`;
-const mixedMessage = 'A link can compare journeys or plan a trip, not both; the trip journeys were ignored.';
 // Any later letter is grouped too, so unsupported prefixes (e.–z.) report the journey limit.
 const JOURNEY_PARAM_PATTERN = /^([b-z])\.(.+)$/;
 // Trip journeys: 2.–6.; any later digit reports the trip limit.
-const SECTION_PARAM_PATTERN = /^([2-9])\.(.+)$/;
+const SECTION_PARAM_PATTERN = /^(\d+)\.(.+)$/;
 
 /** Stays in links: whole days (`5d`), hours (`36h`) or minutes (`90m` or a bare number). */
 export function parseStay(value: string): number | null {
@@ -107,7 +106,9 @@ export function formatStay(minutes: number): string {
 export function linkHasStops(link: LinkState): boolean {
   return (
     !!link.stops?.length ||
-    !!link.compare?.some((journey) => journey.stops.length > 0) ||
+    !!link.compare?.some(
+      (journey) => journey.stops.length > 0 || journey.sections?.some((section) => section.stops.length > 0),
+    ) ||
     !!link.sections?.some((section) => section.stops.length > 0)
   );
 }
@@ -166,12 +167,17 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
     }
     const journeyParams = new URLSearchParams();
     for (const [key, value] of group) {
-      if (key === P.route || key === P.label || /^(dep|arr)\d+$/.test(key)) journeyParams.set(key, value);
+      if (key === P.route || key === P.label || /^(dep|arr)\d+$/.test(key) || SECTION_PARAM_PATTERN.test(key))
+        journeyParams.set(key, value);
       else state.issues.push(`Invalid ${prefix}.${key} parameter in this link.`);
     }
     const parsed = parseLink(`?${journeyParams}`);
     state.issues.push(...parsed.issues.map((message) => `${prefix}. ${message}`));
-    (state.compare ??= []).push({ label: parsed.label ?? null, stops: parsed.stops ?? [] });
+    (state.compare ??= []).push({
+      label: parsed.label ?? null,
+      stops: parsed.stops ?? [],
+      ...(parsed.sections ? { sections: parsed.sections } : {}),
+    });
   }
   const sectionGroups = new Map<string, URLSearchParams>();
   for (const [key, value] of params) {
@@ -181,34 +187,32 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
     group.set(match[2], value);
     sectionGroups.set(match[1], group);
   }
-  if (sectionGroups.size && state.compare?.length) state.issues.push(mixedMessage);
-  else
-    for (const [prefix, group] of [...sectionGroups].sort(([a], [b]) => +a - +b)) {
-      if (!group.has(P.route)) {
-        state.issues.push(`Journey ${prefix} has parameters but no route.`);
-        continue;
-      }
-      if (!SECTION_LINK_PREFIXES.includes(`${prefix}.`)) {
-        if (!state.issues.includes(tripLimitMessage)) state.issues.push(tripLimitMessage);
-        continue;
-      }
-      const journeyParams = new URLSearchParams();
-      let stayMin: number | null = null;
-      for (const [key, value] of group) {
-        if (key === P.stay) {
-          stayMin = parseStay(value);
-          if (stayMin === null) state.issues.push(`Invalid ${prefix}.${key} value in this link.`);
-        } else if (key === P.route || key === P.label || /^(dep|arr)\d+$/.test(key)) journeyParams.set(key, value);
-        else state.issues.push(`Invalid ${prefix}.${key} parameter in this link.`);
-      }
-      const parsed = parseLink(`?${journeyParams}`);
-      state.issues.push(...parsed.issues.map((message) => `${prefix}. ${message}`));
-      (state.sections ??= []).push({
-        label: parsed.label ?? null,
-        stops: parsed.stops ?? [],
-        stayMin: normalizeStay(stayMin),
-      });
+  for (const [prefix, group] of [...sectionGroups].sort(([a], [b]) => +a - +b)) {
+    if (!group.has(P.route)) {
+      state.issues.push(`Journey ${prefix} has parameters but no route.`);
+      continue;
     }
+    if (!SECTION_LINK_PREFIXES.includes(`${prefix}.`)) {
+      if (!state.issues.includes(tripLimitMessage)) state.issues.push(tripLimitMessage);
+      continue;
+    }
+    const journeyParams = new URLSearchParams();
+    let stayMin: number | null = null;
+    for (const [key, value] of group) {
+      if (key === P.stay) {
+        stayMin = parseStay(value);
+        if (stayMin === null) state.issues.push(`Invalid ${prefix}.${key} value in this link.`);
+      } else if (key === P.route || key === P.label || /^(dep|arr)\d+$/.test(key)) journeyParams.set(key, value);
+      else state.issues.push(`Invalid ${prefix}.${key} parameter in this link.`);
+    }
+    const parsed = parseLink(`?${journeyParams}`);
+    state.issues.push(...parsed.issues.map((message) => `${prefix}. ${message}`));
+    (state.sections ??= []).push({
+      label: parsed.label ?? null,
+      stops: parsed.stops ?? [],
+      stayMin: normalizeStay(stayMin),
+    });
+  }
   const tokens = parseRouteParam(search);
   if (tokens !== null) {
     state.stops = tokens.map((token) => ({ ...parseRouteToken(token), arrival: null, departure: null }));
@@ -261,9 +265,14 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
       const normalized = value.toLowerCase();
       if (isNamedClock(normalized)) state.view.clock = normalized;
       else if (
-        [...(state.stops ?? []), ...(state.compare ?? []).flatMap((journey) => journey.stops)].some(
-          (s) => s.code === value.toUpperCase(),
-        )
+        [
+          ...(state.stops ?? []),
+          ...(state.sections ?? []).flatMap((section) => section.stops),
+          ...(state.compare ?? []).flatMap((journey) => [
+            ...journey.stops,
+            ...(journey.sections ?? []).flatMap((section) => section.stops),
+          ]),
+        ].some((s) => s.code === value.toUpperCase())
       )
         state.view.clock = value.toUpperCase();
       else invalid(key);
@@ -338,16 +347,21 @@ export function serializeLink(
   };
   if ((extra?.compare?.length ?? 0) >= MAX_JOURNEYS) throw new RangeError(comparisonLimitMessage);
   if ((extra?.sections?.length ?? 0) >= MAX_SECTIONS) throw new RangeError(tripLimitMessage);
-  if (extra?.compare?.length && extra.sections?.length) throw new TypeError(mixedMessage);
+  const appendSections = (sections: SerializableSection[] | undefined, parent: string) => {
+    if ((sections?.length ?? 0) >= MAX_SECTIONS) throw new RangeError(tripLimitMessage);
+    sections?.forEach((section, index) => {
+      const prefix = `${parent}${SECTION_LINK_PREFIXES[index]}`;
+      appendJourney(section.stops, section.label, prefix);
+      const stay = normalizeStay(section.stayMin);
+      if (stay !== null) params.push([`${prefix}${P.stay}`, formatStay(stay)]);
+    });
+  };
   appendJourney(stops, extra?.label, '');
-  extra?.compare?.forEach((journey, index) =>
-    appendJourney(journey.stops, journey.label, JOURNEY_LINK_PREFIXES[index]),
-  );
-  extra?.sections?.forEach((section, index) => {
-    const prefix = SECTION_LINK_PREFIXES[index];
-    appendJourney(section.stops, section.label, prefix);
-    const stay = normalizeStay(section.stayMin);
-    if (stay !== null) params.push([`${prefix}${P.stay}`, formatStay(stay)]);
+  appendSections(extra?.sections, '');
+  extra?.compare?.forEach((journey, index) => {
+    const prefix = JOURNEY_LINK_PREFIXES[index];
+    appendJourney(journey.stops, journey.label, prefix);
+    appendSections(journey.sections, prefix);
   });
   if (view.time != null) params.push([P.time, formatIsoInstant(view.time)]);
   if (view.play) params.push([P.play, '1']);

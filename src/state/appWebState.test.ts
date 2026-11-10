@@ -102,7 +102,7 @@ describe('live browser-tool state', () => {
     expect(result.stops.map((stop) => stop.code)).toEqual(['LHR', 'JFK']);
     expect(result.legs).toHaveLength(1);
     expect(result.comparison?.journeys.map((entry) => entry.id)).toEqual(['A', 'B']);
-    expect(result.comparison?.journeys.map((entry) => entry.legs.length)).toEqual([2, 1]);
+    expect(result.comparison?.journeys.map((entry) => ('legs' in entry ? entry.legs.length : 0))).toEqual([2, 1]);
     expect(result.view).toEqual({ ...view, time: '2026-11-20T09:30:00.000Z', live: false, leg: 1 });
     expect(result.url).toBe('https://example.com/visit');
     expect(result.comparison?.url).toBe(result.url);
@@ -125,4 +125,38 @@ describe('live browser-tool state', () => {
     expect(result.view.leg).toBeNull();
     expect(result.view.time).toBe('2026-11-20T09:30:00.000Z');
   });
+});
+
+it('reports the active alternative and section while retaining the compared trip plan', () => {
+  const returnInput = resolveItinerary(context, 'JFK-CPH').input;
+  const alternativeReturn = resolveItinerary(context, 'JFK-LHR').input;
+  const result = toolJourneyResponse({
+    context,
+    primaryStops: primary.stops,
+    linkExtra: {
+      sections: [{ label: null, stops: returnInput.stops, stayMin: null }],
+      compare: [{ ...alternative, sections: [{ label: 'Back', stops: alternativeReturn.stops, stayMin: 7200 }] }],
+    },
+    active: 1,
+    activeSection: 1,
+    currentView: createToolView(snapshot, true, settings, null),
+    snapshot,
+    assumedStart: snapshot.time,
+    journey: computeJourney(alternativeReturn, { assumedStart: snapshot.time }),
+    url: 'https://example.com/trip',
+  });
+  expect(result.comparison).toMatchObject({
+    kind: 'trip_comparison',
+    url: result.url,
+    journeys: [
+      { id: 'A', sections: expect.any(Array) },
+      { id: 'B', sections: expect.any(Array) },
+    ],
+    comparison: { sections: expect.any(Array) },
+  });
+  expect(result).not.toHaveProperty('trip');
+  expect(result.stops.map((stop) => stop.code)).toEqual(['JFK', 'LHR']);
+  expect(result.legs).toHaveLength(1);
+  expect(result.totals.flights).toBe(1);
+  expect(result.valid).toBe(true);
 });

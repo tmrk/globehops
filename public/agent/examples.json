@@ -490,5 +490,98 @@
       ],
       "valid": true
     }
+  },
+  {
+    "title": "Compared round trips",
+    "description": "Via Frankfurt versus nonstop, outbound and return compared separately; stays excluded from travel ranking.",
+    "itinerary": {
+      "version": 1,
+      "journeys": [
+        {
+          "label": "Via Frankfurt",
+          "sections": [
+            {
+              "stops": [
+                { "airport": "BUD", "departure": "2026-12-01T07:10" },
+                { "airport": "FRA" },
+                { "airport": "JFK" }
+              ]
+            },
+            {
+              "stops": [
+                { "airport": "JFK", "departure": "2026-12-10T18:00" },
+                { "airport": "FRA" },
+                { "airport": "BUD" }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "Nonstop",
+          "sections": [
+            { "stops": [{ "airport": "BUD" }, { "airport": "JFK" }] },
+            { "stops": [{ "airport": "JFK" }, { "airport": "BUD" }] }
+          ]
+        }
+      ]
+    },
+    "url": "https://tmrk.github.io/globehops/?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&label=Via%20Frankfurt&2.route=JFK-FRA-BUD&2.dep1=2026-12-10T18:00&b.route=BUD-JFK&b.label=Nonstop&b.2.route=JFK-BUD",
+    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJqb3VybmV5cyI6W3sibGFiZWwiOiJWaWEgRnJhbmtmdXJ0Iiwic2VjdGlvbnMiOlt7InN0b3BzIjpbeyJhaXJwb3J0IjoiQlVEIiwiZGVwYXJ0dXJlIjoiMjAyNi0xMi0wMVQwNzoxMCJ9LHsiYWlycG9ydCI6IkZSQSJ9LHsiYWlycG9ydCI6IkpGSyJ9XX0seyJzdG9wcyI6W3siYWlycG9ydCI6IkpGSyIsImRlcGFydHVyZSI6IjIwMjYtMTItMTBUMTg6MDAifSx7ImFpcnBvcnQiOiJGUkEifSx7ImFpcnBvcnQiOiJCVUQifV19XX0seyJsYWJlbCI6Ik5vbnN0b3AiLCJzZWN0aW9ucyI6W3sic3RvcHMiOlt7ImFpcnBvcnQiOiJCVUQifSx7ImFpcnBvcnQiOiJKRksifV19LHsic3RvcHMiOlt7ImFpcnBvcnQiOiJKRksifSx7ImFpcnBvcnQiOiJCVUQifV19XX1dfQ",
+    "expected": {
+      "totals": {
+        "distanceKm": 14049.2,
+        "distanceMi": 8729.8,
+        "flightMinutes": 1110,
+        "connectionMinutes": 180,
+        "stayMinutes": 13325,
+        "tripMinutes": 14615,
+        "flights": 4,
+        "connections": 2,
+        "sections": 2,
+        "stays": 1,
+        "departure": {
+          "local": "2026-12-01T07:10",
+          "utc": "2026-12-01T06:10Z",
+          "offset": "+01:00",
+          "timeZone": "Europe/Budapest",
+          "provenance": "entered"
+        },
+        "arrival": {
+          "local": "2026-12-11T10:45",
+          "utc": "2026-12-11T09:45Z",
+          "offset": "+01:00",
+          "timeZone": "Europe/Budapest",
+          "provenance": "estimated"
+        },
+        "provenance": "estimated",
+        "travelMinutes": 1290
+      },
+      "comparison": {
+        "fastest": "B",
+        "ranking": [
+          { "id": "B", "travelMinutes": 1050, "deltaMinutes": 0 },
+          { "id": "A", "travelMinutes": 1290, "deltaMinutes": 240 }
+        ],
+        "sections": [
+          { "name": "Outbound", "fastest": "B", "deltaMinutes": { "A": 120, "B": 0, "C": 0, "D": 0 } },
+          { "name": "Return", "fastest": "B", "deltaMinutes": { "A": 120, "B": 0, "C": 0, "D": 0 } }
+        ]
+      },
+      "issues": [
+        {
+          "code": "future_rules",
+          "severity": "info",
+          "message": "Future times use today's time-zone rules, which can change",
+          "path": "/journeys/0/sections/0"
+        },
+        {
+          "code": "future_rules",
+          "severity": "info",
+          "message": "Future times use today's time-zone rules, which can change",
+          "path": "/journeys/0/sections/1"
+        }
+      ],
+      "valid": true
+    }
   }
 ]

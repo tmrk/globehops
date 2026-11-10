@@ -24,6 +24,40 @@ const stopProperties = {
   },
 } as const;
 
+const sectionProperties = {
+  label: { type: 'string', minLength: 1, maxLength: MAX_LABEL_LENGTH, pattern: LABEL_PATTERN },
+  stops: { $ref: '#/$defs/stops' },
+} as const;
+const section = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['stops'],
+  properties: {
+    ...sectionProperties,
+    stayMinutes: {
+      type: 'integer',
+      minimum: 0,
+      maximum: MAX_STAY_MIN,
+      description: 'Stay before this section, used only while its own times do not fix it (default 7 days).',
+    },
+  },
+} as const;
+const sections = {
+  type: 'array',
+  minItems: 1,
+  maxItems: MAX_SECTIONS,
+  description: 'Sequential journeys separated by explicit stays; connections belong inside a section.',
+  // Fixed-length forms keep the first-section stay rule explicit, like the transfer-only stops rule below.
+  anyOf: Array.from({ length: MAX_SECTIONS }, (_, i) => ({
+    type: 'array',
+    minItems: i + 1,
+    maxItems: i + 1,
+    prefixItems: Array.from({ length: i + 1 }, (_, k) => ({
+      $ref: k === 0 ? '#/$defs/firstSection' : '#/$defs/section',
+    })),
+    items: false,
+  })),
+} as const;
 /** The published document contract. Calendar, airport and chronology checks are semantic. */
 export const ITINERARY_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -45,40 +79,33 @@ export const ITINERARY_SCHEMA = {
       type: 'array',
       minItems: 1,
       maxItems: MAX_JOURNEYS,
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['stops'],
-        properties: {
-          label: { type: 'string', minLength: 1, maxLength: MAX_LABEL_LENGTH, pattern: LABEL_PATTERN },
-          stops: { $ref: '#/$defs/stops' },
-        },
-      },
-    },
-    sections: {
-      type: 'array',
-      minItems: 1,
-      maxItems: MAX_SECTIONS,
-      description:
-        'A trip: sequential journeys (outbound, return, further stages) separated by stays at their destinations. ' +
-        'Connections belong inside a section; a stay is never a layover.',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['stops'],
-        properties: {
-          label: { type: 'string', minLength: 1, maxLength: MAX_LABEL_LENGTH, pattern: LABEL_PATTERN },
-          stayMinutes: {
-            type: 'integer',
-            minimum: 0,
-            maximum: MAX_STAY_MIN,
-            description:
-              'Sections after the first: the stay before this section, used only while its own times do not fix it (default 7 days).',
+      anyOf: [
+        { items: { type: 'object', required: ['stops'], properties: { stops: {} } } },
+        ...Array.from({ length: MAX_SECTIONS }, (_, i) => ({
+          items: {
+            type: 'object',
+            required: ['sections'],
+            properties: {
+              sections: { type: 'array', minItems: i + 1, maxItems: i + 1 },
+            },
           },
+        })),
+      ],
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        oneOf: [
+          { required: ['stops'], properties: { stops: {} } },
+          { required: ['sections'], properties: { sections: {} } },
+        ],
+        properties: {
+          sections,
+          label: { type: 'string', minLength: 1, maxLength: MAX_LABEL_LENGTH, pattern: LABEL_PATTERN },
           stops: { $ref: '#/$defs/stops' },
         },
       },
     },
+    sections,
     view: {
       type: 'object',
       additionalProperties: false,
@@ -109,6 +136,8 @@ export const ITINERARY_SCHEMA = {
     },
   },
   $defs: {
+    section,
+    firstSection: { type: 'object', additionalProperties: false, required: ['stops'], properties: sectionProperties },
     stops: {
       type: 'array',
       minItems: 1,
@@ -138,7 +167,27 @@ export const ITINERARY_SCHEMA = {
   },
 } as const;
 
-/** Shared browser/MCP shorthand: each alternative supplies exactly one route or stop array. */
+const stay = {
+  oneOf: [
+    { type: 'integer', minimum: 0, maximum: MAX_STAY_MIN },
+    { type: 'string', pattern: '^\\d{1,6}[mhdMHD]?$' },
+  ],
+} as const;
+const routeOrStops = {
+  type: 'object',
+  additionalProperties: false,
+  oneOf: [
+    { required: ['route'], properties: { route: {} } },
+    { required: ['stops'], properties: { stops: {} } },
+  ],
+  properties: {
+    route: { type: 'string', maxLength: MAX_URL_LENGTH },
+    stops: { $ref: '#/$defs/stops' },
+    label: ITINERARY_SCHEMA.properties.journeys.items.properties.label,
+    stay,
+  },
+} as const;
+/** Shared browser/MCP shorthand: route/stops or sections, with optional round-trip shorthand. */
 export const COMPARISON_INPUT_SCHEMA = {
   $schema: ITINERARY_SCHEMA.$schema,
   type: 'object',
@@ -155,9 +204,14 @@ export const COMPARISON_INPUT_SCHEMA = {
         oneOf: [
           { type: 'object', required: ['route'], properties: { route: { type: 'string' } } },
           { type: 'object', required: ['stops'], properties: { stops: { type: 'array' } } },
+          { type: 'object', required: ['sections'], properties: { sections: { type: 'array' } } },
         ],
+        dependentRequired: { returnRoute: ['route'], stay: ['returnRoute'] },
         properties: {
           label: ITINERARY_SCHEMA.properties.journeys.items.properties.label,
+          sections: { type: 'array', minItems: 1, maxItems: MAX_SECTIONS, items: routeOrStops },
+          returnRoute: { type: 'string', maxLength: MAX_URL_LENGTH },
+          stay,
           route: { type: 'string', maxLength: MAX_URL_LENGTH },
           stops: { $ref: '#/$defs/stops' },
         },

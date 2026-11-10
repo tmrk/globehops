@@ -95,6 +95,7 @@ describe('MCP comparisons', () => {
     expect(plan.journeys.map((journey) => journey.id)).toEqual(['A', 'B']);
     expect(plan.journeys[0].anchor).toBe('entered');
     expect(plan.journeys[1].anchor).toBe('assumed');
+    if (!('departure' in plan.journeys[0]) || !('departure' in plan.journeys[1])) throw new Error('Expected journeys.');
     expect(plan.journeys[1].departure?.utc).toBe(plan.journeys[0].departure?.utc);
     expect(plan.url).toContain('b.route=BUD-LHR_180-JFK');
     expect(plan.comparison.fastest).toBe('A');
@@ -190,5 +191,66 @@ describe('MCP trips and routing', () => {
     expect(INPUT_SCHEMAS.calculate_route.safeParse({ route: 'JNB-PER', routing: { diversion: 30 } }).success).toBe(
       false,
     );
+  });
+});
+
+describe('MCP compared trips', () => {
+  const journeys = [
+    { label: 'Direct', route: 'BUD-JFK', returnRoute: 'JFK-BUD', stay: '5d' },
+    { sections: [{ route: 'BUD-FRA-JFK' }, { route: 'JFK-FRA-BUD', stay: 7200 }] },
+  ];
+  const itinerary = {
+    version: 1,
+    journeys: journeys.map((journey, i) => ({
+      label: journey.label,
+      sections:
+        i === 0
+          ? [
+              { stops: [{ airport: 'BUD' }, { airport: 'JFK' }] },
+              { stops: [{ airport: 'JFK' }, { airport: 'BUD' }], stayMinutes: 7200 },
+            ]
+          : [
+              { stops: [{ airport: 'BUD' }, { airport: 'FRA' }, { airport: 'JFK' }] },
+              { stops: [{ airport: 'JFK' }, { airport: 'FRA' }, { airport: 'BUD' }], stayMinutes: 7200 },
+            ],
+    })),
+  };
+  it('accepts round-trip shorthand and returns the published output schema, including routing', () => {
+    const result = handleTool(context, 'compare_journeys', {
+      journeys,
+      assumeDeparture: '2026-12-01T07:00Z',
+      routing: { avoidAirspace: true },
+    });
+    expect(result.isError).not.toBe(true);
+    const plan = OUTPUT_SCHEMAS.compare_journeys.parse(result.structuredContent);
+    expect(plan.kind).toBe('trip_comparison');
+    expect(plan.url).toContain('b.2.route=JFK-FRA-BUD');
+    expect(plan.journeys[0]).toHaveProperty('sections');
+    expect(plan.journeys[0].totals).toHaveProperty('travelMinutes');
+    expect(plan.comparison).toHaveProperty('sections');
+    expect(plan.routing?.avoidAirspace).toBe(true);
+  });
+  it('visualizes and validates documents but redirects calculation and timeline tools', () => {
+    for (const name of ['visualize_route', 'validate_itinerary'] as const) {
+      const result = handleTool(context, name, { itinerary });
+      expect(result.isError, JSON.stringify(result)).not.toBe(true);
+      expect(OUTPUT_SCHEMAS[name].safeParse(result.structuredContent).success).toBe(true);
+    }
+    for (const name of ['calculate_route', 'get_journey_timeline'] as const) {
+      const result = handleTool(context, name, { itinerary });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent?.issues).toContainEqual(
+        expect.objectContaining({ code: 'use_compare_journeys' }),
+      );
+    }
+  });
+  it('rejects mixed alternative forms, counts, and invalid section inputs', () => {
+    for (const bad of [
+      [journeys[0], { route: 'BUD-JFK' }],
+      [journeys[0], { sections: [{ route: 'BUD-JFK', stops: [{ airport: 'BUD' }] }] }],
+      [journeys[0], { route: 'BUD-JFK', stay: 7200 }],
+      [journeys[0], { sections: Array(7).fill({ route: 'BUD-JFK' }) }],
+    ])
+      expect(handleTool(context, 'compare_journeys', { journeys: bad }).isError).toBe(true);
   });
 });

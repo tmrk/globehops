@@ -37,3 +37,15 @@ describe('committed agent discovery', () => {
     );
   });
 });
+
+it('parses the booking-to-link example with every outbound and return stop', () => {
+  const guide = readFileSync(new URL('../public/llms.txt', import.meta.url), 'utf8');
+  const example = guide
+    .split('Example — out via Frankfurt on 1 December, back nonstop on 10 December:\n')[1]
+    ?.split('\n')[0];
+  expect(example).toBeDefined();
+  const link = parseLink(new URL(example!).search);
+  expect(link.issues).toEqual([]);
+  expect(link.stops).toHaveLength(3);
+  expect(link.sections?.[0].stops).toHaveLength(2);
+});
