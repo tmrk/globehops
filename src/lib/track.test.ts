@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  displayAltitudeKm,
   legTrack,
   normalizeTrack,
   reverseTrack,
@@ -109,5 +110,32 @@ describe('custom path math', () => {
     expect(indices.length).toBeLessThanOrEqual(300);
     expect(indices[0]).toBe(0);
     expect(indices.at(-1)).toBe(249999);
+  });
+});
+
+describe('displayed altitudes', () => {
+  const path = [
+    { lat: 51.47, lng: -0.45 },
+    { lat: 52, lng: -10 },
+    { lat: 53, lng: -30 },
+    { lat: 50, lng: -50 },
+    { lat: 40.64, lng: -73.78 },
+  ];
+  it('draws a recording as flown', () => {
+    const altitudes = [0.1, 9, 11, 11, 0.2];
+    expect(displayAltitudeKm(path, altitudes, 'recorded', 0)).toBeCloseTo(0.1, 6);
+    expect(displayAltitudeKm(path, altitudes, 'recorded', 1)).toBeCloseTo(0.2, 6);
+  });
+  it('eases a plan’s cruising levels from and to the ground, keeping its levels in cruise', () => {
+    // A route string's levels: the airports have none, so the ends hold the nearest level.
+    const altitudes = [10.668, 10.668, 11.278, 11.278, 11.278];
+    expect(displayAltitudeKm(path, altitudes, 'planned', 0)).toBeCloseTo(0, 6);
+    expect(displayAltitudeKm(path, altitudes, 'planned', 1)).toBeCloseTo(0, 6);
+    expect(displayAltitudeKm(path, altitudes, 'planned', 0.5)).toBeCloseTo(11.278, 3);
+    expect(displayAltitudeKm(path, altitudes, 'planned', 0.01)!).toBeLessThan(10.668);
+  });
+  it('has nothing to say without altitudes aligned with the path', () => {
+    expect(displayAltitudeKm(path, null, 'planned', 0.5)).toBeNull();
+    expect(displayAltitudeKm(path, [1, 2], 'recorded', 0.5)).toBeNull();
   });
 });

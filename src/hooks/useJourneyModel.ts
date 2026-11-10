@@ -109,9 +109,19 @@ export function useJourneyModel(
   const legs = useMemo(
     () =>
       directLegs.map((leg, i) => {
-        const routed = activeLegs[i];
-        return routed?.route && routed.from.id === leg.from.id && routed.to.id === leg.to.id
-          ? { ...leg, distanceKm: routed.distanceKm, durationMin: routed.estimatedMin, route: routed.route }
+        const computed = activeLegs[i];
+        if (!computed || computed.from.id !== leg.from.id || computed.to.id !== leg.to.id) return leg;
+        // A custom path's own length and time (a recording's, or an estimate along a plan).
+        if (computed.track)
+          return {
+            ...leg,
+            distanceKm: computed.distanceKm,
+            durationMin: computed.estimatedMin,
+            track: computed.track,
+            pathKind: computed.pathKind,
+          };
+        return computed.route
+          ? { ...leg, distanceKm: computed.distanceKm, durationMin: computed.estimatedMin, route: computed.route }
           : leg;
       }),
     [directLegs, activeLegs],

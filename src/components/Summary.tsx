@@ -7,7 +7,8 @@ import type { DistanceUnit, Layover, Leg } from '../types.ts';
 import type { Journey } from '../lib/schedule.ts';
 import { airportCode } from '../data/airports.ts';
 
-import { IconAlert, IconDetour, IconDiversion, IconInfo } from './Icons.tsx';
+import { IconAlert, IconDetour, IconDiversion, IconImport, IconInfo, IconTrack } from './Icons.tsx';
+import { greatCircleDistanceKm } from '../lib/geo.ts';
 import { routingNotes, type RoutingStatus } from './airspaceText.ts';
 import { DEFAULT_DIVERSION_PROFILE, diversionRadiusKm } from '../lib/diversion.ts';
 
@@ -19,10 +20,12 @@ interface SummaryProps {
   unit: DistanceUnit;
   /** Route avoidance and diversion-aware routing, while each is on; `reviewed` dates the airspace list. */
   routing?: RoutingStatus & { reviewed: string | null };
+  /** Saves the journey's custom paths, every point, as a file. */
+  onDownloadPaths?: () => void;
 }
 
 /** Journey totals, pinned to the bottom of the panel like the total on a ticket. */
-export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing }: SummaryProps) {
+export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing, onDownloadPaths }: SummaryProps) {
   const { t, fmt } = useI18n();
 
   const [showInfo, setShowInfo] = useState(false);
@@ -74,6 +77,22 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing }: 
         { t, fmt },
       )
     : [];
+  // Custom paths: their kind, source and points, and how much longer than the great circle they fly.
+  const tracked = legs.filter((leg) => leg.track);
+  const pathNote = (() => {
+    if (!tracked.length) return null;
+    const first = tracked[0].track!;
+    const kind = first.kind === 'recorded' ? t('track.recordedShort') : t('track.plannedShort');
+    const points = fmt.number(tracked.reduce((sum, leg) => sum + leg.track!.points, 0));
+    const text =
+      tracked.length > 1 && tracked.some((leg) => leg.track!.kind !== first.kind)
+        ? t('track.noteMany', fmt.number(tracked.length))
+        : first.source.name && tracked.every((leg) => leg.track!.source.name === first.source.name)
+          ? t('track.noteSource', kind, first.source.name, points)
+          : t('track.note', kind, points);
+    const extraKm = tracked.reduce((sum, leg) => sum + leg.distanceKm - greatCircleDistanceKm(leg.from, leg.to), 0);
+    return { text, longer: extraKm >= 1 ? t('track.longer', fmt.distance(extraKm, unit)) : null };
+  })();
   const issue = journey.issues.find((i) => i.severity === 'error');
   const issueLeg = issue?.leg ?? (issue?.field === 'arrival' ? Math.max(0, (issue.stop ?? 1) - 1) : (issue?.stop ?? 0));
 
@@ -132,6 +151,21 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing }: 
           <span>{note.text}</span>
         </p>
       ))}
+      {pathNote && (
+        <p className="summary__airspace summary__path">
+          <IconTrack size={14} />
+          <span>
+            {pathNote.text}
+            {pathNote.longer && ` · ${pathNote.longer}`}
+          </span>
+          {onDownloadPaths && (
+            <button type="button" className="text-btn summary__download" onClick={onDownloadPaths}>
+              <IconImport size={14} className="summary__download-icon" />
+              {t('track.download')}
+            </button>
+          )}
+        </p>
+      )}
       {issue ? (
         <button type="button" className="text-btn schedule-error" onClick={() => onCheckLeg(issueLeg)}>
           {t('summary.checkTimes', issueLeg + 1)}

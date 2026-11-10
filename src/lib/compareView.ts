@@ -76,7 +76,7 @@ export function comparisonGlobeRoute(
           from: leg.from,
           to: leg.to,
           path,
-          ...(leg.track ? { altitudes: leg.track.altitudesKm } : {}),
+          ...(leg.track ? { altitudes: leg.track.altitudesKm, trackKind: leg.track.kind } : {}),
           color: comparing ? color : legColor(i),
           lift: comparing ? 1 + 0.22 * index : 1,
           muted: comparing && !open && index !== active,

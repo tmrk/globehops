@@ -15,6 +15,7 @@
 import type { LatLng } from '../types.ts';
 import { EARTH_RADIUS_KM } from './geo.ts';
 import { pathMetrics, pathLengthKm } from './routePath.ts';
+import { altitudeAt, altitudeProfile, DEFAULT_ALTITUDE_MODEL, type AltitudeProfile } from './altitude.ts';
 
 export type PathKind = 'generated' | 'planned' | 'recorded';
 export type TrackKind = Exclude<PathKind, 'generated'>;
@@ -171,9 +172,9 @@ export function trackFractionAtTime(lt: LegTrack, epochMs: number): number {
     : 0;
 }
 
-export function trackAltitudeKmAt(lt: LegTrack, fraction: number): number | null {
-  if (!lt.altitudesKm) return null;
-  const { cumulative, total } = pathMetrics(lt.path);
+/** Altitude (km) at `fraction` of a path's length, interpolated along the path between its vertices. */
+export function pathAltitudeKm(path: readonly LatLng[], altitudesKm: readonly number[], fraction: number): number {
+  const { cumulative, total } = pathMetrics(path);
   const target = clamp(fraction) * total;
   let lo = 0,
     hi = cumulative.length - 1;
@@ -183,9 +184,50 @@ export function trackAltitudeKmAt(lt: LegTrack, fraction: number): number | null
     else hi = mid;
   }
   const span = cumulative[hi] - cumulative[lo];
-  return (
-    lt.altitudesKm[lo] + (lt.altitudesKm[hi] - lt.altitudesKm[lo]) * (span > 0 ? (target - cumulative[lo]) / span : 0)
-  );
+  return altitudesKm[lo] + (altitudesKm[hi] - altitudesKm[lo]) * (span > 0 ? (target - cumulative[lo]) / span : 0);
+}
+
+export function trackAltitudeKmAt(lt: LegTrack, fraction: number): number | null {
+  return lt.altitudesKm ? pathAltitudeKm(lt.path, lt.altitudesKm, fraction) : null;
+}
+
+const plannedProfiles = new WeakMap<readonly number[], AltitudeProfile>();
+/**
+ * A planned path's climb and descent: flight plans give cruising levels at waypoints, not the climb from the
+ * runway, so the modelled profile (its climb and descent scaled to the planned peak) shapes the ends.
+ */
+function plannedProfile(distanceKm: number, altitudesKm: readonly number[]): AltitudeProfile {
+  let profile = plannedProfiles.get(altitudesKm);
+  if (!profile || profile.distanceKm !== distanceKm) {
+    const peak = Math.max(0.3, ...altitudesKm);
+    const scale = peak / DEFAULT_ALTITUDE_MODEL.cruiseAltitudeKm;
+    profile = altitudeProfile(distanceKm, {
+      ...DEFAULT_ALTITUDE_MODEL,
+      cruiseAltitudeKm: peak,
+      climbMinutes: DEFAULT_ALTITUDE_MODEL.climbMinutes * scale,
+      descentMinutes: DEFAULT_ALTITUDE_MODEL.descentMinutes * scale,
+    });
+    plannedProfiles.set(altitudesKm, profile);
+  }
+  return profile;
+}
+
+/**
+ * The altitude GlobeHops draws and reports for a custom path: a recording's own altitudes; a plan's levels,
+ * eased from and to the ground by a climb and descent scaled to them; null without altitudes (the modelled
+ * profile applies).
+ */
+export function displayAltitudeKm(
+  path: readonly LatLng[],
+  altitudesKm: readonly number[] | null | undefined,
+  kind: TrackKind,
+  fraction: number,
+): number | null {
+  if (!altitudesKm || altitudesKm.length !== path.length) return null;
+  const altitude = pathAltitudeKm(path, altitudesKm, fraction);
+  if (kind === 'recorded') return altitude;
+  const distanceKm = pathLengthKm(path);
+  return Math.min(altitude, altitudeAt(plannedProfile(distanceKm, altitudesKm), clamp(fraction) * distanceKm));
 }
 
 export function trackFlightPhaseAt(lt: LegTrack, epochMs: number): 'climb' | 'cruise' | 'descent' {

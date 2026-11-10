@@ -14,6 +14,7 @@ import { flushSync } from 'react-dom';
 
 import { AboutDialog, type AboutDialogHandle } from './components/AboutDialog.tsx';
 import { AiImportDialog, AiImportEntry, type AiImportDialogHandle } from './components/AiImportDialog.tsx';
+import { RouteImportDialog, RouteImportEntry, type RouteImportDialogHandle } from './components/RouteImportDialog.tsx';
 import { AirportPicker, type AirportPickerHandle } from './components/AirportPicker.tsx';
 import { Brand, VersionTag } from './components/Brand.tsx';
 import { CollapsedJourneyPeek } from './components/CollapsedJourneyPeek.tsx';
@@ -21,7 +22,7 @@ import { CompareSummary } from './components/CompareSummary.tsx';
 import { ConsentNotice } from './components/ConsentNotice.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { GlobeHud } from './components/GlobeHud.tsx';
-import { IconInfo, IconCompare, IconReturn, IconTrash } from './components/Icons.tsx';
+import { IconInfo, IconCompare, IconImport, IconReturn, IconTrack, IconTrash } from './components/Icons.tsx';
 import { JourneyPanelHeader } from './components/JourneyPanelHeader.tsx';
 import { JourneyTabs } from './components/JourneyTabs.tsx';
 import { MapTools } from './components/MapTools.tsx';
@@ -45,7 +46,7 @@ import { useAppWebTools } from './hooks/useAppWebTools.ts';
 import { useBottomSheet } from './hooks/useBottomSheet.ts';
 import { useClockPhase } from './hooks/useClock.ts';
 import { useGeolocation } from './hooks/useGeolocation.ts';
-import { useJourneyAddress } from './hooks/useJourneyAddress.ts';
+import { useJourneyAddressWithReduction } from './hooks/useJourneyAddress.ts';
 import { useJourneyModel } from './hooks/useJourneyModel.ts';
 import { useJourneyPlayback, usePlaybackRange } from './hooks/useJourneyPlayback.ts';
 import { useMediaQuery } from './hooks/useMediaQuery.ts';
@@ -60,6 +61,10 @@ import type { GlobeRoute } from './globe/GlobeRenderer.ts';
 import { useI18n } from './i18n/I18nProvider.tsx';
 import { trackEvent } from './analytics.ts';
 import { airportCode } from './data/airports.ts';
+import { findAirportByCode } from './data/search.ts';
+import { groupFlights } from './lib/import/group.ts';
+import type { ImportContext, ImportResult } from './lib/import/types.ts';
+import { exportFileName, tracksToGeoJson, type ExportedFlight } from './lib/trackExport.ts';
 import { estimateRoute, similarRoutes } from './data/similarRoutes.ts';
 import { comparisonGlobeRoute } from './lib/compareView.ts';
 import { tripComparisonGlobeRoute, tripGlobeRoute, tripRouteCodes } from './lib/tripView.ts';
@@ -109,6 +114,8 @@ export default function App() {
 
   const [plan, planDispatch] = useReducer(planReducer, undefined, createPlanState);
   const route = plan.journeys[plan.active].route;
+  /** The active journey follows an imported path on at least one flight. */
+  const hasTracks = route.stops.some((stop) => stop.track);
   const kind = planKind(plan);
   const comparing = kind === 'compare';
   const tripMode = kind === 'trip';
@@ -157,6 +164,9 @@ export default function App() {
   const takeoverRef = useRef<AirportPickerHandle>(null);
   const aboutRef = useRef<AboutDialogHandle>(null);
   const aiRef = useRef<AiImportDialogHandle>(null);
+  const importRef = useRef<RouteImportDialogHandle>(null);
+  /** Desktop: a file dragged over the app, to import as a flight path. */
+  const [fileOver, setFileOver] = useState(false);
   const analytics = useAnalyticsConsent();
   const playback = useJourneyPlayback(reducedMotion, setCollapsed);
   const { clock, timeOpen, assumedStart, linkedTime, pausedTime, speed, applyView, openTime, closeTime } = playback;
@@ -307,7 +317,7 @@ export default function App() {
     closeTime();
   };
 
-  const shareUrl = useJourneyAddress({
+  const { shareUrl, shareReduction } = useJourneyAddressWithReduction({
     model,
     preferences,
     plan,
@@ -449,7 +459,11 @@ export default function App() {
     }
     try {
       await navigator.clipboard.writeText(url);
-      showToast(t('toasts.linkCopied'));
+      showToast(
+        shareReduction
+          ? `${t('toasts.linkCopied')}. ${t('track.shareReduced', fmt.number(shareReduction.kept), fmt.number(shareReduction.total))}`
+          : t('toasts.linkCopied'),
+      );
       trackEvent('share', { method: 'copy_link', content_type: 'journey' });
     } catch {
       showToast(t('toasts.copyLink'), url);
@@ -622,6 +636,104 @@ export default function App() {
     setArranging((on) => !on);
   };
 
+  /** Airports for matching an imported path's ends; ready with the dataset and its search index. */
+  const importContext = useMemo<ImportContext | null>(
+    () =>
+      dataset && index
+        ? { airports: dataset.airports, byCode: (code: string) => findAirportByCode(index, code) ?? undefined }
+        : null,
+    [dataset, index],
+  );
+  /** A journey draft as the plan reloads it, custom paths included. */
+  const loadedDraft = (draft: (typeof plan.journeys)[number]) => ({
+    label: draft.label,
+    stayMin: draft.stayMin,
+    airportIds: draft.route.stops.map((stop) => stop.airportId),
+    layovers: draft.route.stops.map((stop) => stop.layoverMin),
+    arrivals: draft.route.stops.map((stop) => stop.arrival),
+    departures: draft.route.stops.map((stop) => stop.departure),
+    tracks: draft.route.stops.map((stop) => stop.track?.track ?? null),
+  });
+  /** Whether an import could join the journeys on the globe as another one to compare. */
+  const canCompareImport =
+    (kind === 'single' && filledAirports.length >= 2) || (comparing && compared.length < MAX_JOURNEYS);
+  /**
+   * Imported flights become the visitor's plan: flights that connect form one journey, and an open jaw starts
+   * the next journey of a trip. Compared, the import joins the journeys on the globe as another one.
+   */
+  const importFlights = (result: ImportResult, mode: 'replace' | 'compare') => {
+    const { journeys } = groupFlights(result.flights);
+    if (!journeys.length) return;
+    const loaded = journeys.map((flights) => ({
+      label: journeys.length === 1 ? result.name : null,
+      airportIds: [flights[0].from.id, ...flights.map((flight) => flight.to.id)],
+      tracks: flights.map((flight) => flight.track),
+    }));
+    setEditing(null);
+    setArranging(false);
+    if (timeOpen) closeTimeline();
+    if (mode === 'compare' && canCompareImport) {
+      const current = plan.journeys.map(loadedDraft);
+      planDispatch({ type: 'load', journeys: [...current, loaded[0]] });
+      planDispatch({ type: 'activate', index: current.length });
+    } else planDispatch({ type: 'load', journeys: loaded, trip: loaded.length > 1 });
+    if (!isDesktop && collapsed) setCollapsed(false);
+    setFitNonce((n) => n + 1);
+    showToast(t('import.done', result.name ?? t('summary.flights', fmt.number(result.flights.length))));
+    trackEvent('route_import_use', { mode, flights: result.flights.length });
+  };
+  /** The active journey's custom paths, with the airports they fly between. */
+  const trackedFlights = (): ExportedFlight[] =>
+    journey.legs.flatMap((leg) => {
+      const track = route.stops[leg.fromStop]?.track?.track;
+      return track ? [{ from: leg.from, to: leg.to, track }] : [];
+    });
+  /** An imported path beside GlobeHops' own route between the same airports, on one clock. */
+  const compareWithGenerated = () => {
+    const current = loadedDraft(plan.journeys[0]);
+    setEditing(null);
+    setArranging(false);
+    planDispatch({
+      type: 'load',
+      journeys: [
+        current,
+        { ...current, tracks: undefined, arrivals: undefined, departures: undefined, label: t('track.labelGenerated') },
+      ],
+    });
+    trackEvent('compare_journeys');
+  };
+  /** Drops the active journey's custom paths: its flights follow GlobeHops' routes again. */
+  const useGeneratedPaths = () =>
+    route.stops.forEach((stop, index) => {
+      if (stop.track) dispatch({ type: 'setTrack', index, track: null });
+    });
+  /** Every point of the active journey's custom paths, as a GeoJSON file. */
+  const downloadPaths = () => {
+    const flights = trackedFlights();
+    if (!flights.length) return;
+    const name = flights[0].track.source.name;
+    const blob = new Blob([JSON.stringify(tracksToGeoJson(flights, name))], { type: 'application/geo+json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = exportFileName(flights, name);
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    trackEvent('route_export');
+  };
+  // Pasting a path or a route anywhere outside a field offers to import it.
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('input, textarea, [contenteditable="true"], dialog')) return;
+      const text = event.clipboardData?.getData('text/plain') ?? '';
+      if (!text.trim() || text.length > 20_000_000) return;
+      void import('./lib/import/index.ts').then(({ looksLikeRoute }) => {
+        if (looksLikeRoute(text)) importRef.current?.open({ text });
+      });
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, []);
   /** A chosen suggestion becomes the visitor's journey; bring its stops and actions into view. */
   const chooseSuggestion = ({ airports }: SuggestedRoute) => {
     if (!index) return;
@@ -905,10 +1017,12 @@ export default function App() {
         layovers={layovers}
         unit={unit}
         routing={routingStatus}
+        onDownloadPaths={hasTracks ? downloadPaths : undefined}
       />
     )
   );
   const canArrange = filledAirports.length > 0 || route.stops.length > 2;
+
   const canReset = kind !== 'single' || timeOpen || canArrange || hasEnteredTimes(route.stops);
   // A route that is exactly one of the suggestions keeps the list, so people can switch between them.
   const welcomeRoutes = useMemo(
@@ -1070,7 +1184,28 @@ export default function App() {
   );
 
   return (
-    <div className={`app ${isDesktop ? 'layout-desktop' : 'layout-mobile'}`}>
+    <div
+      className={`app ${isDesktop ? 'layout-desktop' : 'layout-mobile'}`}
+      onDragEnter={(event) => {
+        if (event.dataTransfer.types.includes('Files') && importContext) setFileOver(true);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes('Files') || !importContext) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+      }}
+      onDragLeave={(event) => {
+        if (!event.relatedTarget || !(event.currentTarget as Node).contains(event.relatedTarget as Node))
+          setFileOver(false);
+      }}
+      onDrop={(event) => {
+        setFileOver(false);
+        const file = event.dataTransfer.files[0];
+        if (!file || !importContext) return;
+        event.preventDefault();
+        importRef.current?.open({ file });
+      }}
+    >
       <div className={`stage${globeReady ? ' is-ready' : ''}`}>
         {globeFailed ? (
           <div className="globe-fallback" role="note">
@@ -1413,13 +1548,53 @@ export default function App() {
                               </span>
                               <span>{t('compare.entry')}</span>
                             </button>
+                            {hasTracks && (
+                              <button
+                                type="button"
+                                className="row row--action compare-entry"
+                                onClick={compareWithGenerated}
+                              >
+                                <span aria-hidden="true" />
+                                <span className="row__icon">
+                                  <IconTrack size={17} />
+                                </span>
+                                <span>{t('track.compareGenerated')}</span>
+                              </button>
+                            )}
                           </>
+                        )}
+                        {arranging && hasTracks && (
+                          <button type="button" className="row row--action compare-entry" onClick={useGeneratedPaths}>
+                            <span aria-hidden="true" />
+                            <span className="row__icon">
+                              <IconTrack size={17} />
+                            </span>
+                            <span>{t('track.useGenerated')}</span>
+                          </button>
+                        )}
+                        {!arranging && (kind === 'single' || canCompareImport) && (
+                          <button
+                            type="button"
+                            className="row row--action compare-entry"
+                            onClick={() => importRef.current?.open()}
+                          >
+                            <span aria-hidden="true" />
+                            <span className="row__icon">
+                              <IconImport size={17} />
+                            </span>
+                            <span>{t('import.entry')}</span>
+                          </button>
                         )}
                       </div>
                     )}
                   </>
                 )}
-                {showSuggestions && !dataError && <AiImportEntry onOpen={() => aiRef.current?.open()} />}
+                {showSuggestions && !dataError && (
+                  <div className="entries">
+                    <RouteImportEntry onOpen={() => importRef.current?.open()} />
+                    <AiImportEntry onOpen={() => aiRef.current?.open()} />
+                  </div>
+                )}
                 {showSuggestions && (
                   <RouteSuggestions
                     title={t('panel.orTryOneOfThese')}
@@ -1477,6 +1652,21 @@ export default function App() {
       <Toast toast={toast} />
       <AboutDialog ref={aboutRef} meta={dataset?.meta ?? null} analytics={analytics} />
       <AiImportDialog ref={aiRef} />
+      <RouteImportDialog
+        ref={importRef}
+        context={importContext}
+        unit={unit}
+        canCompare={canCompareImport}
+        onImport={importFlights}
+      />
+      {fileOver && (
+        <div className="drop-overlay" aria-hidden="true">
+          <span className="drop-overlay__card">
+            <IconImport size={28} />
+            {t('import.dropHere')}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

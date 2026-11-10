@@ -4953,3 +4953,322 @@ button.map-menu__item:hover {
     --disc: 44px;
   }
 }
+
+/* ------------------------------------------------------------------------------------------ */
+/* Custom flight paths: import, the path note and the drop target                             */
+
+/* The empty planner's two ways in: import a path, or have an assistant map a booking. */
+.entries {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 6px;
+}
+.entries > .ai-entry {
+  margin: 0;
+}
+/* The import card is quieter than the AI card beneath it: a blue-tinted outline, no glow. */
+.route-entry {
+  border-color: rgba(94, 168, 242, 0.24);
+  background: radial-gradient(120% 140% at 0% 0%, rgba(94, 168, 242, 0.1), transparent 62%);
+}
+.route-entry:hover {
+  border-color: rgba(94, 168, 242, 0.5);
+}
+.route-entry .ai-entry__icon {
+  color: #8cc2f5;
+}
+
+.summary__path {
+  flex-wrap: wrap;
+  column-gap: 6px;
+}
+.summary__path > span {
+  flex: 1 1 12em;
+  min-width: 0;
+}
+.summary__download {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: auto;
+  margin: -2px 0 0 auto;
+  padding: 2px 6px;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.summary__download:hover {
+  color: var(--text);
+}
+
+.route-import {
+  width: min(520px, calc(100% - 32px));
+}
+.route-import__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 36px;
+  color: var(--text);
+}
+.route-import__head h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.route-import__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background:
+    radial-gradient(circle at 30% 25%, rgba(94, 168, 242, 0.38), transparent 70%),
+    color-mix(in srgb, #5ea8f2 12%, var(--surface-raised));
+  box-shadow: inset 0 0 0 1px rgba(94, 168, 242, 0.35);
+  color: #8cc2f5;
+}
+.route-import__lede {
+  margin: 14px 0 16px;
+  color: var(--text-2);
+  font-size: var(--text-base);
+}
+/* A generous target: the whole area takes a dropped file; the button opens the file picker. */
+.route-import__drop {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 20px 16px 16px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+  text-align: center;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.route-import__drop.is-dragging {
+  border-color: #5ea8f2;
+  background: rgba(94, 168, 242, 0.08);
+}
+.route-import__drop-icon {
+  color: var(--text-3);
+}
+.route-import__choose,
+.route-import__secondary {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-btn);
+  background: var(--hover);
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  transition: background-color 0.15s;
+}
+.route-import__choose:hover,
+.route-import__secondary:hover {
+  background: var(--press);
+}
+.route-import__drop-hint {
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+.route-import__formats {
+  margin: 8px 0 18px;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+.route-import__label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.route-import__paste {
+  display: block;
+  width: 100%;
+  min-height: 76px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-btn);
+  background: var(--bg);
+  color: var(--text);
+  /* At least 16px: iOS zooms into smaller fields. */
+  font: 400 16px / 1.45 var(--mono);
+  font-stretch: var(--mono-stretch);
+  resize: vertical;
+}
+.route-import__paste::placeholder {
+  color: var(--text-3);
+}
+.route-import__paste:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.route-import__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+.route-import__error svg {
+  flex: none;
+  margin-top: 2px;
+}
+.route-import__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+.route-import__actions > .text-btn {
+  margin-right: auto;
+}
+.route-import__primary {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-btn);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--text-md);
+  font-weight: 700;
+  transition: background-color 0.15s;
+}
+.route-import__primary:hover:not(:disabled) {
+  background: #ffcd69;
+}
+.route-import__primary:disabled {
+  background: var(--surface-solid);
+  color: var(--text-3);
+}
+.route-import__privacy {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+.route-import__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 10px;
+  color: var(--text);
+  font-size: var(--text-base);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.route-import__format,
+.route-import__kind {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  font: 600 var(--text-2xs) / 1.2 var(--font);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.route-import__format {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text-2);
+}
+.route-import__flights {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* One row per flight: its kind, its route on a departure board, and what the file says about it. */
+.route-import__flight {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+}
+.route-import__kind--recorded {
+  background: rgba(86, 211, 166, 0.14);
+  color: #7fe0bd;
+}
+.route-import__kind--planned {
+  background: rgba(94, 168, 242, 0.14);
+  color: #8cc2f5;
+}
+.route-import__route {
+  font: 600 var(--text-md) / 1.2 var(--mono);
+  font-stretch: var(--mono-stretch);
+  word-spacing: var(--mono-space);
+  letter-spacing: var(--track-code);
+  color: var(--text);
+}
+.route-import__facts {
+  grid-column: 2;
+  color: var(--text-3);
+  font: 500 var(--text-xs) / 1.3 var(--mono);
+  font-stretch: var(--mono-stretch);
+  word-spacing: var(--mono-space);
+}
+.route-import__warnings {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  padding: 10px 12px 10px 28px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 194, 75, 0.06);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+.route-import__warnings li::marker {
+  color: var(--accent);
+}
+
+/* Desktop: a file dragged over the app. */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 4, 8, 0.55);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+  animation: launcher-in 0.2s var(--ease);
+}
+.drop-overlay__card {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 28px 36px;
+  border: 1.5px dashed #5ea8f2;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+.drop-overlay__card svg {
+  color: #8cc2f5;
+}
+
+@media (pointer: coarse) {
+  .route-import__choose,
+  .route-import__secondary,
+  .route-import__primary {
+    min-height: 44px;
+  }
+}

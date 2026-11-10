@@ -52,6 +52,7 @@ import {
 import { countSegments, decodeBorders, densifyLine } from '../lib/borders.ts';
 import { EARTH_RADIUS_KM, enclosingCap, greatCircleDistanceKm, greatCirclePath, slerpVec, toVec3 } from '../lib/geo.ts';
 import { mergeFractions, pathLengthKm, pathVertexFractions, vectorAlongPath } from '../lib/routePath.ts';
+import { displayAltitudeKm, simplifyTrackIndices, type TrackKind } from '../lib/track.ts';
 import { SOLAR_SHADING_GLSL } from '../lib/sun.ts';
 import type { LatLng } from '../types.ts';
 import {
@@ -98,6 +99,8 @@ export interface GlobeLeg {
    * descent along the path instead.
    */
   altitudes?: readonly number[] | null;
+  /** A custom track's kind: a recording's altitudes are drawn as flown, a plan's eased from the ground. */
+  trackKind?: TrackKind;
   color: string;
   /** Height multiplier; endpoints retain the same surface clearance. */
   lift?: number;
@@ -171,6 +174,8 @@ const EMPTY_GLOBE_FILL = 0.94;
 const EMPTY_FIT_MS = 600;
 
 const ATMOSPHERE_COLOR = new Color('#7fb4ff');
+/** Longest custom track drawn vertex for vertex; longer recordings are drawn through their significant points. */
+const MAX_DRAWN_VERTICES = 3000;
 
 interface LegObject {
   key: string;
@@ -995,31 +1000,45 @@ export class GlobeRenderer {
 
   private buildLeg(leg: GlobeLeg): LegObject | null {
     const angle = latLngToVector3(leg.from.lat, leg.from.lng).angleTo(latLngToVector3(leg.to.lat, leg.to.lng));
-    if (!(angle > 1e-4)) return null; // same airport: nothing to draw
-    // Climb to cruising altitude, hold it, descend before landing (vertical axis exaggerated).
     const path = leg.path && leg.path.length > 1 ? leg.path : null;
+    // Same airport: nothing to draw, unless a custom track flew a circuit there.
+    if (!(angle > 1e-4) && !(leg.trackKind && path)) return null;
     const distanceKm = path ? pathLengthKm(path) : greatCircleDistanceKm(leg.from, leg.to);
+    if (!(distanceKm > 0.05)) return null;
+    // Climb to cruising altitude, hold it, descend before landing (vertical axis exaggerated).
     const profile = altitudeProfile(distanceKm);
-    // A detour is sampled at its own vertices too, so its turns are drawn where they are.
-    const fractions = path
-      ? mergeFractions(profileFractions(profile), pathVertexFractions(path))
+    const altitudes = leg.trackKind && path && leg.altitudes?.length === path.length ? leg.altitudes : null;
+    // A path is sampled at its own vertices too, so its turns are drawn where they are. A long recording is
+    // drawn through its significant vertices (playback still uses every point, by distance fraction).
+    const vertexFractions = path ? pathVertexFractions(path) : null;
+    const drawnVertices =
+      path && vertexFractions && path.length > MAX_DRAWN_VERTICES
+        ? simplifyTrackIndices(path, { toleranceKm: 0.02, maxPoints: MAX_DRAWN_VERTICES })
+        : null;
+    const drawnFractions = drawnVertices ? drawnVertices.map((i) => vertexFractions![i]) : vertexFractions;
+    const fractions = drawnFractions
+      ? mergeFractions(profileFractions(profile), drawnFractions)
       : profileFractions(profile);
     const u = toVec3(leg.from);
     const v = toVec3(leg.to);
     const ground = fractions.map((f) => ecefToScene(path ? vectorAlongPath(path, f) : slerpVec(u, v, f)));
-    // Detour vertices are ≤ 1° apart; every other one is enough to frame the route.
-    const frame = path
-      ? path.filter((_, i) => i % 2 === 0 || i === path.length - 1).map((p) => ecefToScene(toVec3(p)))
+    // Detour vertices are ≤ 1° apart; every other one is enough to frame the route (a long track, its drawn ones).
+    const framed = path && drawnVertices ? drawnVertices.map((i) => path[i]) : path;
+    const frame = framed
+      ? framed.filter((_, i) => i % 2 === 0 || i === framed.length - 1).map((p) => ecefToScene(toVec3(p)))
       : greatCirclePath(leg.from, leg.to, Math.max(2, Math.ceil((angle * 90) / Math.PI))).map((p) => ecefToScene(p));
     const n = ground.length - 1;
     // Follow distance and the plane's zoom profile use the flown length, not the end-to-end angle.
     const followAngle = path ? distanceKm / EARTH_RADIUS_KM : ground[0].angleTo(ground[n]);
+    // A custom track's own altitudes (a plan's eased from the ground), else the modelled profile.
+    const altitudeKm = (f: number) =>
+      Math.max(
+        0,
+        (altitudes && path && displayAltitudeKm(path, altitudes, leg.trackKind!, f)) ??
+          altitudeAt(profile, f * distanceKm),
+      );
     const arc = ground.map((g, i) =>
-      g
-        .clone()
-        .multiplyScalar(
-          1 + ROUTE_LIFT + exaggeratedLift(altitudeAt(profile, fractions[i] * distanceKm)) * (leg.lift ?? 1),
-        ),
+      g.clone().multiplyScalar(1 + ROUTE_LIFT + exaggeratedLift(altitudeKm(fractions[i])) * (leg.lift ?? 1)),
     );
 
     const color = new Color(leg.color);

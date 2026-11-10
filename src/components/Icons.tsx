@@ -270,3 +270,18 @@ export const IconCopy = (p: IconProps) => (
     <path d="M13 4.6V4.4A1.2 1.2 0 0 0 11.8 3.2H4.4A1.2 1.2 0 0 0 3.2 4.4v7.4a1.2 1.2 0 0 0 1.2 1.2h.2" />
   </Icon>
 );
+/** A custom flight path: a recorded or planned track through its points. */
+export const IconTrack = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3.5 15.5c2-1 2.2-4.2 4.6-5 2.6-.8 3.1 2.2 5.2 1.4 1.8-.7 1.6-4.4 3.2-6.4" />
+    <circle cx="3.5" cy="15.5" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="16.5" cy="5.5" r="1.4" fill="currentColor" stroke="none" />
+  </Icon>
+);
+/** Bringing a file in: an arrow into a tray. */
+export const IconImport = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10 2.8v9.4M6.6 8.8l3.4 3.4 3.4-3.4" />
+    <path d="M3.5 12.5v2.3c0 .9.8 1.7 1.7 1.7h9.6c.9 0 1.7-.8 1.7-1.7v-2.3" />
+  </Icon>
+);

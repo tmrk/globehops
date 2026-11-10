@@ -1,4 +1,4 @@
-import { trackFractionAtTime, trackAltitudeKmAt, trackFlightPhaseAt } from './track.ts';
+import { displayAltitudeKm, trackFractionAtTime, trackFlightPhaseAt } from './track.ts';
 import type { LatLng } from '../types.ts';
 import type { Journey } from './schedule.ts';
 import { interpolateGreatCircle } from './geo.ts';
@@ -104,7 +104,7 @@ export function journeyStateAt(j: Journey, tl: Timeline, epochMs: number): Journ
         ? pointAlongPath(leg.route.path, distanceFraction)
         : interpolateGreatCircle(leg.from, leg.to, distanceFraction),
     altitudeKm:
-      (track ? trackAltitudeKmAt(track, distanceFraction) : null) ??
+      (track ? displayAltitudeKm(track.path, track.altitudesKm, track.kind, distanceFraction) : null) ??
       altitudeAt(models.altitude, distanceFraction * leg.distanceKm),
     flightPhase:
       track && recordedTime !== null

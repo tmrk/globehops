@@ -19,6 +19,7 @@ import {
   IconClock,
   IconClose,
   IconDetour,
+  IconTrack,
   IconDiversion,
   IconGrip,
   IconPlane,
@@ -184,19 +185,25 @@ export function StopList(props: StopListProps) {
                     : t('stops.sameAirport')
               }`
             : '';
-          // A quiet mark beside the distance: restricted airspace first, then diversion cover.
+          // A quiet mark beside the distance: a custom path's kind, else restricted airspace, then diversion cover.
           const route = leg?.route;
-          const airspaceMark = !route
-            ? null
-            : airspaceWarning(route)
-              ? { icon: <IconAlert size={13} />, label: t('airspace.notAvoidedShort'), warn: true }
-              : route.path && route.avoided.length
-                ? { icon: <IconDetour size={13} />, label: t('airspace.detourShort'), warn: false }
-                : route.diversion?.status === 'adjusted'
-                  ? { icon: <IconDiversion size={13} />, label: t('diversion.detourShort'), warn: false }
-                  : route.diversion?.status === 'gap'
-                    ? { icon: <IconDiversion size={13} />, label: t('diversion.gapShort'), warn: false }
-                    : null;
+          const airspaceMark = leg?.track
+            ? {
+                icon: <IconTrack size={13} />,
+                label: leg.track.kind === 'recorded' ? t('track.recordedShort') : t('track.plannedShort'),
+                warn: false,
+              }
+            : !route
+              ? null
+              : airspaceWarning(route)
+                ? { icon: <IconAlert size={13} />, label: t('airspace.notAvoidedShort'), warn: true }
+                : route.path && route.avoided.length
+                  ? { icon: <IconDetour size={13} />, label: t('airspace.detourShort'), warn: false }
+                  : route.diversion?.status === 'adjusted'
+                    ? { icon: <IconDiversion size={13} />, label: t('diversion.detourShort'), warn: false }
+                    : route.diversion?.status === 'gap'
+                      ? { icon: <IconDiversion size={13} />, label: t('diversion.gapShort'), warn: false }
+                      : null;
           const factsContent = (
             <>
               {airspaceMark && (
