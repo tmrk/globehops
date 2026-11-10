@@ -203,3 +203,16 @@ it('accepts compared round-trip shorthand and documents in browser route command
     /same number of sections/,
   );
 });
+
+it('accepts a large custom path into exact set_route state and fits only the address copy', () => {
+  const points = Array.from({ length: 20000 }, (_, i) => [50 + Math.sin(i / 20), -80 + i / 1000, 11000]);
+  const command = parseWebCommand(
+    'set_route',
+    { itinerary: { version: 1, stops: [{ airport: 'CPH', track: { points } }, { airport: 'JFK' }] } },
+    0,
+  );
+  if (command.type !== 'set_route') throw new Error('Expected set_route');
+  expect(command.link.stops?.[0].track?.points).toHaveLength(20000);
+  expect(command.search.length).toBeLessThanOrEqual(8000);
+  expect(command.search).toContain('trk1=');
+});

@@ -33,9 +33,11 @@ export function routedJourney(input: JourneyInput, opts: ScheduleOptions, route:
   const journey = computeJourney(input, opts);
   if (!route) return journey;
   const now = opts.now ?? Date.now();
-  const routes = journey.legs.map((leg) => route(leg.from, leg.to, leg.departure?.epochMs ?? now));
-  if (routes.every((r) => r.path === null))
-    return { ...journey, legs: journey.legs.map((leg, i) => ({ ...leg, route: routes[i] })) };
+  const routes = journey.legs.map((leg) =>
+    leg.track ? undefined : route(leg.from, leg.to, leg.departure?.epochMs ?? now),
+  );
+  if (routes.every((r) => !r || r.path === null))
+    return { ...journey, legs: journey.legs.map((leg, i) => (routes[i] ? { ...leg, route: routes[i] } : leg)) };
   return computeJourney(input, { ...opts, routes });
 }
 
@@ -50,7 +52,8 @@ export function computeComparison(
   const starts = initial.flatMap((journey) => (journey.dated && journey.start ? [journey.start.epochMs] : []));
   const assumedStart = starts.length ? Math.min(...starts) : opts.assumedStart;
   return initial.map((original, index) => {
-    const entered = inputs[index].input.stops.some((stop) => stop.arrival !== null || stop.departure !== null);
+    const entered =
+      original.dated || inputs[index].input.stops.some((stop) => stop.arrival !== null || stop.departure !== null);
     const journey = entered
       ? original
       : routedJourney({ ...inputs[index].input, id: JOURNEY_IDS[index] }, { assumedStart, now: opts.now }, opts.route);

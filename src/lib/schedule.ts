@@ -1,3 +1,4 @@
+import { legTrack, type CustomTrack, type LegTrack, type PathKind } from './track.ts';
 import type { Airport, LegRoute, LocalTimeInput } from '../types.ts';
 import { displayCity } from '../data/airports.ts';
 import { estimateFlightMinutes, formatDuration, type FlightTimeModel } from './flightTime.ts';
@@ -26,6 +27,7 @@ export interface TimePoint {
   provenance: TimeProvenance;
 }
 export interface JourneyStopInput {
+  track?: CustomTrack | null;
   airport: Airport;
   zone: string | null;
   layoverMin: number | null;
@@ -50,6 +52,9 @@ export interface ScheduleOptions {
   anchor?: { at: 'start' | 'end'; epochMs: number; provenance: 'estimated' | 'assumed' } | null;
 }
 export interface JourneyLeg {
+  track?: LegTrack;
+  pathKind: PathKind;
+  greatCircleKm: number;
   id: string;
   index: number;
   fromStop: number;
@@ -208,11 +213,18 @@ export function computeJourney(input: JourneyInput, opts: ScheduleOptions = {}):
   };
   const arr = stops.map((s, i) => resolve(s.arrival, i, 'arrival'));
   const dep = stops.map((s, i) => resolve(s.departure, i, 'departure'));
-  const dated = [...arr, ...dep].some((p) => p !== null);
+
   const legs: JourneyLeg[] = stops.slice(1).map((to, index) => {
     const from = stops[index];
-    const route = opts.routes?.[index];
-    const distanceKm = route ? route.distanceKm : greatCircleDistanceKm(from.airport, to.airport);
+    const track = from.track ? legTrack(from.track) : undefined;
+    const route = track ? undefined : opts.routes?.[index];
+    const greatCircleKm = greatCircleDistanceKm(from.airport, to.airport);
+    const distanceKm = track?.distanceKm ?? route?.distanceKm ?? greatCircleKm;
+    const zoneAt = (s: JourneyStopInput) => (s.zone && isSupportedTimeZone(s.zone) ? s.zone : 'UTC');
+    if (track?.times) {
+      if (from.departure === null) dep[index] = point(track.times[0], zoneAt(from), 'entered');
+      if (to.arrival === null) arr[index + 1] = point(track.times.at(-1)!, zoneAt(to), 'entered');
+    }
     return {
       ...(route ? { route } : {}),
       id: `L${index + 1}`,
@@ -222,13 +234,19 @@ export function computeJourney(input: JourneyInput, opts: ScheduleOptions = {}):
       from: from.airport,
       to: to.airport,
       distanceKm,
-      estimatedMin: estimateFlightMinutes(distanceKm, opts.flightModel),
+      greatCircleKm,
+      pathKind: track?.kind ?? 'generated',
+      ...(track ? { track } : {}),
+      estimatedMin: track?.times
+        ? Math.round((track.times.at(-1)! - track.times[0]) / 60000)
+        : estimateFlightMinutes(distanceKm, opts.flightModel),
       departure: null,
       arrival: null,
       durationMin: null,
       durationSource: null,
     };
   });
+  const dated = [...arr, ...dep].some((p) => p !== null);
   // Keep dependency edges separately from public points: equal durations alone don't prove provenance.
   const edges = new Set<string>();
   const derived = (base: TimePoint | null, stop: number, delta: number): TimePoint | null => {

@@ -533,3 +533,82 @@ describe('agent compared trips', () => {
     ]);
   });
 });
+
+const recordedDocument = {
+  version: 1 as const,
+  stops: [
+    {
+      airport: 'CPH',
+      track: {
+        kind: 'recorded' as const,
+        format: 'gpx' as const,
+        name: 'my recording',
+        points: [
+          [0, 0, 0, '2026-03-01T10:00:00Z'],
+          [0, 1, 1000, '2026-03-01T10:10:00Z'],
+          [0, 4, 0, '2026-03-01T11:00:00Z'],
+        ] as import('./itinerary.ts').TrackPointDoc[],
+      },
+    },
+    { airport: 'LHR' },
+  ],
+};
+describe('agent custom path results', () => {
+  it('reports path metadata and follows a recording without any routing request', () => {
+    const plan = planItinerary(ctx, recordedDocument);
+    expect(plan.valid).toBe(true);
+    expect(plan.legs[0].path).toMatchObject({
+      kind: 'recorded',
+      points: 3,
+      recordedDurationMin: 60,
+      source: { format: 'gpx', name: 'my recording' },
+    });
+    expect(plan.legs[0].distanceKm).toBe(plan.legs[0].path.distanceKm);
+    expect(plan.legs[0].greatCircleKm).toBe(plan.legs[0].path.greatCircleKm);
+    expect(plan.legs[0].durationSource).toBe('entered');
+    expect(parseLink(new URL(plan.url!).search).stops?.[0].track?.kind).toBe('recorded');
+    expect(validateItinerary(ctx, recordedDocument).some((i) => i.severity === 'error')).toBe(false);
+    const timeline = timelineAt(ctx, recordedDocument, ['2026-03-01T10:10Z']);
+    expect(timeline.valid).toBe(true);
+    expect(timeline.timeline[0]).toMatchObject({ altitudeKmIllustrative: 1, position: { model: 'recorded' } });
+    expect(timeline.timeline[0].distanceFraction).toBeCloseTo(0.25);
+    expect(timeline.timeline[0].position.lng).toBeCloseTo(1);
+  });
+  it('compares a recording with generated paths and propagates custom sections into trip timelines', async () => {
+    const { planTrip, tripTimelineAt } = await import('./plan.ts');
+    const comparison = planComparison(ctx, {
+      version: 1,
+      journeys: [{ stops: recordedDocument.stops }, { stops: [{ airport: 'CPH' }, { airport: 'LHR' }] }],
+    });
+    expect(comparison.journeys[0].legs[0].path.kind).toBe('recorded');
+    expect(comparison.journeys[1].legs[0].path.kind).toBe('generated');
+    expect(comparison.journeys[1].departure?.utc).toBe('2026-03-01T10:00Z');
+    const doc = {
+      version: 1,
+      sections: [{ stops: recordedDocument.stops }, { stops: [{ airport: 'LHR' }, { airport: 'CPH' }] }],
+    };
+    const trip = planTrip(ctx, doc);
+    expect(trip.valid).toBe(true);
+    expect(trip.sections[0].legs[0].path.kind).toBe('recorded');
+    const sample = tripTimelineAt(ctx, doc, ['2026-03-01T10:10Z']).timeline[0];
+    expect(sample.position.lng).toBeCloseTo(1);
+    expect(sample.position.model).toBe('recorded');
+  });
+  it('keeps exact calculations when oversized document links fall back to fitted readable tracks', () => {
+    const points: import('./itinerary.ts').TrackPointDoc[] = Array.from({ length: 20000 }, (_, i) => [
+      50 + Math.sin(i / 20),
+      -80 + i / 1000,
+      11000,
+    ]);
+    const doc = { version: 1, stops: [{ airport: 'CPH', track: { points } }, { airport: 'JFK' }] };
+    const plan = planItinerary(ctx, doc);
+    expect(plan.valid).toBe(true);
+    expect(plan.url!.length).toBeLessThanOrEqual(8000);
+    expect(plan.itineraryParamUrl).toBeNull();
+    expect(plan.legs[0].path.points).toBe(20000);
+    expect(plan.issues.map((i) => i.code)).toEqual(
+      expect.arrayContaining(['track_simplified', 'document_link_too_large']),
+    );
+    expect(parseLink(new URL(plan.url!).search).stops?.[0].track?.points.length).toBeLessThan(20000);
+  });
+});

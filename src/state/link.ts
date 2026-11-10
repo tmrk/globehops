@@ -1,3 +1,5 @@
+import { decodeTrack, encodeTrack, fitTracks, type TrackReduction } from '../lib/trackCodec.ts';
+import type { CustomTrack } from '../lib/track.ts';
 import { isLocale, type Locale } from '../i18n/locales.ts';
 import { localizedPath, localeFromPath } from '../i18n/detect.ts';
 import type { Airport, DistanceUnit, LocalTimeInput } from '../types.ts';
@@ -26,6 +28,7 @@ import { parseIsoInstant, formatIsoInstant, parseLocalDateTime, parseLocalDate }
 import { normalizeJourneyLabel, MAX_LABEL_LENGTH } from '../lib/journeyLabel.ts';
 import { isValidLayover } from '../lib/layover.ts';
 export interface LinkStop {
+  track?: CustomTrack | null;
   code: string;
   layoverMin: number | null;
   arrival: LocalTimeInput | null;
@@ -167,7 +170,7 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
     }
     const journeyParams = new URLSearchParams();
     for (const [key, value] of group) {
-      if (key === P.route || key === P.label || /^(dep|arr)\d+$/.test(key) || SECTION_PARAM_PATTERN.test(key))
+      if (key === P.route || key === P.label || /^(dep|arr|trk)\d+$/.test(key) || SECTION_PARAM_PATTERN.test(key))
         journeyParams.set(key, value);
       else state.issues.push(`Invalid ${prefix}.${key} parameter in this link.`);
     }
@@ -202,7 +205,7 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
       if (key === P.stay) {
         stayMin = parseStay(value);
         if (stayMin === null) state.issues.push(`Invalid ${prefix}.${key} value in this link.`);
-      } else if (key === P.route || key === P.label || /^(dep|arr)\d+$/.test(key)) journeyParams.set(key, value);
+      } else if (key === P.route || key === P.label || /^(dep|arr|trk)\d+$/.test(key)) journeyParams.set(key, value);
       else state.issues.push(`Invalid ${prefix}.${key} parameter in this link.`);
     }
     const parsed = parseLink(`?${journeyParams}`);
@@ -230,6 +233,14 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
       const field = BOOLEAN_VIEW_PARAMS[key as keyof typeof BOOLEAN_VIEW_PARAMS];
       if (value === '0' || value === '1') state.view[field] = value === '1';
       else invalid(key);
+      continue;
+    }
+    const trackField = /^trk(\d+)$/.exec(key);
+    if (trackField) {
+      const index = +trackField[1] - 1;
+      const track = decodeTrack(value);
+      if (!track || !state.stops || index < 0 || index >= state.stops.length - 1) invalid(key);
+      else state.stops[index].track = track;
       continue;
     }
     const field = /^(dep|arr)(\d+)$/.exec(key);
@@ -294,6 +305,7 @@ export function parseLink(search: string, pathname?: string, base = '/globehops/
   return state;
 }
 export interface SerializableLinkStop {
+  track?: CustomTrack | null;
   airport: Airport;
   layoverMin: number | null;
   arrival: LocalTimeInput | null;
@@ -319,7 +331,7 @@ export interface LinkExtra {
   sections?: SerializableSection[];
 }
 
-export function serializeLink(
+function serializeLinkRaw(
   stops: SerializableLinkStop[],
   view: Partial<LinkView> = {},
   explicitDefaults: boolean | readonly LinkDefaultKey[] = false,
@@ -334,6 +346,7 @@ export function serializeLink(
     if (route || prefix || extra?.compare?.length || extra?.sections?.length)
       params.push([`${prefix}${P.route}`, route]);
     list.forEach((s, i) => {
+      if (i < list.length - 1 && s.track) params.push([`${prefix}${P.track}${i + 1}`, encodeTrack(s.track)]);
       if (i > 0 && s.arrival) params.push([`${prefix}${P.arrival}${i + 1}`, formatDocumentTime(s.arrival)]);
       if (i < list.length - 1 && s.departure)
         params.push([`${prefix}${P.departure}${i + 1}`, formatDocumentTime(s.departure)]);
@@ -382,8 +395,92 @@ export function serializeLink(
   const query = params.length
     ? `?${params.map(([key, value]) => `${key}=${encodeURIComponent(value).replace(/%3A/gi, ':')}`).join('&')}`
     : '';
-  if (query.length > MAX_URL_LENGTH) throw new RangeError('This journey is too large to share.');
   return query;
+}
+/** Fit only the share copy; session geometry remains exact. Budget counts the query, including `?`. */
+export function serializeLinkWithReduction(
+  stops: SerializableLinkStop[],
+  view: Partial<LinkView> = {},
+  explicitDefaults: boolean | readonly LinkDefaultKey[] = false,
+  extra?: LinkExtra,
+  budgetChars = MAX_URL_LENGTH - 300,
+): { query: string; shareReduction: TrackReduction | null } {
+  const groups = [
+    stops,
+    ...(extra?.sections ?? []).map((s) => s.stops),
+    ...(extra?.compare ?? []).flatMap((j) => [j.stops, ...(j.sections ?? []).map((s) => s.stops)]),
+  ];
+  const eligible = groups.flatMap((g) => g.slice(0, MAX_STOPS - 1).slice(0, Math.max(0, g.length - 1)));
+  const tracks = eligible.map((s) => s.track ?? null);
+  const without = (g: SerializableLinkStop[]) => g.map((s) => ({ ...s, track: null }));
+  const mapExtra = (map: (g: SerializableLinkStop[]) => SerializableLinkStop[]): LinkExtra | undefined =>
+    extra
+      ? {
+          ...extra,
+          sections: extra.sections?.map((s) => ({ ...s, stops: map(s.stops) })),
+          compare: extra.compare?.map((j) => ({
+            ...j,
+            stops: map(j.stops),
+            sections: j.sections?.map((s) => ({ ...s, stops: map(s.stops) })),
+          })),
+        }
+      : undefined;
+  const base = serializeLinkRaw(without(stops), view, explicitDefaults, mapExtra(without));
+  if (base.length > MAX_URL_LENGTH) throw new RangeError('This journey is too large to share.');
+  const overhead = tracks.reduce((sum, t, i) => sum + (t ? 12 + String(i + 1).length : 0), 0);
+  const fit = fitTracks(tracks, Math.max(0, Math.min(MAX_URL_LENGTH, budgetChars) - base.length - overhead));
+  let cursor = 0;
+  const replace = (g: SerializableLinkStop[]) =>
+    g.map((s, i) => ({ ...s, track: i < Math.min(g.length - 1, MAX_STOPS - 1) ? fit.tracks[cursor++] : null }));
+  return {
+    query: serializeLinkRaw(replace(stops), view, explicitDefaults, mapExtra(replace)),
+    shareReduction: fit.reduced,
+  };
+}
+export function serializeLink(
+  stops: SerializableLinkStop[],
+  view: Partial<LinkView> = {},
+  explicitDefaults: boolean | readonly LinkDefaultKey[] = false,
+  extra?: LinkExtra,
+): string {
+  return serializeLinkWithReduction(stops, view, explicitDefaults, extra).query;
+}
+
+/** Exact local state for document/tool calculations, without a URL size/precision round trip. */
+export function serializableLinkState(
+  stops: SerializableLinkStop[],
+  view: Partial<LinkView> = {},
+  extra?: LinkExtra,
+): LinkState {
+  const map = (list: SerializableLinkStop[]): LinkStop[] =>
+    list.map((s) => ({
+      code: s.airport.iata ?? s.airport.icao ?? s.airport.ident,
+      layoverMin: s.layoverMin,
+      arrival: s.arrival,
+      departure: s.departure,
+      ...(s.track ? { track: s.track } : {}),
+    }));
+  return {
+    stops: map(stops),
+    view: {
+      time: null,
+      play: false,
+      speed: 'auto',
+      clock: 'local',
+      units: null,
+      dayNight: true,
+      follow: false,
+      ...view,
+    },
+    issues: [],
+    label: extra?.label,
+    sections: extra?.sections?.map((s) => ({ ...s, stops: map(s.stops) })),
+    compare: extra?.compare?.map((j) => ({
+      ...j,
+      stops: map(j.stops),
+      sections: j.sections?.map((s) => ({ ...s, stops: map(s.stops) })),
+    })),
+  };
 }
 export function buildLinkUrl(
   base: string,
@@ -393,7 +490,13 @@ export function buildLinkUrl(
   extra?: LinkExtra,
 ): string {
   const url = new URL(base);
-  url.search = serializeLink(stops, { ...view, lang: undefined }, explicitDefaults, extra);
+  url.search = serializeLinkWithReduction(
+    stops,
+    { ...view, lang: undefined },
+    explicitDefaults,
+    extra,
+    MAX_URL_LENGTH - base.length - 300,
+  ).query;
   if (view.lang) {
     const basePath = url.pathname.replace(/\/(?:en|hu|sv)\/?$/, '/');
     url.pathname = localizedPath(basePath, view.lang);
@@ -401,4 +504,37 @@ export function buildLinkUrl(
   const result = url.toString();
   if (result.length > MAX_URL_LENGTH) throw new RangeError('This journey is too large to share.');
   return result;
+}
+
+/** Serialize code-only state (e.g. validated WebMCP documents) without resolving an airport dataset. */
+export function serializeLinkState(state: LinkState): string {
+  const map = (stops: LinkStop[]): SerializableLinkStop[] =>
+    stops.map(({ code, ...s }) => ({
+      ...s,
+      airport: {
+        id: /^\d+$/.test(code) ? Number(code) : 0,
+        ident: code,
+        iata: /^[A-Za-z]{3}$/.test(code) ? code : null,
+        icao: null,
+        name: '',
+        city: '',
+        region: '',
+        country: '',
+        countryCode: '',
+        lat: 0,
+        lng: 0,
+        type: 'large',
+        scheduled: false,
+        keywords: [],
+      },
+    }));
+  return serializeLink(map(state.stops ?? []), state.view, false, {
+    label: state.label,
+    sections: state.sections?.map((s) => ({ ...s, stops: map(s.stops) })),
+    compare: state.compare?.map((j) => ({
+      ...j,
+      stops: map(j.stops),
+      sections: j.sections?.map((s) => ({ ...s, stops: map(s.stops) })),
+    })),
+  });
 }

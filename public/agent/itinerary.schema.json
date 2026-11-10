@@ -258,6 +258,113 @@
     }
   },
   "$defs": {
+    "track": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Exact custom path of the departing flight. Recorded times anchor missing stop times; entered stop times win. Tracks are carried locally in links, with simplification only to fit sharing limits.",
+      "oneOf": [
+        { "required": ["points"], "properties": { "points": {} } },
+        { "required": ["encoded"], "properties": { "encoded": {} } }
+      ],
+      "properties": {
+        "kind": {
+          "enum": ["planned", "recorded"],
+          "description": "Defaults to recorded with at least two timed points, otherwise planned."
+        },
+        "format": { "enum": ["geojson", "gpx", "kml", "kmz", "csv", "igc", "fpl", "pln", "route", "link", "document"] },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*[^\\s\\u0000-\\u001f\\u007f-\\u009f][^\\u0000-\\u001f\\u007f-\\u009f]*$"
+        },
+        "encoded": {
+          "type": "string",
+          "maxLength": 640005,
+          "pattern": "^1[pr][jgkzcifnrldx][A-D]\\.[A-Za-z0-9_-]+$",
+          "description": "Version 1 trkN share-link encoding, alternative to points; must decode to a valid track."
+        },
+        "points": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 20000,
+          "items": {
+            "anyOf": [
+              {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "prefixItems": [
+                  { "type": "number", "minimum": -90, "maximum": 90 },
+                  { "type": "number", "minimum": -180, "maximum": 180 }
+                ],
+                "items": false
+              },
+              {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "prefixItems": [
+                  { "type": "number", "minimum": -90, "maximum": 90 },
+                  { "type": "number", "minimum": -180, "maximum": 180 },
+                  {
+                    "type": ["number", "null"],
+                    "minimum": -500,
+                    "maximum": 30000,
+                    "description": "Metres above mean sea level; null when unknown."
+                  }
+                ],
+                "items": false
+              },
+              {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 4,
+                "prefixItems": [
+                  { "type": "number", "minimum": -90, "maximum": 90 },
+                  { "type": "number", "minimum": -180, "maximum": 180 },
+                  {
+                    "type": ["number", "null"],
+                    "minimum": -500,
+                    "maximum": 30000,
+                    "description": "Metres above mean sea level; null when unknown."
+                  },
+                  {
+                    "type": ["string", "null"],
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,3})?)?(?:Z|[+-]\\d{2}:\\d{2})$",
+                    "description": "ISO instant with Z or explicit offset; null when unknown."
+                  }
+                ],
+                "items": false
+              }
+            ]
+          }
+        }
+      }
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["airport"],
+      "properties": {
+        "airport": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z]{3}|[A-Za-z0-9]{4,8}|[0-9]+)$",
+          "description": "IATA, ICAO/OurAirports ident, or numeric id."
+        },
+        "arrival": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::00)?(?:Z|[+-]\\d{2}:\\d{2})?$",
+          "description": "Local wall time at this airport; optional offset."
+        },
+        "departure": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::00)?(?:Z|[+-]\\d{2}:\\d{2})?$",
+          "description": "Local wall time at this airport; optional offset."
+        },
+        "track": { "$ref": "#/$defs/track" }
+      }
+    },
     "section": {
       "type": "object",
       "additionalProperties": false,
@@ -308,18 +415,14 @@
           "type": "array",
           "minItems": 2,
           "maxItems": 2,
-          "prefixItems": [{ "$ref": "#/$defs/endpoint" }, { "$ref": "#/$defs/endpoint" }],
+          "prefixItems": [{ "$ref": "#/$defs/origin" }, { "$ref": "#/$defs/endpoint" }],
           "items": false
         },
         {
           "type": "array",
           "minItems": 3,
           "maxItems": 3,
-          "prefixItems": [
-            { "$ref": "#/$defs/endpoint" },
-            { "$ref": "#/$defs/transfer" },
-            { "$ref": "#/$defs/endpoint" }
-          ],
+          "prefixItems": [{ "$ref": "#/$defs/origin" }, { "$ref": "#/$defs/transfer" }, { "$ref": "#/$defs/endpoint" }],
           "items": false
         },
         {
@@ -327,7 +430,7 @@
           "minItems": 4,
           "maxItems": 4,
           "prefixItems": [
-            { "$ref": "#/$defs/endpoint" },
+            { "$ref": "#/$defs/origin" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/endpoint" }
@@ -339,7 +442,7 @@
           "minItems": 5,
           "maxItems": 5,
           "prefixItems": [
-            { "$ref": "#/$defs/endpoint" },
+            { "$ref": "#/$defs/origin" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
@@ -352,7 +455,7 @@
           "minItems": 6,
           "maxItems": 6,
           "prefixItems": [
-            { "$ref": "#/$defs/endpoint" },
+            { "$ref": "#/$defs/origin" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
@@ -366,7 +469,7 @@
           "minItems": 7,
           "maxItems": 7,
           "prefixItems": [
-            { "$ref": "#/$defs/endpoint" },
+            { "$ref": "#/$defs/origin" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
@@ -381,7 +484,7 @@
           "minItems": 8,
           "maxItems": 8,
           "prefixItems": [
-            { "$ref": "#/$defs/endpoint" },
+            { "$ref": "#/$defs/origin" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
@@ -397,7 +500,7 @@
           "minItems": 9,
           "maxItems": 9,
           "prefixItems": [
-            { "$ref": "#/$defs/endpoint" },
+            { "$ref": "#/$defs/origin" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
@@ -414,7 +517,7 @@
           "minItems": 10,
           "maxItems": 10,
           "prefixItems": [
-            { "$ref": "#/$defs/endpoint" },
+            { "$ref": "#/$defs/origin" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
             { "$ref": "#/$defs/transfer" },
@@ -471,6 +574,7 @@
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::00)?(?:Z|[+-]\\d{2}:\\d{2})?$",
           "description": "Local wall time at this airport; optional offset."
         },
+        "track": { "$ref": "#/$defs/track" },
         "layoverMinutes": { "type": "integer", "minimum": 0, "maximum": 10080 }
       }
     }

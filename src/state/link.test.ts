@@ -451,3 +451,81 @@ describe('compared trip links', () => {
     expect(parseLink(`${prefix}&2.route=JFK-CPH&leg=3`).issues).toContain('Invalid leg value in this link.');
   });
 });
+
+const pathTrack: import('../lib/track.ts').CustomTrack = {
+  kind: 'planned',
+  source: { format: 'document', name: null },
+  points: [
+    { lat: 50, lng: 0, altM: 0, time: null },
+    { lat: 60, lng: -30, altM: 11000, time: null },
+    { lat: 40, lng: -74, altM: 0, time: null },
+  ],
+};
+describe('custom path share links', () => {
+  it('round-trips all comparison/trip prefix combinations without escaping the codec', () => {
+    const tracked = stops.map((s, i) => ({ ...s, ...(i === 0 ? { track: pathTrack } : {}) }));
+    const extra = {
+      sections: [{ label: null, stayMin: null, stops: tracked }],
+      compare: [{ label: null, stops: tracked, sections: [{ label: null, stayMin: null, stops: tracked }] }],
+    };
+    const query = serializeLink(tracked, {}, false, extra);
+    for (const key of ['trk1', '2.trk1', 'b.trk1', 'b.2.trk1'])
+      expect(new URLSearchParams(query).get(key)).toMatch(/^1pdB\.[A-Za-z0-9_-]+$/);
+    const parsed = parseLink(query);
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.stops?.[0].track).toEqual(pathTrack);
+    expect(parsed.sections?.[0].stops[0].track).toEqual(pathTrack);
+    expect(parsed.compare?.[0].stops[0].track).toEqual(pathTrack);
+    expect(parsed.compare?.[0].sections?.[0].stops[0].track).toEqual(pathTrack);
+    expect(documentToLinkState(linkStateToDocument(parsed))).toEqual(parsed);
+    expect(serializeLink(stops, {})).toBe('?route=CPH-LHR_180-JFK');
+  });
+  it.each([
+    'trk0=broken',
+    'trk1=broken',
+    'trk3=broken',
+    'b.route=CPH-JFK&b.trk1=broken',
+    '2.route=CPH-JFK&2.trk1=broken',
+  ])('ignores bad tracks with an issue: %s', (value) => {
+    const parsed = parseLink(`?route=CPH-LHR-JFK&${value}`);
+    expect(parsed.stops).toHaveLength(3);
+    expect(parsed.issues.length).toBeGreaterThan(0);
+    expect(parsed.stops?.every((s) => !s.track)).toBe(true);
+  });
+  it('fits a large share copy into the total URL budget and reports exact retained counts', async () => {
+    const { serializeLinkWithReduction } = await import('./link.ts');
+    const track = {
+      ...pathTrack,
+      points: Array.from({ length: 20000 }, (_, i) => ({
+        lat: 50 + Math.sin(i / 20),
+        lng: -80 + i / 1000,
+        altM: 11000,
+        time: null,
+      })),
+    };
+    const tracked = [{ ...stops[0], track }, stops[1]];
+    const fit = serializeLinkWithReduction(tracked, {}, false, undefined, 500);
+    expect(fit.query.length).toBeLessThanOrEqual(500);
+    const decoded = parseLink(fit.query).stops?.[0].track;
+    expect(fit.shareReduction).toEqual({ kept: decoded?.points.length, total: 20000 });
+    expect(fit).toEqual(serializeLinkWithReduction(tracked, {}, false, undefined, 500));
+    expect(track.points).toHaveLength(20000);
+    expect(track.reducedFrom).toBeUndefined();
+    const url = buildLinkUrl(`https://example.com/${'a'.repeat(250)}/`, tracked);
+    expect(url.length).toBeLessThanOrEqual(8000);
+  });
+});
+
+it('allocates repeated stop objects independently when later tracks must be omitted', async () => {
+  const { serializeLinkWithReduction } = await import('./link.ts');
+  const { encodeTrack } = await import('../lib/trackCodec.ts');
+  const shared = [{ ...stops[0], track: pathTrack }, stops[1]];
+  const extra = { compare: [{ label: null, stops: shared }] };
+  const base = serializeLink(stops.slice(0, 2), {}, false, { compare: [{ label: null, stops: stops.slice(0, 2) }] });
+  const minimum = { ...pathTrack, points: [pathTrack.points[0], pathTrack.points.at(-1)!] };
+  const fit = serializeLinkWithReduction(shared, {}, false, extra, base.length + encodeTrack(minimum).length + 28);
+  const decoded = parseLink(fit.query);
+  expect(decoded.stops?.[0].track).not.toBeUndefined();
+  expect(decoded.compare?.[0].stops[0].track).toBeUndefined();
+  expect(fit.shareReduction?.kept).toBe(decoded.stops?.[0].track?.points.length);
+});

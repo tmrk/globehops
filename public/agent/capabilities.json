@@ -12,7 +12,20 @@
     "scheduled": "https://tmrk.github.io/globehops/?route={route}&dep1={localDeparture}",
     "document": "https://tmrk.github.io/globehops/?itinerary={base64urlJson}"
   },
+  "customPaths": {
+    "kinds": ["planned", "recorded"],
+    "document": "A departing stop may carry track: exactly one of points ([lat,lng,altitudeMetres|null,ISO time|null]) or encoded (trkN codec), with optional kind, format and name. Never on the last stop.",
+    "precedence": "Explicit geometry bypasses routing. Recorded times anchor missing stop endpoints; entered stop times win and scale playback. Track altitudes replace modelled altitudes when at least two are known.",
+    "sharing": "Tracks stay in the link; nothing is uploaded. Large paths are simplified for sharing only; track_simplified reports kept/total points. Session calculations retain exact geometry."
+  },
   "parameters": {
+    "trkN": {
+      "type": "string",
+      "required": false,
+      "format": "versioned URL-safe delta encoding",
+      "examples": ["See planned and recorded examples in agent/examples.json"],
+      "semantics": "Custom path departing 1-based stop N; composes with b./c./d. and 2.–6. prefixes. Invalid values are ignored with an issue."
+    },
     "label": {
       "type": "string",
       "required": false,
@@ -23,14 +36,14 @@
     "b./c./d.": {
       "type": "journey group",
       "required": false,
-      "format": "prefix + route|depN|arrN|label or nested 2.–6. section groups",
+      "format": "prefix + route|depN|arrN|trkN|label or nested 2.–6. section groups",
       "examples": ["b.route=BUD-JFK", "b.2.route=JFK-BUD", "c.dep1=2026-12-01T08:00"],
       "semantics": "Journeys B–D in order; gaps compact. Each group requires route. Parameter keys are case-insensitive. Other view parameters remain unprefixed; leg refers to A, clock may name any airport across all alternatives and their sections."
     },
     "2.–6.": {
       "type": "trip section group",
       "required": false,
-      "format": "prefix + route|depN|arrN|label|stay",
+      "format": "prefix + route|depN|arrN|trkN|label|stay",
       "examples": ["2.route=NBO-CDG-CPH", "2.dep1=2026-11-20T23:55", "2.stay=5d"],
       "semantics": "A trip's sections after the first (up to 6 in all), in order; the first uses the unprefixed parameters. Sections are sequential journeys separated by explicit stays; connections stay inside a section. stay (days d, hours h or minutes m) places a section without times after the previous one (default 7 days). Compose with b.–d. for compared trips (b.2.* through d.6.*); leg counts flights across A’s sections."
     },
@@ -166,7 +179,7 @@
     "output": "kind trip_comparison; journeys: id/label/color/anchor/sections/stays/totals (trip totals plus travelMinutes). comparison: fastest, ranking (id/travelMinutes/deltaMinutes), sections (name/fastest/per-ID deltaMinutes). Plain comparisons add kind comparison. get_journey_timeline remains single journey/trip only."
   },
   "routing": {
-    "default": "Agent and MCP results follow great circles unless routing is requested; the app routes by default.",
+    "default": "Generated agent/MCP paths follow great circles unless routing is requested; the app routes by default. Custom planned/recorded paths apply independently of routing.",
     "request": "{ \"avoidAirspace\": boolean, \"diversion\": boolean | minutes 60–370 }",
     "airspace": "Routes around EASA conflict-zone bulletins valid on the flight date, assuming an EU/EEA operator. See data/AIRSPACE.md.",
     "diversion": {
@@ -176,11 +189,12 @@
       "radiusKm": 2222.4,
       "semantics": "ETOPS/EDTO-inspired: keeps flights within still-air reach of potential diversion airports (open large/medium airports with a paved runway of at least 2,000 m by 45 m, OurAirports) or their own endpoints. Covered keeps the route, adjusted re-routes within a modest allowance, gap keeps the unconstrained route and reports the longest modelled diversion time. Not an operator authorisation; winds, tracks, airways and ATC are not modelled. See data/DIVERSION.md."
     },
-    "legFields": "distanceKm is the flown (routed or great-circle) distance used for estimates; greatCircleKm is always present; distanceModel says which; route.airspace and route.diversion describe the modelled constraints."
+    "legFields": "distanceKm is the flown (custom, routed or great-circle) distance used for estimates; greatCircleKm is always present; distanceModel says which; route.airspace and route.diversion describe the modelled constraints."
   },
   "schema": "https://tmrk.github.io/globehops/agent/itinerary.schema.json",
   "limits": {
     "stops": 10,
+    "trackPoints": 20000,
     "journeys": 4,
     "tripSections": 6,
     "maximumStayMinutes": 525600,
@@ -209,7 +223,7 @@
     "roundingMinutes": 5,
     "earthRadiusKm": 6371.0088,
     "defaultLayoverMinutes": 90,
-    "notes": "Great circle on a sphere; no winds, airline schedules, aircraft type or actual flight tracking. Altitude is illustrative."
+    "notes": "Generated great circles on a sphere; custom paths preserve supplied geometry and usable altitude/time data. No winds, airline schedules, aircraft type or live flight tracking; generated altitude is illustrative."
   },
   "visualisationOptions": [
     "t",
@@ -318,6 +332,11 @@
     ],
     "warnings": [
       {
+        "code": "track_simplified",
+        "severity": "warning",
+        "meaning": "Share URL simplifies or drops track geometry to fit; calculations retain the exact input."
+      },
+      {
         "code": "routing_unavailable",
         "severity": "warning",
         "meaning": "Requested routing data is not available here; those flights follow great circles."
@@ -330,6 +349,9 @@
     ],
     "structuralCodes": [
       "type",
+      "encoding",
+      "tuple",
+      "instant",
       "const",
       "oneOf",
       "required",

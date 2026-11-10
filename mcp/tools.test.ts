@@ -254,3 +254,45 @@ describe('MCP compared trips', () => {
       expect(handleTool(context, 'compare_journeys', { journeys: bad }).isError).toBe(true);
   });
 });
+
+it('accepts planned/recorded path documents and publishes matching MCP output schemas', () => {
+  for (const kind of ['planned', 'recorded'] as const) {
+    const itinerary = {
+      version: 1,
+      stops: [
+        {
+          airport: 'CPH',
+          track: {
+            kind,
+            format: 'gpx',
+            name: 'Test track',
+            points: [
+              [0, 0, 0, '2026-03-01T10:00Z'],
+              [0, 1, 1000, '2026-03-01T10:10Z'],
+              [0, 4, 0, '2026-03-01T11:00Z'],
+            ],
+          },
+        },
+        { airport: 'LHR' },
+      ],
+    };
+    const result = handleTool(context, 'calculate_route', { itinerary });
+    expect(result.isError, JSON.stringify(result)).not.toBe(true);
+    const parsed = OUTPUT_SCHEMAS.calculate_route.parse(result.structuredContent);
+    expect('legs' in parsed && parsed.legs?.[0].path).toMatchObject({
+      kind,
+      points: 3,
+      source: { name: 'Test track', format: 'gpx' },
+    });
+    const schema = z.toJSONSchema(INPUT_SCHEMAS.calculate_route);
+    const validate = new Ajv2020({ strict: false }).compile(schema);
+    expect(validate({ itinerary }), JSON.stringify(validate.errors)).toBe(true);
+    const sample = handleTool(context, 'get_journey_timeline', {
+      itinerary,
+      samples: 3,
+      assumeDeparture: '2026-03-01T10:00Z',
+    });
+    expect(sample.isError, JSON.stringify(sample)).not.toBe(true);
+    expect(OUTPUT_SCHEMAS.get_journey_timeline.safeParse(sample.structuredContent).success).toBe(true);
+  }
+});

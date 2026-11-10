@@ -13,6 +13,8 @@
  * stops), but never move the path: its first and last points need not be the airports' positions.
  */
 import type { LatLng } from '../types.ts';
+import { EARTH_RADIUS_KM } from './geo.ts';
+import { pathMetrics, pathLengthKm } from './routePath.ts';
 
 export type PathKind = 'generated' | 'planned' | 'recorded';
 export type TrackKind = Exclude<PathKind, 'generated'>;
@@ -57,13 +59,263 @@ export interface LegTrack {
   source: TrackSource;
   /** The track's positions; the same array object for the life of the track (geometry caches key on it). */
   path: LatLng[];
-  /** Altitudes in kilometres aligned with `path`, or null when any is unknown. */
+  /** Altitudes in kilometres aligned with `path`, interpolated when at least two are known; else null. */
   altitudesKm: number[] | null;
   /** Epoch milliseconds aligned with `path` (non-decreasing), or null unless the track is recorded. */
   times: number[] | null;
   /** Length of the path along the sphere (km). */
   distanceKm: number;
-  /** Points in the track, and before link simplification (equal when exact). */
+  /** Points in the track, and before link simplification (null when exact). */
   points: number;
   reducedFrom: number | null;
+}
+
+const derivedTracks = new WeakMap<CustomTrack, LegTrack>();
+const clamp = (n: number) => Math.max(0, Math.min(1, n));
+
+/** Sanitize an incoming path without moving or simplifying its geometry. */
+export function normalizeTrack(raw: CustomTrack): { track: CustomTrack | null; dropped: number } {
+  let previous = -Infinity;
+  let dropped = 0;
+  let changed = false;
+  const points: TrackPoint[] = [];
+  for (const p of raw.points) {
+    if (!Number.isFinite(p.lat) || Math.abs(p.lat) > 90 || !Number.isFinite(p.lng) || Math.abs(p.lng) > 180) {
+      dropped++;
+      changed = true;
+      continue;
+    }
+    const altM = p.altM !== null && Number.isFinite(p.altM) && p.altM >= -500 && p.altM <= 30000 ? p.altM : null;
+    const time = p.time !== null && Number.isFinite(p.time) && p.time >= previous ? p.time : null;
+    if (time !== null) previous = time;
+    const same = altM === p.altM && time === p.time;
+    changed ||= !same;
+    points.push(same ? p : { ...p, altM, time });
+  }
+  if (points.length < 2) return { track: null, dropped };
+  const kind = raw.kind === 'recorded' && points.filter((p) => p.time !== null).length >= 2 ? 'recorded' : 'planned';
+  return { track: changed || kind !== raw.kind ? { ...raw, kind, points } : raw, dropped };
+}
+
+function fill(values: (number | null)[], distances: readonly number[]): number[] | null {
+  const known = values.flatMap((value, i) => (value === null ? [] : [i]));
+  if (known.length < 2) return null;
+  const out = new Array<number>(values.length);
+  let left = known[0];
+  for (let i = 0; i <= left; i++) out[i] = values[left]!;
+  for (const right of known.slice(1)) {
+    const span = distances[right] - distances[left];
+    for (let i = left + 1; i <= right; i++) {
+      const f = span > 0 ? (distances[i] - distances[left]) / span : (i - left) / (right - left);
+      out[i] = values[left]! + f * (values[right]! - values[left]!);
+    }
+    left = right;
+  }
+  for (let i = left + 1; i < out.length; i++) out[i] = values[left]!;
+  return out;
+}
+
+export function legTrack(track: CustomTrack): LegTrack {
+  const cached = derivedTracks.get(track);
+  if (cached) return cached;
+  const path = track.points.map(({ lat, lng }) => ({ lat, lng }));
+  const { cumulative } = pathMetrics(path);
+  let previous = -Infinity;
+  const times =
+    track.kind === 'recorded'
+      ? fill(
+          track.points.map((p) => {
+            if (p.time === null || !Number.isFinite(p.time) || p.time < previous) return null;
+            previous = p.time;
+            return p.time;
+          }),
+          cumulative,
+        )
+      : null;
+  const altitudes = fill(
+    track.points.map((p) => p.altM),
+    cumulative,
+  );
+  const result: LegTrack = {
+    kind: times ? 'recorded' : 'planned',
+    source: track.source,
+    path,
+    altitudesKm: altitudes?.map((a) => a / 1000) ?? null,
+    times,
+    distanceKm: pathLengthKm(path),
+    points: path.length,
+    reducedFrom: track.reducedFrom ?? null,
+  };
+  derivedTracks.set(track, result);
+  return result;
+}
+
+export function trackFractionAtTime(lt: LegTrack, epochMs: number): number {
+  const times = lt.times;
+  if (!times) return 0;
+  if (epochMs < times[0]) return 0;
+  if (epochMs >= times[times.length - 1]) return 1;
+  let lo = 0,
+    hi = times.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >>> 1;
+    if (times[mid] <= epochMs) lo = mid;
+    else hi = mid;
+  }
+  const { cumulative, total } = pathMetrics(lt.path);
+  const span = times[hi] - times[lo];
+  return total > 0
+    ? clamp(
+        (cumulative[lo] + (cumulative[hi] - cumulative[lo]) * (span > 0 ? (epochMs - times[lo]) / span : 1)) / total,
+      )
+    : 0;
+}
+
+export function trackAltitudeKmAt(lt: LegTrack, fraction: number): number | null {
+  if (!lt.altitudesKm) return null;
+  const { cumulative, total } = pathMetrics(lt.path);
+  const target = clamp(fraction) * total;
+  let lo = 0,
+    hi = cumulative.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >>> 1;
+    if (cumulative[mid] <= target) lo = mid;
+    else hi = mid;
+  }
+  const span = cumulative[hi] - cumulative[lo];
+  return (
+    lt.altitudesKm[lo] + (lt.altitudesKm[hi] - lt.altitudesKm[lo]) * (span > 0 ? (target - cumulative[lo]) / span : 0)
+  );
+}
+
+export function trackFlightPhaseAt(lt: LegTrack, epochMs: number): 'climb' | 'cruise' | 'descent' {
+  if (!lt.times || !lt.altitudesKm) return 'cruise';
+  const start = Math.max(lt.times[0], epochMs - 60000);
+  const end = Math.min(lt.times[lt.times.length - 1], epochMs + 60000);
+  if (end <= start) return 'cruise';
+  const rate =
+    ((trackAltitudeKmAt(lt, trackFractionAtTime(lt, end))! - trackAltitudeKmAt(lt, trackFractionAtTime(lt, start))!) *
+      1e6) /
+    (end - start);
+  return rate > 1.5 ? 'climb' : rate < -1.5 ? 'descent' : 'cruise';
+}
+
+/** Iterative spherical Douglas–Peucker, largest error first when a point cap is supplied. */
+export function simplifyTrackIndices(
+  path: readonly LatLng[],
+  opts: { toleranceKm?: number; maxPoints?: number } = {},
+): number[] {
+  if (path.length < 3) return path.map((_, i) => i);
+  const vectors = pathMetrics(path).vectors;
+  type Span = { first: number; last: number; index: number; error: number };
+  const heap: Span[] = [];
+  const dot = (a: readonly number[], b: readonly number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const span = (first: number, last: number): Span => {
+    const a = vectors[first],
+      b = vectors[last];
+    const nx = a[1] * b[2] - a[2] * b[1],
+      ny = a[2] * b[0] - a[0] * b[2],
+      nz = a[0] * b[1] - a[1] * b[0];
+    const norm = Math.hypot(nx, ny, nz);
+    const ab = dot(a, b);
+    let error = -1,
+      index = first;
+    for (let i = first + 1; i < last; i++) {
+      const p = vectors[i];
+      const ap = dot(a, p),
+        bp = dot(b, p);
+      // Projection lies on the minor arc iff both endpoint tangent tests are nonnegative.
+      const onArc = norm > 1e-12 && bp - ab * ap >= 0 && ap - ab * bp >= 0;
+      const d = onArc
+        ? Math.asin(Math.min(1, Math.abs(p[0] * nx + p[1] * ny + p[2] * nz) / norm))
+        : Math.acos(Math.max(-1, Math.min(1, Math.max(ap, bp))));
+      if (d > error) {
+        error = d;
+        index = i;
+      }
+    }
+    return { first, last, index, error };
+  };
+  const push = (s: Span) => {
+    if (s.last - s.first < 2) return;
+    let i = heap.length;
+    heap.push(s);
+    while (i > 0) {
+      const parent = (i - 1) >>> 1;
+      if (heap[parent].error >= s.error) break;
+      heap[i] = heap[parent];
+      i = parent;
+    }
+    heap[i] = s;
+  };
+  const pop = (): Span => {
+    const top = heap[0],
+      tail = heap.pop()!;
+    if (heap.length) {
+      let i = 0;
+      while (i * 2 + 1 < heap.length) {
+        let child = i * 2 + 1;
+        if (child + 1 < heap.length && heap[child + 1].error > heap[child].error) child++;
+        if (heap[child].error <= tail.error) break;
+        heap[i] = heap[child];
+        i = child;
+      }
+      heap[i] = tail;
+    }
+    return top;
+  };
+  const indices = [0, path.length - 1];
+  const cap = Math.max(2, Math.floor(opts.maxPoints ?? path.length));
+  const tolerance = Math.max(0, opts.toleranceKm ?? 0) / EARTH_RADIUS_KM;
+  push(span(0, path.length - 1));
+  while (heap.length && indices.length < cap && heap[0].error > tolerance) {
+    const s = pop();
+    indices.push(s.index);
+    push(span(s.first, s.index));
+    push(span(s.index, s.last));
+  }
+  return indices.sort((a, b) => a - b);
+}
+
+export function reverseTrack(track: CustomTrack): CustomTrack | null {
+  return track.kind === 'recorded'
+    ? null
+    : {
+        ...track,
+        points: track.points
+          .slice()
+          .reverse()
+          .map((p) => ({ ...p, time: null })),
+      };
+}
+
+export function sameTrack(a: CustomTrack | null | undefined, b: CustomTrack | null | undefined): boolean {
+  if (a === b || (!a && !b)) return true;
+  if (
+    !a ||
+    !b ||
+    a.kind !== b.kind ||
+    a.source.format !== b.source.format ||
+    a.source.name !== b.source.name ||
+    a.reducedFrom !== b.reducedFrom ||
+    a.points.length !== b.points.length
+  )
+    return false;
+  return a.points.every((p, i) => {
+    const q = b.points[i];
+    return p.lat === q.lat && p.lng === q.lng && p.altM === q.altM && p.time === q.time && p.name === q.name;
+  });
+}
+
+/** Include exact geometry, altitudes and timestamps, so replacing any part refreshes the globe leg. */
+const signatures = new WeakMap<LegTrack, string>();
+export function trackSignature(track: LegTrack): string {
+  const cached = signatures.get(track);
+  if (cached) return cached;
+  let hash = 2166136261;
+  const text = JSON.stringify([track.path, track.altitudesKm, track.times]);
+  for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+  const signature = `${track.kind}${track.points.toString(36)}${(hash >>> 0).toString(36)}`;
+  signatures.set(track, signature);
+  return signature;
 }

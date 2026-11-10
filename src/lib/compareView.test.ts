@@ -151,3 +151,26 @@ describe('globe legs along detours', () => {
     expect(routed.legs[0].path).toHaveLength(3);
   });
 });
+
+it('maps exact track paths and altitudes and refreshes keys for geometry or altitude changes', () => {
+  const track: import('./track.ts').CustomTrack = {
+    kind: 'planned',
+    source: { format: 'document', name: null },
+    points: [
+      { lat: 0, lng: 0, altM: 0, time: null },
+      { lat: 0, lng: 1, altM: 11000, time: null },
+    ],
+  };
+  const data = input([0, 2]);
+  data.input.stops[0].track = track;
+  const compared = computeComparison([data], { assumedStart: null });
+  const route = comparisonGlobeRoute(compared, 0, false, (a) => a.city);
+  expect(route.legs[0].path).toBe(compared[0].journey.legs[0].track?.path);
+  expect(route.legs[0].altitudes).toEqual([0, 11]);
+  expect(route.legs[0].key).toContain('~tplanned');
+  const changed = { ...track, points: track.points.map((p) => ({ ...p, altM: 1000 })) };
+  data.input.stops[0].track = changed;
+  expect(
+    comparisonGlobeRoute(computeComparison([data], { assumedStart: null }), 0, false, (a) => a.city).legs[0].key,
+  ).not.toBe(route.legs[0].key);
+});

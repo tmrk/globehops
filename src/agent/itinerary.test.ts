@@ -221,3 +221,104 @@ describe('journeys documents', () => {
     expect(document.journeys).toBeUndefined();
   });
 });
+
+const plannedDocTrack: import('./itinerary.ts').TrackDoc = {
+  kind: 'planned',
+  format: 'document',
+  name: 'North Atlantic',
+  points: [
+    [51, 0, 0],
+    [55, -30, 11000],
+    [40, -74, 0],
+  ],
+};
+describe('document custom paths', () => {
+  const document = (track: unknown) => ({ version: 1, stops: [{ airport: 'LHR', track }, { airport: 'JFK' }] });
+  it('validates the shared schema and round-trips readable points with provenance', async () => {
+    const { Ajv2020 } = await import('ajv/dist/2020.js');
+    const { ITINERARY_SCHEMA } = await import('./schema.ts');
+    const validate = new Ajv2020().compile(ITINERARY_SCHEMA);
+    const raw = document(plannedDocTrack);
+    expect(validate(raw)).toBe(true);
+    const checked = validateItineraryDocument(raw);
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) throw new Error('Invalid document');
+    const state = documentToLinkState(checked.doc);
+    expect(state.stops?.[0].track?.source.name).toBe('North Atlantic');
+    expect(linkStateToDocument(state).stops?.[0].track).toEqual(plannedDocTrack);
+    const implicit = document({
+      points: [
+        [0, 0, null, '2026-03-01T10:00:00Z'],
+        [0, 1, 1000, '2026-03-01T10:10:00Z'],
+      ],
+    });
+    const parsed = validateItineraryDocument(implicit);
+    expect(parsed.ok && documentToLinkState(parsed.doc).stops?.[0].track?.kind).toBe('recorded');
+    const { encodeTrack } = await import('../lib/trackCodec.ts');
+    const encoded = document({ encoded: encodeTrack(state.stops![0].track!) });
+    const checkedEncoded = validateItineraryDocument(encoded);
+    expect(checkedEncoded.ok && documentToLinkState(checkedEncoded.doc).stops?.[0].track?.points).toEqual(
+      state.stops?.[0].track?.points,
+    );
+    const backwards = document({
+      points: [
+        [0, 0, null, '2026-03-01T10:00:00Z'],
+        [0, 1, null, '2026-03-01T09:00:00Z'],
+      ],
+    });
+    const normalized = validateItineraryDocument(backwards);
+    expect(normalized.ok && documentToLinkState(normalized.doc).stops?.[0].track?.kind).toBe('planned');
+  });
+  it.each([
+    null,
+    {},
+    { points: [[0, 0]] },
+    {
+      points: [
+        [91, 0],
+        [0, 0],
+      ],
+    },
+    {
+      points: [
+        [0, 181],
+        [0, 0],
+      ],
+    },
+    {
+      points: [
+        [0, 0, 30001],
+        [0, 0],
+      ],
+    },
+    {
+      points: [
+        [0, 0, null, '2026-03-01T10:00'],
+        [0, 0],
+      ],
+    },
+    {
+      points: [
+        [0, 0, null, '2026-02-30T10:00Z'],
+        [0, 0],
+      ],
+    },
+    { encoded: 'broken' },
+    { ...plannedDocTrack, encoded: 'broken' },
+    { ...plannedDocTrack, name: 'bad\nname' },
+    { ...plannedDocTrack, name: 'a'.repeat(81) },
+    { ...plannedDocTrack, format: 'unknown' },
+    { ...plannedDocTrack, kind: 'generated' },
+    { ...plannedDocTrack, surprise: true },
+  ])('rejects structurally invalid tracks with track paths: %j', (track) => {
+    const result = validateItineraryDocument(document(track));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.issues.some((i) => i.path.startsWith('/stops/0/track'))).toBe(true);
+  });
+  it('rejects tracks on the last stop and arrays beyond the shared limit', () => {
+    expect(validateItineraryDocument({ version: 1, stops: [{ airport: 'JFK', track: plannedDocTrack }] }).ok).toBe(
+      false,
+    );
+    expect(validateItineraryDocument(document({ points: Array.from({ length: 20001 }, () => [0, 0]) })).ok).toBe(false);
+  });
+});

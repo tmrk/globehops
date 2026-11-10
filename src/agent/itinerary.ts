@@ -1,7 +1,10 @@
+import { normalizeTrack, type CustomTrack, type TrackFormat } from '../lib/track.ts';
+import { decodeTrack, TRACK_FORMATS } from '../lib/trackCodec.ts';
 import { isLocale, type Locale } from '../i18n/locales.ts';
 import type { LinkSection, LinkState, LinkStop, LinkView } from '../state/link.ts';
 import type { LocalTimeInput } from '../types.ts';
 import {
+  MAX_TRACK_POINTS,
   MAX_STOPS,
   MAX_JOURNEYS,
   MAX_SECTIONS,
@@ -17,7 +20,15 @@ import { normalizeJourneyLabel, MAX_LABEL_LENGTH } from '../lib/journeyLabel.ts'
 import { formatIsoInstant, formatIsoOffset, parseIsoInstant } from '../lib/timezone.ts';
 
 const ITINERARY_VERSION = 1;
+export type TrackPointDoc =
+  [number, number] | [number, number, number | null] | [number, number, number | null, string | null];
+export type TrackDoc = {
+  kind?: 'planned' | 'recorded';
+  format?: TrackFormat;
+  name?: string;
+} & ({ points: TrackPointDoc[]; encoded?: never } | { encoded: string; points?: never });
 export interface StopDoc {
+  track?: TrackDoc;
   airport: string;
   arrival?: string;
   departure?: string;
@@ -71,6 +82,13 @@ export type DocumentResult = { ok: true; doc: ItineraryDocument } | { ok: false;
 export const AIRPORT_PATTERN = '^(?:[A-Za-z]{3}|[A-Za-z0-9]{4,8}|[0-9]+)$';
 export const LOCAL_TIME_PATTERN = '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::00)?(?:Z|[+-]\\d{2}:\\d{2})?$';
 export const INSTANT_PATTERN = '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2})?(?:Z|[+-]\\d{2}:\\d{2})$';
+export const TRACK_INSTANT_PATTERN =
+  '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,3})?)?(?:Z|[+-]\\d{2}:\\d{2})$';
+function parseTrackInstant(value: string): number | null {
+  const fraction = /\.(\d{1,3})(?=Z|[+-])/.exec(value);
+  const whole = parseIsoInstant(value.replace(/\.\d{1,3}(?=Z|[+-])/, ''));
+  return whole === null ? null : whole + (fraction ? Number(`0.${fraction[1]}`) * 1000 : 0);
+}
 const object = (raw: unknown): raw is Record<string, unknown> =>
   typeof raw === 'object' && raw !== null && !Array.isArray(raw);
 export function validateItineraryDocument(raw: unknown): DocumentResult {
@@ -91,6 +109,63 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
   if (raw.$schema !== undefined && typeof raw.$schema !== 'string')
     issue('/$schema', 'type', '$schema must be a string.');
   if (raw.version !== 1) issue('/version', 'const', 'Use itinerary version 1.');
+  const validateTrack = (track: unknown, path: string) => {
+    if (!object(track)) {
+      issue(path, 'type', 'Track must be an object.');
+      return;
+    }
+    properties(track, ['kind', 'points', 'encoded', 'format', 'name'], path);
+    if (track.kind !== undefined && track.kind !== 'planned' && track.kind !== 'recorded')
+      issue(`${path}/kind`, 'enum', 'Use planned or recorded.');
+    if (track.format !== undefined && !TRACK_FORMATS.includes(track.format as TrackFormat))
+      issue(`${path}/format`, 'enum', 'Use a supported track format.');
+    if (
+      track.name !== undefined &&
+      (typeof track.name !== 'string' ||
+        Array.from(track.name).length > 80 ||
+        !new RegExp(LABEL_PATTERN).test(track.name))
+    )
+      issue(`${path}/name`, 'pattern', 'Use a name of 1–80 characters without control characters.');
+    if ((track.points !== undefined) === (track.encoded !== undefined))
+      issue(path, 'oneOf', 'Supply exactly one of points or encoded.');
+    if (track.encoded !== undefined && (typeof track.encoded !== 'string' || !decodeTrack(track.encoded)))
+      issue(`${path}/encoded`, 'encoding', 'Invalid encoded track.');
+    if (track.points !== undefined) {
+      if (!Array.isArray(track.points)) {
+        issue(`${path}/points`, 'type', 'Points must be an array.');
+        return;
+      }
+      if (track.points.length < 2 || track.points.length > MAX_TRACK_POINTS)
+        issue(`${path}/points`, 'items', `Use 2 to ${MAX_TRACK_POINTS} points.`);
+      track.points.slice(0, MAX_TRACK_POINTS).forEach((p: unknown, i: number) => {
+        const at = `${path}/points/${i}`;
+        if (!Array.isArray(p) || p.length < 2 || p.length > 4) {
+          issue(at, 'tuple', 'Use [lat,lng,altitudeMetres?,time?].');
+          return;
+        }
+        for (const [index, limit] of [
+          [0, 90],
+          [1, 180],
+        ])
+          if (typeof p[index] !== 'number' || !Number.isFinite(p[index]) || Math.abs(p[index]) > limit)
+            issue(`${at}/${index}`, 'range', 'Invalid coordinate.');
+        if (
+          p.length > 2 &&
+          p[2] !== null &&
+          (typeof p[2] !== 'number' || !Number.isFinite(p[2]) || p[2] < -500 || p[2] > 30000)
+        )
+          issue(`${at}/2`, 'range', 'Altitude must be null or −500 to 30000 metres.');
+        if (
+          p.length > 3 &&
+          p[3] !== null &&
+          (typeof p[3] !== 'string' ||
+            !new RegExp(TRACK_INSTANT_PATTERN).test(p[3]) ||
+            parseTrackInstant(p[3]) === null)
+        )
+          issue(`${at}/3`, 'instant', 'Use an ISO instant with Z or an explicit offset.');
+      });
+    }
+  };
   const validateStops = (stops: unknown, basePath: string) => {
     if (!Array.isArray(stops)) issue(basePath, 'type', 'Stops must be an array.');
     else {
@@ -102,7 +177,12 @@ export function validateItineraryDocument(raw: unknown): DocumentResult {
           issue(path, 'type', 'Each stop must be an object.');
           return;
         }
-        properties(stop, ['airport', 'arrival', 'departure', 'layoverMinutes'], path);
+        properties(stop, ['airport', 'arrival', 'departure', 'layoverMinutes', 'track'], path);
+        if (stop.track !== undefined) {
+          if (i === stops.length - 1)
+            issue(`${path}/track`, 'position', 'A track belongs to a departing flight, not the last stop.');
+          validateTrack(stop.track, `${path}/track`);
+        }
         if (typeof stop.airport !== 'string' || !new RegExp(AIRPORT_PATTERN).test(stop.airport))
           issue(`${path}/airport`, 'pattern', 'Use an IATA, ICAO/ident code or numeric airport id.');
         for (const field of ['arrival', 'departure'])
@@ -307,7 +387,13 @@ export function documentToLinkState(doc: ItineraryDocument): LinkState {
       const departure = s.departure ? parseDocumentTime(s.departure) : null;
       if (s.arrival && !arrival) issues.push(`Stop ${i + 1}: invalid arrival time.`);
       if (s.departure && !departure) issues.push(`Stop ${i + 1}: invalid departure time.`);
-      return { code: s.airport.toUpperCase(), layoverMin: s.layoverMinutes ?? null, arrival, departure };
+      return {
+        code: s.airport.toUpperCase(),
+        layoverMin: s.layoverMinutes ?? null,
+        arrival,
+        departure,
+        ...(s.track && i < stops.length - 1 ? { track: documentTrack(s.track) } : {}),
+      };
     });
   const mapSections = (sections: SectionDoc[] | undefined): LinkSection[] | undefined =>
     sections?.slice(1).map((section) => ({
@@ -357,6 +443,7 @@ export function linkStateToDocument(s: LinkState): ItineraryDocument {
   const mapStops = (stops: LinkStop[]): StopDoc[] =>
     stops.map((stop, i, all) => ({
       airport: stop.code,
+      ...(stop.track && i < all.length - 1 ? { track: trackDocument(stop.track) } : {}),
       ...(i > 0 && stop.arrival ? { arrival: formatDocumentTime(stop.arrival) } : {}),
       ...(i < all.length - 1 && stop.departure ? { departure: formatDocumentTime(stop.departure) } : {}),
       ...(i > 0 && i < all.length - 1 && stop.layoverMin !== null ? { layoverMinutes: stop.layoverMin } : {}),
@@ -407,5 +494,44 @@ export function linkStateToDocument(s: LinkState): ItineraryDocument {
       ...(s.view.diversion !== undefined ? { diversion: s.view.diversion } : {}),
       ...(s.view.leg !== undefined ? { leg: s.view.leg } : {}),
     },
+  };
+}
+
+/** Decoded documents preserve geometry; incoming bad/backwards times are normalized consistently. */
+export function documentTrack(doc: TrackDoc): CustomTrack | null {
+  if (doc.encoded !== undefined) {
+    const decoded = decodeTrack(doc.encoded);
+    return decoded
+      ? normalizeTrack({
+          ...decoded,
+          ...(doc.kind ? { kind: doc.kind } : {}),
+          source: { format: doc.format ?? decoded.source.format, name: doc.name ?? null },
+        }).track
+      : null;
+  }
+  const points = doc.points.map((p) => ({
+    lat: p[0],
+    lng: p[1],
+    altM: p[2] ?? null,
+    time: p[3] ? parseTrackInstant(p[3]) : null,
+  }));
+  return normalizeTrack({
+    kind: doc.kind ?? (points.filter((p) => p.time !== null).length >= 2 ? 'recorded' : 'planned'),
+    points,
+    source: { format: doc.format ?? 'document', name: doc.name ?? null },
+  }).track;
+}
+export function trackDocument(track: CustomTrack): TrackDoc {
+  return {
+    kind: track.kind,
+    format: track.source.format,
+    ...(track.source.name ? { name: track.source.name } : {}),
+    points: track.points.map((p): TrackPointDoc =>
+      p.time !== null
+        ? [p.lat, p.lng, p.altM, new Date(p.time).toISOString()]
+        : p.altM !== null
+          ? [p.lat, p.lng, p.altM]
+          : [p.lat, p.lng],
+    ),
   };
 }

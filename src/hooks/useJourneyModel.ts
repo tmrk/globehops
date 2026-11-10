@@ -32,7 +32,15 @@ export function useJourneyModel(
         stops: draft.route.stops.flatMap<SerializableLinkStop>((stop) => {
           const airport = stop.airportId !== null ? lookup(stop.airportId) : undefined;
           return airport
-            ? [{ airport, layoverMin: stop.layoverMin, arrival: stop.arrival, departure: stop.departure }]
+            ? [
+                {
+                  airport,
+                  layoverMin: stop.layoverMin,
+                  arrival: stop.arrival,
+                  departure: stop.departure,
+                  ...(stop.track ? { track: stop.track.track } : {}),
+                },
+              ]
             : [];
         }),
       })),

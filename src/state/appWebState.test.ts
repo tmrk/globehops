@@ -160,3 +160,29 @@ it('reports the active alternative and section while retaining the compared trip
   expect(result.totals.flights).toBe(1);
   expect(result.valid).toBe(true);
 });
+
+it('reports exact flight paths and full point counts without URL simplification or timestamp loss', () => {
+  const start = Date.UTC(2026, 2, 1, 10) + 123;
+  const track: import('../lib/track.ts').CustomTrack = {
+    kind: 'recorded',
+    source: { format: 'gpx', name: 'local only' },
+    points: Array.from({ length: 20000 }, (_, i) => ({ lat: 0, lng: i / 1000, altM: 10000, time: start + i * 1000 })),
+  };
+  const stops = primaryInput.stops.slice(0, 2).map((s, i) => ({ ...s, ...(i === 0 ? { track } : {}) }));
+  const journey = computeJourney({ id: 'A', stops });
+  const view = createToolView(snapshot, true, settings, null);
+  const response = toolJourneyResponse({
+    context,
+    primaryStops: stops,
+    linkExtra: {},
+    active: 0,
+    currentView: view,
+    snapshot,
+    assumedStart: null,
+    journey,
+    url: 'https://example.com/',
+  });
+  expect(response.valid).toBe(true);
+  expect(response.legs[0].path).toMatchObject({ kind: 'recorded', points: 20000, source: { name: 'local only' } });
+  expect(response.legs[0].durationMinutes).toBe(Math.round(19999 / 60));
+});

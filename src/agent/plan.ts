@@ -22,7 +22,6 @@ import {
   diversionRadiusKm,
   type DiversionProfile,
 } from '../lib/diversion.ts';
-import { greatCircleDistanceKm } from '../lib/geo.ts';
 import { computeTrip, sectionRole, tripStateAt, type Trip, type TripIssueCode, type TripStay } from '../lib/trip.ts';
 import { computeTripComparison, compareTripMetrics } from '../lib/compareTrips.ts';
 import { comparisonDocument } from './comparisonInput.ts';
@@ -30,6 +29,7 @@ import { formatDuration } from '../lib/flightTime.ts';
 import { KM_PER_MILE } from '../lib/units.ts';
 import {
   buildLinkUrl,
+  serializeLinkWithReduction,
   parseLink,
   type LinkExtra,
   type LinkState,
@@ -168,6 +168,9 @@ export function resolveItinerary(ctx: AgentContext, raw: unknown) {
       layoverMin: s.layoverMin,
       arrival: s.arrival,
       departure: s.departure,
+      ...(s.track && findAirportByCode(ctx.index, normalized.state?.stops?.[i + 1]?.code ?? '')
+        ? { track: s.track }
+        : {}),
     });
     stopPaths.push(i);
   });
@@ -209,8 +212,8 @@ const timeInfo = (p: TimePoint | null) =>
     : null;
 const ESTIMATE_NOTES = [
   'Flight estimates use 850 km/h plus 30 minutes, rounded to 5 minutes; these are not airline schedules.',
-  'Distances and positions follow a great circle on a spherical Earth; real routes differ.',
-  'Altitude is illustrative, not aircraft tracking or an operational flight profile.',
+  'Generated paths follow great circles or opted-in routing on a spherical Earth; custom planned/recorded tracks preserve supplied geometry.',
+  'Custom track altitudes and recorded times take precedence over estimates; entered stop times override recorded endpoints. Other altitudes are illustrative.',
   'Entered departure and arrival times are local to each airport; UTC offsets resolve repeated hours.',
   'Time-zone rules may change, especially for future dates; runtime Intl rules are used.',
 ] as const;
@@ -575,8 +578,16 @@ function journeyDetails(ctx: AgentContext, journey: Journey) {
       to: airportCode(l.to),
       distanceKm: tenth(l.distanceKm),
       distanceMi: tenth(l.distanceKm / KM_PER_MILE),
-      greatCircleKm: tenth(l.route?.greatCircleKm ?? greatCircleDistanceKm(l.from, l.to)),
-      distanceModel: l.route?.path ? ('routed' as const) : ('great_circle' as const),
+      path: {
+        kind: l.pathKind,
+        distanceKm: tenth(l.distanceKm),
+        greatCircleKm: tenth(l.greatCircleKm),
+        points: l.track?.points ?? l.route?.path?.length ?? 2,
+        ...(l.track ? { source: l.track.source } : {}),
+        ...(l.track?.times ? { recordedDurationMin: minutes((l.track.times.at(-1)! - l.track.times[0]) / 60000) } : {}),
+      },
+      greatCircleKm: tenth(l.greatCircleKm),
+      distanceModel: l.track ? l.track.kind : l.route?.path ? ('routed' as const) : ('great_circle' as const),
       ...(l.route
         ? {
             route: {
@@ -651,6 +662,21 @@ function readableLink(
   extra?: SerializableJourney[] | Omit<LinkExtra, 'label'>,
 ): string | null {
   try {
+    const defaults = EXPLICIT_DEFAULT_KEYS.filter((key) => document?.view?.[key] !== undefined);
+    const linkExtra = { label: primary.label, ...(Array.isArray(extra) ? { compare: extra } : (extra ?? {})) };
+    const fitted = serializeLinkWithReduction(
+      primary.stops,
+      view,
+      defaults,
+      linkExtra,
+      MAX_URL_LENGTH - ctx.baseUrl.length - 300,
+    );
+    if (fitted.shareReduction)
+      issues.push({
+        code: 'track_simplified',
+        severity: 'warning',
+        message: `Share link keeps ${fitted.shareReduction.kept} of ${fitted.shareReduction.total} track points to fit the URL limit; calculations use the exact supplied track.`,
+      });
     return buildLinkUrl(
       ctx.baseUrl,
       primary.stops,
@@ -1076,7 +1102,10 @@ function stateSample(journey: Journey, state: ReturnType<typeof journeyStateAt>,
     position: {
       ...position,
       provenance: 'estimated',
-      model: state.phase === 'flight' && journey.legs[state.leg]?.route?.path ? 'routed' : 'great_circle',
+      model:
+        state.phase === 'flight'
+          ? (journey.legs[state.leg]?.track?.kind ?? (journey.legs[state.leg]?.route?.path ? 'routed' : 'great_circle'))
+          : 'great_circle',
     },
     status: describeState(journey, state),
     daylight: daylightAt(time, position),

@@ -1,5 +1,7 @@
+import { TRACK_FORMATS } from '../lib/trackCodec.ts';
 import { MAX_LABEL_LENGTH } from '../lib/journeyLabel.ts';
 import {
+  MAX_TRACK_POINTS,
   MAX_STOPS,
   MAX_JOURNEYS,
   MAX_SECTIONS,
@@ -8,7 +10,13 @@ import {
   MAX_LAYOVER_MIN,
   MAX_URL_LENGTH,
 } from './contract.ts';
-import { AIRPORT_PATTERN, LOCAL_TIME_PATTERN, INSTANT_PATTERN, LABEL_PATTERN } from './itinerary.ts';
+import {
+  AIRPORT_PATTERN,
+  LOCAL_TIME_PATTERN,
+  INSTANT_PATTERN,
+  TRACK_INSTANT_PATTERN,
+  LABEL_PATTERN,
+} from './itinerary.ts';
 
 const stopProperties = {
   airport: { type: 'string', pattern: AIRPORT_PATTERN, description: 'IATA, ICAO/OurAirports ident, or numeric id.' },
@@ -142,6 +150,64 @@ export const ITINERARY_SCHEMA = {
     },
   },
   $defs: {
+    track: {
+      type: 'object',
+      additionalProperties: false,
+      description:
+        'Exact custom path of the departing flight. Recorded times anchor missing stop times; entered stop times win. Tracks are carried locally in links, with simplification only to fit sharing limits.',
+      oneOf: [
+        { required: ['points'], properties: { points: {} } },
+        { required: ['encoded'], properties: { encoded: {} } },
+      ],
+      properties: {
+        kind: {
+          enum: ['planned', 'recorded'],
+          description: 'Defaults to recorded with at least two timed points, otherwise planned.',
+        },
+        format: { enum: TRACK_FORMATS },
+        name: { type: 'string', minLength: 1, maxLength: 80, pattern: LABEL_PATTERN },
+        encoded: {
+          type: 'string',
+          maxLength: MAX_TRACK_POINTS * 32 + 5,
+          pattern: '^1[pr][jgkzcifnrldx][A-D]\\.[A-Za-z0-9_-]+$',
+          description: 'Version 1 trkN share-link encoding, alternative to points; must decode to a valid track.',
+        },
+        points: {
+          type: 'array',
+          minItems: 2,
+          maxItems: MAX_TRACK_POINTS,
+          items: {
+            anyOf: [2, 3, 4].map((length) => ({
+              type: 'array',
+              minItems: length,
+              maxItems: length,
+              prefixItems: [
+                { type: 'number', minimum: -90, maximum: 90 },
+                { type: 'number', minimum: -180, maximum: 180 },
+                {
+                  type: ['number', 'null'],
+                  minimum: -500,
+                  maximum: 30000,
+                  description: 'Metres above mean sea level; null when unknown.',
+                },
+                {
+                  type: ['string', 'null'],
+                  pattern: TRACK_INSTANT_PATTERN,
+                  description: 'ISO instant with Z or explicit offset; null when unknown.',
+                },
+              ].slice(0, length),
+              items: false,
+            })),
+          },
+        },
+      },
+    },
+    origin: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['airport'],
+      properties: { ...stopProperties, track: { $ref: '#/$defs/track' } },
+    },
     section,
     firstSection: { type: 'object', additionalProperties: false, required: ['stops'], properties: sectionProperties },
     stops: {
@@ -154,7 +220,7 @@ export const ITINERARY_SCHEMA = {
         minItems: i + 1,
         maxItems: i + 1,
         prefixItems: Array.from({ length: i + 1 }, (_, j) => ({
-          $ref: j === 0 || j === i ? '#/$defs/endpoint' : '#/$defs/transfer',
+          $ref: j === i ? '#/$defs/endpoint' : j === 0 ? '#/$defs/origin' : '#/$defs/transfer',
         })),
         items: false,
       })),
@@ -167,6 +233,7 @@ export const ITINERARY_SCHEMA = {
       required: ['airport'],
       properties: {
         ...stopProperties,
+        track: { $ref: '#/$defs/track' },
         layoverMinutes: { type: 'integer', minimum: 0, maximum: MAX_LAYOVER_MIN },
       },
     },

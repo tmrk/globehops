@@ -2,7 +2,7 @@ import { MAX_JOURNEYS, MAX_URL_LENGTH } from './contract.ts';
 import { comparisonDocument } from './comparisonInput.ts';
 import { ITINERARY_SCHEMA, COMPARISON_INPUT_SCHEMA } from './schema.ts';
 import { documentToLinkState, validateItineraryDocument, encodeItineraryParam } from './itinerary.ts';
-import { parseLink, type LinkState, type LinkView } from '../state/link.ts';
+import { parseLink, serializeLinkState, type LinkState, type LinkView } from '../state/link.ts';
 
 export const WEB_TOOL_NAMES = [
   'get_journey',
@@ -25,13 +25,13 @@ export const WEB_TOOL_DEFINITIONS = [
   {
     name: 'get_journey',
     description:
-      'Read the live journey, km/mi totals, airport-local and UTC times, issues, view and share link. In compare mode also returns comparison.',
+      'Read each flight path (generated/planned/recorded, distance and point count), the live journey, km/mi totals, airport-local and UTC times, issues, view and share link. In compare mode also returns comparison.',
     inputSchema: emptySchema,
   },
   {
     name: 'set_route',
     description:
-      'Replace the route with 1–10 airport codes (transfer suffix _minutes), or an itinerary v1 document (sections for a round trip or multi-stage trip with explicit stays). Local times belong to each airport. Supply exactly one input; an empty route clears the journey.',
+      'Replace the route with 1–10 airport codes (transfer suffix _minutes), or an itinerary v1 document (sections for a round trip or multi-stage trip with explicit stays). Stops may carry planned or recorded custom tracks; recorded times anchor missing endpoints. Local times belong to each airport. Supply exactly one input; an empty route clears the journey.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -103,7 +103,7 @@ export function parseWebCommand(name: WebToolName, raw: unknown, flights: number
     if (!checked.ok) throw new TypeError(checked.issues.map((issue) => `${issue.path}: ${issue.message}`).join(' '));
     const link = documentToLinkState(checked.doc);
     if (link.issues.length) throw new TypeError(link.issues.join(' '));
-    return { type: 'set_route', link, search: `?itinerary=${encodeItineraryParam(checked.doc)}` };
+    return { type: 'set_route', link, search: documentSearch(checked.doc) };
   }
   if (name === 'set_route') {
     keys(['route', 'itinerary']);
@@ -119,7 +119,7 @@ export function parseWebCommand(name: WebToolName, raw: unknown, flights: number
     } else {
       const checked = validateItineraryDocument(raw.itinerary);
       if (!checked.ok) throw new TypeError(checked.issues.map((i) => `${i.path}: ${i.message}`).join(' '));
-      search = `?itinerary=${encodeItineraryParam(checked.doc)}`;
+      search = documentSearch(checked.doc);
       link = documentToLinkState(checked.doc);
     }
     if (link.issues.length) throw new TypeError(link.issues.join(' '));
@@ -157,4 +157,13 @@ export function parseWebCommand(name: WebToolName, raw: unknown, flights: number
     Object.assign(patch, { [field]: parsed.view[field] });
   }
   return { type: name, view: patch };
+}
+
+function documentSearch(doc: Parameters<typeof encodeItineraryParam>[0]): string {
+  try {
+    return `?itinerary=${encodeItineraryParam(doc)}`;
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return serializeLinkState(documentToLinkState(doc));
+  }
 }

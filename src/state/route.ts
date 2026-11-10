@@ -1,4 +1,5 @@
 import type { Airport, Layover, Leg, LocalTimeInput, RouteState, Stop } from '../types.ts';
+import { legTrack, normalizeTrack, reverseTrack, sameTrack, type CustomTrack } from '../lib/track.ts';
 import { greatCircleDistanceKm } from '../lib/geo.ts';
 import { estimateFlightMinutes } from '../lib/flightTime.ts';
 import { DEFAULT_LAYOVER_MIN, isValidLayover } from '../lib/layover.ts';
@@ -6,6 +7,7 @@ import { MAX_STOPS } from '../agent/contract.ts';
 export { MAX_STOPS } from '../agent/contract.ts';
 export type RouteAction =
   | { type: 'setAirport'; index: number; airportId: number | null }
+  | { type: 'setTrack'; index: number; track: CustomTrack | null }
   | { type: 'addStop' }
   | { type: 'insertStop'; index: number }
   | { type: 'removeStop'; index: number }
@@ -18,6 +20,7 @@ export type RouteAction =
   | {
       type: 'load';
       airportIds: (number | null)[];
+      tracks?: (CustomTrack | null)[];
       layovers?: (number | null)[];
       arrivals?: (LocalTimeInput | null)[];
       departures?: (LocalTimeInput | null)[];
@@ -43,16 +46,57 @@ export function createRouteState(
   layovers: (number | null)[] = [],
   arrivals: (LocalTimeInput | null)[] = [],
   departures: (LocalTimeInput | null)[] = [],
+  tracks: (CustomTrack | null)[] = [],
 ): RouteState {
   const ids = airportIds.slice(0, MAX_STOPS);
   while (ids.length < 2) ids.push(null);
-  return { stops: ids.map((id, i) => stop(id, layovers[i], arrivals[i], departures[i])), selectedLeg: null };
+  const stops = ids.map((id, i) => stop(id, layovers[i], arrivals[i], departures[i]));
+  stops.forEach((s, i) => {
+    const to = stops.slice(i + 1).find((next) => next.airportId !== null);
+    const track = tracks[i] ? normalizeTrack(tracks[i]!).track : null;
+    if (s.airportId !== null && to && track) s.track = { track, to: to.key };
+  });
+  return { stops, selectedLeg: null };
 }
 const validIndex = (index: number, length: number) => Number.isInteger(index) && index >= 0 && index < length;
 export function routeReducer(state: RouteState, action: RouteAction): RouteState {
   const stops = state.stops;
-  const changed = (next: Stop[]): RouteState => ({ stops: next, selectedLeg: null });
+  const changed = (next: Stop[]): RouteState => ({
+    stops: next.map((s, i) => {
+      if (!s.track) return s;
+      const oldIndex = stops.findIndex((p) => p.key === s.key);
+      const oldEnd = stops.findIndex((p) => p.key === s.track!.to);
+      const to = next.slice(i + 1).find((p) => p.airportId !== null);
+      const old = stops[oldIndex];
+      const valid =
+        old &&
+        old.airportId === s.airportId &&
+        to?.key === s.track.to &&
+        to.airportId === stops[oldEnd]?.airportId &&
+        stops
+          .slice(oldIndex, oldEnd + 1)
+          .map((p) => p.key)
+          .join(',') ===
+          next
+            .slice(i, next.indexOf(to) + 1)
+            .map((p) => p.key)
+            .join(',');
+      return valid ? s : { ...s, track: null };
+    }),
+    selectedLeg: null,
+  });
   switch (action.type) {
+    case 'setTrack': {
+      const s = stops[action.index];
+      const to = stops.slice(action.index + 1).find((p) => p.airportId !== null);
+      if (!validIndex(action.index, stops.length) || s.airportId === null || !to) return state;
+      const track = action.track ? normalizeTrack(action.track).track : null;
+      if (sameTrack(s.track?.track, track)) return state;
+      return {
+        ...state,
+        stops: stops.map((p, i) => (i === action.index ? { ...p, track: track ? { track, to: to.key } : null } : p)),
+      };
+    }
     case 'selectLeg': {
       const leg = action.leg !== null && action.leg < 0 ? null : action.leg;
       return leg === state.selectedLeg ? state : { ...state, selectedLeg: leg };
@@ -95,8 +139,19 @@ export function routeReducer(state: RouteState, action: RouteAction): RouteState
       next.splice(action.to, 0, moved);
       return changed(next);
     }
-    case 'reverse':
-      return changed([...stops].reverse().map((s) => ({ ...s, arrival: null, departure: null })));
+    case 'reverse': {
+      const next = stops
+        .slice()
+        .reverse()
+        .map((s) => ({ ...s, arrival: null, departure: null, track: null as Stop['track'] }));
+      for (const from of stops) {
+        if (!from.track) continue;
+        const track = reverseTrack(from.track.track);
+        const departure = next.find((p) => p.key === from.track!.to);
+        if (track && departure) departure.track = { track, to: from.key };
+      }
+      return { stops: next, selectedLeg: null };
+    }
     case 'load': {
       const ids = action.airportIds.slice(0, MAX_STOPS);
       while (ids.length < 2) ids.push(null);
@@ -107,11 +162,17 @@ export function routeReducer(state: RouteState, action: RouteAction): RouteState
             id === stops[i].airportId &&
             layovers[i] === stops[i].layoverMin &&
             sameTime(stops[i].arrival, action.arrivals?.[i] ?? null) &&
-            sameTime(stops[i].departure, action.departures?.[i] ?? null),
+            sameTime(stops[i].departure, action.departures?.[i] ?? null) &&
+            sameTrack(
+              stops[i].track?.track,
+              id !== null && ids.slice(i + 1).some((v) => v !== null) && action.tracks?.[i]
+                ? normalizeTrack(action.tracks[i]!).track
+                : null,
+            ),
         ) &&
         state.selectedLeg === null
         ? state
-        : createRouteState(ids, layovers, action.arrivals, action.departures);
+        : createRouteState(ids, layovers, action.arrivals, action.departures, action.tracks);
     }
   }
 }
@@ -125,7 +186,8 @@ export function computeLegs(stops: Stop[], lookup: (id: number) => Airport | und
   });
   return filled.slice(1).map((to, index) => {
     const from = filled[index],
-      distanceKm = greatCircleDistanceKm(from.airport, to.airport);
+      track = stops[from.i].track?.to === stops[to.i].key ? legTrack(stops[from.i].track!.track) : undefined,
+      distanceKm = track?.distanceKm ?? greatCircleDistanceKm(from.airport, to.airport);
     return {
       index,
       from: from.airport,
@@ -133,7 +195,10 @@ export function computeLegs(stops: Stop[], lookup: (id: number) => Airport | und
       fromStop: from.i,
       toStop: to.i,
       distanceKm,
-      durationMin: estimateFlightMinutes(distanceKm),
+      ...(track ? { track, pathKind: track.kind } : {}),
+      durationMin: track?.times
+        ? Math.round((track.times.at(-1)! - track.times[0]) / 60000)
+        : estimateFlightMinutes(distanceKm),
     };
   });
 }
