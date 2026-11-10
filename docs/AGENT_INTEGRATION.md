@@ -24,29 +24,29 @@ The guide is at the project path `/globehops/llms.txt`, not the domain-root `/ll
 
 ## Link reference (v1)
 
-| Parameter           | Meaning                                                                | Example                        |
-| ------------------- | ---------------------------------------------------------------------- | ------------------------------ |
-| `route`             | Airport tokens separated by hyphens; custom transfer minutes after `_` | `CPH-LHR_180-JFK`              |
-| `label`             | Journey A label, trimmed, 1–40 characters without controls             | `Via%20London`                 |
-| `b.*`, `c.*`, `d.*` | Additional alternatives: route/times/label, with b.2._–d.6._ sections  | `b.route=BUD-JFK`              |
-| `2.*` … `6.*`       | A trip's later sections: route, depN, arrN, label and `stay`           | `2.route=NBO-CDG-CPH`          |
-| `N.stay`            | Stay before section N while its times don't fix it (`d`, `h`, `m`)     | `2.stay=5d`                    |
-| `depN`, `arrN`      | Local departure/arrival at 1-based stop N                              | `dep1=2026-11-20T08:15`        |
-| `t`                 | Simulation instant, with Z or explicit offset                          | `2026-11-20T09:30Z`            |
-| `play`              | Start playback on open; reduced motion prevents autoplay               | `1`                            |
-| `live`              | Follow the real current time (the timeline's Live); replaces `t`       | `1`                            |
-| `speed`             | Auto or simulation seconds per real second                             | `auto`, `1800`, `3600`, `7200` |
-| `clock`             | Timeline display zone; airport code may be on any compared journey     | `local`, `utc`, `JFK`          |
-| `units`             | Distance display override                                              | `km`, `mi`                     |
-| `follow`            | Aircraft camera; off by default, user camera input exits               | `1` to enable                  |
-| `daynight`          | Day/night shading, enabled by default                                  | `0` to disable                 |
-| `lang`              | `en`, `hu`, `sv`; generated links use `/en/`, `/hu/`, `/sv/` paths     | `lang=hu` alias on root path   |
-| `names`             | Place-name labels for this visit                                       | `1` on, `0` off                |
-| `borders`           | Country borders for this visit                                         | `0` off, `1` on                |
-| `airspace`          | Restricted-airspace avoidance for this visit (app default on)          | `0` off, `1` on                |
-| `diversion`         | Diversion-aware routing for this visit (app default on)                | `0` off, `1` on                |
-| `leg`               | One-based selected flight (counted across a trip); frames it           | `2`                            |
-| `itinerary`         | Alternative complete base64url UTF-8 JSON document                     | See examples file              |
+| Parameter           | Meaning                                                                   | Example                        |
+| ------------------- | ------------------------------------------------------------------------- | ------------------------------ |
+| `route`             | Airport tokens separated by hyphens; custom transfer minutes after `_`    | `CPH-LHR_180-JFK`              |
+| `label`             | Journey A label, trimmed, 1–40 characters without controls                | `Via%20London`                 |
+| `b.*`, `c.*`, `d.*` | Additional alternatives: route/times/label, with `b.2.*`–`d.6.*` sections | `b.route=BUD-JFK`              |
+| `2.*` … `6.*`       | A trip's later sections: route, depN, arrN, label and `stay`              | `2.route=NBO-CDG-CPH`          |
+| `N.stay`            | Stay before section N while its times don't fix it (`d`, `h`, `m`)        | `2.stay=5d`                    |
+| `depN`, `arrN`      | Local departure/arrival at 1-based stop N                                 | `dep1=2026-11-20T08:15`        |
+| `t`                 | Simulation instant, with Z or explicit offset                             | `2026-11-20T09:30Z`            |
+| `play`              | Start playback on open; reduced motion prevents autoplay                  | `1`                            |
+| `live`              | Follow the real current time (the timeline's Live); replaces `t`          | `1`                            |
+| `speed`             | Auto or simulation seconds per real second                                | `auto`, `1800`, `3600`, `7200` |
+| `clock`             | Timeline display zone; airport code may be on any compared journey        | `local`, `utc`, `JFK`          |
+| `units`             | Distance display override                                                 | `km`, `mi`                     |
+| `follow`            | Aircraft camera; off by default, user camera input exits                  | `1` to enable                  |
+| `daynight`          | Day/night shading, enabled by default                                     | `0` to disable                 |
+| `lang`              | `en`, `hu`, `sv`; generated links use `/en/`, `/hu/`, `/sv/` paths        | `lang=hu` alias on root path   |
+| `names`             | Place-name labels for this visit                                          | `1` on, `0` off                |
+| `borders`           | Country borders for this visit                                            | `0` off, `1` on                |
+| `airspace`          | Restricted-airspace avoidance for this visit (app default on)             | `0` off, `1` on                |
+| `diversion`         | Diversion-aware routing for this visit (app default on)                   | `0` off, `1` on                |
+| `leg`               | One-based selected flight (counted across a trip); frames it              | `2`                            |
+| `itinerary`         | Alternative complete base64url UTF-8 JSON document                        | See examples file              |
 
 The itinerary parameter takes precedence over readable parameters. An explicit locale path takes precedence over `lang`; otherwise document `view.lang` or the `?lang=` alias selects the language. `buildLinkUrl` and MCP generate locale paths, for example `/globehops/hu/?route=CPH-JFK&names=1&borders=0&leg=1`. Link and browser-tool view overrides do not save user preferences; later manual control changes may save them. When `follow` and `leg` are both supplied, the flight is selected while the aircraft camera takes priority; `select_flight` exits follow to frame its flight. URL input takes precedence over remembered browser state; absent both, the app opens an example. Explicit `?route=` clears the route. Canonical empty links omit `route`.
 

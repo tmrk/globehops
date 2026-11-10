@@ -256,3 +256,17 @@ export const IconDiversion = (p: IconProps) => (
     <circle cx="11.4" cy="16.6" r="1.3" />
   </Icon>
 );
+/** Two sparkles: an AI assistant does the work. */
+export const IconSparkle = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M8.6 3.2l1.5 4.1 4.1 1.5-4.1 1.5-1.5 4.1-1.5-4.1L3 8.8l4.1-1.5z" />
+    <path d="M15.2 12.6l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z" />
+  </Icon>
+);
+/** Two overlapping sheets: copy to the clipboard. */
+export const IconCopy = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="7" y="7" width="9.5" height="9.5" rx="1.2" />
+    <path d="M13 4.6V4.4A1.2 1.2 0 0 0 11.8 3.2H4.4A1.2 1.2 0 0 0 3.2 4.4v7.4a1.2 1.2 0 0 0 1.2 1.2h.2" />
+  </Icon>
+);

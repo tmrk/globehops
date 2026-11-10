@@ -240,3 +240,70 @@ test('an invalid alternative points to its own flight editor and blocks playback
   await expect(page.getByRole('tab').nth(1)).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('region', { name: 'Flight 1 times' })).toContainText(/doesn.t exist/);
 });
+
+test('compares round trips: a way home for every journey, out and back side by side', async ({ page }, info) => {
+  await page.goto('./?route=BUD-FRA-JFK&b.route=BUD-JFK');
+  await page.getByRole('button', { name: 'Add return flights' }).click();
+  await expect(page.getByRole('heading', { name: 'Compare trips' })).toBeVisible();
+  const trips = page.getByRole('tablist', { name: 'Trips' }).getByRole('tab');
+  await expect(trips).toHaveText(['Avia FRA', 'BNonstop']);
+  const ways = page.getByRole('tablist', { name: 'Journeys of trip A' }).getByRole('tab');
+  await expect(ways).toHaveText(['Outbound', 'Return']);
+  await expect(ways.nth(1)).toHaveAttribute('aria-selected', 'true');
+  // Each trip comes home its own way, ready for its own connections and times.
+  await expect(stopButtons(page)).toHaveCount(2);
+  await expect(stopButtons(page).nth(0)).toHaveAccessibleName(/\(JFK\)/);
+  await expect(page.getByText('≈ 7 days in New York')).toBeVisible();
+  await expect(page).toHaveURL(/\?route=BUD-FRA-JFK&2\.route=JFK-BUD&b\.route=BUD-JFK&b\.2\.route=JFK-BUD$/);
+  const rows = page.getByRole('region', { name: 'Trip comparison' }).locator('.trip-compare__row');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toHaveAccessibleName(/^B Nonstop: Outbound ≈ .+, Return ≈ .+, Fastest$/);
+  await expect(rows.nth(0)).toContainText(/\+\d+h/);
+  // Switching trips keeps the way being edited, and switching ways keeps the trip.
+  await trips.nth(1).click();
+  const bWays = page.getByRole('tablist', { name: 'Journeys of trip B' }).getByRole('tab');
+  await expect(bWays.nth(1)).toHaveAttribute('aria-selected', 'true');
+  await bWays.nth(1).press('ArrowLeft');
+  await expect(bWays.nth(0)).toBeFocused();
+  await expect(stopButtons(page).nth(0)).toHaveAccessibleName(/\(BUD\)/);
+  await expect(trips.nth(1)).toHaveAttribute('aria-selected', 'true');
+  await expect(page).toHaveTitle('Compare: BUD → JFK → BUD, BUD → JFK → BUD · GlobeHops');
+  // The link reopens the same comparison.
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Compare trips' })).toBeVisible();
+  await expect(rows).toHaveCount(2);
+  await expect(page.locator('.stage')).toHaveClass(/is-ready/);
+  await settlePaint(page);
+  await page.screenshot({ path: `test-results/compare-trips-${info.project.name}.png`, animations: 'disabled' });
+  // Without the returns, the trips are compared journeys again.
+  await page.getByRole('tablist', { name: 'Journeys of trip A' }).getByRole('tab', { name: 'Return' }).click();
+  await page.getByRole('button', { name: 'Remove return flights' }).click();
+  await expect(page.getByRole('heading', { name: 'Compare journeys' })).toBeVisible();
+  await expect(page).toHaveURL(/\?route=BUD-FRA-JFK&b\.route=BUD-JFK$/);
+});
+
+test('compared trips share one clock and skip the stay every traveller shares', async ({ page }, info) => {
+  const trips =
+    '?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&2.route=JFK-BUD&2.dep1=2026-12-10T18:00&b.route=BUD-JFK&b.2.route=JFK-BUD';
+  await page.goto(`./${trips}&t=2026-12-05T12:00Z`);
+  const lanes = bar(page).getByRole('group', { name: 'Trips' }).getByRole('button');
+  await expect(lanes).toHaveCount(2);
+  await expect(lanes.nth(0)).toContainText('Staying in New York');
+  await expect(lanes.nth(1)).toContainText('Staying in New York');
+  await expect(bar(page).locator('.time-bar__break-label')).toHaveText('9 days');
+  // The untimed trip travels on the same days as the timed one.
+  await expect(page.getByRole('tablist', { name: 'Journeys of trip A' }).getByRole('tab')).toHaveText([
+    'OutboundTue 1 Dec',
+    'ReturnThu 10 Dec',
+  ]);
+  await page.getByRole('tablist', { name: 'Trips' }).getByRole('tab').nth(1).click();
+  await expect(page.getByRole('tablist', { name: 'Journeys of trip B' }).getByRole('tab')).toHaveText([
+    'Outbound≈ Tue 1 Dec',
+    'Return≈ Thu 10 Dec',
+  ]);
+  await page.screenshot({ path: `test-results/compare-trips-stay-${info.project.name}.png`, animations: 'disabled' });
+  await page.goto(`./${trips}&t=2026-12-01T19:30Z`);
+  await bar(page).getByRole('button', { name: 'Play all' }).click();
+  await expect(lanes.nth(0)).toContainText(/Return · /, { timeout: 30_000 });
+  await expect(bar(page).locator('.time-bar__readout')).toContainText(/1[01] Dec/);
+});

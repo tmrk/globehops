@@ -9,6 +9,8 @@ import {
   tripComparisonTimeline,
   type TripComparisonInput,
 } from './compareTrips.ts';
+import { tripComparisonGlobeRoute } from './tripView.ts';
+import { simFrameAt } from '../state/simulation.ts';
 
 const fixtures: Record<string, [number, number, number, string]> = {
   BUD: [1, 47.4369, 19.2556, 'Europe/Budapest'],
@@ -127,5 +129,48 @@ describe('compared trips', () => {
     expect(skip.from).toBeGreaterThan(gap.start);
     expect(skip.to).toBeLessThan(gap.end);
     expect(tripComparisonTimeline(computeTripComparison([nonstop()], { assumedStart: null, now: NOW }))).toBeNull();
+  });
+});
+
+describe('compared trips on the globe and in the fleet', () => {
+  const list = computeTripComparison([viaFrankfurt, nonstop()], { assumedStart: null, now: NOW });
+
+  it('draws every journey of each trip in its colour, keeping compared journeys’ keys for the way out', () => {
+    const route = tripComparisonGlobeRoute(list, 1, false, (airport) => airport.city ?? '');
+    expect(route.legs.map((leg) => leg.key.replace(/#.*/, ''))).toEqual([
+      'A:1>2',
+      'A:2>3',
+      'A:S1:3>2',
+      'A:S1:2>1',
+      'B:1>3',
+      'B:S1:3>1',
+    ]);
+    expect(new Set(route.legs.slice(0, 4).map((leg) => leg.color))).toEqual(new Set([list[0].color]));
+    // The trip being edited is bright; the way back flies a little above the way out.
+    expect(route.legs.map((leg) => leg.muted)).toEqual([true, true, true, true, false, false]);
+    expect(route.legs[2].lift!).toBeGreaterThan(route.legs[1].lift!);
+    expect(route.legs[4].lift!).toBeGreaterThan(route.legs[0].lift!);
+    expect(route.markers).toHaveLength(3);
+  });
+
+  it('flies one aircraft per trip on the flattened legs', () => {
+    const b = list[1].trip;
+    const offset = list[0].trip.totals.flights;
+    const fleet = list.map((entry, o) => ({
+      journey: entry.trip.sections[0].journey,
+      timeline: null,
+      trip: { trip: entry.trip, timeline: entry.trip.timeline },
+      legOffset: o ? offset : 0,
+      color: entry.color,
+      tag: entry.id,
+    }));
+    const homeward = b.sections[1].journey.legs[0];
+    const time = (homeward.departure!.epochMs + homeward.arrival!.epochMs) / 2;
+    const frame = simFrameAt(b.sections[0].journey, null, time, false, fleet, 1);
+    expect(frame.fleet).toHaveLength(2);
+    expect(frame.aircraft).toMatchObject({ kind: 'air', leg: offset + b.sections[1].legOffset });
+    expect(frame.highlightLeg).toBe(offset + 1);
+    // Lined up with A's way back, both travellers fly home together, each on its own legs.
+    expect(frame.fleet?.[0].view).toMatchObject({ kind: 'air', leg: list[0].trip.sections[1].legOffset });
   });
 });

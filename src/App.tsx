@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { flushSync } from 'react-dom';
 
 import { AboutDialog, type AboutDialogHandle } from './components/AboutDialog.tsx';
+import { AiImportDialog, AiImportEntry, type AiImportDialogHandle } from './components/AiImportDialog.tsx';
 import { AirportPicker, type AirportPickerHandle } from './components/AirportPicker.tsx';
 import { Brand, VersionTag } from './components/Brand.tsx';
 import { CollapsedJourneyPeek } from './components/CollapsedJourneyPeek.tsx';
@@ -15,7 +16,10 @@ import { JourneyTabs } from './components/JourneyTabs.tsx';
 import { MapTools } from './components/MapTools.tsx';
 import { StopList } from './components/StopList.tsx';
 import { Summary } from './components/Summary.tsx';
-import { TripSummary } from './components/TripSummary.tsx';
+import { StayLine, TripSummary } from './components/TripSummary.tsx';
+import { TripCompareSummary } from './components/TripCompareSummary.tsx';
+import { SectionSwitch } from './components/SectionSwitch.tsx';
+import { tripCaptions, tripCodes, tripColumnNames } from './components/tripCompareText.ts';
 import { sectionNames } from './components/tripText.ts';
 import { TimeBar } from './components/TimeBar.tsx';
 import { TimeDial } from './components/TimeDial.tsx';
@@ -43,15 +47,16 @@ import type { GlobeRoute } from './globe/GlobeRenderer.ts';
 import { useI18n } from './i18n/I18nProvider.tsx';
 import { trackEvent } from './analytics.ts';
 import { airportCode } from './data/airports.ts';
-import { similarRoutes } from './data/similarRoutes.ts';
-import { comparisonGlobeRoute, localLegAt } from './lib/compareView.ts';
-import { tripGlobeRoute, tripRouteCodes } from './lib/tripView.ts';
-import { MAX_SECTIONS, sectionOfFlight, stayPlaybackSkips, tripStateAt } from './lib/trip.ts';
+import { estimateRoute, similarRoutes } from './data/similarRoutes.ts';
+import { comparisonGlobeRoute } from './lib/compareView.ts';
+import { tripComparisonGlobeRoute, tripGlobeRoute, tripRouteCodes } from './lib/tripView.ts';
+import { tripComparisonSkips } from './lib/compareTrips.ts';
+import { MAX_SECTIONS, stayPlaybackSkips, tripStateAt } from './lib/trip.ts';
 import { MAX_JOURNEYS } from './lib/compare.ts';
 import type { LegRouter } from './lib/compare.ts';
 import { sumDurations } from './lib/flightTime.ts';
 import { journeyStateAt } from './lib/timeline.ts';
-import { createPlanState, planKind, planReducer } from './state/plan.ts';
+import { createPlanState, planKind, planReducer, planShape } from './state/plan.ts';
 import { playInRange } from './state/playbackRange.ts';
 import { hasEnteredTimes, type RouteAction } from './state/route.ts';
 import { createSimulationFeed, type SimulationContext } from './state/simulation.ts';
@@ -88,6 +93,9 @@ export default function App() {
   const kind = planKind(plan);
   const comparing = kind === 'compare';
   const tripMode = kind === 'trip';
+  /** Alternative trips (A–D), each the same journeys, e.g. out and back. */
+  const comparingTrips = kind === 'compareTrips';
+  const shape = planShape(plan);
   const dispatch = useCallback((action: RouteAction) => planDispatch({ type: 'route', action }), []);
   /** In a trip, the journey playback is limited to; null plays the whole trip. */
   const [playScope, setPlayScope] = useState<number | null>(null);
@@ -115,6 +123,7 @@ export default function App() {
   const listRef = useRef<HTMLDivElement>(null);
   const takeoverRef = useRef<AirportPickerHandle>(null);
   const aboutRef = useRef<AboutDialogHandle>(null);
+  const aiRef = useRef<AiImportDialogHandle>(null);
   const analytics = useAnalyticsConsent();
   const playback = useJourneyPlayback(reducedMotion, setCollapsed);
   const { clock, timeOpen, assumedStart, linkedTime, pausedTime, speed, applyView, openTime, closeTime } = playback;
@@ -161,6 +170,9 @@ export default function App() {
     filledAirports,
     compared,
     trip,
+    trips,
+    tripMetrics,
+    tripsTimeline,
     metrics,
     journey,
     timeline,
@@ -171,10 +183,15 @@ export default function App() {
     serializedJourneys,
   } = model;
   const names = useMemo(() => (trip ? sectionNames(trip, { t, fmt }) : []), [trip, t, fmt]);
+  /** Compared trips: each trip's journey names, what tells the trips apart, and the journeys they share. */
+  const tripNames = useMemo(() => trips?.map((entry) => sectionNames(entry.trip, { t, fmt })) ?? [], [trips, t, fmt]);
+  const captions = useMemo(() => (trips ? tripCaptions(trips, { t, fmt }) : []), [trips, t, fmt]);
+  const columns = useMemo(() => (trips ? tripColumnNames(trips, { t, fmt }) : []), [trips, t, fmt]);
+  const activeTrip = trips?.[shape.option] ?? null;
   // A trip plays whole, or one journey of it on request; a missing journey falls back to the whole trip.
   const scope = timeOpen && trip && playScope !== null && playScope < trip.sections.length ? playScope : null;
   const scopedRange = trip ? (scope !== null ? trip.sections[scope].timeline : trip.timeline) : playbackRange;
-  const phaseKey = useClockPhase(clock, journey, timeline, timeOpen, trip);
+  const phaseKey = useClockPhase(clock, journey, timeline, timeOpen, trip ?? activeTrip?.trip ?? null);
   const playing = phaseKey.startsWith('playing:');
   const live = phaseKey.startsWith('live:');
   const activeState = (() => {
@@ -184,11 +201,19 @@ export default function App() {
       const state = tripStateAt(trip, trip.timeline, time);
       return state.phase === 'journey' && state.section === plan.active ? state.state : null;
     }
+    if (activeTrip) {
+      const state = activeTrip.trip.timeline ? tripStateAt(activeTrip.trip, activeTrip.trip.timeline, time) : null;
+      return state?.phase === 'journey' && state.section === shape.section ? state.state : null;
+    }
     return timeline ? journeyStateAt(journey, timeline, time) : null;
   })();
   // Any journey's flights, not just the active one's, give the timeline something to show; without
   // flights, the time dial shows the globe at any moment instead.
-  const hasFlights = trip ? trip.totals.flights > 0 : compared.some((entry) => entry.journey.legs.length > 0);
+  const hasFlights = trip
+    ? trip.totals.flights > 0
+    : trips
+      ? trips.some((entry) => entry.trip.totals.flights > 0)
+      : compared.some((entry) => entry.journey.legs.length > 0);
   const timeBarShown = timeOpen && hasFlights;
   // An empty start shows the dial straight away rather than once the airports have loaded.
   const dialShown = (initialized || startsEmpty) && !globeFailed && !hasFlights;
@@ -212,15 +237,24 @@ export default function App() {
       dayNight,
       follow: !reducedMotion,
       fleet,
-      primary: plan.active,
+      // The trip or journey being edited is the one the camera follows.
+      primary: trips ? shape.option : plan.active,
       trip: trip ? { trip, timeline: trip.timeline } : undefined,
     });
-  }, [simulation, journey, timeline, timeOpen, dayNight, reducedMotion, fleet, plan.active, trip]);
+  }, [simulation, journey, timeline, timeOpen, dayNight, reducedMotion, fleet, plan.active, trip, trips, shape.option]);
   usePlaybackRange(playback, scopedRange, zonesLoaded, scheduleErrors);
   // A whole trip skips its stays while playing; one journey, or any other timeline, plays straight through.
+  // Compared trips skip only the stays every traveller shares.
   const skips = useMemo(
-    () => (timeOpen && trip?.timeline && scope === null ? stayPlaybackSkips(trip.timeline) : []),
-    [timeOpen, trip, scope],
+    () =>
+      !timeOpen
+        ? []
+        : trip?.timeline && scope === null
+          ? stayPlaybackSkips(trip.timeline)
+          : tripsTimeline
+            ? tripComparisonSkips(tripsTimeline)
+            : [],
+    [timeOpen, trip, scope, tripsTimeline],
   );
   useEffect(() => clock.setSkips(skips), [clock, skips]);
   /** Closing the timeline also ends a journey-only playback, so the next one starts from the whole trip. */
@@ -260,12 +294,24 @@ export default function App() {
     setVisitLocale,
   });
 
+  /** Every journey in plan order (alternative by alternative), matching `legOffsets`. */
+  const flatJourneys = useMemo(
+    () =>
+      trip
+        ? trip.sections.map((s) => s.journey)
+        : trips
+          ? trips.flatMap((entry) => entry.trip.sections.map((s) => s.journey))
+          : compared.map((entry) => entry.journey),
+    [trip, trips, compared],
+  );
   const globeRoute = useMemo<GlobeRoute>(
     () =>
       trip
         ? tripGlobeRoute(trip, plan.active, timeOpen, fmt.city)
-        : comparisonGlobeRoute(compared, plan.active, timeOpen, fmt.city),
-    [trip, compared, plan.active, timeOpen, fmt],
+        : trips
+          ? tripComparisonGlobeRoute(trips, shape.option, timeOpen, fmt.city)
+          : comparisonGlobeRoute(compared, plan.active, timeOpen, fmt.city),
+    [trip, trips, compared, plan.active, shape.option, timeOpen, fmt],
   );
 
   const { insets, sheetInset } = usePanelInsets(panelRef, {
@@ -343,7 +389,9 @@ export default function App() {
     const coarse = window.matchMedia('(pointer: coarse)').matches;
     const title = trip
       ? tripRouteCodes(trip.sections.map((s) => s.journey.stops.map((stop) => stop.airport)))
-      : filledAirports.map(airportCode).join(' → ');
+      : trips
+        ? trips.map(tripCodes).filter(Boolean).join(' · ')
+        : filledAirports.map(airportCode).join(' → ');
     if (coarse && navigator.share) {
       try {
         await navigator.share({ title: t('panel.routeTitle', title), url });
@@ -495,6 +543,12 @@ export default function App() {
   };
   const cancelEditor = () => closeEditor({ cancelled: true });
   const fastestJourney = compared.find((entry) => entry.id === metrics.fastest);
+  const fastestTrip = tripMetrics?.trips.find((entry) => entry.id === tripMetrics.fastest);
+  const tripsAnnouncement = trips
+    ? fastestTrip
+      ? t('trips.announcement', fmt.number(trips.length), fastestTrip.id, fmt.duration(fastestTrip.travelMin))
+      : t('trips.comparing', fmt.number(trips.length))
+    : '';
   const comparisonAnnouncement = fastestJourney
     ? t(
         'compare.announcement',
@@ -528,6 +582,9 @@ export default function App() {
     setEditing(null);
     planDispatch({ type: 'activate', index });
   };
+  /** Compared trips: another trip keeps the journey (outbound, return) being edited, and vice versa. */
+  const activateTrip = (option: number) => activateJourney(option * shape.sections + shape.section);
+  const activateSection = (section: number) => activateJourney(shape.option * shape.sections + section);
   const addJourney = () => {
     setEditing(null);
     planDispatch({ type: 'add' });
@@ -551,20 +608,43 @@ export default function App() {
     focusTakeover();
     listRef.current?.scrollTo({ top: 0 });
   };
-  /** An empty compared journey offers alternatives to the first journey with a route, never a copy. */
-  const similar = useMemo(() => {
-    if (!comparing || !index || filledAirports.length > 0) return [];
-    const reference = serializedJourneys.find((entry, i) => i !== plan.active && entry.stops.length >= 2);
-    if (!reference) return [];
-    return similarRoutes(
+  /**
+   * An empty compared journey offers alternatives to the first journey with a route, never a copy. In
+   * compared trips, an empty way back offers the way out reversed, with its connections or nonstop.
+   */
+  const similar = useMemo((): { title: string; routes: SuggestedRoute[] } | null => {
+    if (!(comparing || comparingTrips) || !index || filledAirports.length > 0) return null;
+    const { sections, section } = shape;
+    // The same journey of every alternative: the journeys to offer alternatives to and to avoid repeating.
+    const peers = serializedJourneys.filter((_, i) => i % sections === section);
+    if (comparingTrips && section > 0) {
+      const out = serializedJourneys[plan.active - 1].stops.map((stop) => stop.airport);
+      if (out.length < 2 || out[0].id === out.at(-1)!.id) return null;
+      const back = [...out].reverse();
+      const routes = [back, ...(back.length > 2 ? [[back[0], back.at(-1)!]] : [])].map((airports) => ({
+        airports,
+        minutes: estimateRoute(airports)?.minutes ?? 0,
+      }));
+      return { title: t('trips.wayBack'), routes };
+    }
+    const reference = peers.find((entry) => entry !== serializedJourneys[plan.active] && entry.stops.length >= 2);
+    if (!reference) return null;
+    const routes = similarRoutes(
       reference.stops.map((stop) => stop.airport),
       index,
-      serializedJourneys.map((entry) => entry.stops.map((stop) => stop.airport.id)),
+      peers.map((entry) => entry.stops.map((stop) => stop.airport.id)),
     );
-  }, [comparing, index, filledAirports.length, serializedJourneys, plan.active]);
+    return routes.length ? { title: t('compare.similar'), routes } : null;
+  }, [comparing, comparingTrips, index, filledAirports.length, serializedJourneys, plan.active, shape, t]);
   const chooseSimilar = ({ airports }: SuggestedRoute) => {
     setEditing(null);
-    dispatch({ type: 'load', airportIds: airports.map((airport) => airport.id) });
+    const ids = airports.map((airport) => airport.id);
+    dispatch({ type: 'load', airportIds: ids });
+    // A trip's way out chosen this way comes back the same way, unless its return is already planned.
+    const next = plan.active + 1;
+    if (comparingTrips && shape.section === 0 && next % shape.sections !== 0)
+      if (plan.journeys[next].route.stops.every((stop) => stop.airportId === null))
+        planDispatch({ type: 'route', index: next, action: { type: 'load', airportIds: [...ids].reverse() } });
   };
   const routingStatus = {
     airspace: avoidAirspace ? { failed: routing.failed.airspace } : null,
@@ -589,6 +669,17 @@ export default function App() {
         if (leg !== null) planDispatch({ type: 'route', index: section, action: { type: 'selectLeg', leg } });
         setCollapsed(false);
       }}
+    />
+  ) : trips && tripMetrics ? (
+    <TripCompareSummary
+      list={trips}
+      metrics={tripMetrics}
+      captions={captions}
+      columns={columns}
+      active={shape.option}
+      onActivate={activateTrip}
+      onPlay={togglePlayback}
+      timeOpen={timeOpen}
     />
   ) : comparing ? (
     <CompareSummary
@@ -620,7 +711,7 @@ export default function App() {
     )
   );
   const canArrange = filledAirports.length > 0 || route.stops.length > 2;
-  const canReset = comparing || tripMode || timeOpen || canArrange || hasEnteredTimes(route.stops);
+  const canReset = kind !== 'single' || timeOpen || canArrange || hasEnteredTimes(route.stops);
   // A route that is exactly one of the suggestions keeps the list, so people can switch between them.
   const welcomeRoutes = useMemo(
     () => suggestions.map(({ from, to, minutes }): SuggestedRoute => ({ airports: [from, to], minutes })),
@@ -641,8 +732,13 @@ export default function App() {
       timeline={timeline}
       comparison={comparing ? compared : undefined}
       trip={trip ? { trip, names, scope } : undefined}
-      active={plan.active}
-      onActivate={activateJourney}
+      trips={
+        trips && tripMetrics && tripsTimeline
+          ? { list: trips, metrics: tripMetrics, timeline: tripsTimeline, names: tripNames, sections: shape.sections }
+          : undefined
+      }
+      active={trips ? shape.option : plan.active}
+      onActivate={trips ? activateTrip : activateJourney}
       onEditJourneyLeg={(index, leg) => {
         activateJourney(index);
         planDispatch({ type: 'route', index, action: { type: 'selectLeg', leg } });
@@ -699,9 +795,10 @@ export default function App() {
                 fitNonce={fitNonce}
                 moonNonce={moonNonce}
                 onLegClick={(globalLeg) => {
-                  const located = trip ? sectionOfFlight(trip, globalLeg) : localLegAt(compared, globalLeg);
-                  const target =
-                    located && ('section' in located ? { index: located.section, leg: located.leg } : located);
+                  const index = flatJourneys.findIndex(
+                    (entry, i) => globalLeg >= legOffsets[i] && globalLeg < legOffsets[i] + entry.legs.length,
+                  );
+                  const target = index < 0 ? null : { index, leg: globalLeg - legOffsets[index] };
                   if (!target) return;
                   if (target.index === plan.active) selectLeg(route.selectedLeg === target.leg ? null : target.leg);
                   else {
@@ -712,8 +809,7 @@ export default function App() {
                       index: target.index,
                       action: { type: 'selectLeg', leg: target.leg },
                     });
-                    const departure = (trip ? trip.sections[target.index].journey : compared[target.index].journey)
-                      .legs[target.leg]?.departure;
+                    const departure = flatJourneys[target.index].legs[target.leg]?.departure;
                     if (timeOpen && departure) clock.seek(departure.epochMs);
                   }
                 }}
@@ -797,7 +893,7 @@ export default function App() {
 
       <main
         ref={panelRef}
-        className={`panel${plan.journeys.length >= 3 || tripMode ? ' has-many-journeys' : ''}${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && timeBarShown ? ' has-timeline' : ''}`}
+        className={`panel${plan.journeys.length >= 3 || tripMode || comparingTrips ? ' has-many-journeys' : ''}${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && timeBarShown ? ' has-timeline' : ''}`}
         aria-label={t('panel.journeyPlanner')}
       >
         {!isDesktop && (
@@ -845,6 +941,7 @@ export default function App() {
             <JourneyPanelHeader
               comparing={comparing}
               trip={tripMode}
+              comparingTrips={comparingTrips}
               hasAirports={filledAirports.length > 0}
               canArrange={canArrange}
               arranging={arranging}
@@ -876,6 +973,40 @@ export default function App() {
                 addLabel={t('compare.add')}
               />
             )}
+            {trips && activeTrip && (
+              <>
+                <JourneyTabs
+                  items={trips.map((entry, i) => ({
+                    id: entry.id,
+                    chip: entry.id,
+                    color: entry.color,
+                    label: captions[i],
+                  }))}
+                  active={shape.option}
+                  label={t('trips.list')}
+                  onActivate={activateTrip}
+                  onAdd={trips.length < MAX_JOURNEYS ? addJourney : undefined}
+                  addLabel={t('trips.add')}
+                />
+                <SectionSwitch
+                  items={tripNames[shape.option].map((own, k) => {
+                    // Every trip has the same journeys, so they share the column names unless named.
+                    const label = k > 0 ? plan.journeys[shape.option * shape.sections + k].label : null;
+                    const name = label ?? columns[k] ?? own;
+                    const start = activeTrip.trip.sections[k].journey.start;
+                    const date = start ? fmt.date(start.local.slice(0, 10), { year: false }) : '';
+                    return {
+                      name,
+                      detail: date && `${activeTrip.trip.sections[k].anchor === 'entered' ? '' : '≈ '}${date}`,
+                    };
+                  })}
+                  active={shape.section}
+                  color={activeTrip.color}
+                  label={t('trips.sections', activeTrip.id)}
+                  onActivate={activateSection}
+                />
+              </>
+            )}
             {trip && (
               <JourneyTabs
                 items={trip.sections.map((_, i) => ({ id: String(i + 1), chip: String(i + 1), label: names[i] }))}
@@ -888,14 +1019,16 @@ export default function App() {
             )}
             <div
               ref={listRef}
-              role={comparing || tripMode ? 'tabpanel' : undefined}
-              id={comparing || tripMode ? 'journey-panel' : undefined}
+              role={kind !== 'single' ? 'tabpanel' : undefined}
+              id={kind !== 'single' ? 'journey-panel' : undefined}
               aria-labelledby={
                 comparing
                   ? `journey-tab-${compared[plan.active].id}`
                   : tripMode
                     ? `journey-tab-${plan.active + 1}`
-                    : undefined
+                    : activeTrip
+                      ? `journey-tab-${activeTrip.id} section-tab-${shape.section}`
+                      : undefined
               }
               className="panel__scroll"
             >
@@ -922,9 +1055,20 @@ export default function App() {
                       />
                     </label>
                   )}
+                  {activeTrip &&
+                    (() => {
+                      const stay = activeTrip.trip.stays.find((entry) => entry.section === shape.section);
+                      return stay ? (
+                        <StayLine
+                          className="stay-before"
+                          stay={stay}
+                          onChange={(minutes) => planDispatch({ type: 'setStay', index: plan.active, minutes })}
+                        />
+                      ) : null;
+                    })()}
                   <StopList
                     key={plan.journeys[plan.active].key}
-                    journeyColor={comparing ? compared[plan.active].color : undefined}
+                    journeyColor={comparing ? compared[plan.active].color : activeTrip?.color}
                     legOffset={tripMode ? legOffsets[plan.active] : undefined}
                     journey={journey}
                     activeLeg={activeState?.phase === 'flight' ? activeState.leg : null}
@@ -957,12 +1101,67 @@ export default function App() {
                     onSelectLeg={selectLeg}
                     onReverse={reverse}
                   />
-                  {similar.length > 0 && (
-                    <RouteSuggestions title={t('compare.similar')} routes={similar} codes onSelect={chooseSimilar} />
+                  {similar && (
+                    <RouteSuggestions title={similar.title} routes={similar.routes} codes onSelect={chooseSimilar} />
                   )}
-                  {(comparing || tripMode || legs.length > 0) && (
+                  {(kind !== 'single' || legs.length > 0) && (
                     <div className="itinerary__actions">
-                      {comparing || tripMode ? (
+                      {comparing && compared.some((entry) => entry.journey.stops.length >= 2) && (
+                        <button type="button" className="row row--action compare-entry" onClick={addReturn}>
+                          <span aria-hidden="true" />
+                          <span className="row__icon">
+                            <IconReturn size={17} />
+                          </span>
+                          <span>{t('trips.addReturns')}</span>
+                        </button>
+                      )}
+                      {tripMode && plan.journeys.length <= MAX_SECTIONS && (
+                        <button type="button" className="row row--action compare-entry" onClick={addJourney}>
+                          <span aria-hidden="true" />
+                          <span className="row__icon">
+                            <IconCompare size={17} />
+                          </span>
+                          <span>{t('trips.entry')}</span>
+                        </button>
+                      )}
+                      {comparingTrips ? (
+                        <>
+                          {shape.section > 0 && (
+                            <button
+                              type="button"
+                              className="row row--action compare-remove"
+                              onClick={() => {
+                                setEditing(null);
+                                planDispatch({ type: 'removeSection', section: shape.section });
+                              }}
+                            >
+                              <span aria-hidden="true" />
+                              <span className="row__icon">
+                                <IconTrash size={16} />
+                              </span>
+                              <span>
+                                {shape.sections === 2
+                                  ? t('trips.removeReturns')
+                                  : t('trips.removeSection', columns[shape.section] ?? '')}
+                              </span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="row row--action compare-remove"
+                            onClick={() => {
+                              setEditing(null);
+                              planDispatch({ type: 'removeOption', option: shape.option });
+                            }}
+                          >
+                            <span aria-hidden="true" />
+                            <span className="row__icon">
+                              <IconTrash size={16} />
+                            </span>
+                            <span>{t('trips.remove')}</span>
+                          </button>
+                        </>
+                      ) : comparing || tripMode ? (
                         <button
                           type="button"
                           className="row row--action compare-remove"
@@ -1001,6 +1200,7 @@ export default function App() {
                   )}
                 </>
               )}
+              {showSuggestions && !dataError && <AiImportEntry onOpen={() => aiRef.current?.open()} />}
               {showSuggestions && (
                 <RouteSuggestions
                   title={t('panel.orTryOneOfThese')}
@@ -1045,7 +1245,9 @@ export default function App() {
               )
             : comparing
               ? comparisonAnnouncement
-              : fmt.describeRoute(legs, layovers, unit)
+              : trips
+                ? tripsAnnouncement
+                : fmt.describeRoute(legs, layovers, unit)
           : ''}
       </p>
       <p className="sr-only" aria-live="polite">
@@ -1054,6 +1256,7 @@ export default function App() {
       {isDesktop && <VersionTag />}
       <Toast toast={toast} />
       <AboutDialog ref={aboutRef} meta={dataset?.meta ?? null} analytics={analytics} />
+      <AiImportDialog ref={aiRef} />
     </div>
   );
 }

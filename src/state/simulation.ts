@@ -30,22 +30,24 @@ export function simFrameAt(
     frame.fleet = [];
     for (let i = 0; i < fleet.length; i++) {
       const entry = fleet[i];
-      if (!entry.timeline) continue;
-      const state = journeyStateAt(entry.journey, entry.timeline, time);
-      const highlightLeg = entry.legOffset + (state.phase === 'transfer' ? state.leg - 1 : state.leg);
-      const aircraft: FleetAircraft = {
-        view:
+      let view: AircraftView;
+      let highlightLeg: number;
+      if (entry.trip) {
+        // A compared trip's traveller, on its own trip's legs after the alternatives before it.
+        const traveller = tripFrameAt(entry.trip.trip, entry.trip.timeline, time, false);
+        if (!traveller.aircraft || traveller.highlightLeg === null) continue;
+        view = { ...traveller.aircraft, leg: entry.legOffset + traveller.aircraft.leg };
+        highlightLeg = entry.legOffset + traveller.highlightLeg;
+      } else {
+        if (!entry.timeline) continue;
+        const state = journeyStateAt(entry.journey, entry.timeline, time);
+        highlightLeg = entry.legOffset + (state.phase === 'transfer' ? state.leg - 1 : state.leg);
+        view =
           state.phase === 'flight'
             ? { kind: 'air', leg: entry.legOffset + state.leg, fraction: state.distanceFraction }
-            : {
-                kind: 'ground',
-                leg: highlightLeg,
-                at: state.phase === 'before' ? 'start' : 'end',
-              },
-        color: entry.color,
-        tag: entry.tag,
-        highlightLeg,
-      };
+            : { kind: 'ground', leg: highlightLeg, at: state.phase === 'before' ? 'start' : 'end' };
+      }
+      const aircraft: FleetAircraft = { view, color: entry.color, tag: entry.tag, highlightLeg };
       frame.fleet.push(aircraft);
       if (i === primary) {
         frame.aircraft = aircraft.view;
@@ -98,6 +100,13 @@ function airborneAt(ctx: SimulationContext, time: number): { leg: number; fracti
       : null;
   }
   const primary = ctx.fleet?.[ctx.primary ?? 0];
+  if (primary?.trip) {
+    if (!primary.trip.timeline) return null;
+    const state = tripStateAt(primary.trip.trip, primary.trip.timeline, time);
+    return state.phase === 'journey' && state.state.phase === 'flight'
+      ? { leg: primary.legOffset + state.legOffset + state.state.leg, fraction: state.state.distanceFraction }
+      : null;
+  }
   const journey = ctx.fleet === undefined ? ctx.journey : primary?.journey;
   const timeline = ctx.fleet === undefined ? ctx.timeline : primary?.timeline;
   if (!journey || !timeline) return null;
@@ -113,8 +122,19 @@ export interface SimulationContext {
   open: boolean;
   dayNight: boolean;
   follow: boolean;
-  /** Compare journeys in flattened globe-leg order; absent in single mode. */
-  fleet?: { journey: Journey; timeline: Timeline | null; legOffset: number; color: string; tag: string }[];
+  /**
+   * Compared journeys (or compared trips, each entry with its `trip`) in flattened globe-leg order;
+   * absent in single mode.
+   */
+  fleet?: {
+    journey: Journey;
+    timeline: Timeline | null;
+    /** A compared trip's traveller, flying every journey of it; `legOffset` is its first flight. */
+    trip?: { trip: Trip; timeline: TripTimeline | null };
+    legOffset: number;
+    color: string;
+    tag: string;
+  }[];
   /** Index into fleet, before entries without timelines are filtered out. */
   primary?: number;
   /** A trip's journeys with one traveller (instead of `journey`/`fleet`); its timeline spans every journey. */

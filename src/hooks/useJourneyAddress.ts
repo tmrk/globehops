@@ -5,7 +5,7 @@ import { airportCode } from '../data/airports.ts';
 import { serializeLink, type LinkView } from '../state/link.ts';
 import { saveLastJourney } from '../state/storage.ts';
 import { replaceUrl } from '../analytics.ts';
-import type { PlanState } from '../state/plan.ts';
+import { planShape, type PlanState } from '../state/plan.ts';
 import { tripRouteCodes } from '../lib/tripView.ts';
 import type { useJourneyModel } from './useJourneyModel.ts';
 import type { useViewPreferences } from './useViewPreferences.ts';
@@ -48,9 +48,11 @@ export function useJourneyAddress({
     explicitDefaults,
   } = preferences;
   const comparing = kind === 'compare';
-  // Link flight numbers name the first journey's flights, or a trip's flights across its journeys.
-  const selected = plan.journeys[kind === 'trip' ? plan.active : 0].route.selectedLeg;
-  const leg = selected === null ? undefined : (kind === 'trip' ? legOffsets[plan.active] : 0) + selected + 1;
+  const { sections } = planShape(plan);
+  // Link flight numbers name the first journey's flights, or a trip's (trip A's) flights across its journeys.
+  const counted = kind === 'trip' || (kind === 'compareTrips' && plan.active < sections);
+  const selected = plan.journeys[counted ? plan.active : 0].route.selectedLeg;
+  const leg = selected === null ? undefined : (counted ? legOffsets[plan.active] : 0) + selected + 1;
   const query = useMemo(
     () =>
       serializeLink(
@@ -100,19 +102,30 @@ export function useJourneyAddress({
     if (!initialized) return;
     if (addressUrl !== window.location.href) replaceUrl(addressUrl);
     saveLastJourney(serializeLink(primaryStops, { speed }, false, linkExtra));
+    const tripCodes = (list: typeof serializedJourneys) =>
+      tripRouteCodes(list.map((entry) => entry.stops.map((s) => s.airport)));
     document.title =
       kind === 'trip'
-        ? t('panel.routeTitle', tripRouteCodes(serializedJourneys.map((entry) => entry.stops.map((s) => s.airport))))
-        : comparing
+        ? t('panel.routeTitle', tripCodes(serializedJourneys))
+        : kind === 'compareTrips'
           ? t(
               'compare.documentTitle',
-              serializedJourneys
-                .map((entry) => entry.stops.map((stop) => airportCode(stop.airport)).join(' → '))
+              Array.from({ length: serializedJourneys.length / sections }, (_, o) =>
+                tripCodes(serializedJourneys.slice(o * sections, (o + 1) * sections)),
+              )
+                .filter(Boolean)
                 .join(', '),
             )
-          : filledStops.length
-            ? t('panel.routeTitle', filledStops.map((s) => airportCode(s.airport)).join(' → '))
-            : t('common.documentTitle');
+          : comparing
+            ? t(
+                'compare.documentTitle',
+                serializedJourneys
+                  .map((entry) => entry.stops.map((stop) => airportCode(stop.airport)).join(' → '))
+                  .join(', '),
+              )
+            : filledStops.length
+              ? t('panel.routeTitle', filledStops.map((s) => airportCode(s.airport)).join(' → '))
+              : t('common.documentTitle');
   }, [
     addressUrl,
     updatePickerAddress,
@@ -121,6 +134,7 @@ export function useJourneyAddress({
     linkExtra,
     comparing,
     kind,
+    sections,
     serializedJourneys,
     initialized,
     speed,

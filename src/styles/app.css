@@ -4221,3 +4221,426 @@ button.map-menu__item:hover {
 .leg-schedule__airspace {
   margin-top: 10px;
 }
+
+/* ------------------------------------------------------------------------------------------ */
+/* Compared trips: alternative trips (A–D) with the same journeys, e.g. out and back.            */
+
+/* The active trip's journeys: a segmented control in its colour, under the trips' tabs. */
+.section-switch {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 2px;
+  margin: 2px var(--pad) 8px;
+  padding: 3px;
+  border-radius: var(--radius-btn);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--line);
+  flex: none;
+}
+.section-switch__tab {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-xs);
+  color: var(--text-2);
+  font: 600 var(--text-sm) var(--font);
+  transition:
+    color 0.15s,
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+.section-switch__tab:hover {
+  color: var(--text);
+}
+.section-switch__tab[aria-selected='true'] {
+  background: var(--surface-raised);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px var(--line);
+  color: var(--text);
+}
+/* Name and date on one baseline, centred in the segment. */
+.section-switch__label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+.section-switch__tab:focus-visible {
+  outline-offset: -2px;
+}
+.section-switch__name,
+.section-switch__detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.section-switch__detail {
+  flex: 0 1 auto;
+  color: var(--text-3);
+  font: 500 var(--text-2xs) var(--mono);
+  font-stretch: var(--mono-stretch);
+  word-spacing: var(--mono-space);
+}
+.section-switch__tab[aria-selected='true'] .section-switch__detail {
+  color: var(--text-2);
+}
+.section-switch__name {
+  flex: 0 0 auto;
+}
+
+/* The stay before the journey being edited, above its stops: rail, stay, then its dates. */
+.trip-summary__stay.stay-before {
+  grid-template-columns: var(--col-rail) minmax(0, 1fr) max-content;
+  column-gap: var(--col-gap);
+  margin: 0 0 6px;
+}
+.stay-before .trip-summary__dates {
+  grid-column: 3;
+  padding-right: 0;
+}
+
+/* The comparison table: trips in rows, journeys in columns, then the total time travelling. */
+.trip-compare {
+  contain: paint;
+}
+.trip-compare__grid {
+  display: grid;
+  grid-template-columns:
+    var(--col-rail) minmax(3.5rem, 1fr) repeat(var(--trip-columns), minmax(3.9rem, max-content))
+    minmax(4.4rem, max-content);
+  column-gap: 10px;
+}
+.trip-compare__head,
+.trip-compare__row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+.trip-compare__head {
+  padding-bottom: 4px;
+}
+.trip-compare__column {
+  justify-self: end;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.trip-compare__row {
+  position: relative;
+  isolation: isolate;
+  padding-block: 7px;
+  text-align: left;
+}
+.trip-compare__row::before {
+  content: '';
+  position: absolute;
+  inset: 0 -8px;
+  z-index: -1;
+  transition: background-color 0.15s;
+}
+.trip-compare__row:hover::before {
+  background: var(--hover);
+}
+.trip-compare__row[aria-pressed='true']::before {
+  background: var(--press);
+}
+.trip-compare__row:focus-visible {
+  outline-offset: -2px;
+}
+.trip-compare__row > .journey-chip {
+  justify-self: center;
+}
+.trip-compare__name {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+.trip-compare__caption,
+.trip-compare__codes {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trip-compare__caption {
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.trip-compare__caption--empty {
+  color: var(--text-3);
+  font-weight: 400;
+}
+.trip-compare__codes {
+  color: var(--text-3);
+  font: 500 var(--text-2xs) var(--mono);
+  font-stretch: var(--mono-stretch);
+  word-spacing: var(--mono-space);
+}
+.trip-compare__cell {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  min-width: 0;
+}
+.trip-compare__time {
+  color: var(--text-2);
+  font: 500 var(--text-sm) var(--mono);
+  font-stretch: var(--mono-stretch);
+  word-spacing: var(--mono-space);
+  white-space: nowrap;
+}
+.trip-compare__cell.is-best .trip-compare__time {
+  color: var(--text);
+  font-weight: 600;
+}
+.trip-compare__total .trip-compare__time {
+  color: var(--text);
+  font-weight: 600;
+}
+.trip-compare__bar {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 3px;
+  background: var(--line);
+}
+.trip-compare__bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--journey-color) 55%, transparent);
+}
+.trip-compare__cell.is-best .trip-compare__bar > span {
+  background: var(--journey-color);
+}
+.trip-compare__total .compare-badge,
+.trip-compare__total .compare-delta {
+  line-height: 1;
+}
+.layout-mobile .trip-compare__row {
+  padding-block: 6px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Map your booking with AI: the planner's card and the prompt dialog.                           */
+
+.ai-entry {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: var(--col-rail) minmax(0, 1fr);
+  column-gap: var(--col-gap);
+  align-items: center;
+  width: 100%;
+  margin: 12px 0 6px;
+  padding: 11px 12px 11px 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: var(--radius-btn);
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 62%),
+    radial-gradient(120% 140% at 100% 100%, rgba(94, 168, 242, 0.09), transparent 60%);
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.ai-entry::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  transition: background-color 0.15s;
+}
+.ai-entry:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.ai-entry:hover::after {
+  background: var(--hover);
+}
+.ai-entry__icon {
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  color: var(--accent);
+}
+.ai-entry__text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.ai-entry__title {
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.ai-entry__detail {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
+.ai-import {
+  width: min(500px, calc(100% - 32px));
+}
+.ai-import__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 36px;
+  color: var(--text);
+}
+.ai-import__head h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.ai-import__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background:
+    radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--accent) 40%, transparent), transparent 70%),
+    color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+}
+.ai-import__lede {
+  margin: 14px 0 4px;
+  color: var(--text-2);
+  font-size: var(--text-base);
+}
+.ai-import__steps {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+.ai-import__steps > li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 10px;
+  margin: 0;
+  counter-increment: step;
+}
+.ai-import__steps > li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: var(--radius-xs);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text);
+  font: 700 var(--text-xs) var(--mono);
+  font-stretch: var(--mono-stretch);
+}
+.ai-import__step {
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: 1.45;
+}
+.ai-import__prompt {
+  grid-column: 1 / -1;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  overflow: hidden;
+}
+.ai-import__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 6px 0 14px;
+}
+.ai-import__label {
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.ai-import__prompt pre {
+  margin: 0;
+  padding: 4px 14px 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ai-import__prompt code {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+  color: var(--text);
+  font: 400 var(--text-sm) / 1.65 var(--mono);
+  font-stretch: var(--mono-stretch);
+  word-spacing: var(--mono-space);
+}
+.ai-import__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 11px 0 9px;
+  border-radius: var(--radius-btn);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    transform 0.1s;
+}
+.ai-import__copy:hover {
+  background: #ffd170;
+}
+.ai-import__copy:active {
+  transform: scale(0.97);
+}
+.ai-import__copy.is-copied {
+  background: #3fcf8e;
+  color: #04170e;
+}
+.ai-import__copy-icon {
+  display: grid;
+  place-items: center;
+}
+.ai-import__copy.is-copied .ai-import__copy-icon {
+  animation: ai-copied 0.35s var(--ease);
+}
+@keyframes ai-copied {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+:root[data-motion='reduce'] .ai-import__copy.is-copied .ai-import__copy-icon {
+  animation: none;
+}
+.ai-import__privacy {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}

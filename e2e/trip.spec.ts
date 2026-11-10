@@ -26,7 +26,9 @@ test('adds a return flight as a trip, with tabs, an explicit stay and a shareabl
   await expect(stopButtons(page)).toHaveCount(2);
   await expect(stopButtons(page).nth(0)).toHaveAccessibleName(/\(NBO\)/);
   await expect(stopButtons(page).nth(1)).toHaveAccessibleName(/\(CPH\)/);
+  // A trip is compared with other trips of the same journeys, never journey by journey with itself.
   await expect(page.getByRole('button', { name: 'Compare journeys' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Compare trips' })).toBeVisible();
   await expect(overview(page)).toContainText('≈ 7 days in Nairobi');
   await expect(page).toHaveURL(/\?route=CPH-AMS-NBO&2\.route=NBO-CPH$/);
   // An untimed stay can be chosen like a layover; it travels in the link.

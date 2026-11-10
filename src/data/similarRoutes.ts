@@ -97,7 +97,8 @@ const MIN_LEG_KM = 250;
 const ON_THE_WAY = 1.1;
 const MAX_DETOUR = 1.3;
 
-function estimate(airports: Airport[]): SimilarRoute | null {
+/** A route's great-circle distance and estimated time with default connections; null past the nonstop cap. */
+export function estimateRoute(airports: Airport[]): SimilarRoute | null {
   let distanceKm = 0;
   let minutes = (airports.length - 2) * DEFAULT_LAYOVER_MIN;
   for (let i = 1; i < airports.length; i++) {
@@ -134,7 +135,7 @@ export function similarRoutes(
   const add = (airports: Airport[]) => {
     const key = airports.map((airport) => airport.id).join('-');
     if (results.length >= target || seen.has(key)) return false;
-    const option = estimate(airports);
+    const option = estimateRoute(airports);
     if (!option) return false;
     seen.add(key);
     results.push(option);

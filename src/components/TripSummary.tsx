@@ -3,12 +3,66 @@ import { airportCode } from '../data/airports.ts';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { DEFAULT_FLIGHT_TIME_MODEL } from '../lib/flightTime.ts';
 import { DEFAULT_LAYOVER_MIN } from '../lib/layover.ts';
-import { DEFAULT_STAY_MIN, stayChoices, type Trip, type TripSection } from '../lib/trip.ts';
+import { DEFAULT_STAY_MIN, stayChoices, type Trip, type TripSection, type TripStay } from '../lib/trip.ts';
 import type { DistanceUnit } from '../types.ts';
 import { IconAlert, IconBed, IconChevronDown, IconDetour, IconDiversion, IconInfo, IconPlay } from './Icons.tsx';
 import { routingNotes, type RoutingStatus } from './airspaceText.ts';
 import { DiversionMethod } from './Summary.tsx';
 import { stayDates, stayLength, stayText } from './tripText.ts';
+
+/**
+ * A stay between two journeys: its length and place, its dates once known, and a choice of length while
+ * it is only an estimate (a journey without times of its own).
+ */
+export function StayLine({
+  stay,
+  onChange,
+  className = '',
+}: {
+  stay: TripStay;
+  onChange: (minutes: number | null) => void;
+  className?: string;
+}) {
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
+  const dates = stayDates(stay, i18n);
+  return (
+    <div className={`trip-summary__stay ${className}`}>
+      <span className="trip-summary__icon" aria-hidden="true">
+        <IconBed size={16} />
+      </span>
+      {stay.source === 'setting' ? (
+        <span className="trip-summary__pick">
+          <span className="trip-summary__stay-text" aria-hidden="true">
+            ≈ {stayText(stay, i18n)}
+          </span>
+          <IconChevronDown size={14} className="layover__chev" />
+          <select
+            className="layover__select"
+            aria-label={t('trip.stayAt', fmt.city(stay.arrivalAirport))}
+            value={Math.round(stay.minutes)}
+            onChange={(event) => {
+              const minutes = Number(event.target.value);
+              onChange(minutes === DEFAULT_STAY_MIN ? null : minutes);
+            }}
+          >
+            {stayChoices(Math.round(stay.minutes)).map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {stayLength(minutes, null, i18n)}
+                {minutes === DEFAULT_STAY_MIN ? t('stops.default') : ''}
+              </option>
+            ))}
+          </select>
+        </span>
+      ) : (
+        <span className="trip-summary__stay-text" title={t('stops.fromYourFlightTimes')}>
+          {stayText(stay, i18n)}
+        </span>
+      )}
+      <span className="trip-summary__dates">{dates && `${stay.source === 'setting' ? '≈ ' : ''}${dates}`}</span>
+    </div>
+  );
+}
 
 interface Props {
   trip: Trip;
@@ -86,44 +140,7 @@ export function TripSummary(props: Props) {
           const playable = canPlay && section.timeline !== null && (!timeOpen || playScope !== index);
           return (
             <Fragment key={index}>
-              {stay && (
-                <div className="trip-summary__stay">
-                  <span className="trip-summary__icon" aria-hidden="true">
-                    <IconBed size={16} />
-                  </span>
-                  {stay.source === 'setting' ? (
-                    <span className="trip-summary__pick">
-                      <span className="trip-summary__stay-text" aria-hidden="true">
-                        ≈ {stayText(stay, i18n)}
-                      </span>
-                      <IconChevronDown size={14} className="layover__chev" />
-                      <select
-                        className="layover__select"
-                        aria-label={t('trip.stayAt', fmt.city(stay.arrivalAirport))}
-                        value={stay.minutes}
-                        onChange={(event) => {
-                          const minutes = Number(event.target.value);
-                          props.onStayChange(index, minutes === DEFAULT_STAY_MIN ? null : minutes);
-                        }}
-                      >
-                        {stayChoices(Math.round(stay.minutes)).map((minutes) => (
-                          <option key={minutes} value={minutes}>
-                            {stayLength(minutes, null, i18n)}
-                            {minutes === DEFAULT_STAY_MIN ? t('stops.default') : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </span>
-                  ) : (
-                    <span className="trip-summary__stay-text" title={t('stops.fromYourFlightTimes')}>
-                      {stayText(stay, i18n)}
-                    </span>
-                  )}
-                  <span className="trip-summary__dates">
-                    {stayDates(stay, i18n) && `${stay.source === 'setting' ? '≈ ' : ''}${stayDates(stay, i18n)}`}
-                  </span>
-                </div>
-              )}
+              {stay && <StayLine stay={stay} onChange={(minutes) => props.onStayChange(index, minutes)} />}
               <div className={`trip-summary__item${active === index ? ' is-active' : ''}`}>
                 <button
                   type="button"

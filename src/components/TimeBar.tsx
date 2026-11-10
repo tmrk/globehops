@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { compareMetrics, comparisonRange, type ComparedJourney } from '../lib/compare.ts';
-import { ComparisonLanes } from './ComparisonLanes.tsx';
+import { ComparisonLanes, TripComparisonLanes } from './ComparisonLanes.tsx';
+import type { ComparedTrip, TripComparisonMetrics, TripComparisonTimeline } from '../lib/compareTrips.ts';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { airportCode } from '../data/airports.ts';
 import { useClock } from '../hooks/useClock.ts';
@@ -28,6 +29,14 @@ interface Props {
   comparison?: ComparedJourney[];
   /** A trip's single traveller: every journey, their names and the journey playback is limited to (or null). */
   trip?: { trip: Trip; names: string[]; scope: number | null };
+  /** Compared trips: every trip, their ranking and shared clock, each trip's journey names, journeys per trip. */
+  trips?: {
+    list: ComparedTrip[];
+    metrics: TripComparisonMetrics;
+    timeline: TripComparisonTimeline;
+    names: string[][];
+    sections: number;
+  };
   active?: number;
   onActivate?: (index: number) => void;
   onEditJourneyLeg?: (index: number, leg: number) => void;
@@ -50,6 +59,7 @@ export function TimeBar({
   clock,
   comparison,
   trip,
+  trips,
   active,
   onActivate,
   onEditJourneyLeg,
@@ -71,8 +81,10 @@ export function TimeBar({
   const browserZone = browserTimeZone();
   const allJourneys = useMemo(
     () =>
-      trip?.trip.sections.map((section) => section.journey) ?? comparison?.map((entry) => entry.journey) ?? [journey],
-    [trip, comparison, journey],
+      trip?.trip.sections.map((section) => section.journey) ??
+      trips?.list.flatMap((entry) => entry.trip.sections.map((section) => section.journey)) ??
+      comparison?.map((entry) => entry.journey) ?? [journey],
+    [trip, trips, comparison, journey],
   );
   const sharedRange = useMemo(
     () =>
@@ -80,10 +92,12 @@ export function TimeBar({
         ? trip.scope !== null
           ? (trip.trip.sections[trip.scope]?.timeline ?? null)
           : trip.trip.timeline
-        : comparison
-          ? comparisonRange(comparison)
-          : timeline,
-    [trip, comparison, timeline],
+        : trips
+          ? trips.timeline
+          : comparison
+            ? comparisonRange(comparison)
+            : timeline,
+    [trip, trips, comparison, timeline],
   );
   const metrics = useMemo(() => (comparison ? compareMetrics(comparison) : null), [comparison]);
   const requestedZone =
@@ -94,7 +108,7 @@ export function TimeBar({
         : (allJourneys.flatMap((entry) => entry.stops).find((s) => airportCode(s.airport) === clockZone)?.zone ??
           browserZone);
   const zone = isSupportedTimeZone(requestedZone) ? requestedZone : browserZone;
-  const state = !trip && timeline ? journeyStateAt(journey, timeline, snapshot.time) : null;
+  const state = !trip && !trips && timeline ? journeyStateAt(journey, timeline, snapshot.time) : null;
   const text = state
     ? fmt.describeState(journey, state)
     : { title: t('timebar.dayAndNight'), detail: t('timebar.exploreSunlightAroundTheWorld') };
@@ -150,24 +164,45 @@ export function TimeBar({
             .join(' · ')
         : t('compare.sharedClock');
   }
+  if (trips) {
+    const fastest = trips.metrics.fastest;
+    text.title = fastest ? t('compare.fastestTitle', fastest) : t('trips.comparing', fmt.number(trips.list.length));
+    text.detail = t('trips.sharedClock');
+  }
   const errorJourney = allJourneys.findIndex((entry) => entry.issues.some((issue) => issue.severity === 'error'));
   const journeyError = allJourneys[errorJourney]?.issues.find((i) => i.severity === 'error');
-  const overlap = trip?.trip.issues[0];
+  /** Compared trips: the first trip whose journeys overlap, as a trip-like issue on its flat journey index. */
+  const tripsOverlap = trips?.list.flatMap((entry, option) =>
+    entry.trip.issues.map((issue) => ({ ...issue, option, flat: option * trips.sections + issue.section })),
+  )[0];
+  const overlap = trip?.trip.issues[0] ?? tripsOverlap;
   const error = journeyError ?? overlap;
   const errorLeg = journeyError
     ? (journeyError.leg ??
       (journeyError.field === 'arrival' ? Math.max(0, (journeyError.stop ?? 1) - 1) : (journeyError.stop ?? 0)))
     : 0;
   const editError = () =>
-    comparison || trip
-      ? onEditJourneyLeg?.(journeyError ? errorJourney : (overlap?.section ?? 0), errorLeg)
+    comparison || trip || trips
+      ? onEditJourneyLeg?.(journeyError ? errorJourney : (tripsOverlap?.flat ?? overlap?.section ?? 0), errorLeg)
       : onEditLeg(errorLeg);
+  /** Who a problem belongs to: the compared journey's letter, the trip journey's name, or both. */
+  const owner = (flat: number) =>
+    comparison
+      ? `${comparison[flat].id} · `
+      : trip
+        ? `${trip.names[flat]} · `
+        : trips
+          ? `${trips.list[Math.floor(flat / trips.sections)].id} ${trips.names[Math.floor(flat / trips.sections)]?.[flat % trips.sections] ?? ''} · `
+          : '';
   if (journeyError) {
     text.title = t('timebar.fixTimes', errorLeg + 1);
-    text.detail = `${comparison ? `${comparison[errorJourney].id} · ` : trip ? `${trip.names[errorJourney]} · ` : ''}${t('timebar.checkTheLocalDatesAndTimes')}`;
+    text.detail = `${owner(errorJourney)}${t('timebar.checkTheLocalDatesAndTimes')}`;
   } else if (overlap && trip) {
     text.title = t('trip.departsBefore', trip.names[overlap.section]);
     text.detail = t('timebar.checkTheLocalDatesAndTimes');
+  } else if (tripsOverlap && trips) {
+    text.title = t('trip.departsBefore', trips.names[tripsOverlap.option]?.[tripsOverlap.section] ?? '');
+    text.detail = `${trips.list[tripsOverlap.option].id} · ${t('timebar.checkTheLocalDatesAndTimes')}`;
   }
   const local = utcToLocal(zone, snapshot.time);
   const date = formatLocalDateTime(local).slice(0, 10);
@@ -212,7 +247,7 @@ export function TimeBar({
   }, [allJourneys, fmt, browserZone, clockZone, t]);
   const laneRange = useMemo(() => ({ start, end }), [start, end]);
   // A whole trip shows its stays as short breaks, so flights stay readable; other timelines are linear in ms.
-  const stays = trip && trip.scope === null ? trip.trip.timeline?.stays : undefined;
+  const stays = trip && trip.scope === null ? trip.trip.timeline?.stays : trips?.timeline.gaps;
   const axis = useMemo(() => (stays?.length ? composedAxis(start, end, stays) : null), [stays, start, end]);
   const scale = axis
     ? { min: 0, max: axis.length, step: 1, toPos: axis.toPos, toTime: axis.toTime }
@@ -260,7 +295,7 @@ export function TimeBar({
           color: segment.kind === 'flight' ? legColor(entry.legOffset + segment.leg) : undefined,
         })),
       )
-    : !comparison
+    : !comparison && !trips
       ? timeline?.segments.map((segment) => ({
           ...segment,
           color: segment.kind === 'flight' ? legColor(segment.leg ?? 0) : undefined,
@@ -291,7 +326,7 @@ export function TimeBar({
           aria-label={
             snapshot.playing
               ? t('timebar.pausePlayback')
-              : comparison
+              : comparison || trips
                 ? t('compare.playAll')
                 : trip
                   ? trip.scope === null
@@ -315,7 +350,7 @@ export function TimeBar({
             )}
           </div>
           <div className="time-bar__detail">
-            {!comparison && !trip && !journey.dated && timeline && snapshot.time <= timeline.start + 60000 ? (
+            {!comparison && !trip && !trips && !journey.dated && timeline && snapshot.time <= timeline.start + 60000 ? (
               <>
                 {t('timebar.exampleDeparture')} ·{' '}
                 <button type="button" className="text-btn" onClick={() => onEditLeg(0)}>
@@ -337,6 +372,17 @@ export function TimeBar({
           <IconClose size={18} />
         </button>
       </div>
+      {trips && (
+        <TripComparisonLanes
+          list={trips.list}
+          names={trips.names}
+          active={active}
+          onActivate={onActivate}
+          time={snapshot.time}
+          zone={zone}
+          at={at}
+        />
+      )}
       {comparison && (
         <ComparisonLanes
           list={comparison}
@@ -369,7 +415,11 @@ export function TimeBar({
           <div className="time-bar__breaks" aria-hidden="true">
             {axis?.breaks.map((gap) => {
               const stay = trip?.trip.stays.find((s) => s.arrival?.epochMs === gap.start);
-              const label = stay ? stayLength(stay.minutes, stay.days, { t, fmt }) : '';
+              const label = stay
+                ? stayLength(stay.minutes, stay.days, { t, fmt })
+                : trips
+                  ? stayLength((gap.end - gap.start) / 60000, null, { t, fmt })
+                  : '';
               const centre = (at(gap.start) + at(gap.end)) / 2;
               // The label steps aside (fades) whenever the thumb comes within reach, never sitting under it.
               const reach = THUMB_RADIUS + LABEL_CHAR_PX * label.length * 0.5 + 6;

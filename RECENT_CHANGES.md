@@ -2,6 +2,14 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.19.0 — 2026-11-10 — Compare round trips, and map a booking with AI
+
+- **Compare round trips.** Comparing flight options no longer stops at the way there. With compared journeys, **Add return flights** gives every option its own way home; below a round trip, **Compare trips** adds another option with the same journeys. Each trip keeps its colour and tab, and **Outbound** and **Return** under the tabs switch between its journeys. Switching trips keeps the journey you were looking at, so you can flick between the ways home. A new trip's empty way back offers the way out reversed, with its connections or nonstop.
+- **Out and back, side by side.** A small table at the bottom lines the trips up: a row per trip and a column each for the outbound, the return and the total time travelling, with a bar under each time against the same journey of the other trips. The quickest way out and back stand out, the fastest trip is marked, and the others show how much longer they take. Trips between the same places are named by their connections (“via FRA”, “Nonstop”) until you name them yourself.
+- **One clock for every trip.** **Play all** flies every trip together and skips the days everyone spends at the destination; each trip has its own lane on the timeline, from the way out through its stay to the way home. A trip without times of its own travels on the same days as the timed ones, unless you choose its stay.
+- **Map your booking with AI.** **Map your booking with AI** in the planner gives you a short prompt to paste into ChatGPT, Gemini, Claude or any other assistant along with your confirmation email, PDF or screenshot. The assistant follows GlobeHops's published guide and replies with a link that opens your flights with their real times, connections and return. One tap copies the prompt. Your booking goes only to the assistant you choose; GlobeHops never sees it.
+- **For agents.** Links compare trips with `b.2.route`…`d.6.*` alongside the trip and comparison parameters, documents accept `journeys` whose items have `sections`, and `compare_journeys` takes `sections` (or `route` plus `returnRoute`) and returns each trip's journeys, stays and totals with the fastest trip overall and journey by journey. The agent guide (`llms.txt`) now opens with step-by-step rules for turning a booking into a link.
+
 ## 1.18.2 — 2026-11-10 — Even tabs, quieter oceans
 
 - **Tabs share the width.** A trip's journey tabs (**Outbound**, **Return**, …) and compared journeys (**A**–**D**) now split the row evenly: two tabs take half each, three a third, and so on. Long routes end in “…”, and when there are too many tabs for their names (six journeys on a phone), each tab shows just its number or letter.

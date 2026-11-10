@@ -22,7 +22,7 @@ import { useI18n } from '../i18n/I18nProvider.tsx';
 import { localeFromPath } from '../i18n/detect.ts';
 import { replaceUrl } from '../analytics.ts';
 import { visitLocaleAddress } from '../state/visitLocale.ts';
-import { linkHasStops, parseLink, type LinkState } from '../state/link.ts';
+import { linkHasStops, parseLink, type LinkSection, type LinkState, type LinkStop } from '../state/link.ts';
 import { resolveRouteCodes } from '../state/url.ts';
 import { isNamedClock } from '../agent/contract.ts';
 import { loadLastRoute, loadLastJourney } from '../state/storage.ts';
@@ -114,13 +114,30 @@ export function useAppLinks({
     (link: LinkState, idx: SearchIndex, search: string) => {
       let flightCounts = [Math.max(0, routeStopCount.current - 1)];
       const notices = locale === 'en' ? [...link.issues] : link.issues.length ? [t('errors.invalidLink')] : [];
-      const trip = !!link.sections?.length;
+      const comparedTrips = !!link.compare?.length && [link, ...link.compare].some((entry) => entry.sections?.length);
+      const trip = comparedTrips || !!link.sections?.length;
+      // Compared trips are a rectangle: every alternative gets as many journeys as the longest, empty if absent.
+      const perOption = comparedTrips
+        ? Math.max(...[link, ...(link.compare ?? [])].map((entry) => 1 + (entry.sections?.length ?? 0)))
+        : 0;
+      const alternative = (label: string | null, stops: LinkStop[], sections: LinkSection[] = []) => [
+        { label, stops, stayMin: null as number | null },
+        ...Array.from(
+          { length: Math.max(0, perOption - 1) },
+          (_, k) => sections[k] ?? { label: null, stops: [], stayMin: null },
+        ),
+      ];
       if (link.stops !== null) {
         const missing: string[] = [];
-        const entries = [
-          { label: link.label ?? null, stops: link.stops, stayMin: null as number | null },
-          ...(trip ? (link.sections ?? []) : (link.compare ?? []).map((entry) => ({ ...entry, stayMin: null }))),
-        ];
+        const entries = comparedTrips
+          ? [
+              ...alternative(link.label ?? null, link.stops, link.sections),
+              ...(link.compare ?? []).flatMap((entry) => alternative(entry.label, entry.stops, entry.sections)),
+            ]
+          : [
+              { label: link.label ?? null, stops: link.stops, stayMin: null as number | null },
+              ...(trip ? (link.sections ?? []) : (link.compare ?? []).map((entry) => ({ ...entry, stayMin: null }))),
+            ];
         const journeys = entries.map((entry) => {
           const resolved = entry.stops.flatMap((stop) => {
             const result = resolveRouteCodes([stop.code], idx);
@@ -140,9 +157,11 @@ export function useAppLinks({
           };
         });
         routeStopCount.current = journeys[0].airportIds.length;
-        // Flight numbers count the first journey's flights, or a trip's flights across its journeys.
-        flightCounts = (trip ? journeys : journeys.slice(0, 1)).map((j) => Math.max(0, j.airportIds.length - 1));
-        planDispatch({ type: 'load', journeys, trip });
+        // Flight numbers count the first journey's flights, or a trip's (trip A's) flights across its journeys.
+        flightCounts = (comparedTrips ? journeys.slice(0, perOption) : trip ? journeys : journeys.slice(0, 1)).map(
+          (j) => Math.max(0, j.airportIds.length - 1),
+        );
+        planDispatch({ type: 'load', journeys, trip, ...(comparedTrips ? { sections: perOption } : {}) });
         setEditing(null);
         if (missing.length) notices.unshift(unknownAirports(missing, t));
       }

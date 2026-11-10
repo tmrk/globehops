@@ -14,7 +14,7 @@ import { airportCode, type AirportDataset } from '../data/airports.ts';
 import type { TimeZoneTable } from '../data/timezones.ts';
 import type { SearchIndex } from '../data/search.ts';
 import type { LinkState } from '../state/link.ts';
-import type { PlanState, PlanAction } from '../state/plan.ts';
+import { planShape, type PlanState, type PlanAction } from '../state/plan.ts';
 import { sectionOfFlight } from '../lib/trip.ts';
 import type { RouteAction } from '../state/route.ts';
 import type { useI18n } from '../i18n/I18nProvider.tsx';
@@ -68,16 +68,29 @@ export function useAppWebTools(options: AppWebToolsOptions) {
     setLinkedTime,
     setPausedTime,
   } = playback;
-  const { compared, trip, journey, primaryStops, linkExtra, playbackRange, legOffsets, serializedJourneys } = model;
+  const { compared, trip, trips, journey, primaryStops, linkExtra, playbackRange, legOffsets, serializedJourneys } =
+    model;
+  const shape = planShape(plan);
   const { clockZone, unit, dayNight, followAircraft, showCountryNames, showBorders } = preferences;
   const route = plan.journeys[plan.active].route;
-  const allJourneys = trip ? trip.sections.map((section) => section.journey) : compared.map((entry) => entry.journey);
+  const allJourneys = trip
+    ? trip.sections.map((section) => section.journey)
+    : trips
+      ? trips.flatMap((entry) => entry.trip.sections.map((section) => section.journey))
+      : compared.map((entry) => entry.journey);
+  /** The trip whose flights links number across its journeys: the trip, or trip A of compared trips. */
+  const countedTrip = trip ?? trips?.[0]?.trip ?? null;
   /** Selects a one-based flight: of the trip (across its journeys), else of the first journey. */
   const flightTarget = (leg: number) => {
-    if (!trip) return { index: 0, leg: leg - 1 };
-    const located = sectionOfFlight(trip, leg - 1);
+    if (!countedTrip) return { index: 0, leg: leg - 1 };
+    const located = sectionOfFlight(countedTrip, leg - 1);
     return located ? { index: located.section, leg: located.leg } : null;
   };
+  /** The selected flight as links number it, when the journey being edited is one they count. */
+  const countedLeg =
+    route.selectedLeg === null || (trips && plan.active >= shape.sections)
+      ? null
+      : (countedTrip ? legOffsets[plan.active] : 0) + route.selectedLeg;
   const getAgentContext = useMemo(() => {
     let cached: ReturnType<typeof createAgentContext> | null = null;
     return () =>
@@ -93,7 +106,11 @@ export function useAppWebTools(options: AppWebToolsOptions) {
     const command = parseWebCommand(
       name,
       args,
-      trip ? trip.totals.flights : name === 'set_view' ? compared[0].journey.legs.length : journey.legs.length,
+      countedTrip
+        ? countedTrip.totals.flights
+        : name === 'set_view'
+          ? compared[0].journey.legs.length
+          : journey.legs.length,
     );
     const context = getAgentContext();
     if (!context || !index) throw new Error('GlobeHops tools are not ready.');
@@ -110,7 +127,7 @@ export function useAppWebTools(options: AppWebToolsOptions) {
         borders: showBorders,
         lang: locale,
       },
-      route.selectedLeg === null ? null : (trip ? legOffsets[plan.active] : 0) + route.selectedLeg,
+      countedLeg,
     );
     const currentLink = () =>
       createVisitShareLink(
@@ -119,11 +136,7 @@ export function useAppWebTools(options: AppWebToolsOptions) {
         locale,
         primaryStops,
         currentView,
-        trip
-          ? route.selectedLeg === null
-            ? null
-            : legOffsets[plan.active] + route.selectedLeg
-          : plan.journeys[0].route.selectedLeg,
+        countedTrip ? countedLeg : plan.journeys[0].route.selectedLeg,
         linkExtra,
       );
     if (command.type === 'get_share_link') return { url: currentLink() };
@@ -132,7 +145,8 @@ export function useAppWebTools(options: AppWebToolsOptions) {
         context,
         primaryStops,
         linkExtra,
-        active: plan.active,
+        active: trips ? shape.option : plan.active,
+        activeSection: trips ? shape.section : undefined,
         currentView,
         snapshot,
         assumedStart,
@@ -146,10 +160,10 @@ export function useAppWebTools(options: AppWebToolsOptions) {
         preferences.setVisit({ followAircraft: false });
         if (!target) dispatch({ type: 'selectLeg', leg: null });
         else {
-          if (trip) planDispatch({ type: 'activate', index: target.index });
+          if (countedTrip) planDispatch({ type: 'activate', index: target.index });
           planDispatch({
             type: 'route',
-            index: trip ? target.index : plan.active,
+            index: countedTrip ? target.index : plan.active,
             action: { type: 'selectLeg', leg: target.leg },
           });
         }
@@ -188,7 +202,8 @@ export function useAppWebTools(options: AppWebToolsOptions) {
       command.view.play &&
       (!allJourneys.some((entry) => entry.legs.length) ||
         allJourneys.some((entry) => entry.issues.some((issue) => issue.severity === 'error')) ||
-        (trip?.issues.length ?? 0) > 0)
+        (trip?.issues.length ?? 0) > 0 ||
+        !!trips?.some((entry) => entry.trip.issues.length > 0))
     )
       throw new TypeError('Playback requires at least one flight and a valid schedule.');
     const patch = command.view;

@@ -1,7 +1,7 @@
 {
   "name": "globehops",
   "private": true,
-  "version": "1.18.2",
+  "version": "1.19.0",
   "description": "Visualise air journeys as great-circle routes on an interactive 3D globe.",
   "license": "MIT",
   "type": "module",

@@ -5,6 +5,7 @@ import { legColor } from './legColors.ts';
 import { pathSignature } from './routePath.ts';
 import { routeMarkers } from './compareView.ts';
 import type { Trip } from './trip.ts';
+import type { ComparedTrip } from './compareTrips.ts';
 
 /**
  * Every journey of a trip on the globe. Flights take the leg palette in trip order, so the way out and
@@ -66,4 +67,48 @@ export function tripRouteCodes(sections: readonly (readonly Airport[])[]): strin
     last = end;
   }
   return parts.join(' ');
+}
+
+/**
+ * Compared trips on the globe: each alternative in its colour, every journey of it (out and back) bright
+ * while it is the one being edited, others quiet until the timeline opens. Alternatives fly at their
+ * own heights, and a way back that retraces the way out sits a little above it.
+ */
+export function tripComparisonGlobeRoute(
+  list: readonly ComparedTrip[],
+  activeOption: number,
+  open: boolean,
+  city: (airport: Airport) => string,
+): GlobeRoute {
+  return {
+    markers: routeMarkers(
+      list.flatMap(({ trip }) => trip.sections.map((section) => section.journey)),
+      city,
+    ),
+    legs: list.flatMap(({ id, index: option, color, trip }) => {
+      const flown = new Map<string, number>();
+      return trip.sections.flatMap(({ index, journey }) => {
+        const counts = new Map<string, number>();
+        return journey.legs.map((leg) => {
+          const base = `${leg.from.id}>${leg.to.id}`;
+          const occurrence = (counts.get(base) ?? 0) + 1;
+          counts.set(base, occurrence);
+          const path = leg.route?.path ?? null;
+          const pair = [leg.from.id, leg.to.id].sort((a, b) => a - b).join('-');
+          const retraced = flown.get(pair) ?? 0;
+          flown.set(pair, retraced + 1);
+          return {
+            // The first journeys keep compared journeys' keys, so adding returns never redraws them.
+            key: `${id}:${index ? `S${index}:` : ''}${base}#${occurrence}${path ? `~${pathSignature(path)}` : ''}`,
+            from: leg.from,
+            to: leg.to,
+            path,
+            color,
+            lift: 1 + 0.22 * option + 0.11 * retraced,
+            muted: !open && option !== activeOption,
+          };
+        });
+      });
+    }),
+  };
 }

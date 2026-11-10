@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planKind, planReducer, createPlanState } from './plan.ts';
+import { planKind, planReducer, planShape, createPlanState } from './plan.ts';
 import { routeReducer } from './route.ts';
 
 describe('plan editor', () => {
@@ -111,10 +111,6 @@ describe('plan editor', () => {
       // Connections are not copied: the way home is the traveller's choice.
       expect(state.journeys[0].route.stops.map((stop) => stop.airportId)).toEqual([1, 2, 3]);
       expect(planReducer(state, { type: 'addReturn' })).toBe(state);
-      // A trip is never compared, and a comparison never gains a return.
-      expect(planReducer(state, { type: 'add' })).toBe(state);
-      const comparing = planReducer(createPlanState(), { type: 'add' });
-      expect(planReducer(comparing, { type: 'addReturn' })).toBe(comparing);
       // A journey needs two different ends before it can have a return.
       const empty = createPlanState();
       expect(planReducer(empty, { type: 'addReturn' })).toBe(empty);
@@ -158,6 +154,93 @@ describe('plan editor', () => {
         trip: true,
       });
       expect(many.journeys).toHaveLength(6);
+    });
+  });
+
+  describe('compared trips', () => {
+    const ids = (state: ReturnType<typeof createPlanState>) =>
+      state.journeys.map((journey) => journey.route.stops.map((stop) => stop.airportId));
+    const comparing = () =>
+      planReducer(createPlanState(), {
+        type: 'load',
+        journeys: [{ airportIds: [1, 2, 3], label: 'Via 2' }, { airportIds: [1, 3] }, { airportIds: [] }],
+      });
+    it('gives every compared journey its own way home, as alternative trips', () => {
+      const state = planReducer(planReducer(comparing(), { type: 'activate', index: 1 }), { type: 'addReturn' });
+      expect(planKind(state)).toBe('compareTrips');
+      expect(planShape(state)).toEqual({ sections: 2, options: 3, option: 1, section: 1 });
+      expect(ids(state)).toEqual([
+        [1, 2, 3],
+        [3, 1],
+        [1, 3],
+        [3, 1],
+        [null, null],
+        [null, null],
+      ]);
+      expect(state.journeys[0].label).toBe('Via 2');
+      expect(planReducer(state, { type: 'addReturn' })).toBe(state);
+      expect(planReducer(state, { type: 'addSection' })).toBe(state);
+      expect(planReducer(state, { type: 'remove', index: 0 })).toBe(state);
+    });
+    it('compares a trip with another, empty, trip of the same journeys, up to four', () => {
+      let state = planReducer(createPlanState(), {
+        type: 'load',
+        journeys: [{ airportIds: [1, 3] }, { airportIds: [3, 1] }],
+        trip: true,
+      });
+      expect(planKind(state)).toBe('trip');
+      state = planReducer(state, { type: 'add' });
+      expect(planKind(state)).toBe('compareTrips');
+      expect(planShape(state)).toEqual({ sections: 2, options: 2, option: 1, section: 0 });
+      expect(ids(state).slice(2)).toEqual([
+        [null, null],
+        [null, null],
+      ]);
+      state = planReducer(planReducer(state, { type: 'add' }), { type: 'add' });
+      expect(planShape(state).options).toBe(4);
+      expect(planReducer(state, { type: 'add' })).toBe(state);
+    });
+    it('sets stays per alternative and removes alternatives or a journey from every alternative', () => {
+      let state = planReducer(planReducer(comparing(), { type: 'addReturn' }), { type: 'activate', index: 3 });
+      expect(planReducer(state, { type: 'setStay', index: 2, minutes: 1440 })).toBe(state);
+      state = planReducer(state, { type: 'setStay', index: 3, minutes: 3 * 1440 });
+      expect(state.journeys[3].stayMin).toBe(3 * 1440);
+      const fewer = planReducer(state, { type: 'removeOption', option: 0 });
+      expect(planShape(fewer)).toEqual({ sections: 2, options: 2, option: 0, section: 1 });
+      expect(ids(fewer)[0]).toEqual([1, 3]);
+      const lone = planReducer(fewer, { type: 'removeOption', option: 1 });
+      expect(planKind(lone)).toBe('trip');
+      const oneWay = planReducer(state, { type: 'removeSection', section: 1 });
+      expect(planKind(oneWay)).toBe('compare');
+      expect(planShape(oneWay)).toEqual({ sections: 1, options: 3, option: 1, section: 0 });
+      expect(ids(oneWay)).toEqual([
+        [1, 2, 3],
+        [1, 3],
+        [null, null],
+      ]);
+      const backOnly = planReducer(state, { type: 'removeSection', section: 0 });
+      expect(ids(backOnly)[1]).toEqual([3, 1]);
+      expect(backOnly.journeys.every((journey) => journey.stayMin === null)).toBe(true);
+    });
+    it('loads whole alternatives of a compared trip', () => {
+      const state = planReducer(createPlanState(), {
+        type: 'load',
+        trip: true,
+        sections: 2,
+        journeys: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((id) => ({ airportIds: [id, 20], stayMin: 1440 })),
+      });
+      expect(planKind(state)).toBe('compareTrips');
+      expect(planShape(state)).toEqual({ sections: 2, options: 4, option: 0, section: 0 });
+      expect(state.journeys.map((journey) => journey.stayMin)).toEqual([
+        null,
+        1440,
+        null,
+        1440,
+        null,
+        1440,
+        null,
+        1440,
+      ]);
     });
   });
 });

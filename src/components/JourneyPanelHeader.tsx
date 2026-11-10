@@ -6,6 +6,8 @@ interface JourneyPanelHeaderProps {
   comparing: boolean;
   /** The journeys are a trip's (outbound, return, …). */
   trip?: boolean;
+  /** Alternative trips are compared. */
+  comparingTrips?: boolean;
   hasAirports: boolean;
   canArrange: boolean;
   arranging: boolean;
@@ -23,6 +25,7 @@ interface JourneyPanelHeaderProps {
 export function JourneyPanelHeader({
   comparing,
   trip = false,
+  comparingTrips = false,
   hasAirports,
   canArrange,
   arranging,
@@ -55,6 +58,7 @@ export function JourneyPanelHeader({
   };
 
   const title = () => {
+    if (comparingTrips) return t('trips.title');
     if (comparing) return t('compare.title');
     if (trip) return t('trip.title');
     return t(hasAirports ? 'panel.yourJourney' : 'panel.showAFlight');
