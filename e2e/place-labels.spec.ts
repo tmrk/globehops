@@ -45,7 +45,7 @@ async function captureLocales(page: Page, info: TestInfo, view: string, names: s
   }
 }
 
-async function reviewPlaceNames(page: Page, info: TestInfo) {
+async function reviewPlaceNames(page: Page, info: TestInfo, phone = false) {
   await page.route('**/GlobeView-*.js', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
@@ -77,6 +77,8 @@ async function reviewPlaceNames(page: Page, info: TestInfo) {
     'true',
   );
   await page.keyboard.press('Escape');
+  // On a phone's whole-globe view the ocean name may give way to the major seas; one step closer brings it back.
+  if (phone) await page.getByRole('application').press('+');
   const atlantic = page.locator('.country-label--ocean:visible').filter({ hasText: /North Atlantic/ });
   await expect(atlantic).toBeVisible();
   await expect(atlantic).toHaveCSS('font-style', 'italic');
@@ -108,7 +110,7 @@ test.describe('Pixel 7', () => {
     hasTouch: true,
   });
   test('country and ocean names at default, Europe and Pacific phone views', async ({ page }, info) => {
-    await reviewPlaceNames(page, info);
+    await reviewPlaceNames(page, info, true);
   });
 });
 

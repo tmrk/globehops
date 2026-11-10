@@ -3649,9 +3649,10 @@ button.map-menu__item:hover {
   border-bottom: 1px solid var(--line);
   flex: none;
 }
+/* The tabs share the row beside Add equally, truncating long labels. */
 .journey-tabs {
   display: flex;
-  gap: 20px;
+  flex: 1 1 auto;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -3663,10 +3664,14 @@ button.map-menu__item:hover {
   word-spacing: var(--mono-space);
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   min-height: 40px;
-  max-width: 190px;
-  flex: 0 0 auto;
+  position: relative;
+  flex: 1 1 0;
+  min-width: 2.75rem;
+  padding: 0 6px;
+  container-type: inline-size;
   color: var(--text-2);
   font: 500 var(--text-sm) var(--mono);
   font-stretch: var(--mono-stretch);
@@ -3688,6 +3693,16 @@ button.map-menu__item:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Too narrow for a readable label (e.g. six journeys on a phone): show the key alone, still named in full. */
+@container (max-width: 5.5rem) {
+  .journey-tab__route {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    clip: rect(0, 0, 0, 0);
+  }
 }
 .journey-tabs-wrap .icon-btn {
   flex: none;

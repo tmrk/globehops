@@ -62,7 +62,7 @@ it('reuses text metrics and leaves DOM untouched for an unchanged frame, then re
   const visible = [...parent.querySelectorAll<HTMLElement>('.country-label')].filter(
     (element) => element.style.display !== 'none',
   );
-  expect(visible.map((element) => element.textContent)).toEqual(['Hav', 'Land']);
+  expect(visible.map((element) => element.textContent)).toEqual(['Land', 'Hav']);
   observer.disconnect();
 });
 

@@ -125,21 +125,41 @@ describe('label locales and priority', () => {
   it('falls back to English and accepts only supported locales', () => {
     expect(['en', 'hu', 'sv', 'fr', 'hu-HU'].map(labelLocale)).toEqual(['en', 'hu', 'sv', 'en', 'en']);
   });
-  it('places oceans first and countries before equal-rank seas', () => {
+  it('ranks oceans with the leading countries: below them and major seas, above other seas and countries', () => {
+    const ocean: CountryLabel = { ...label, kind: 'ocean', name: 'Ocean', rank: 0, minZoom: 0.8 };
     const labels: CountryLabel[] = [
-      { ...label, kind: 'sea' },
-      { ...label, kind: 'country' },
-      { ...label, kind: 'ocean', rank: 0 },
+      { ...label, kind: 'sea', name: 'Minor sea', rank: 2 },
+      { ...label, kind: 'country', name: 'Small country', rank: 3 },
+      ocean,
+      { ...label, kind: 'country', name: 'Leading country', rank: 2 },
+      { ...label, kind: 'sea', name: 'Major sea', rank: 1 },
     ];
-    expect(labels.sort(labelPriority).map((l) => l.kind)).toEqual(['ocean', 'country', 'sea']);
+    expect(labels.sort(labelPriority).map((l) => l.name)).toEqual([
+      'Major sea',
+      'Leading country',
+      'Ocean',
+      'Minor sea',
+      'Small country',
+    ]);
     expect(labelStyle({ ...label, kind: 'sea' }, 3)!.fontPx).toBeLessThan(labelStyle(label, 3)!.fontPx);
   });
-  it('sizes oceans like the leading country names, never larger', () => {
+  it('keeps oceans smaller and fainter than the leading country names on the whole globe, matching them up close', () => {
     const ocean: CountryLabel = { ...label, kind: 'ocean', rank: 0, minZoom: 0.8 };
     const leading: CountryLabel = { ...label, kind: 'country', rank: 2, minZoom: 1.7 };
-    for (const zoom of [1.7, 2.1, 3.3, 5, 20])
+    // Phone and desktop whole-globe views: 2.5px smaller and 30% fainter.
+    for (const zoom of [2.5, 3.5]) {
+      expect(labelStyle(ocean, zoom)!.fontPx).toBeCloseTo(labelStyle(leading, zoom)!.fontPx - 2.5);
+      expect(labelStyle(ocean, zoom)!.opacity).toBeCloseTo(0.7);
+    }
+    // Halfway to regional zoom, and then the same as the leading names.
+    expect(labelStyle(ocean, 4.4)!.fontPx).toBeCloseTo(labelStyle(leading, 4.4)!.fontPx - 1.25);
+    expect(labelStyle(ocean, 4.4)!.opacity).toBeCloseTo(0.85);
+    for (const zoom of [5.2, 7, 20]) {
       expect(labelStyle(ocean, zoom)!.fontPx).toBeCloseTo(labelStyle(leading, zoom)!.fontPx);
-    expect(labelStyle(ocean, 0.8)!.fontPx).toBeLessThan(labelStyle(leading, 1.7)!.fontPx);
+      expect(labelStyle(ocean, zoom)!.opacity).toBe(1);
+    }
+    expect(labelStyle(ocean, 0.8)!.fontPx).toBeCloseTo(10.1, 1);
+    expect(labelStyle(ocean, 1.1)!.opacity).toBeCloseTo(0.35);
     expect(labelStyle(ocean, 20)!.fontPx).toBe(17);
   });
   it('requires all translations and unique kind/English identities, while allowing shared exonyms', () => {

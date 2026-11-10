@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.18.2 — 2026-11-10 — Even tabs, quieter oceans
+
+- **Tabs share the width.** A trip's journey tabs (**Outbound**, **Return**, …) and compared journeys (**A**–**D**) now split the row evenly: two tabs take half each, three a third, and so on. Long routes end in “…”, and when there are too many tabs for their names (six journeys on a phone), each tab shows just its number or letter.
+- **Quieter ocean names on the whole globe.** With **Oceans and seas** on, ocean names are now smaller and fainter than the country names when you see the whole Earth, and grow back to full size as you zoom in. Where they overlap, the main country names and the major seas (such as the Caribbean or the Mediterranean) now win, so oceans no longer push them off the map.
+
 ## 1.18.1 — 2026-11-09 — Smoother stays on the timeline
 
 - **The plane glides over a stay.** When playback skips a stay, the timeline's handle now slides smoothly across the stay's break during the short pause and lands exactly where the next journey continues, instead of jumping. The globe holds at the arrival meanwhile, then moves on to the departure day.

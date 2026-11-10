@@ -78,24 +78,41 @@ function namePx(base: number, rank: number, beyond: number): number {
   return Math.max(10, Math.min(17, base - rank * 0.65 + beyond * 0.65));
 }
 
+/**
+ * Whole-globe views (about zoom 1.7–2.7 on a phone, 2.7–3.6 on a desktop) keep ocean names smaller and fainter, as
+ * background; they ease back to the leading country size and full strength by regional zoom.
+ */
+const OCEAN_QUIET = { fullBelow: 3.6, goneAt: 5.2, fontPx: 2.5, opacity: 0.3 };
+
 export function labelStyle(label: CountryLabel, zoom: number): { opacity: number; fontPx: number } | null {
   if (!Number.isFinite(zoom) || zoom < label.minZoom) return null;
   const beyond = zoom - label.minZoom;
-  return {
-    opacity: Math.min(1, beyond / 0.6),
-    // Oceans appear first but never outgrow the leading country names at the same zoom; seas sit just below them.
-    fontPx:
-      label.kind === 'ocean'
-        ? namePx(14.5, LEADING_COUNTRY.rank, zoom - LEADING_COUNTRY.minZoom)
-        : namePx(label.kind === 'sea' ? 13 : 14.5, label.rank, beyond),
-  };
+  const opacity = Math.min(1, beyond / 0.6);
+  if (label.kind === 'ocean') {
+    const quiet = Math.min(1, Math.max(0, (OCEAN_QUIET.goneAt - zoom) / (OCEAN_QUIET.goneAt - OCEAN_QUIET.fullBelow)));
+    return {
+      opacity: opacity * (1 - OCEAN_QUIET.opacity * quiet),
+      // Oceans appear first but never outgrow the leading country names at the same zoom.
+      fontPx: Math.max(
+        10,
+        namePx(14.5, LEADING_COUNTRY.rank, zoom - LEADING_COUNTRY.minZoom) - OCEAN_QUIET.fontPx * quiet,
+      ),
+    };
+  }
+  // Seas sit just below countries of the same rank.
+  return { opacity, fontPx: namePx(label.kind === 'sea' ? 13 : 14.5, label.rank, beyond) };
 }
 
-/** Oceans lead at whole-globe scales; countries win equal-rank ties over seas. */
+/**
+ * Oceans rank with the leading country names: those countries and the major seas win collisions, while oceans
+ * still lead smaller seas and countries. Countries win equal-rank ties over oceans and seas.
+ */
 export function labelPriority(a: CountryLabel, b: CountryLabel): number {
-  const order = { ocean: 0, country: 1, sea: 2 };
+  const order = { country: 0, ocean: 1, sea: 2 };
+  const rank = (label: CountryLabel) =>
+    label.kind === 'ocean' ? Math.max(label.rank, LEADING_COUNTRY.rank) : label.rank;
   return (
-    a.rank - b.rank || order[a.kind] - order[b.kind] || a.minZoom - b.minZoom || a.name.localeCompare(b.name, 'en')
+    rank(a) - rank(b) || order[a.kind] - order[b.kind] || a.minZoom - b.minZoom || a.name.localeCompare(b.name, 'en')
   );
 }
 
