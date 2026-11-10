@@ -9,6 +9,7 @@ export interface JourneyTabItem {
   /** Alternatives carry their colour; a trip's journeys share one traveller and stay neutral. */
   color?: string;
   label: string;
+  prose: boolean;
   /** Muted text after the label, e.g. a journey's route. */
   detail?: string;
 }
@@ -48,7 +49,7 @@ export function JourneyTabs({ items, active, label, onActivate, onAdd, addLabel 
             aria-controls="journey-panel"
             aria-selected={active === index}
             tabIndex={active === index ? 0 : -1}
-            className={`journey-tab${item.color ? '' : ' journey-tab--section'}`}
+            className={`journey-tab${item.color ? '' : ' journey-tab--section'}${item.prose ? ' journey-tab--prose' : ''}`}
             style={item.color ? ({ '--journey-color': item.color } as CSSProperties) : undefined}
             onClick={() => onActivate(index)}
             onKeyDown={(event) => {

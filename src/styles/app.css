@@ -343,7 +343,7 @@ a {
 .globe-plane__tag {
   position: absolute;
   left: calc(100% + 3px);
-  top: 3px;
+  top: calc(3px + var(--tag-shift, 0px));
   min-width: 14px;
   /* A name (a traveller's, an airline's) is cut short beside its plane. */
   max-width: 10em;
@@ -3905,6 +3905,11 @@ button.map-menu__item:hover {
   font: 600 var(--text-md) var(--font);
   word-spacing: normal;
 }
+.journey-tab--prose {
+  font: 600 var(--text-md) var(--font);
+  font-stretch: normal;
+  word-spacing: normal;
+}
 .journey-tab[aria-selected='true'] .journey-chip--section,
 .trip-summary__item.is-active .journey-chip--section {
   box-shadow: inset 0 0 0 1px var(--text-2);
@@ -4227,6 +4232,24 @@ button.map-menu__item:hover {
   margin-top: 1px;
 }
 
+.trip-summary > .summary__airspace {
+  display: grid;
+  grid-template-columns: var(--col-rail) minmax(0, 1fr);
+  gap: 0;
+  column-gap: var(--col-gap);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.trip-summary > .summary__airspace > svg {
+  grid-column: 1;
+  justify-self: center;
+}
+
+.trip-summary > .summary__airspace > span {
+  grid-column: 2;
+}
+
 .leg-schedule__airspace {
   margin-top: 10px;
 }
@@ -4322,7 +4345,7 @@ button.map-menu__item:hover {
   grid-template-columns:
     var(--col-rail) minmax(3.5rem, 1fr) repeat(var(--trip-columns), minmax(3.9rem, max-content))
     minmax(4.4rem, max-content);
-  column-gap: 10px;
+  column-gap: var(--col-gap);
 }
 .trip-compare__head,
 .trip-compare__row {

@@ -999,15 +999,17 @@ export default function App() {
               <JourneyTabs
                 items={compared.map((entry) => {
                   const airports = entry.journey.stops.map((stop) => airportCode(stop.airport));
+                  const label =
+                    entry.label ??
+                    (airports.length
+                      ? (airports.length <= 3 ? airports : [airports[0], '…', airports.at(-1)]).join(' → ')
+                      : t('compare.chooseAirports'));
                   return {
                     id: entry.id,
                     chip: entry.id,
                     color: entry.color,
-                    label:
-                      entry.label ??
-                      (airports.length
-                        ? (airports.length <= 3 ? airports : [airports[0], '…', airports.at(-1)]).join(' → ')
-                        : t('compare.chooseAirports')),
+                    label,
+                    prose: !label.includes('→'),
                   };
                 })}
                 active={plan.active}
@@ -1025,6 +1027,7 @@ export default function App() {
                     chip: entry.id,
                     color: entry.color,
                     label: captions[i],
+                    prose: !captions[i].includes('→'),
                   }))}
                   active={shape.option}
                   label={t('trips.list')}
@@ -1050,7 +1053,12 @@ export default function App() {
             )}
             {trip && (
               <JourneyTabs
-                items={trip.sections.map((_, i) => ({ id: String(i + 1), chip: String(i + 1), label: names[i] }))}
+                items={trip.sections.map((_, i) => ({
+                  id: String(i + 1),
+                  chip: String(i + 1),
+                  label: names[i],
+                  prose: false,
+                }))}
                 active={plan.active}
                 label={t('trip.journeys')}
                 onActivate={activateJourney}

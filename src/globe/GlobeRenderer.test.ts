@@ -108,6 +108,28 @@ afterEach(() => {
 });
 
 describe('fleet renderer', () => {
+  it('stacks colocated fleet tags in fleet order without moving aircraft or changing names', () => {
+    renderer.setFleet([
+      { ...fleet[0], tag: 'Nonstop' },
+      { ...fleet[1], view: fleet[0].view, tag: 'Via Frankfurt' },
+    ]);
+    renderer.flush();
+    const [, a, b] = planes();
+    expect(a.style.opacity).toBe('1');
+    expect(b.style.opacity).toBe('1');
+    expect(a.style.getPropertyValue('--tag-shift')).toBe('0px');
+    expect(b.style.getPropertyValue('--tag-shift')).toBe('16px');
+    expect(a.style.transform).toBe(b.style.transform);
+    expect(a.querySelector('.globe-plane__tag')?.textContent).toBe('Nonstop');
+    expect(b.querySelector('.globe-plane__tag')?.textContent).toBe('Via Frankfurt');
+
+    renderer.setFleet([fleet[0], { ...fleet[1], view: { kind: 'air', leg: 99, fraction: 0.25 } }]);
+    renderer.flush();
+    expect(b.style.opacity).toBe('0');
+    expect(b.style.getPropertyValue('--tag-shift')).toBe('0px');
+    expect(a.style.getPropertyValue('--tag-shift')).toBe('0px');
+  });
+
   it('pools tinted aircraft, keeps badges upright, parks, and restores single mode', () => {
     renderer.setAircraft(fleet[0].view);
     renderer.setFleet(fleet);

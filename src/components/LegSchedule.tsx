@@ -29,10 +29,11 @@ export function LegSchedule({ journey, leg, onChange, onClose, unit }: Props) {
   const airspaceNote = legAirspaceNote(leg.route, unit, i18n);
   const diversionNote = legDiversionNote(leg.route, unit, i18n);
   const sectionRef = useRef<HTMLElement>(null);
-  // Reveal the whole editor when a flight opens; on phones it would otherwise start below the fold.
+  // Keep the selected flight above its editor, even when the editor is taller than the phone sheet.
   useEffect(() => {
     const smooth = document.documentElement.dataset.motion !== 'reduce';
-    sectionRef.current?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
+    const target = sectionRef.current?.closest('.stop-item')?.querySelector('.leg.is-selected') ?? sectionRef.current;
+    target?.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
   }, [leg.index]);
 
   const [now] = useState(Date.now);

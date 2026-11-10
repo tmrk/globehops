@@ -905,7 +905,8 @@ export class GlobeRenderer {
     this.countryLabels.update(this.camera, this.width, this.height, reserved);
     if (this.fleet?.length) {
       setStyle(this.plane, 'opacity', '0');
-      for (let i = 0; i < this.fleet.length; i++) this.placeAircraft(this.fleetPlanes[i], this.fleet[i].view);
+      const points = this.fleet.map((entry, i) => this.placeAircraft(this.fleetPlanes[i], entry.view));
+      this.staggerFleetTags(points);
     } else if (this.fleet === null && this.aircraft) {
       const view = this.aircraft;
       this.placeAircraft(this.plane, view);
@@ -1227,7 +1228,7 @@ export class GlobeRenderer {
   private placeAircraft(plane: HTMLDivElement, view: AircraftView) {
     const leg = this.legs[view.leg];
     if (leg) {
-      this.placePlaneOnLeg(
+      return this.placePlaneOnLeg(
         plane,
         leg,
         view.kind === 'air' ? clamp01(view.fraction) : view.at === 'start' ? 0 : 1,
@@ -1267,6 +1268,35 @@ export class GlobeRenderer {
     const heading = `${angle}deg`;
     if (plane.style.getPropertyValue('--plane-heading') !== heading)
       plane.style.setProperty('--plane-heading', heading);
+    return { x: a.x, y: a.y };
+  }
+
+  /** Connected screen neighbours share a stack, ordered by fleet position rather than traversal order. */
+  private staggerFleetTags(points: ({ x: number; y: number } | undefined)[]) {
+    const visited = new Set<number>();
+    const shifts = points.map(() => 0);
+    for (let i = 0; i < points.length; i++) {
+      if (visited.has(i) || !points[i] || this.fleetPlanes[i].style.opacity === '0') continue;
+      const cluster = [i];
+      visited.add(i);
+      for (let k = 0; k < cluster.length; k++) {
+        const point = points[cluster[k]]!;
+        for (let j = 0; j < points.length; j++) {
+          const other = points[j];
+          if (visited.has(j) || !other || this.fleetPlanes[j].style.opacity === '0') continue;
+          if (Math.hypot(point.x - other.x, point.y - other.y) <= 28) {
+            visited.add(j);
+            cluster.push(j);
+          }
+        }
+      }
+      cluster.sort((a, b) => a - b).forEach((index, order) => (shifts[index] = order * 16));
+    }
+    for (let i = 0; i < this.fleetPlanes.length; i++) {
+      const plane = this.fleetPlanes[i];
+      const shift = `${shifts[i]}px`;
+      if (plane.style.getPropertyValue('--tag-shift') !== shift) plane.style.setProperty('--tag-shift', shift);
+    }
   }
 
   /** Uses only origin-facing, north-up poses so OrbitControls can take over without a jump. */

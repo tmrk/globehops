@@ -2,6 +2,14 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.20.1 — 2026-11-10 — Clearer names beside the planes
+
+- **Names beside the planes no longer pile up.** When compared journeys leave from the same airport, each plane's name steps down so you can read both, instead of one sitting on top of the other.
+- **Named tabs match the rest of the planner.** A name such as “Via London” or “Nonstop” uses the same type as the journey summary. Airport-code routes, such as BUD → JFK, stay in the departure-board font.
+- **The flight you open stays on screen.** On a phone, opening a flight's times keeps that flight at the top of the list.
+- **Trip notes line up.** “Detours around restricted airspace” sits in the same column as the journey names, at the same size as the totals underneath.
+- **Compared trips use the same spacing.** The comparison table's columns line up with the rest of the itinerary.
+
 ## 1.20.0 — 2026-11-10 — Name your journeys
 
 - **Name any journey.** **Edit** now shows a **Name** field for every journey: a compared journey, a compared trip as a whole, or a single journey, as well as each journey of a trip. To show two people's travels together, name them after the people: “Anna” and “Ben” appear on their tabs, in the comparison table, on their timeline lanes and beside their planes on the globe, and the timeline says “Anna arrives first”. A single journey's name becomes its title. Names can have spaces now (a trip journey called “New York” used to lose its space as you typed).
