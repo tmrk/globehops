@@ -4,6 +4,8 @@ GlobeHops is a static site on **Cloudflare Pages** at **https://globehops.marki.
 
 ## Cloudflare Pages
 
+GlobeHops is **100% static and client-side**. Pages serves the Vite `dist/` output directly as static assets through its native GitHub integration: there are no Workers, Pages Functions (`functions/`, `_worker.js`, `_routes.json`), server-side rendering, APIs, databases, bindings or any other server runtime, and none may be added. The only host configuration is the static `_headers` and `_redirects` files below; the only environment variables are build-time settings. Each deployment's `uses_functions` must stay `false` (check it in the dashboard or with the Pages API).
+
 The Pages project `globehops` (account `ca3dd86962a2421377c69ea022ca6887`, default domain `globehops.pages.dev`) is connected to `tmrk/globehops` through Cloudflare's GitHub app:
 
 | Setting               | Value                                                                                      |
