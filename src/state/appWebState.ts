@@ -1,5 +1,11 @@
 import type { ClockSnapshot } from './clock.ts';
-import { parseLink, serializeLink, type LinkExtra, type LinkView, type SerializableLinkStop } from './link.ts';
+import {
+  serializableLinkState,
+  serializeLink,
+  type LinkExtra,
+  type LinkView,
+  type SerializableLinkStop,
+} from './link.ts';
 import type { Locale } from '../i18n/locales.ts';
 import { localizedPath } from '../i18n/detect.ts';
 import { linkStateToDocument } from '../agent/itinerary.ts';
@@ -72,9 +78,7 @@ export function toolJourneyResponse({
   journey,
   url,
 }: ToolJourneyOptions) {
-  const doc = linkStateToDocument(
-    parseLink(serializeLink(primaryStops, { ...currentView, leg: undefined }, false, linkExtra)),
-  );
+  const doc = linkStateToDocument(serializableLinkState(primaryStops, { ...currentView, leg: undefined }, linkExtra));
   const assumption =
     currentView.time !== null ? { assumeDeparture: formatIsoInstant(assumedStart ?? snapshot.time) } : {};
   const comparisonPlan = linkExtra.compare?.length ? planComparison(context, doc, assumption) : null;

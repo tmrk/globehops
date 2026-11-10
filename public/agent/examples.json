@@ -583,5 +583,90 @@
       ],
       "valid": true
     }
+  },
+  {
+    "title": "Planned North Atlantic crossing",
+    "description": "Explicit coordinate waypoints and planned flight levels, independent of generated routing.",
+    "itinerary": {
+      "version": 1,
+      "stops": [
+        {
+          "airport": "LHR",
+          "track": {
+            "kind": "planned",
+            "format": "document",
+            "points": [
+              [51.47, -0.46, 0],
+              [55, -20, 10668],
+              [57, -40, 11278],
+              [50, -60, 11278],
+              [40.64, -73.78, 0]
+            ]
+          }
+        },
+        { "airport": "JFK" }
+      ]
+    },
+    "url": "https://tmrk.github.io/globehops/?route=LHR-JFK&trk1=1pdB.w3k6J_65CAwuxV_so3D46Ug0mM_ni6DkmB_l3qB_ni6DA_jk5B_sj0C7gW",
+    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkxIUiIsInRyYWNrIjp7ImtpbmQiOiJwbGFubmVkIiwiZm9ybWF0IjoiZG9jdW1lbnQiLCJwb2ludHMiOltbNTEuNDcsLTAuNDYsMF0sWzU1LC0yMCwxMDY2OF0sWzU3LC00MCwxMTI3OF0sWzUwLC02MCwxMTI3OF0sWzQwLjY0LC03My43OCwwXV19fSx7ImFpcnBvcnQiOiJKRksifV19",
+    "expected": {
+      "totals": {
+        "distanceKm": 5631.9,
+        "distanceMi": 3499.5,
+        "flightMinutes": 430,
+        "layoverMinutes": 0,
+        "journeyMinutes": 430,
+        "flights": 1,
+        "transfers": 0,
+        "provenance": "estimated"
+      },
+      "issues": [],
+      "valid": true
+    }
+  },
+  {
+    "title": "Recorded Copenhagen to Stockholm",
+    "description": "Timed positions anchor the schedule without typed stop times; recorded altitudes replace estimates.",
+    "itinerary": {
+      "version": 1,
+      "stops": [
+        {
+          "airport": "CPH",
+          "track": {
+            "kind": "recorded",
+            "format": "gpx",
+            "points": [
+              [55.62, 12.66, 0, "2026-03-01T10:00:00Z"],
+              [57, 14, 8000, "2026-03-01T10:20:00Z"],
+              [58.5, 16, 10000, "2026-03-01T10:40:00Z"],
+              [59.65, 17.92, 0, "2026-03-01T11:00:00Z"]
+            ]
+          }
+        },
+        { "airport": "ARN" }
+      ]
+    },
+    "url": "https://tmrk.github.io/globehops/?route=CPH-ARN&trk1=1rgD.gpvzKg1otCAginw0pDgxtIg3lIg0PgrCg_kJg0mMg9DgrCwzgHgg3L_wTgrC",
+    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsInRyYWNrIjp7ImtpbmQiOiJyZWNvcmRlZCIsImZvcm1hdCI6ImdweCIsInBvaW50cyI6W1s1NS42MiwxMi42NiwwLCIyMDI2LTAzLTAxVDEwOjAwOjAwWiJdLFs1NywxNCw4MDAwLCIyMDI2LTAzLTAxVDEwOjIwOjAwWiJdLFs1OC41LDE2LDEwMDAwLCIyMDI2LTAzLTAxVDEwOjQwOjAwWiJdLFs1OS42NSwxNy45MiwwLCIyMDI2LTAzLTAxVDExOjAwOjAwWiJdXX19LHsiYWlycG9ydCI6IkFSTiJ9XX0",
+    "expected": {
+      "totals": {
+        "distanceKm": 547.4,
+        "distanceMi": 340.2,
+        "flightMinutes": 60,
+        "layoverMinutes": 0,
+        "journeyMinutes": 60,
+        "flights": 1,
+        "transfers": 0,
+        "provenance": "entered"
+      },
+      "issues": [
+        {
+          "code": "future_rules",
+          "severity": "info",
+          "message": "Future times use today's time-zone rules, which can change"
+        }
+      ],
+      "valid": true
+    }
   }
 ]

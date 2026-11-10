@@ -13,6 +13,7 @@ import { ITINERARY_SCHEMA } from '../src/agent/schema.ts';
 import {
   CONTRACT_VERSION,
   DEFAULT_BASE_URL,
+  MAX_TRACK_POINTS,
   MAX_STOPS,
   MAX_JOURNEYS,
   MAX_URL_LENGTH,
@@ -196,6 +197,55 @@ const exampleSpecs: { title: string; description: string; itinerary: ItineraryDo
     },
   },
 ];
+exampleSpecs.push(
+  {
+    title: 'Planned North Atlantic crossing',
+    description: 'Explicit coordinate waypoints and planned flight levels, independent of generated routing.',
+    itinerary: {
+      version: 1,
+      stops: [
+        {
+          airport: 'LHR',
+          track: {
+            kind: 'planned',
+            format: 'document',
+            points: [
+              [51.47, -0.46, 0],
+              [55, -20, 10668],
+              [57, -40, 11278],
+              [50, -60, 11278],
+              [40.64, -73.78, 0],
+            ],
+          },
+        },
+        { airport: 'JFK' },
+      ],
+    },
+  },
+  {
+    title: 'Recorded Copenhagen to Stockholm',
+    description: 'Timed positions anchor the schedule without typed stop times; recorded altitudes replace estimates.',
+    itinerary: {
+      version: 1,
+      stops: [
+        {
+          airport: 'CPH',
+          track: {
+            kind: 'recorded',
+            format: 'gpx',
+            points: [
+              [55.62, 12.66, 0, '2026-03-01T10:00:00Z'],
+              [57, 14, 8000, '2026-03-01T10:20:00Z'],
+              [58.5, 16, 10000, '2026-03-01T10:40:00Z'],
+              [59.65, 17.92, 0, '2026-03-01T11:00:00Z'],
+            ],
+          },
+        },
+        { airport: 'ARN' },
+      ],
+    },
+  },
+);
 const parameter = (
   type: string,
   required: boolean,
@@ -220,7 +270,23 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       scheduled: `${DEFAULT_BASE_URL}?route={route}&dep1={localDeparture}`,
       document: `${DEFAULT_BASE_URL}?itinerary={base64urlJson}`,
     },
+    customPaths: {
+      kinds: ['planned', 'recorded'],
+      document:
+        'A departing stop may carry track: exactly one of points ([lat,lng,altitudeMetres|null,ISO time|null]) or encoded (trkN codec), with optional kind, format and name. Never on the last stop.',
+      precedence:
+        'Explicit geometry bypasses routing. Recorded times anchor missing stop endpoints; entered stop times win and scale playback. Track altitudes replace modelled altitudes when at least two are known.',
+      sharing:
+        'Tracks stay in the link; nothing is uploaded. Large paths are simplified for sharing only; track_simplified reports kept/total points. Session calculations retain exact geometry.',
+    },
     parameters: {
+      trkN: parameter(
+        'string',
+        false,
+        'versioned URL-safe delta encoding',
+        ['See planned and recorded examples in agent/examples.json'],
+        'Custom path departing 1-based stop N; composes with b./c./d. and 2.–6. prefixes. Invalid values are ignored with an issue.',
+      ),
       label: parameter(
         'string',
         false,
@@ -231,14 +297,14 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       'b./c./d.': parameter(
         'journey group',
         false,
-        'prefix + route|depN|arrN|label or nested 2.–6. section groups',
+        'prefix + route|depN|arrN|trkN|label or nested 2.–6. section groups',
         ['b.route=BUD-JFK', 'b.2.route=JFK-BUD', 'c.dep1=2026-12-01T08:00'],
         'Journeys B–D in order; gaps compact. Each group requires route. Parameter keys are case-insensitive. Other view parameters remain unprefixed; leg refers to A, clock may name any airport across all alternatives and their sections.',
       ),
       '2.–6.': parameter(
         'trip section group',
         false,
-        'prefix + route|depN|arrN|label|stay',
+        'prefix + route|depN|arrN|trkN|label|stay',
         ['2.route=NBO-CDG-CPH', '2.dep1=2026-11-20T23:55', '2.stay=5d'],
         `A trip's sections after the first (up to ${MAX_SECTIONS} in all), in order; the first uses the unprefixed parameters. Sections are sequential journeys separated by explicit stays; connections stay inside a section. stay (days d, hours h or minutes m) places a section without times after the previous one (default ${DEFAULT_STAY_MIN / 1440} days). Compose with b.–d. for compared trips (b.2.* through d.6.*); leg counts flights across A’s sections.`,
       ),
@@ -367,7 +433,8 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
         'kind trip_comparison; journeys: id/label/color/anchor/sections/stays/totals (trip totals plus travelMinutes). comparison: fastest, ranking (id/travelMinutes/deltaMinutes), sections (name/fastest/per-ID deltaMinutes). Plain comparisons add kind comparison. get_journey_timeline remains single journey/trip only.',
     },
     routing: {
-      default: 'Agent and MCP results follow great circles unless routing is requested; the app routes by default.',
+      default:
+        'Generated agent/MCP paths follow great circles unless routing is requested; the app routes by default. Custom planned/recorded paths apply independently of routing.',
       request: '{ "avoidAirspace": boolean, "diversion": boolean | minutes 60–370 }',
       airspace:
         'Routes around EASA conflict-zone bulletins valid on the flight date, assuming an EU/EEA operator. See data/AIRSPACE.md.',
@@ -380,11 +447,12 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
           'ETOPS/EDTO-inspired: keeps flights within still-air reach of potential diversion airports (open large/medium airports with a paved runway of at least 2,000 m by 45 m, OurAirports) or their own endpoints. Covered keeps the route, adjusted re-routes within a modest allowance, gap keeps the unconstrained route and reports the longest modelled diversion time. Not an operator authorisation; winds, tracks, airways and ATC are not modelled. See data/DIVERSION.md.',
       },
       legFields:
-        'distanceKm is the flown (routed or great-circle) distance used for estimates; greatCircleKm is always present; distanceModel says which; route.airspace and route.diversion describe the modelled constraints.',
+        'distanceKm is the flown (custom, routed or great-circle) distance used for estimates; greatCircleKm is always present; distanceModel says which; route.airspace and route.diversion describe the modelled constraints.',
     },
     schema: ITINERARY_SCHEMA.$id,
     limits: {
       stops: MAX_STOPS,
+      trackPoints: MAX_TRACK_POINTS,
       journeys: MAX_JOURNEYS,
       tripSections: MAX_SECTIONS,
       maximumStayMinutes: MAX_STAY_MIN,
@@ -414,7 +482,7 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       earthRadiusKm: EARTH_RADIUS_KM,
       defaultLayoverMinutes: DEFAULT_LAYOVER_MIN,
       notes:
-        'Great circle on a sphere; no winds, airline schedules, aircraft type or actual flight tracking. Altitude is illustrative.',
+        'Generated great circles on a sphere; custom paths preserve supplied geometry and usable altitude/time data. No winds, airline schedules, aircraft type or live flight tracking; generated altitude is illustrative.',
     },
     visualisationOptions: [
       't',
@@ -454,6 +522,11 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       ].map(([code, meaning]) => ({ code, severity: 'error', meaning })),
       warnings: [
         {
+          code: 'track_simplified',
+          severity: 'warning',
+          meaning: 'Share URL simplifies or drops track geometry to fit; calculations retain the exact input.',
+        },
+        {
           code: 'routing_unavailable',
           severity: 'warning',
           meaning: 'Requested routing data is not available here; those flights follow great circles.',
@@ -466,6 +539,9 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
       ],
       structuralCodes: [
         'type',
+        'encoding',
+        'tuple',
+        'instant',
         'const',
         'oneOf',
         'required',

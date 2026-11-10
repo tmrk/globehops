@@ -139,13 +139,21 @@ export function useAppLinks({
               ...(trip ? (link.sections ?? []) : (link.compare ?? []).map((entry) => ({ ...entry, stayMin: null }))),
             ];
         const journeys = entries.map((entry) => {
-          const resolved = entry.stops.flatMap((stop) => {
+          const resolved = entry.stops.flatMap((stop, stopIndex) => {
             const result = resolveRouteCodes([stop.code], idx);
             if (!result.stops.length) {
               missing.push(stop.code);
               return [];
             }
-            return [{ ...stop, airport: result.stops[0].airport }];
+            return [
+              {
+                ...stop,
+                ...(stop.track && !resolveRouteCodes([entry.stops[stopIndex + 1]?.code ?? ''], idx).stops.length
+                  ? { track: null }
+                  : {}),
+                airport: result.stops[0].airport,
+              },
+            ];
           });
           return {
             label: entry.label,
@@ -154,6 +162,7 @@ export function useAppLinks({
             layovers: resolved.map((s) => s.layoverMin),
             arrivals: resolved.map((s) => s.arrival),
             departures: resolved.map((s) => s.departure),
+            tracks: resolved.map((s) => s.track ?? null),
           };
         });
         routeStopCount.current = journeys[0].airportIds.length;

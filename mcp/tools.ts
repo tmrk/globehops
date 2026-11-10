@@ -17,6 +17,7 @@ import { linkStateToDocument, type ItineraryDocument } from '../src/agent/itiner
 import { parseLink } from '../src/state/link.ts';
 import { MAX_LABEL_LENGTH } from '../src/lib/journeyLabel.ts';
 import {
+  MAX_TRACK_POINTS,
   MAX_JOURNEYS,
   MAX_SECTIONS,
   MAX_STAY_MIN,
@@ -28,6 +29,21 @@ import { ITINERARY_SCHEMA } from '../src/agent/schema.ts';
 // Derive the MCP document description and validation directly from the published schema.
 // Zod's JSON Schema importer treats oneOf as the whole schema, ignoring sibling constraints.
 // Import each complete form, then retain the document's exclusive choice with z.xor.
+const documentDefs = {
+  ...ITINERARY_SCHEMA.$defs,
+  track: {
+    anyOf: ['points', 'encoded'].map((field) => ({
+      ...ITINERARY_SCHEMA.$defs.track,
+      oneOf: undefined,
+      required: [field],
+      properties: Object.fromEntries(
+        Object.entries(ITINERARY_SCHEMA.$defs.track.properties).filter(
+          ([key]) => key !== (field === 'points' ? 'encoded' : 'points'),
+        ),
+      ),
+    })),
+  },
+};
 function documentForm(field: 'stops' | 'journeys' | 'sections') {
   const journeys = ITINERARY_SCHEMA.properties.journeys;
   const { sections, stops, ...shared } = journeys.items.properties;
@@ -49,10 +65,7 @@ function documentForm(field: 'stops' | 'journeys' | 'sections') {
     required: ['version', field],
     // Stable local definition IDs keep repeated stop/section schemas as references on MCP export.
     $defs: Object.fromEntries(
-      Object.entries(ITINERARY_SCHEMA.$defs).map(([name, value]) => [
-        name,
-        { ...value, id: `Itinerary_${field}_${name}` },
-      ]),
+      Object.entries(documentDefs).map(([name, value]) => [name, { ...value, id: `Itinerary_${field}_${name}` }]),
     ),
     properties: {
       $schema: ITINERARY_SCHEMA.properties.$schema,
@@ -69,7 +82,7 @@ function documentForm(field: 'stops' | 'journeys' | 'sections') {
 const itinerary = z
   .xor([documentForm('stops'), documentForm('journeys'), documentForm('sections')])
   .describe(
-    'ItineraryDocument v1; airport-local wall times, optional explicit offsets. Use sections for a round trip or multi-stage trip (stays between sections are explicit, never layovers).',
+    'ItineraryDocument v1; airport-local wall times, optional explicit offsets. Stops may carry planned or recorded custom tracks (points or encoded); recorded times anchor missing endpoints. Use sections for a round trip or multi-stage trip (stays between sections are explicit, never layovers).',
   );
 const routing = z
   .strictObject({
@@ -85,7 +98,9 @@ const routing = z
       ),
   })
   .optional()
-  .describe('Opt-in modelled routing. Omitted: great-circle distances and positions (the default).');
+  .describe(
+    'Opt-in modelled routing. Omitted: generated paths use great circles; custom planned/recorded tracks always apply.',
+  );
 const route = z
   .string()
   .max(MAX_URL_LENGTH)
@@ -105,7 +120,7 @@ const comparisonStops = z.fromJSONSchema(
     JSON.stringify({
       ...ITINERARY_SCHEMA.$defs.stops,
       $schema: ITINERARY_SCHEMA.$schema,
-      $defs: ITINERARY_SCHEMA.$defs,
+      $defs: documentDefs,
     }),
   ),
 );
@@ -193,13 +208,13 @@ const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Compare 2–4 alternative journeys or round trips (offers, or different people’s trips) and return one GlobeHops link on a shared clock. Name each with label (e.g. the traveller). Each alternative supplies route, stops or sections; route plus returnRoute and optional stay is a round-trip shorthand. Trips require equal section counts and rank travel time excluding stays, with section-by-section winners. Plain journeys report fastest/first arrival. Use airport-local timetable times; untimed trip sections align with the earliest timed counterpart unless the traveller chose the stay; assumeDeparture anchors undated alternatives.',
   search_airports: 'Find airports using GlobeHops ranking, with coordinates and IANA time zones.',
   calculate_route:
-    'Calculate 1–10 airport stops (or a trip of up to 6 sections with explicit stays), distances in km/mi (great circle by default; routing opts into restricted-airspace and diversion-aware routes), durations in minutes, airport-local and UTC times, canonical links and issues. Flight estimates (850 km/h + 30 min) are not airline schedules.',
+    'Calculate 1–10 airport stops (or a trip of up to 6 sections with explicit stays), distances in km/mi (custom planned/recorded stop tracks, otherwise great circle by default; routing opts into restricted-airspace and diversion-aware routes), durations in minutes, airport-local and UTC times, canonical links and issues. Flight estimates (850 km/h + 30 min) are not airline schedules.',
   validate_itinerary:
     'Validate document structure, airports, local time-zone offsets and chronology using the same model as the app. Warnings remain valid.',
   visualize_route:
     'Return readable and itinerary-document globe URLs, a humanSummary and totals. Use 1–10 airport stops, or sections for a round trip/multi-stage trip; departures/arrivals are airport-local wall times; view.time is an absolute ISO instant. lang chooses en/hu/sv paths; leg is a one-based flight (counted across a trip).',
   get_journey_timeline:
-    'Sample 2–1000 instants (or up to 1000 explicit ISO instants with offsets): state, latitude/longitude in degrees, illustrative altitude in km and daylight. Undated routes require assumeDeparture; a single stop has no timeline.',
+    'Sample 2–1000 instants (or up to 1000 explicit ISO instants with offsets): state, latitude/longitude in degrees, track altitude when available, otherwise illustrative altitude in km, and daylight. Undated routes require assumeDeparture; a single stop has no timeline.',
 };
 function result(value: Record<string, unknown>, isError = false): CallToolResult {
   return {
@@ -379,15 +394,25 @@ const routingOutput = z
   })
   .nullable();
 const legOutput = z.object({
+  path: z.object({
+    kind: z.enum(['generated', 'planned', 'recorded']),
+    distanceKm: z.number(),
+    greatCircleKm: z.number(),
+    points: z.number().int().min(2).max(MAX_TRACK_POINTS),
+    source: z.object({ format: z.string(), name: z.string().nullable() }).optional(),
+    recordedDurationMin: z.number().int().optional(),
+  }),
   id: z.string(),
   from: z.string(),
   to: z.string(),
   distanceKm: z
     .number()
-    .describe('Flown distance used for estimates: the routed path when routed, else the great circle.'),
+    .describe(
+      'Flown distance used for estimates: a custom track, otherwise the routed path when routed, else the great circle.',
+    ),
   distanceMi: z.number(),
   greatCircleKm: z.number(),
-  distanceModel: z.enum(['great_circle', 'routed']),
+  distanceModel: z.enum(['great_circle', 'routed', 'planned', 'recorded']),
   route: z
     .object({
       airspace: z.object({
@@ -540,7 +565,7 @@ const singleOutputs = {
           lat: z.number(),
           lng: z.number(),
           provenance: z.literal('estimated'),
-          model: z.enum(['great_circle', 'routed']),
+          model: z.enum(['great_circle', 'routed', 'planned', 'recorded']),
         }),
         status: z.object({ title: z.string(), detail: z.string() }),
         daylight: z.enum(['day', 'twilight', 'night']),

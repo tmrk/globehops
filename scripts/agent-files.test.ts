@@ -31,7 +31,16 @@ describe('committed agent discovery', () => {
     expect(validate(example.itinerary), JSON.stringify(validate.errors)).toBe(true);
     expect(example.expected.valid).toBe(true);
     const expected = documentToLinkState(example.itinerary);
-    expect(parseLink(new URL(example.url).search, new URL(example.url).pathname)).toEqual(expected);
+    expect(parseLink(new URL(example.url).search, new URL(example.url).pathname)).toEqual(
+      expected.stops?.some((s) => s.track)
+        ? {
+            ...expected,
+            stops: expected.stops.map((s) =>
+              s.track ? { ...s, track: { ...s.track, source: { ...s.track.source, name: null } } } : s,
+            ),
+          }
+        : expected,
+    );
     expect(parseLink(new URL(example.itineraryParamUrl).search, new URL(example.itineraryParamUrl).pathname)).toEqual(
       expected,
     );
@@ -61,4 +70,10 @@ it('parses the named travellers example as two named round trips', () => {
   expect(link.label).toBe('Anna');
   expect(link.sections?.map((section) => section.stops.map((stop) => stop.code))).toEqual([['HND', 'LHR']]);
   expect(link.compare?.map(({ label, sections }) => [label, sections?.length])).toEqual([['Ben', 1]]);
+});
+
+it('publishes worked planned and recorded paths and their point limit', () => {
+  const tracks = examples.flatMap((e) => e.itinerary.stops?.flatMap((s) => (s.track ? [s.track] : [])) ?? []);
+  expect(tracks.map((t) => t.kind)).toEqual(expect.arrayContaining(['planned', 'recorded']));
+  expect(JSON.parse(files['capabilities.json']).limits.trackPoints).toBe(20000);
 });

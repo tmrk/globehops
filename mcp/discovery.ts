@@ -7,6 +7,7 @@ Use calculate_route or validate_itinerary before visualize_route. Use compare_jo
 Departure and arrival strings are local to each airport, optionally with a matching offset.
 DST gaps error; repeated hours warn and choose the earlier instant unless offset-selected.
 Comparison documents use version 1 and journeys instead of stops. Entered times remain absolute; undated alternatives align to the earliest dated departure or assumeDeparture.
+Custom planned/recorded paths belong on the departing stop as track (points or encoded); recorded times/altitudes replace estimates, with entered stop times winning. Custom paths apply regardless of routing. Tracks stay in local links; large share paths may be simplified.
 view.time is an absolute ISO instant. Undated timeline queries require assumeDeparture.
 view supports play, speed (auto|1800|3600|7200 simulation seconds per second), clock (local|utc|route airport), units (km|mi), dayNight, follow, names, borders, lang (en|hu|sv), leg (one-based flight).
 visualize_route returns url, itineraryParamUrl, humanSummary and summary. Show the user a clickable URL.
@@ -44,7 +45,8 @@ export function registerDiscovery(server: McpServer) {
   server.registerPrompt(
     'plan_and_visualize',
     {
-      description: 'Resolve places, validate local times and return a GlobeHops visualisation link.',
+      description:
+        'Resolve places, validate local times and planned/recorded custom paths, and return a GlobeHops visualisation link.',
       argsSchema: {
         journey: z.string().max(8000).describe('Places, dates, local times and desired view in natural language.'),
       },

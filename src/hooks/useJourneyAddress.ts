@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { localizedPath } from '../i18n/detect.ts';
 import { airportCode } from '../data/airports.ts';
-import { serializeLink, type LinkView } from '../state/link.ts';
+import { serializeLink, serializeLinkWithReduction, type LinkView } from '../state/link.ts';
 import { saveLastJourney } from '../state/storage.ts';
 import { replaceUrl } from '../analytics.ts';
 import { planShape, type PlanState } from '../state/plan.ts';
@@ -10,7 +10,7 @@ import { tripRouteCodes } from '../lib/tripView.ts';
 import type { useJourneyModel } from './useJourneyModel.ts';
 import type { useViewPreferences } from './useViewPreferences.ts';
 
-interface JourneyAddressOptions {
+export interface JourneyAddressOptions {
   model: ReturnType<typeof useJourneyModel>;
   preferences: ReturnType<typeof useViewPreferences>;
   plan: PlanState;
@@ -23,7 +23,11 @@ interface JourneyAddressOptions {
   updatePickerAddress: (address: string) => void;
 }
 
-export function useJourneyAddress({
+/**
+ * Address/share state for track-aware UI: returns `{ shareUrl, shareReduction: { kept, total } | null }`.
+ * Fitting changes only the shared copy. The original useJourneyAddress(options) still returns a string.
+ */
+export function useJourneyAddressWithReduction({
   model,
   preferences,
   plan,
@@ -53,9 +57,9 @@ export function useJourneyAddress({
   const counted = kind === 'trip' || (kind === 'compareTrips' && plan.active < sections);
   const selected = plan.journeys[counted ? plan.active : 0].route.selectedLeg;
   const leg = selected === null ? undefined : (counted ? legOffsets[plan.active] : 0) + selected + 1;
-  const query = useMemo(
+  const { query, shareReduction } = useMemo(
     () =>
-      serializeLink(
+      serializeLinkWithReduction(
         primaryStops,
         {
           time: timeOpen && !playing && !live ? pausedTime : null,
@@ -141,5 +145,10 @@ export function useJourneyAddress({
     t,
   ]);
 
-  return shareUrl;
+  return { shareUrl, shareReduction };
+}
+
+/** Backwards-compatible string API used by App; import the companion hook to show reduction details. */
+export function useJourneyAddress(options: JourneyAddressOptions): string {
+  return useJourneyAddressWithReduction(options).shareUrl;
 }
