@@ -216,3 +216,31 @@ it('accepts a large custom path into exact set_route state and fits only the add
   expect(command.search.length).toBeLessThanOrEqual(8000);
   expect(command.search).toContain('trk1=');
 });
+
+it('validates import inputs strictly before parsing or changing the page', () => {
+  expect(parseWebCommand('import_route', { text: 'EGLL CPT KJFK' }, 0)).toMatchObject({
+    type: 'import_route',
+    text: 'EGLL CPT KJFK',
+    mode: 'replace',
+  });
+  expect(
+    parseWebCommand('import_route', { text: '<gpx/>', fileName: 'log.gpx', format: 'gpx', mode: 'compare' }, 0),
+  ).toEqual({ type: 'import_route', text: '<gpx/>', fileName: 'log.gpx', format: 'gpx', mode: 'compare' });
+  for (const raw of [
+    {},
+    { text: 5 },
+    { text: 'LHR JFK', base64: '' },
+    { text: 'LHR JFK', mode: 'append' },
+    { text: 'LHR JFK', format: 'pdf' },
+    { text: 'LHR JFK', fileName: null },
+    { text: 'LHR JFK', fileName: 'x'.repeat(1025) },
+    { text: 'x'.repeat(20 * 1024 * 1024 + 1) },
+    { text: 'é'.repeat(11 * 1024 * 1024) },
+  ])
+    expect(() => parseWebCommand('import_route', raw, 0)).toThrow();
+  const validate = new Ajv2020({ strict: false }).compile(
+    WEB_TOOL_DEFINITIONS.find((definition) => definition.name === 'import_route')!.inputSchema,
+  );
+  expect(validate({ text: 'EGLL CPT KJFK', mode: 'replace' })).toBe(true);
+  expect(validate({ text: 'EGLL KJFK', base64: '' })).toBe(false);
+});

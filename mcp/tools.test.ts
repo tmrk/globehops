@@ -7,6 +7,7 @@ import { DOCUMENT_CORPUS } from './document-corpus.ts';
 import { validateItineraryDocument } from '../src/agent/itinerary.ts';
 
 const validArgs: Record<ToolName, unknown> = {
+  import_route: { text: 'EGLL CPT DCT KJFK' },
   compare_journeys: {
     journeys: [{ label: 'Direct', route: 'CPH-JFK' }, { route: 'CPH-LHR-JFK' }],
     assumeDeparture: '2026-11-20T08:00Z',
@@ -18,8 +19,8 @@ const validArgs: Record<ToolName, unknown> = {
   get_journey_timeline: { route: 'CPH-JFK', samples: 3, assumeDeparture: '2026-11-20T08:00Z' },
 };
 describe('MCP direct handlers', () => {
-  it.each(Object.keys(validArgs) as ToolName[])('%s returns equivalent structured and text JSON', (name) => {
-    const result = handleTool(context, name, validArgs[name]);
+  it.each(Object.keys(validArgs) as ToolName[])('%s returns equivalent structured and text JSON', async (name) => {
+    const result = await handleTool(context, name, validArgs[name]);
     expect(result.isError, JSON.stringify(result)).not.toBe(true);
     expect(result.content[0].type).toBe('text');
     if (result.content[0].type === 'text') expect(JSON.parse(result.content[0].text)).toEqual(result.structuredContent);
@@ -138,9 +139,9 @@ describe('MCP comparisons', () => {
       expect.objectContaining({ code: 'unknown_airport', path: '/journeys/1/stops/1/airport' }),
     );
   });
-  it('validates each handler result against its output schema', () => {
+  it('validates each handler result against its output schema', async () => {
     for (const name of Object.keys(validArgs) as ToolName[]) {
-      const result = handleTool(context, name, validArgs[name]);
+      const result = await handleTool(context, name, validArgs[name]);
       expect(OUTPUT_SCHEMAS[name].safeParse(result.structuredContent).success, name).toBe(true);
     }
   });
@@ -295,4 +296,171 @@ it('accepts planned/recorded path documents and publishes matching MCP output sc
     expect(sample.isError, JSON.stringify(sample)).not.toBe(true);
     expect(OUTPUT_SCHEMAS.get_journey_timeline.safeParse(sample.structuredContent).success).toBe(true);
   }
+});
+
+function importOutput(raw: unknown) {
+  const output = OUTPUT_SCHEMAS.import_route.parse(raw);
+  const document = validateItineraryDocument(output.document);
+  if (!document.ok) throw new Error(JSON.stringify(document.issues));
+  return { ...output, document: document.doc };
+}
+
+describe('MCP route imports', () => {
+  const gpx = `<gpx><trk><name>CPH to ARN</name><trkseg>
+    <trkpt lat="55.6179" lon="12.656"><ele>0</ele><time>2026-11-01T10:00:00.123Z</time></trkpt>
+    <trkpt lat="58" lon="15"><ele>9000</ele><time>2026-11-01T10:30:00.123Z</time></trkpt>
+    <trkpt lat="59.6519" lon="17.9186"><ele>0</ele><time>2026-11-01T11:00:00.123Z</time></trkpt>
+  </trkseg></trk></gpx>`;
+  it('imports GPX as one exact recorded flight with a track URL and document', async () => {
+    const response = await handleTool(context, 'import_route', {
+      text: gpx,
+      fileName: 'flight.gpx',
+      view: { units: 'mi' },
+    });
+    expect(response.isError, JSON.stringify(response)).not.toBe(true);
+    const output = importOutput(response.structuredContent);
+    expect(output.format).toBe('gpx');
+    expect(output.flights).toEqual([
+      expect.objectContaining({ from: 'CPH', to: 'ARN', kind: 'recorded', points: 3, recordedDurationMin: 60 }),
+    ]);
+    expect(output.url).toContain('trk1=');
+    expect(output.url).toContain('units=mi');
+    expect(output.document.stops?.[0].track).toMatchObject({
+      kind: 'recorded',
+      format: 'gpx',
+      name: 'CPH to ARN',
+      points: [
+        [55.6179, 12.656, 0, '2026-11-01T10:00:00.123Z'],
+        [58, 15, 9000, '2026-11-01T10:30:00.123Z'],
+        [59.6519, 17.9186, 0, '2026-11-01T11:00:00.123Z'],
+      ],
+    });
+  });
+  it('resolves real radio aids using the context airport code lookup and navaid dataset', async () => {
+    const response = await handleTool(context, 'import_route', { text: 'EGLL CPT UL9 KONAN UL607 SPI DCT KJFK' });
+    expect(response.isError).not.toBe(true);
+    const output = importOutput(response.structuredContent);
+    expect(output.flights[0]).toMatchObject({ from: 'LHR', to: 'JFK', kind: 'planned', points: 4 });
+    expect(output.warnings).toContainEqual(expect.objectContaining({ code: 'airway_direct' }));
+    expect(output.warnings).toContainEqual(
+      expect.objectContaining({ code: 'unresolved_waypoints', params: { names: 'KONAN', count: 1 } }),
+    );
+  });
+  it('groups connecting flights together and open jaws into trip sections', async () => {
+    const text = JSON.stringify({
+      type: 'FeatureCollection',
+      features: [
+        [
+          [-0.4543, 51.47],
+          [-73.7789, 40.6398],
+        ],
+        [
+          [-73.7789, 40.6398],
+          [-122.375, 37.619],
+        ],
+        [
+          [2.55, 49.01],
+          [12.656, 55.6179],
+        ],
+      ].map((coordinates) => ({ type: 'Feature', geometry: { type: 'LineString', coordinates }, properties: {} })),
+    });
+    const response = await handleTool(context, 'import_route', { text, fileName: 'log.geojson' });
+    expect(response.isError, JSON.stringify(response)).not.toBe(true);
+    const output = importOutput(response.structuredContent);
+    expect(output.document.sections?.map((section) => section.stops.map((stop) => stop.airport))).toEqual([
+      ['LHR', 'JFK', 'SFO'],
+      ['CDG', 'CPH'],
+    ]);
+    expect(output.url).toContain('2.route=CDG-CPH');
+    expect(output.url).toContain('2.trk1=');
+    const comparison = await handleTool(context, 'import_route', { text, compareWithGenerated: true });
+    expect(comparison.isError).toBe(true);
+    expect(comparison.structuredContent).toMatchObject({ code: 'unsupported' });
+  });
+  it('compares the imported A path with generated B using the existing comparison planner', async () => {
+    const response = await handleTool(context, 'import_route', {
+      text: gpx,
+      compareWithGenerated: true,
+      routing: { avoidAirspace: false, diversion: false },
+    });
+    expect(response.isError, JSON.stringify(response)).not.toBe(true);
+    const output = importOutput(response.structuredContent);
+    const url = new URL(output.url!);
+    expect(url.searchParams.get('b.route')).toBe('CPH-ARN');
+    expect(url.searchParams.get('label')).toBe('CPH to ARN');
+    expect(url.searchParams.get('b.label')).toBe('GlobeHops route');
+    expect(url.searchParams.has('trk1')).toBe(true);
+    expect(url.searchParams.has('b.trk1')).toBe(false);
+    expect(url.searchParams.get('airspace')).toBe('0');
+    expect(output.document.journeys?.[1].stops?.[0].track).toBeUndefined();
+  });
+  it('fits long path links and reports simplification without reducing returned document points', async () => {
+    const coordinates = Array.from({ length: 20000 }, (_, i) => [-50 + i / 1000, 50 + Math.sin(i / 20)]);
+    const response = await handleTool(context, 'import_route', {
+      text: JSON.stringify({ type: 'LineString', coordinates }),
+    });
+    expect(response.isError, JSON.stringify(response.structuredContent).slice(0, 400)).not.toBe(true);
+    const output = importOutput(response.structuredContent);
+    expect(output.document.stops?.[0].track?.points).toHaveLength(20000);
+    expect(output.url!.length).toBeLessThanOrEqual(8000);
+    expect(output.summary.issues).toContainEqual(expect.objectContaining({ code: 'track_simplified' }));
+  });
+  it.each([
+    [{ text: '' }, 'empty'],
+    [{ text: '!!!' }, 'unrecognised'],
+    [{ text: '<gpx>' }, 'invalid'],
+    [{ text: '<gpx/>' }, 'no_path'],
+    [{ text: 'LHR JFK', format: 'document' }, 'unsupported'],
+    [{ text: 'x'.repeat(20 * 1024 * 1024 + 1) }, 'too_large'],
+    [{ text: 'LHR JFK', base64: '' }, 'invalid'],
+    [{ base64: '!!!' }, 'invalid'],
+    [{ base64: 'YQ==' }, 'invalid'],
+    [{}, 'invalid'],
+    [{ text: 'LHR JFK', extra: true }, 'invalid'],
+  ])('contains import errors with a code and message (%s)', async (args, code) => {
+    const response = await handleTool(context, 'import_route', args);
+    expect(response.isError).toBe(true);
+    expect(response.structuredContent).toMatchObject({ code, message: expect.any(String) });
+  });
+});
+
+it('imports Base64 KMZ ZIP data through the shared decompressor', async () => {
+  const response = await handleTool(context, 'import_route', {
+    base64:
+      'UEsDBBQAAAAIAAAAIVyJLZphXQAAAHoAAAAHAAAAZG9jLmttbLPJzs2xswnISUxOzU0syraz8cnMSw0uKcrMS7ezSc7PL0rJzEssSS220zXQMzE1MdYxNdQzMdcxNFDQNTfWMze3sNQxMdAzM7a00DEysNFH1mGjj2yWPpId+iBLAVBLAQIUAxQAAAAIAAAAIVyJLZphXQAAAHoAAAAHAAAAAAAAAAAAAACAAQAAAABkb2Mua21sUEsFBgAAAAABAAEANQAAAIIAAAAAAA==',
+    fileName: 'flight.kmz',
+  });
+  expect(response.isError, JSON.stringify(response)).not.toBe(true);
+  const output = importOutput(response.structuredContent);
+  expect(output.format).toBe('kmz');
+  expect(output.flights).toMatchObject([{ from: 'LHR', to: 'JFK', kind: 'planned', points: 2 }]);
+  expect(output.document.stops?.[0].track?.points).toEqual([
+    [51.47, -0.4543, 10, null],
+    [40.6398, -73.7789, 20, null],
+  ]);
+});
+
+it('publishes the exact text/Base64 input choice in the MCP schema', () => {
+  const validate = new Ajv2020({ strict: false }).compile(z.toJSONSchema(INPUT_SCHEMAS.import_route, { io: 'input' }));
+  for (const args of [
+    { text: 'EGLL KJFK' },
+    { base64: 'YQ==' },
+    { text: 'EGLL KJFK', base64: 'YQ==' },
+    {},
+    { text: 'EGLL KJFK', unknown: true },
+    { text: 'EGLL KJFK', format: 'pdf' },
+  ])
+    expect(validate(args), JSON.stringify(args)).toBe(INPUT_SCHEMAS.import_route.safeParse(args).success);
+});
+
+it('reports the existing document point limit as a structured import error', async () => {
+  const coordinates = Array.from({ length: 20001 }, (_, i) => [-50 + i / 1000, 50]);
+  const response = await handleTool(context, 'import_route', {
+    text: JSON.stringify({ type: 'LineString', coordinates }),
+  });
+  expect(response.isError).toBe(true);
+  expect(response.structuredContent).toMatchObject({
+    code: 'too_large',
+    message: expect.stringContaining('20000 points'),
+  });
 });

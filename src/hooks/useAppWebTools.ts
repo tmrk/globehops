@@ -1,7 +1,10 @@
-import { createToolView, createVisitShareLink, toolJourneyResponse } from '../state/appWebState.ts';
+import { loadNavaids } from '../data/navaidsLoader.ts';
+import { agentImportContext } from '../agent/importRoute.ts';
+import type { ImportResult } from '../lib/import/types.ts';
+import { createToolView, createVisitShareLink, toolJourneyResponse, importWebRoute } from '../state/appWebState.ts';
 import type { useJourneyModel } from './useJourneyModel.ts';
 import type { useJourneyPlayback } from './useJourneyPlayback.ts';
-import { useMemo, type Dispatch, type SetStateAction } from 'react';
+import { useMemo, useRef, useLayoutEffect, type Dispatch, type SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import { useWebTools } from './useWebTools.ts';
 import { parseWebCommand } from '../agent/webTools.ts';
@@ -25,6 +28,8 @@ interface AppWebToolsOptions {
   dataset: AirportDataset | null;
   zones: TimeZoneTable | null;
   index: SearchIndex | null;
+  importFlights: (result: ImportResult, mode: 'replace' | 'compare') => void;
+  canCompareImport: boolean;
   initialized: boolean;
   zonesLoaded: boolean;
   preferences: ReturnType<typeof useViewPreferences>;
@@ -102,7 +107,42 @@ export function useAppWebTools(options: AppWebToolsOptions) {
           })
         : null);
   }, [dataset, zones]);
-  useWebTools(initialized && zonesLoaded && !!dataset, async (name, args) => {
+  // An import may await the lazy dataset: use the current plan callback and link after it settles.
+  const importTarget = useRef({
+    importFlights: options.importFlights,
+    canCompare: options.canCompareImport,
+    shareLink: (): string => '',
+  });
+  useLayoutEffect(() => {
+    importTarget.current = {
+      importFlights: options.importFlights,
+      canCompare: options.canCompareImport,
+      shareLink: () =>
+        createVisitShareLink(
+          window.location.origin,
+          import.meta.env.BASE_URL,
+          locale,
+          primaryStops,
+          createToolView(
+            clock.getSnapshot(),
+            timeOpen,
+            {
+              clock: clockZone,
+              units: unit,
+              dayNight,
+              follow: followAircraft,
+              names: showCountryNames,
+              borders: showBorders,
+              lang: locale,
+            },
+            countedLeg,
+          ),
+          countedTrip ? countedLeg : plan.journeys[0].route.selectedLeg,
+          linkExtra,
+        ),
+    };
+  });
+  useWebTools(initialized && zonesLoaded && !!dataset, async (name, args, signal) => {
     const command = parseWebCommand(
       name,
       args,
@@ -114,6 +154,23 @@ export function useAppWebTools(options: AppWebToolsOptions) {
     );
     const context = getAgentContext();
     if (!context || !index) throw new Error('GlobeHops tools are not ready.');
+    if (command.type === 'import_route') {
+      const { detectFormat } = await import('../lib/import/index.ts');
+      const format = command.format ?? detectFormat(command.text, command.fileName);
+      const importContext = agentImportContext(context);
+      if (format === 'route') importContext.navaids = await loadNavaids();
+      signal.throwIfAborted();
+      return importWebRoute(
+        command,
+        importContext,
+        {
+          canCompare: () => importTarget.current.canCompare,
+          apply: (result, mode) => flushSync(() => importTarget.current.importFlights(result, mode)),
+          shareLink: () => importTarget.current.shareLink(),
+        },
+        signal,
+      );
+    }
     const snapshot = clock.getSnapshot();
     const currentView = createToolView(
       snapshot,

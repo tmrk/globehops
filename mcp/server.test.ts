@@ -6,7 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 describe('real stdio MCP server', () => {
-  it('negotiates, lists tools and calls all six from a different cwd', async () => {
+  it('negotiates, lists tools and calls every tool from a different cwd', async () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [fileURLToPath(new URL('./server.ts', import.meta.url))],
@@ -31,6 +31,7 @@ describe('real stdio MCP server', () => {
         'calculate_route',
         'compare_journeys',
         'get_journey_timeline',
+        'import_route',
         'search_airports',
         'validate_itinerary',
         'visualize_route',
@@ -40,6 +41,7 @@ describe('real stdio MCP server', () => {
         expect(tool.outputSchema).toBeDefined();
       }
       const calls = [
+        ['import_route', { text: 'EGLL CPT KJFK' }],
         ['compare_journeys', { journeys: [{ route: 'CPH-JFK' }, { route: 'CPH-LHR-JFK' }] }],
         ['search_airports', { query: 'CPH', limit: 1 }],
         ['calculate_route', { route: 'CPH-LHR_180-JFK' }],

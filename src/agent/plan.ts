@@ -1,3 +1,4 @@
+import type { NavaidDataset } from '../data/navaids.ts';
 import { airportCode, airportShortName, type AirportDataset } from '../data/airports.ts';
 import { buildSearchIndex, findAirportByCode, searchAirports as rankedSearch } from '../data/search.ts';
 import { zoneForAirport, type TimeZoneTable } from '../data/timezones.ts';
@@ -81,6 +82,8 @@ export function createAgentContext(options: {
   now?: () => number;
   /** Routes legs when a request asks for routing; absent, routing requests report `routing_unavailable`. */
   router?: Router | null;
+  /** Optional local radio aids for importing aviation route strings. */
+  navaids?: NavaidDataset | null;
 }) {
   const base = new URL(options.baseUrl ?? DEFAULT_BASE_URL);
   if (!['http:', 'https:'].includes(base.protocol)) throw new TypeError('baseUrl must use http or https.');

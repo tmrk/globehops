@@ -1,3 +1,4 @@
+import { WEB_TOOL_NAMES } from '../src/agent/webTools.ts';
 import type { Page } from '@playwright/test';
 import { expect } from './fixtures.ts';
 
@@ -59,5 +60,5 @@ export async function invoke<T>(page: Page, name: string, args: unknown = {}): P
   return JSON.parse(result.content[0].text) as T;
 }
 export async function ready(page: Page) {
-  await expect.poll(() => page.evaluate(() => Object.keys(window.globeAgentTools).length)).toBe(6);
+  await expect.poll(() => page.evaluate(() => Object.keys(window.globeAgentTools).length)).toBe(WEB_TOOL_NAMES.length);
 }

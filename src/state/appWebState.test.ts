@@ -1,13 +1,16 @@
+import { agentImportContext } from '../agent/importRoute.ts';
+import { createPlanState, planReducer } from './plan.ts';
+import { groupFlights } from '../lib/import/group.ts';
 /// <reference types="node" />
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { decodeDataset } from '../data/airports.ts';
 import { decodeTimeZones } from '../data/timezones.ts';
 import { createAgentContext, resolveItinerary } from '../agent/plan.ts';
 import { computeJourney } from '../lib/schedule.ts';
 import type { ClockSnapshot } from './clock.ts';
 import { parseLink, type SerializableJourney } from './link.ts';
-import { createToolView, createVisitShareLink, toolJourneyResponse } from './appWebState.ts';
+import { createToolView, createVisitShareLink, toolJourneyResponse, importWebRoute } from './appWebState.ts';
 
 const read = (name: string): unknown =>
   JSON.parse(readFileSync(new URL(`../data/generated/${name}.json`, import.meta.url), 'utf8'));
@@ -185,4 +188,74 @@ it('reports exact flight paths and full point counts without URL simplification 
   expect(response.valid).toBe(true);
   expect(response.legs[0].path).toMatchObject({ kind: 'recorded', points: 20000, source: { name: 'local only' } });
   expect(response.legs[0].durationMinutes).toBe(Math.round(19999 / 60));
+});
+
+it('imports into the live callback only after successful parsing and returns the resulting share link', async () => {
+  let plan = createPlanState();
+  const apply = vi.fn((result: import('../lib/import/types.ts').ImportResult, mode: 'replace' | 'compare') => {
+    expect(mode).toBe('replace');
+    const { journeys } = groupFlights(result.flights);
+    plan = planReducer(plan, {
+      type: 'load',
+      journeys: journeys.map((flights) => ({
+        airportIds: [flights[0].from.id, ...flights.map((flight) => flight.to.id)],
+        tracks: flights.map((flight) => flight.track),
+      })),
+      trip: journeys.length > 1,
+    });
+  });
+  const response = await importWebRoute(
+    { type: 'import_route', text: 'EGLL KJFK', mode: 'replace' },
+    agentImportContext(context),
+    {
+      canCompare: () => false,
+      apply,
+      shareLink: () => `https://example.com/?flights=${plan.journeys[0].route.stops.length - 1}`,
+    },
+  );
+  expect(apply).toHaveBeenCalledOnce();
+  expect(response).toMatchObject({
+    applied: true,
+    format: 'route',
+    flights: [{ from: 'LHR', to: 'JFK', kind: 'planned', points: 2 }],
+    url: 'https://example.com/?flights=1',
+  });
+  expect(plan.journeys[0].route.stops[0].track?.track.points).toHaveLength(2);
+});
+
+it('never invokes the import callback for failed parsing, an unavailable comparison or an aborted invocation', async () => {
+  const apply = vi.fn();
+  const target = { apply, canCompare: () => false, shareLink: () => 'https://example.com/' };
+  await expect(
+    importWebRoute(
+      { type: 'import_route', text: 'invalid input', mode: 'replace' },
+      agentImportContext(context),
+      target,
+    ),
+  ).rejects.toThrow();
+  await expect(
+    importWebRoute({ type: 'import_route', text: 'LHR JFK', mode: 'compare' }, agentImportContext(context), target),
+  ).rejects.toThrow(/Compare requires/);
+  await expect(
+    importWebRoute({ type: 'import_route', text: 'LHR JFK\nCDG CPH', mode: 'compare' }, agentImportContext(context), {
+      ...target,
+      canCompare: () => true,
+    }),
+  ).rejects.toThrow(/Compare requires/);
+  const controller = new AbortController();
+  controller.abort();
+  await expect(
+    importWebRoute(
+      { type: 'import_route', text: 'LHR JFK', mode: 'replace' },
+      agentImportContext(context),
+      target,
+      controller.signal,
+    ),
+  ).rejects.toThrow();
+  expect(apply).not.toHaveBeenCalled();
+  await importWebRoute({ type: 'import_route', text: 'LHR JFK', mode: 'compare' }, agentImportContext(context), {
+    ...target,
+    canCompare: () => true,
+  });
+  expect(apply).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ ok: true }), 'compare');
 });

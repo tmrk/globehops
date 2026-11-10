@@ -330,24 +330,6 @@ export default function App() {
     updatePickerAddress,
   });
 
-  useAppWebTools({
-    dataset,
-    zones,
-    index,
-    initialized,
-    zonesLoaded,
-    preferences,
-    plan,
-    model,
-    playback,
-    setEditing,
-    dispatch,
-    planDispatch,
-    applyLink,
-    locale,
-    setVisitLocale,
-  });
-
   /** Every journey in plan order (alternative by alternative), matching `legOffsets`. */
   const flatJourneys = useMemo(
     () =>
@@ -682,6 +664,25 @@ export default function App() {
     showToast(t('import.done', result.name ?? t('summary.flights', fmt.number(result.flights.length))));
     trackEvent('route_import_use', { mode, flights: result.flights.length });
   };
+  useAppWebTools({
+    importFlights,
+    canCompareImport,
+    dataset,
+    zones,
+    index,
+    initialized,
+    zonesLoaded,
+    preferences,
+    plan,
+    model,
+    playback,
+    setEditing,
+    dispatch,
+    planDispatch,
+    applyLink,
+    locale,
+    setVisitLocale,
+  });
   /** The active journey's custom paths, with the airports they fly between. */
   const trackedFlights = (): ExportedFlight[] =>
     journey.legs.flatMap((leg) => {
