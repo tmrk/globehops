@@ -91,8 +91,13 @@ export interface GlobeLeg {
   key: string;
   from: LatLng;
   to: LatLng;
-  /** Detour waypoints around restricted airspace; absent or null follows the great circle. */
+  /** Detour waypoints around restricted airspace, or a custom track; absent or null follows the great circle. */
   path?: readonly LatLng[] | null;
+  /**
+   * A custom track's altitudes (km) aligned with `path`; absent or null draws the modelled climb, cruise and
+   * descent along the path instead.
+   */
+  altitudes?: readonly number[] | null;
   color: string;
   /** Height multiplier; endpoints retain the same surface clearance. */
   lift?: number;
