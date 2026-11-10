@@ -53,3 +53,7 @@ These packages are declared as development dependencies and are outside the brow
 | `zod`                       | 4.6.7             | MIT     | Local MCP input/output schemas; Colin McDonnell, [Zod](https://github.com/colinhacks/zod).                                                |
 
 The installed packages retain their own licence texts. The MCP adapter runs locally in Node; it is not deployed with the static site. Optional experimental WebMCP uses browser-provided APIs and adds no third-party runtime package or hosted service.
+
+## Radio navaids
+
+Radio-navaid positions and identifiers derive from public-domain OurAirports [navaids.csv](https://davidmegginson.github.io/ourairports-data/navaids.csv), released without accuracy guarantees. The separate generated `src/data/generated/navaids.json` is used to resolve radio-navaid identifiers in pasted flight plans locally; it is **not for navigation**. Source hashes and build evidence are recorded in `data/navaids-build.json`; rebuilds and limitations are documented in [data/NAVAIDS.md](data/NAVAIDS.md). This public-domain database is separate from the ODbL airport-to-time-zone database and the MIT application code.

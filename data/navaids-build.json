@@ -1,0 +1,15 @@
+{
+  "source": "OurAirports navaids.csv (https://ourairports.com/data/) — public domain",
+  "generatedAt": "2026-11-10T11:28:38.183Z",
+  "files": {
+    "navaids.csv": {
+      "sha256": "d7292380662c33a95214945023ec0a5b13189599305fd18be739e167a97a9bd1",
+      "bytes": 1524931,
+      "rows": 11008
+    }
+  },
+  "counts": { "VOR": 308, "VOR-DME": 2601, "VORTAC": 744, "TACAN": 442, "NDB": 6608, "NDB-DME": 137, "DME": 167 },
+  "contentHash": "80b9c53fd757a39dcf2c7d70564771382fb69cd58fdf4be7369f18d762ba13cf",
+  "selected": 11007,
+  "dropped": 1
+}

@@ -36,7 +36,7 @@ Credit: **NASA's Scientific Visualization Studio; LRO/LROC data courtesy of NASA
 
 Inputs are [airports.csv](https://davidmegginson.github.io/ourairports-data/airports.csv), [countries.csv](https://davidmegginson.github.io/ourairports-data/countries.csv) and [regions.csv](https://davidmegginson.github.io/ourairports-data/regions.csv).
 
-Fields used: airport `id`, `ident`, `type`, `name`, `latitude_deg`, `longitude_deg`, `iso_country`, `iso_region`, `municipality`, `scheduled_service`, `icao_code`, `iata_code`, `gps_code` and `keywords`; country/region `code` and `name` provide display dictionaries. Runways are downloaded separately for potential diversion airport evidence (below); frequencies, comments and navaids are not downloaded.
+Fields used: airport `id`, `ident`, `type`, `name`, `latitude_deg`, `longitude_deg`, `iso_country`, `iso_region`, `municipality`, `scheduled_service`, `icao_code`, `iata_code`, `gps_code` and `keywords`; country/region `code` and `name` provide display dictionaries. Runways are downloaded separately for potential diversion airport evidence (below); frequencies and comments are not downloaded. Radio navaids are built separately for pasted flight-plan resolution (below).
 
 Selection and cleaning in `scripts/lib/dataset.ts`:
 
@@ -121,3 +121,9 @@ Source: Natural Earth v5.1.2 1:10m **Populated Places**, 7,342 points ([pinned G
 ## Fonts
 
 Barlow by Jeremy Tribby (weights 400–700) and Martian Mono by Evil Martians (variable weight and width) are bundled through `@fontsource/barlow` and `@fontsource-variable/martian-mono`. Both installed package manifests declare **OFL-1.1** (SIL Open Font License 1.1). Only the Latin, Latin Extended and Vietnamese subsets that a page actually uses are downloaded. The font licence text is in each package’s `LICENSE`; these terms remain separate from the project code licence. See [third-party notices](../THIRD_PARTY_NOTICES.md).
+
+## Radio navaids for route imports
+
+Source: public-domain OurAirports [navaids.csv](https://davidmegginson.github.io/ourairports-data/navaids.csv), without accuracy guarantees. `npm run navaids:build` validates the strict CSV, keeps VOR, VOR-DME, VORTAC, TACAN, NDB, NDB-DME and DME records with valid coordinates and identifiers, and rounds positions to five decimals. The separate `src/data/generated/navaids.json` contains 11,007 radio aids, 364,472 bytes (134,231 gzip); `data/navaids-build.json` records source SHA-256, bytes, rows, type counts and content hash. Both outputs are written atomically after validation.
+
+The dataset resolves radio-navaid identifiers in pasted flight plans locally, without runtime network requests during parsing. It is public domain, separate from the ODbL time-zone table, and is **not for navigation**. It does not contain five-letter fixes, airways or procedures; unresolved points are reported and resolved neighbours are joined directly. See [NAVAIDS.md](../data/NAVAIDS.md) for rebuilds and limitations.
