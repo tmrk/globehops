@@ -13,7 +13,10 @@ interface ModelContext {
   provideContext?: (context: { tools: BrowserTool[] }) => void;
 }
 /** Experimental WebMCP is optional; a broken or missing implementation cannot break the app. */
-export function useWebTools(ready: boolean, execute: (name: WebToolName, args: unknown) => Promise<unknown>) {
+export function useWebTools(
+  ready: boolean,
+  execute: (name: WebToolName, args: unknown, signal: AbortSignal) => Promise<unknown>,
+) {
   const latest = useRef(execute);
   useLayoutEffect(() => {
     latest.current = execute;
@@ -52,7 +55,11 @@ export function useWebTools(ready: boolean, execute: (name: WebToolName, args: u
         execute: async (args) => {
           try {
             if (!active) throw new Error('GlobeHops tools are no longer active.');
-            return { content: [{ type: 'text', text: JSON.stringify(await latest.current(definition.name, args)) }] };
+            return {
+              content: [
+                { type: 'text', text: JSON.stringify(await latest.current(definition.name, args, controller.signal)) },
+              ],
+            };
           } catch (error) {
             return {
               isError: true,

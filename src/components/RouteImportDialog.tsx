@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useId, useImperativeHandle, useRef, useState }
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import type { Translate } from '../i18n/catalogue.ts';
 import { airportCode } from '../data/airports.ts';
-import type { NavaidDataset } from '../data/navaids.ts';
+import { loadNavaids } from '../data/navaidsLoader.ts';
 import type { ImportContext, ImportIssue, ImportResult, ImportWarningCode } from '../lib/import/index.ts';
 import { groupFlights } from '../lib/import/group.ts';
 import { legTrack, type TrackFormat } from '../lib/track.ts';
@@ -40,13 +40,6 @@ const FORMAT_NAMES: Record<TrackFormat, string> = {
   link: '',
   document: '',
 };
-
-// Radio navaids load once, only when a flight plan names some; a failure leaves them unresolved.
-let navaids: Promise<NavaidDataset | null> | null = null;
-const loadNavaids = () =>
-  (navaids ??= Promise.all([import('../data/navaids.ts'), import('../data/generated/navaids.json?url')])
-    .then(([{ loadNavaids: load }, { default: url }]) => load(url))
-    .catch(() => null));
 
 type State =
   | { phase: 'input'; error?: string }

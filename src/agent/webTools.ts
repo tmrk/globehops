@@ -1,3 +1,7 @@
+import { MAX_TEXT_BYTES } from '../lib/import/common.ts';
+import { TRACK_FORMATS } from '../lib/trackCodec.ts';
+import type { ImportOptions } from '../lib/import/types.ts';
+import type { TrackFormat } from '../lib/track.ts';
 import { MAX_JOURNEYS, MAX_URL_LENGTH } from './contract.ts';
 import { comparisonDocument } from './comparisonInput.ts';
 import { ITINERARY_SCHEMA, COMPARISON_INPUT_SCHEMA } from './schema.ts';
@@ -5,6 +9,7 @@ import { documentToLinkState, validateItineraryDocument, encodeItineraryParam } 
 import { parseLink, serializeLinkState, type LinkState, type LinkView } from '../state/link.ts';
 
 export const WEB_TOOL_NAMES = [
+  'import_route',
   'get_journey',
   'set_route',
   'compare_journeys',
@@ -13,7 +18,9 @@ export const WEB_TOOL_NAMES = [
   'get_share_link',
 ] as const;
 export type WebToolName = (typeof WEB_TOOL_NAMES)[number];
+export type ImportRouteCommand = { type: 'import_route'; text: string; mode: 'replace' | 'compare' } & ImportOptions;
 export type WebCommand =
+  | ImportRouteCommand
   | { type: 'get_journey' }
   | { type: 'get_share_link' }
   | { type: 'set_route'; link: LinkState; search: string }
@@ -22,6 +29,22 @@ export type WebCommand =
 const emptySchema = { type: 'object', properties: {}, additionalProperties: false };
 const { time: instantSchema, ...viewProperties } = ITINERARY_SCHEMA.properties.view.properties;
 export const WEB_TOOL_DEFINITIONS = [
+  {
+    name: 'import_route',
+    description:
+      'Parse flight-file text or an aviation route string locally, then show its paths on the globe. Supports GPX, KML, GeoJSON, CSV, IGC, Garmin FPL and MSFS/Little Navmap PLN. mode compare adds one imported journey to the current alternatives; replace loads connected flights as journeys and open jaws as trip sections. Returns flights, warnings and a share link; long share paths may be simplified. KMZ binary input is available through local MCP only.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['text'],
+      properties: {
+        text: { type: 'string', maxLength: MAX_TEXT_BYTES },
+        fileName: { type: 'string', maxLength: 1024 },
+        format: { type: 'string', enum: TRACK_FORMATS },
+        mode: { type: 'string', enum: ['replace', 'compare'] },
+      },
+    },
+  },
   {
     name: 'get_journey',
     description:
@@ -82,6 +105,25 @@ export function parseWebCommand(name: WebToolName, raw: unknown, flights: number
   const keys = (allowed: string[]) => {
     for (const key of Object.keys(raw)) if (!allowed.includes(key)) throw new TypeError(`Unknown argument ${key}.`);
   };
+  if (name === 'import_route') {
+    keys(['text', 'fileName', 'format', 'mode']);
+    if (typeof raw.text !== 'string') throw new TypeError('text must contain file contents or a route string.');
+    if (raw.text.length > MAX_TEXT_BYTES || new TextEncoder().encode(raw.text).length > MAX_TEXT_BYTES)
+      throw new TypeError('Route text exceeds 20 MB.');
+    if (raw.fileName !== undefined && (typeof raw.fileName !== 'string' || raw.fileName.length > 1024))
+      throw new TypeError('fileName must be a string of at most 1024 characters.');
+    if (raw.format !== undefined && !TRACK_FORMATS.includes(raw.format as TrackFormat))
+      throw new TypeError('format must be a supported track format.');
+    if (raw.mode !== undefined && raw.mode !== 'replace' && raw.mode !== 'compare')
+      throw new TypeError('mode must be replace or compare.');
+    return {
+      type: name,
+      text: raw.text,
+      fileName: raw.fileName as string | undefined,
+      format: raw.format as TrackFormat | undefined,
+      mode: raw.mode ?? 'replace',
+    };
+  }
   if (name === 'get_journey' || name === 'get_share_link') {
     keys([]);
     return { type: name };

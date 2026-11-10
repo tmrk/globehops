@@ -1,3 +1,8 @@
+import { groupFlights } from '../lib/import/group.ts';
+import { ImportFailure } from '../lib/import/common.ts';
+import type { ImportContext, ImportResult } from '../lib/import/types.ts';
+import type { ImportRouteCommand } from '../agent/webTools.ts';
+import { importedRouteSummary } from '../agent/importRoute.ts';
 import type { ClockSnapshot } from './clock.ts';
 import {
   serializableLinkState,
@@ -135,5 +140,37 @@ export function toolJourneyResponse({
       leg: currentView.leg ?? null,
     },
     url,
+  };
+}
+
+/** Parse before touching live state; recheck comparison availability after asynchronous parsing. */
+export async function importWebRoute(
+  command: ImportRouteCommand,
+  context: ImportContext,
+  target: {
+    canCompare: () => boolean;
+    apply: (result: ImportResult, mode: 'replace' | 'compare') => void;
+    shareLink: () => string;
+  },
+  signal?: AbortSignal,
+) {
+  const { importRoute } = await import('../lib/import/index.ts');
+  signal?.throwIfAborted();
+  const parsed = await importRoute(command.text, context, command);
+  signal?.throwIfAborted();
+  const summary = importedRouteSummary(parsed);
+  if (command.mode === 'compare' && (!target.canCompare() || groupFlights(parsed.flights).journeys.length !== 1))
+    throw new ImportFailure(
+      'unsupported',
+      'Compare requires one imported journey and room beside an existing journey.',
+    );
+  target.apply(parsed, command.mode);
+  return {
+    applied: true,
+    format: summary.format,
+    name: summary.name,
+    flights: summary.flights,
+    warnings: summary.warnings,
+    url: target.shareLink(),
   };
 }

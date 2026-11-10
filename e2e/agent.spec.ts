@@ -203,7 +203,7 @@ test('live tools validate atomically, patch state, preserve preferences and expo
   await invoke(page, 'set_view', { play: true });
   await expect.poll(async () => (await invoke<Snapshot>(page, 'get_journey')).view.play).toBe(true);
   await invoke(page, 'set_view', { play: false });
-  expect(await page.evaluate(() => window.globeAgentRegistrations)).toBe(6);
+  expect(await page.evaluate(() => window.globeAgentRegistrations)).toBe(7);
   await page.screenshot({ path: info.outputPath('agent-edited-desktop.png'), animations: 'disabled' });
   await page.setViewportSize({ width: 412, height: 915 });
   await expect(page.getByRole('application')).toBeVisible();
@@ -224,7 +224,7 @@ for (const mode of ['provide', 'broken'] as const)
       await ready(page);
       expect((await invoke<Snapshot>(page, 'get_journey')).stops.map((s) => s.code)).toEqual(['CPH', 'JFK']);
     } else {
-      await expect.poll(() => page.evaluate(() => window.globeAgentRemovals)).toBe(1);
+      await expect.poll(() => page.evaluate(() => window.globeAgentRemovals)).toBe(2);
       expect(await page.evaluate(() => Object.keys(window.globeAgentTools))).toEqual([]);
     }
     const menu = await openDisplay(page);
@@ -250,7 +250,7 @@ test('static discovery describes the deployed locale pages, schema, examples and
   expect(capabilities.visualisationOptions).toEqual(
     expect.arrayContaining(['follow', 'lang', 'names', 'borders', 'leg']),
   );
-  expect(capabilities.webMcp.tools).toHaveLength(6);
+  expect(capabilities.webMcp.tools).toHaveLength(7);
   expect(capabilities.mcp.resources).toHaveLength(4);
   const schema = (await (await request.get('/globehops/agent/itinerary.schema.json')).json()) as {
     properties: { view: { properties: object } };
@@ -329,4 +329,27 @@ test('view-only links validate flight bounds and explicit defaults survive reloa
   await page.goto(localUrl(shared.url));
   await ready(page);
   expect((await invoke<Snapshot>(page, 'get_journey')).stops).toEqual([]);
+});
+
+test('live import parses paths, compares through App and leaves the plan unchanged on errors', async ({ page }) => {
+  await installTools(page);
+  await page.goto('/globehops/?route=CPH-ARN');
+  await ready(page);
+  const imported = await invoke<{ flights: { from: string; to: string; points: number }[]; url: string }>(
+    page,
+    'import_route',
+    {
+      text: 'EGLL CPT KJFK',
+      mode: 'compare',
+    },
+  );
+  expect(imported.flights).toMatchObject([{ from: 'LHR', to: 'JFK', points: 3 }]);
+  expect(new URL(imported.url).searchParams.get('b.route')).toBe('LHR-JFK');
+  expect(new URL(imported.url).searchParams.has('b.trk1')).toBe(true);
+  const before = await invoke<Snapshot>(page, 'get_journey');
+  await expect(invoke(page, 'import_route', { text: '<gpx/>' })).rejects.toThrow();
+  expect((await invoke<Snapshot>(page, 'get_journey')).stops).toEqual(before.stops);
+  const replaced = await invoke<{ url: string }>(page, 'import_route', { text: 'EGLL KJFK\nLFPG EKCH' });
+  expect(new URL(replaced.url).searchParams.get('2.route')).toBe('CDG-CPH');
+  expect(new URL(replaced.url).searchParams.has('b.route')).toBe(false);
 });

@@ -1,3 +1,7 @@
+import { importRoute } from '../src/lib/import/index.ts';
+import { ImportFailure, MAX_TEXT_BYTES } from '../src/lib/import/common.ts';
+import { TRACK_FORMATS } from '../src/lib/trackCodec.ts';
+import { agentImportContext, importedRouteSummary, importedComparisonDocument } from '../src/agent/importRoute.ts';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -161,6 +165,26 @@ const comparisonJourney = z
     'Supply exactly one of route, stops or sections; returnRoute requires route, and stay requires returnRoute.',
   );
 export const INPUT_SCHEMAS = {
+  import_route: z
+    .strictObject({
+      text: z
+        .string()
+        .max(MAX_TEXT_BYTES)
+        .optional()
+        .describe('UTF-8 file contents or an aviation route string; at most 20 MiB.'),
+      base64: z
+        .string()
+        .max(4 * Math.ceil(MAX_TEXT_BYTES / 3))
+        .optional()
+        .describe('Base64-encoded KMZ ZIP bytes instead of text; decoded size at most 20 MiB.'),
+      fileName: z.string().max(1024).optional().describe('File name used for format detection and attribution.'),
+      format: z.enum(TRACK_FORMATS).optional(),
+      view: view.optional(),
+      routing,
+      compareWithGenerated: z.boolean().optional(),
+    })
+    .refine((v) => (v.text !== undefined) !== (v.base64 !== undefined), 'Supply exactly one of text or base64.')
+    .meta({ oneOf: [{ required: ['text'] }, { required: ['base64'] }] }),
   search_airports: z.strictObject({
     query: z.string().max(500).describe('City, airport name, code or alternative name; accents optional.'),
     limit: z.number().int().min(1).max(100).optional().describe('Maximum matches (default 8).'),
@@ -204,6 +228,8 @@ export const INPUT_SCHEMAS = {
 };
 export type ToolName = keyof typeof INPUT_SCHEMAS;
 const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
+  import_route:
+    'Parse a local flight file or aviation route string into flights, warnings, an itinerary document and globe links. Supports GPX, KML/KMZ (base64), GeoJSON, CSV, IGC, Garmin FPL and MSFS/Little Navmap PLN. Connected flights form a journey; open jaws form trip sections. Optional compareWithGenerated compares one imported journey with GlobeHops routing. Long links simplify paths and report issues; nothing is uploaded.',
   compare_journeys:
     'Compare 2–4 alternative journeys or round trips (offers, or different people’s trips) and return one GlobeHops link on a shared clock. Name each with label (e.g. the traveller). Each alternative supplies route, stops or sections; route plus returnRoute and optional stay is a round-trip shorthand. Trips require equal section counts and rank travel time excluding stays, with section-by-section winners. Plain journeys report fastest/first arrival. Use airport-local timetable times; untimed trip sections align with the earliest timed counterpart unless the traveller chose the stay; assumeDeparture anchors undated alternatives.',
   search_airports: 'Find airports using GlobeHops ranking, with coordinates and IANA time zones.',
@@ -224,7 +250,11 @@ function result(value: Record<string, unknown>, isError = false): CallToolResult
   };
 }
 /** Direct, guarded entry point shared by SDK callbacks and unit tests. */
-export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): CallToolResult {
+export function handleTool(ctx: AgentContext, name: 'import_route', raw: unknown): Promise<CallToolResult>;
+export function handleTool(ctx: AgentContext, name: Exclude<ToolName, 'import_route'>, raw: unknown): CallToolResult;
+export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): CallToolResult | Promise<CallToolResult>;
+export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): CallToolResult | Promise<CallToolResult> {
+  if (name === 'import_route') return handleImportRoute(ctx, raw);
   try {
     const checked = INPUT_SCHEMAS[name].safeParse(raw);
     if (!checked.success)
@@ -334,6 +364,59 @@ export function handleTool(ctx: AgentContext, name: ToolName, raw: unknown): Cal
     return result(plan, !plan.valid);
   } catch (error) {
     return result({ error: error instanceof Error ? error.message : 'Tool failed.' }, true);
+  }
+}
+/** Async only for the importer (KMZ decompression); existing direct handlers remain synchronous. */
+async function handleImportRoute(ctx: AgentContext, raw: unknown): Promise<CallToolResult> {
+  try {
+    const checked = INPUT_SCHEMAS.import_route.safeParse(raw);
+    if (!checked.success) {
+      const tooLarge = checked.error.issues.some(
+        (issue) => issue.code === 'too_big' && ['text', 'base64'].includes(String(issue.path[0])),
+      );
+      return result(
+        {
+          code: tooLarge ? 'too_large' : 'invalid',
+          message: checked.error.issues.map((issue) => issue.message).join(' '),
+        },
+        true,
+      );
+    }
+    const args = checked.data;
+    let input: string | Uint8Array = args.text ?? '';
+    if (args.base64 !== undefined) {
+      if (args.base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(args.base64))
+        throw new ImportFailure('invalid', 'base64 must contain standard padded Base64 KMZ bytes.');
+      input = Buffer.from(args.base64, 'base64');
+      if (Buffer.from(input).toString('base64') !== args.base64)
+        throw new ImportFailure('invalid', 'base64 must use canonical padded Base64.');
+      if (input.length > MAX_TEXT_BYTES) throw new ImportFailure('too_large', 'Route input exceeds 20 MB.');
+      if (args.format !== undefined && args.format !== 'kmz')
+        throw new ImportFailure('unsupported', 'base64 is supported only for KMZ.');
+    }
+    const parsed = await importRoute(input, agentImportContext(ctx), {
+      fileName: args.fileName,
+      format: args.base64 !== undefined ? 'kmz' : args.format,
+    });
+    if (parsed.flights.some((flight) => flight.track.points.length > MAX_TRACK_POINTS))
+      throw new ImportFailure(
+        'too_large',
+        `Itinerary documents support at most ${MAX_TRACK_POINTS} points per flight.`,
+      );
+    const summary = importedRouteSummary(parsed);
+    const document = args.compareWithGenerated
+      ? importedComparisonDocument(summary.document, parsed.name)
+      : summary.document;
+    const visual = handleTool(ctx, 'visualize_route', { itinerary: document, view: args.view, routing: args.routing });
+    return result({ ...summary, document, ...visual.structuredContent }, visual.isError === true);
+  } catch (error) {
+    return result(
+      {
+        code: error instanceof ImportFailure ? error.code : 'invalid',
+        message: error instanceof Error ? error.message : 'Route import failed.',
+      },
+      true,
+    );
   }
 }
 const issuesOutput = z.array(
@@ -578,6 +661,31 @@ const singleOutputs = {
 };
 export const OUTPUT_SCHEMAS = {
   ...singleOutputs,
+  import_route: singleOutputs.visualize_route.extend({
+    format: z.enum(TRACK_FORMATS).nullable(),
+    name: z.string().nullable(),
+    flights: z.array(
+      z.object({
+        from: z.string(),
+        to: z.string(),
+        kind: z.enum(['planned', 'recorded']),
+        points: z.number().int().min(2),
+        distanceKm: z.number(),
+        greatCircleKm: z.number(),
+        recordedDurationMin: z.number().int().optional(),
+        fromDistanceKm: z.number(),
+        toDistanceKm: z.number(),
+      }),
+    ),
+    warnings: z.array(
+      z.object({
+        code: z.string(),
+        message: z.string(),
+        params: z.record(z.string(), z.union([z.string(), z.number()])),
+      }),
+    ),
+    document: itinerary,
+  }),
   compare_journeys: z.object({
     contractVersion: z.literal(1),
     valid: z.boolean(),
