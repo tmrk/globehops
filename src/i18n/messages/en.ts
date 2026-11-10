@@ -266,7 +266,7 @@ export const en = {
   'about.estimates':
     'Flight times are estimates: distance at an average {0} km/h plus {1} min for take-off, climb, approach and landing. Total time adds a layover at each connection ({2} unless you change it).',
   'about.playback':
-    'Playback estimates positions along the great circle at an illustrative altitude; these are not real flight tracks. Sun position uses the NOAA/Meeus algorithm.',
+    'Playback estimates positions along the great circle at an illustrative altitude, unless you import a flight path: a recorded track plays with its own times and altitudes, a planned one along its waypoints. Sun position uses the NOAA/Meeus algorithm.',
   'about.credits': 'Sources & credits',
   'about.imagery':
     'Earth imagery: Blue Marble Next Generation (July 2004 composite with topography and bathymetry), NASA Earth Observatory / Reto Stöckli, NASA Goddard Space Flight Center. City lights: Black Marble 2016, NASA Earth Observatory / Joshua Stevens, with Suomi NPP VIIRS data from Miguel Román, NASA Goddard Space Flight Center. Moon: LRO Camera colour mosaic, NASA Scientific Visualization Studio (CGI Moon Kit), with data from NASA/GSFC/Arizona State University. Cloud-free satellite composites, not a live view. GlobeHops is not affiliated with or endorsed by NASA.',

@@ -270,7 +270,7 @@ export const hu: Messages = {
   'about.estimates':
     'A repülési idők becslések: a távolság {0} km/h átlagsebességgel, plusz {1} perc a felszállásra, emelkedésre, megközelítésre és leszállásra. A teljes idő minden átszállásnál várakozást is tartalmaz (alapértelmezésben {2}).',
   'about.playback':
-    'A lejátszás a főkör menti becsült helyzeteket mutatja szemléltető magasságon; ezek nem valódi járatkövetési adatok. A Nap helyzetét a NOAA/Meeus-algoritmus számítja.',
+    'A lejátszás a főkör menti becsült helyzeteket mutatja szemléltető magasságon, hacsak nem importálsz repülési útvonalat: a rögzített nyomvonal a saját időpontjaival és magasságaival, a tervezett a fordulópontjai mentén játszódik le. A Nap helyzetét a NOAA/Meeus-algoritmus számítja.',
   'about.credits': 'Források és közreműködők',
   'about.imagery':
     'Földfelszíni képek: Blue Marble Next Generation (2004. júliusi kompozit, szárazföldi és tengerfenéki domborzattal), NASA Earth Observatory / Reto Stöckli, NASA Goddard Space Flight Center. Városi fények: Black Marble 2016, NASA Earth Observatory / Joshua Stevens, Miguel Román Suomi NPP VIIRS-adataival, NASA Goddard Space Flight Center. Hold: az LRO kamerájának színes mozaikja, NASA Scientific Visualization Studio (CGI Moon Kit), a NASA/GSFC/Arizona State University adataival. Felhőmentes műholdképekből készült kompozitok, nem élő felvételek. A GlobeHops nem áll kapcsolatban a NASA-val, és a NASA nem támogatja.',

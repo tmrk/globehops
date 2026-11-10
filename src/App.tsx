@@ -377,7 +377,16 @@ export default function App() {
     timeOpen,
     initialized,
     arranging,
-    floating: isDesktop ? (dialShown ? 'dial' : timeBarShown ? 'timeline' : hasFlights ? 'launcher' : null) : null,
+    floating:
+      isDesktop && !shortScreen
+        ? dialShown
+          ? 'dial'
+          : timeBarShown
+            ? 'timeline'
+            : hasFlights
+              ? 'launcher'
+              : null
+        : null,
     // A full sheet covers the globe; keep its framing for when the sheet comes back down.
     frozen: !isDesktop && sheetFull && !collapsed,
   });
@@ -720,6 +729,27 @@ export default function App() {
     window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     trackEvent('route_export');
   };
+  // An installed app opened with a flight file (“Open with GlobeHops”) imports it once airports are ready.
+  const launchedFile = useRef<File | null>(null);
+  const importReady = importContext !== null;
+  const importReadyRef = useRef(importReady);
+  useLayoutEffect(() => {
+    importReadyRef.current = importReady;
+  });
+  useEffect(() => {
+    const queue = (window as { launchQueue?: LaunchQueue }).launchQueue;
+    queue?.setConsumer(async (params) => {
+      const file = await params.files?.[0]?.getFile();
+      if (!file) return;
+      if (importReadyRef.current) importRef.current?.open({ file });
+      else launchedFile.current = file;
+    });
+  }, []);
+  useEffect(() => {
+    if (!importReady || !launchedFile.current) return;
+    importRef.current?.open({ file: launchedFile.current });
+    launchedFile.current = null;
+  }, [importReady]);
   // Pasting a path or a route anywhere outside a field offers to import it.
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
@@ -972,7 +1002,7 @@ export default function App() {
       lanes={launcherLanes}
       problem={launcherProblem}
       docked={docked}
-      shortcut={!docked && finePointer}
+      shortcut={finePointer && isDesktop}
       cue={playCue}
       onPlay={togglePlayback}
       onExpand={docked && sheetCollapsed ? sheet.expand : undefined}
@@ -1309,7 +1339,7 @@ export default function App() {
         />
       )}
 
-      {((isDesktop && (timeBarShown || launcherShown)) || (!globeFailed && !timeBarShown)) && (
+      {((isDesktop && !shortScreen && (timeBarShown || launcherShown)) || (!globeFailed && !timeBarShown)) && (
         <div
           className="hud-wrap"
           style={
@@ -1322,8 +1352,8 @@ export default function App() {
           {!globeFailed && !timeOpen && (
             <GlobeHud legs={legs} selectedLeg={route.selectedLeg} fits={fits} onSelectLeg={selectLeg} />
           )}
-          {isDesktop && timeBarShown && timeBar(false)}
-          {isDesktop && launcherShown && launcher(false)}
+          {isDesktop && !shortScreen && timeBarShown && timeBar(false)}
+          {isDesktop && !shortScreen && launcherShown && launcher(false)}
           {isDesktop && dialShown && timeDial(false)}
         </div>
       )}
@@ -1345,8 +1375,9 @@ export default function App() {
           </button>
         )}
 
-        {!isDesktop && timeBarShown && timeBar(true)}
-        {!isDesktop && launcherShown && launcher(true)}
+        {/* Phones and short landscape screens: the player is the top of the panel, leaving the globe clear. */}
+        {(!isDesktop || shortScreen) && timeBarShown && timeBar(true)}
+        {(!isDesktop || shortScreen) && launcherShown && launcher(true)}
         {/* The dial belongs to the globe view; the open planner needs the room. */}
         {!isDesktop && dialShown && sheetCollapsed && timeDial(true)}
 

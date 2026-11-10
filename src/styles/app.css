@@ -2373,6 +2373,28 @@ button.map-menu__item:hover {
   min-width: 0;
 }
 
+/* However narrow the timeline gets (a landscape phone's panel, a small window), the clock takes a line of
+   its own rather than collapsing beside the playback controls. */
+.time-bar {
+  container: time-bar / inline-size;
+}
+
+@container time-bar (max-width: 340px) {
+  .time-bar__foot {
+    flex-wrap: wrap;
+  }
+  .time-bar__foot > .time-bar__clock {
+    flex: 1 0 100%;
+    margin-right: 0;
+  }
+  .time-bar__readout {
+    white-space: nowrap;
+  }
+  .time-bar__foot > .time-bar__speed {
+    margin-left: auto;
+  }
+}
+
 /* Clock, speed and Now are small menus/buttons; prev/next share one capsule. All are one height. */
 .time-bar__menu,
 .time-bar__steps {
@@ -4946,11 +4968,15 @@ button.map-menu__item:hover {
   .layout-desktop .hud-wrap {
     bottom: calc(8px + var(--safe-bottom));
   }
-  .layout-desktop .launcher__main {
-    padding-block: 8px;
-  }
   :root {
     --disc: 44px;
+  }
+  /* The player docks at the top of the panel, as on phones, leaving the globe clear. */
+  .layout-desktop .time-bar--docked {
+    padding-top: 12px;
+  }
+  .layout-desktop .launcher--docked .launcher__main {
+    padding-top: 12px;
   }
 }
 

@@ -34,6 +34,21 @@
     }
   ],
   "id": "./",
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": {
+        "application/gpx+xml": [".gpx"],
+        "application/vnd.google-earth.kml+xml": [".kml"],
+        "application/vnd.google-earth.kmz": [".kmz"],
+        "application/geo+json": [".geojson"],
+        "text/csv": [".csv"],
+        "text/plain": [".igc"],
+        "application/xml": [".fpl", ".pln", ".lnmpln"]
+      },
+      "launch_type": "single-client"
+    }
+  ],
   "lang": "en",
   "dir": "ltr",
   "display_override": ["fullscreen", "standalone"],

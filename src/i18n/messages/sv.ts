@@ -267,7 +267,7 @@ export const sv: Messages = {
   'about.estimates':
     'Flygtiderna är uppskattningar: avstånd med en snittfart på {0} km/h plus {1} min för start, stigning, inflygning och landning. Totaltiden inkluderar väntetid vid varje byte ({2} om du inte ändrar den).',
   'about.playback':
-    'Uppspelningen visar beräknade positioner längs storcirkeln på en illustrativ höjd. Det är inga verkliga flygspår. Solens position beräknas med NOAA/Meeus-algoritmen.',
+    'Uppspelningen visar beräknade positioner längs storcirkeln på en illustrativ höjd, om du inte importerar en flygväg: ett inspelat spår spelas upp med sina egna tider och höjder, en planerad rutt längs sina brytpunkter. Solens position beräknas med NOAA/Meeus-algoritmen.',
   'about.credits': 'Källor och medverkande',
   'about.imagery':
     'Jordbilder: Blue Marble Next Generation (sammansättning från juli 2004 med topografi och havsdjup), NASA Earth Observatory / Reto Stöckli, NASA Goddard Space Flight Center. Stadsljus: Black Marble 2016, NASA Earth Observatory / Joshua Stevens, med Suomi NPP VIIRS-data från Miguel Román, NASA Goddard Space Flight Center. Månen: färgmosaik från LRO-kameran, NASA Scientific Visualization Studio (CGI Moon Kit), med data från NASA/GSFC/Arizona State University. Molnfria, sammansatta satellitbilder – ingen direktsänd vy. GlobeHops är inte knutet till eller godkänt av NASA.',
