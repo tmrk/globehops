@@ -44,8 +44,8 @@ export function formatLegTimes(leg: JourneyLeg): { dep: string; arr: string; day
   const a = dep ? parseLocalDateTime(dep.local) : null,
     b = arr ? parseLocalDateTime(arr.local) : null;
   return {
-    dep: dep?.local.slice(11, 16) ?? '—',
-    arr: arr?.local.slice(11, 16) ?? '—',
+    dep: dep?.local.slice(11, 16) ?? '–',
+    arr: arr?.local.slice(11, 16) ?? '–',
     dayShift: a && b ? localDayDifference(a, b) : 0,
     estimated: !dep || !arr || dep.provenance !== 'entered' || arr.provenance !== 'entered',
   };

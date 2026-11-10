@@ -5,22 +5,22 @@ This guide is for external agents that construct links or use GlobeHops calculat
 GlobeHops is a free static browser application. Give the user a link to open the full interactive globe:
 
 ```text
-https://tmrk.github.io/globehops/?route=CPH-JFK
-https://tmrk.github.io/globehops/?route=CPH-LHR_180-JFK
-https://tmrk.github.io/globehops/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15&arr2=2026-11-20T09:05&dep2=2026-11-20T11:00&arr3=2026-11-20T13:50
+https://globehops.marki.im/?route=CPH-JFK
+https://globehops.marki.im/?route=CPH-LHR_180-JFK
+https://globehops.marki.im/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15&arr2=2026-11-20T09:05&dep2=2026-11-20T11:00&arr3=2026-11-20T13:50
 ```
 
 The last example uses airport-local wall times, so 08:15 in Copenhagen and 09:05 at Heathrow are in different zones. GlobeHops is an illustrative planner, not an airline schedule, booking service or flight tracker.
 
 ## Discovery
 
-- [Agent guide (llms.txt)](https://tmrk.github.io/globehops/llms.txt)
-- [Capabilities and limits](https://tmrk.github.io/globehops/agent/capabilities.json)
-- [Itinerary document JSON Schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json)
-- [Worked examples](https://tmrk.github.io/globehops/agent/examples.json)
-- [Dataset freshness](https://tmrk.github.io/globehops/agent/dataset.json)
+- [Agent guide (llms.txt)](https://globehops.marki.im/llms.txt)
+- [Capabilities and limits](https://globehops.marki.im/agent/capabilities.json)
+- [Itinerary document JSON Schema](https://globehops.marki.im/agent/itinerary.schema.json)
+- [Worked examples](https://globehops.marki.im/agent/examples.json)
+- [Dataset freshness](https://globehops.marki.im/agent/dataset.json)
 
-The guide is at the project path `/globehops/llms.txt`, not the domain-root `/llms.txt`. HTML discovery links and WebApplication JSON-LD point to the same contract. These are project discovery conventions, with no claim of conformance to a formal agent standard.
+The guide is at the site root, `https://globehops.marki.im/llms.txt`. GlobeHops moved there from `https://tmrk.github.io/globehops/`; old links redirect in a browser, but build new links on the new domain. HTML discovery links and WebApplication JSON-LD point to the same contract. These are project discovery conventions, with no claim of conformance to a formal agent standard.
 
 ## Link reference (v1)
 
@@ -48,7 +48,7 @@ The guide is at the project path `/globehops/llms.txt`, not the domain-root `/ll
 | `leg`               | One-based selected flight (counted across a trip); frames it              | `2`                            |
 | `itinerary`         | Alternative complete base64url UTF-8 JSON document                        | See examples file              |
 
-The itinerary parameter takes precedence over readable parameters. An explicit locale path takes precedence over `lang`; otherwise document `view.lang` or the `?lang=` alias selects the language. `buildLinkUrl` and MCP generate locale paths, for example `/globehops/hu/?route=CPH-JFK&names=1&borders=0&leg=1`. Link and browser-tool view overrides do not save user preferences; later manual control changes may save them. When `follow` and `leg` are both supplied, the flight is selected while the aircraft camera takes priority; `select_flight` exits follow to frame its flight. URL input takes precedence over remembered browser state; absent both, the app opens an example. Explicit `?route=` clears the route. Canonical empty links omit `route`.
+The itinerary parameter takes precedence over readable parameters. An explicit locale path takes precedence over `lang`; otherwise document `view.lang` or the `?lang=` alias selects the language. `buildLinkUrl` and MCP generate locale paths, for example `/hu/?route=CPH-JFK&names=1&borders=0&leg=1`. Link and browser-tool view overrides do not save user preferences; later manual control changes may save them. When `follow` and `leg` are both supplied, the flight is selected while the aircraft camera takes priority; `select_flight` exits follow to frame its flight. URL input takes precedence over remembered browser state; absent both, the app opens an example. Explicit `?route=` clears the route. Canonical empty links omit `route`.
 
 Unknown parameters are ignored. Readable parsing is tolerant: malformed values produce issues while usable values survive; parameter names are case-insensitive. Unknown airports are reported and skipped. Agent calculations mark unknown-airport issues as errors even though they return the surviving route. Warnings do not make an itinerary invalid.
 
@@ -72,7 +72,7 @@ Instants (`t`, timeline `at`, `assumeDeparture`) use ISO date/time with `Z` or `
 }
 ```
 
-Validate with the [draft 2020-12 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json). `version: 1` and exactly one of `stops`, `journeys` or `sections` are required. Each stop requires `airport`; optional fields are `arrival`, `departure`, `layoverMinutes`. Layovers are integers 0–10080 and apply only to transfer stops. All view fields are optional: `time`, `play` (boolean), `speed` (`"auto"` or numeric 1800/3600/7200), `clock`, `units`, `dayNight` (boolean), `follow` (boolean, default false), `lang` (`en`/`hu`/`sv`), `names` and `borders` (booleans), `leg` (integer 1–54, must identify a flight in A (counting across its trip sections)). Unknown properties are rejected at every level; a top-level string `$schema` is allowed.
+Validate with the [draft 2020-12 schema](https://globehops.marki.im/agent/itinerary.schema.json). `version: 1` and exactly one of `stops`, `journeys` or `sections` are required. Each stop requires `airport`; optional fields are `arrival`, `departure`, `layoverMinutes`. Layovers are integers 0–10080 and apply only to transfer stops. All view fields are optional: `time`, `play` (boolean), `speed` (`"auto"` or numeric 1800/3600/7200), `clock`, `units`, `dayNight` (boolean), `follow` (boolean, default false), `lang` (`en`/`hu`/`sv`), `names` and `borders` (booleans), `leg` (integer 1–54, must identify a flight in A (counting across its trip sections)). Unknown properties are rejected at every level; a top-level string `$schema` is allowed.
 
 Encode compact JSON as base64url UTF-8 without padding, then append `?itinerary=<encoded>`. Each journey must contain 1–10 stops; one stop shows a single airport. Do not encode private information into links you share.
 
@@ -80,7 +80,7 @@ JavaScript (Node 22.18+, with a document in `doc`):
 
 ```js
 const encoded = Buffer.from(JSON.stringify(doc), 'utf8').toString('base64url');
-const url = 'https://tmrk.github.io/globehops/?itinerary=' + encoded;
+const url = 'https://globehops.marki.im/?itinerary=' + encoded;
 ```
 
 Browser JavaScript:
@@ -105,7 +105,7 @@ In a checkout, prefer `encodeItineraryParam`, `parseLink`, `serializeLink` and `
 Journey IDs A–D follow array order. Readable links keep A unprefixed and use `b.`, `c.`, `d.` for the other routes, times and labels:
 
 ```text
-https://tmrk.github.io/globehops/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct
+https://globehops.marki.im/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct
 ```
 
 Labels name each alternative wherever it appears: its tab, the comparison table, its timeline lane, its plane on the globe and the timeline's “Anna arrives first”. Use the traveller's name to show different people's journeys together (`label=Anna&b.label=Ben`), or the airline/offer for options. Visitors can rename journeys in the app (Edit → Name), which writes the same parameters; a single journey's label becomes its title. Keys are case-insensitive; gaps compact in letter order. Every prefixed group needs `route`. URL-encode label spaces, Unicode, `&` and `=`. Shared view parameters stay unprefixed; `leg` selects a flight in A, and `clock` may identify an airport in any journey. Older clients display A.
@@ -150,7 +150,7 @@ For plain journeys it returns `kind: "comparison"`, both URLs, `humanSummary`, p
 A trip is a sequence of journeys (sections) separated by explicit stays, not a comparison: alternatives are compared side by side, while a trip's sections follow one another. Compared trips combine these: each alternative has the same sequence of section slots. Readable links keep the first section unprefixed and add later ones with numeric prefixes:
 
 ```text
-https://tmrk.github.io/globehops/?route=CPH-AMS-NBO&dep1=2026-11-15T07:00&arr2=2026-11-15T08:20&dep2=2026-11-15T10:20&arr3=2026-11-15T20:55&2.route=NBO-CDG-CPH&2.dep1=2026-11-20T23:55&2.arr2=2026-11-21T06:50&2.dep2=2026-11-21T09:30&2.arr3=2026-11-21T11:25
+https://globehops.marki.im/?route=CPH-AMS-NBO&dep1=2026-11-15T07:00&arr2=2026-11-15T08:20&dep2=2026-11-15T10:20&arr3=2026-11-15T20:55&2.route=NBO-CDG-CPH&2.dep1=2026-11-20T23:55&2.arr2=2026-11-21T06:50&2.dep2=2026-11-21T09:30&2.arr3=2026-11-21T11:25
 ```
 
 The document form uses `sections` (1–6), each with `stops`, an optional `label` and, after the first, an optional `stayMinutes`:
@@ -180,7 +180,7 @@ The document form uses `sections` (1–6), each with `stops`, an optional `label
 
 Connections belong inside a section; the time between sections is a **stay**, never a layover, and GlobeHops never turns one into the other by duration. Both sections' own times fix a stay (`source: "times"`). Build itineraries progressively: a section without times is placed from its neighbour by its `stayMinutes` (default 10080, seven days) with `estimated` provenance, or `assumed` when the default is used. Missing details are never invented beyond that marked placement. A section departing before the previous one arrives reports `stay_overlap` (error). Sections may be open jaws (arrive in Rome, leave from Milan).
 
-`calculate_route`, `visualize_route`, `validate_itinerary` and `get_journey_timeline` accept trip documents. `calculate_route` returns `kind: "trip"`, `sections` (each with `name` — the label or Outbound/Return/Journey n — `anchor`, stops, legs, transfers, totals and times), `stays` (`afterSection`, `beforeSection`, airports, `openJaw`, arrival/departure, `minutes`, calendar `days` at the arrival airport, `source`, `provenance`) and trip `totals` (`flightMinutes`, `connectionMinutes`, `stayMinutes`, `tripMinutes`, counts and first/last times). Timelines add `section` and `globalLeg`, and a `stay` phase at the arrival airport between sections. `leg` and `select_flight` count flights across the whole trip. The app plays one traveller through the trip on one clock and skips stays during automatic playback without changing any instant.
+`calculate_route`, `visualize_route`, `validate_itinerary` and `get_journey_timeline` accept trip documents. `calculate_route` returns `kind: "trip"`, `sections` (each with `name` – the label or Outbound/Return/Journey n – `anchor`, stops, legs, transfers, totals and times), `stays` (`afterSection`, `beforeSection`, airports, `openJaw`, arrival/departure, `minutes`, calendar `days` at the arrival airport, `source`, `provenance`) and trip `totals` (`flightMinutes`, `connectionMinutes`, `stayMinutes`, `tripMinutes`, counts and first/last times). Timelines add `section` and `globalLeg`, and a `stay` phase at the arrival airport between sections. `leg` and `select_flight` count flights across the whole trip. The app plays one traveller through the trip on one clock and skips stays during automatic playback without changing any instant.
 
 ## Compare round trips
 
@@ -189,7 +189,7 @@ Compare 2–4 alternatives with the same 1–6 sections each. Compare outbound w
 Readable link (A via Frankfurt, B nonstop, both returning):
 
 ```text
-https://tmrk.github.io/globehops/?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&2.route=JFK-FRA-BUD&2.dep1=2026-12-10T18:00&label=Via%20Frankfurt&b.route=BUD-JFK&b.dep1=2026-12-01T08:00&b.label=Nonstop&b.2.route=JFK-BUD&b.2.dep1=2026-12-10T18:00
+https://globehops.marki.im/?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&2.route=JFK-FRA-BUD&2.dep1=2026-12-10T18:00&label=Via%20Frankfurt&b.route=BUD-JFK&b.dep1=2026-12-01T08:00&b.label=Nonstop&b.2.route=JFK-BUD&b.2.dep1=2026-12-10T18:00
 ```
 
 A uses ordinary keys and `2.*`–`6.*`; B uses `b.*` and `b.2.*`–`b.6.*`, through D's `d.6.*`. Each section restarts stop numbering at 1. Labels name alternatives (`label`/`b.label`), e.g. two travellers' round trips: `?route=LHR-HND&label=Anna&2.route=HND-LHR&b.route=JFK-HND&b.label=Ben&b.2.route=HND-JFK`; later section labels and stays use `2.label`/`2.stay` or `b.2.label`/`b.2.stay`. Prefixed empty routes serialize explicitly. Shared `leg` counts A's flights across its sections; `clock` may name any airport in any section or alternative.
@@ -275,7 +275,7 @@ Generated positions use the shared flight-progress model along a great circle, o
 
 ## Dataset freshness and licences
 
-Fetch [agent/dataset.json](https://tmrk.github.io/globehops/agent/dataset.json) for the airport build's `generatedAt`, upstream commit and counts, plus zone release, licence, attribution and build metadata, and `app` with the deployed GlobeHops release (`version`, `commit`, `date`). Vite emits this record from the current build inputs and serves it in development; it is not a separately hand-maintained snapshot. Airport updates are checked daily, but the record is the authority on the currently deployed dataset.
+Fetch [agent/dataset.json](https://globehops.marki.im/agent/dataset.json) for the airport build's `generatedAt`, upstream commit and counts, plus zone release, licence, attribution and build metadata, and `app` with the deployed GlobeHops release (`version`, `commit`, `date`). Vite emits this record from the current build inputs and serves it in development; it is not a separately hand-maintained snapshot. Airport updates are checked daily, but the record is the authority on the currently deployed dataset.
 
 OurAirports data is public domain. Airport time zones are a separate ODbL-1.0 derivative database from timezone-boundary-builder 2026f/OpenStreetMap. The freshness record links to its machine-readable source. Code is MIT; imagery, borders and fonts retain their own terms. See [data sources](DATA_SOURCES.md), [time-zone processing](../data/TIMEZONES.md) and [third-party notices](../THIRD_PARTY_NOTICES.md).
 
@@ -306,7 +306,7 @@ args = ["/absolute/path/to/globehops/mcp/server.ts"]
 
 # Optional for a different GlobeHops deployment:
 [mcp_servers.globehops.env]
-GLOBEHOPS_BASE_URL = "https://tmrk.github.io/globehops/"
+GLOBEHOPS_BASE_URL = "https://globehops.marki.im/"
 ```
 
 The `command`/`args` configuration follows [official OpenAI MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli). Restart/reconnect the client after changing its configuration.
@@ -319,7 +319,7 @@ Generic clients supporting the `mcpServers` JSON convention can use:
     "globehops": {
       "command": "node",
       "args": ["/absolute/path/to/globehops/mcp/server.ts"],
-      "env": { "GLOBEHOPS_BASE_URL": "https://tmrk.github.io/globehops/" }
+      "env": { "GLOBEHOPS_BASE_URL": "https://globehops.marki.im/" }
     }
   }
 }
@@ -413,7 +413,7 @@ The full response also echoes input, includes canonical `url` and `itineraryPara
 
 ```json
 {
-  "url": "https://tmrk.github.io/globehops/?route=CPH-JFK&clock=utc&units=mi",
+  "url": "https://globehops.marki.im/?route=CPH-JFK&clock=utc&units=mi",
   "summary": {
     "totals": {
       "distanceKm": 6188.7,
@@ -516,7 +516,7 @@ Browser agents using the DOM can use named buttons, airport comboboxes, flight b
 
 ## Why there is no remote MCP endpoint
 
-GitHub Pages serves static HTML, JavaScript and JSON. It cannot execute an MCP server process or handle protocol requests. The discovery files are ordinary fetchable resources; `npm run mcp` is a local stdio adapter, not a hosted endpoint.
+Cloudflare Pages serves GlobeHops as static HTML, JavaScript and JSON. It cannot execute an MCP server process or handle protocol requests. The discovery files are ordinary fetchable resources; `npm run mcp` is a local stdio adapter, not a hosted endpoint.
 
 A hosted MCP service would need a separate runtime and a Streamable HTTP transport around the same handlers/context, HTTPS, deployment and dataset-refresh operations, bounded request handling and an explicit access/rate policy. Add authentication if the hosting environment requires it. No such service is deployed by this project.
 

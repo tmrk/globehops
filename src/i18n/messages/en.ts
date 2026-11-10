@@ -41,7 +41,7 @@ export const en = {
   'toasts.unknownAirports': 'Couldn’t find airports: {0}',
   'toasts.zonesUnavailable': 'Time zones couldn’t load. Route planning is still available.',
   'panel.routeTitle': '{0} · GlobeHops',
-  'common.documentTitle': 'GlobeHops — your journey on a 3D globe',
+  'common.documentTitle': 'GlobeHops – your journey on a 3D globe',
   'common.cancel': 'Cancel',
   'toasts.locationDenied': 'Location is blocked in your browser settings.',
   'toasts.locationUnavailable': 'Your location isn’t available right now.',
@@ -276,11 +276,11 @@ export const en = {
   'about.boundaries':
     '1:50m boundary lines, coastlines and country names (public domain). They show de facto boundaries and imply no position on territorial disputes.',
   'about.zones': 'Time zones:',
-  'about.zoneLicense': '(ODbL) — Contains information from timezone-boundary-builder, made available under the',
+  'about.zoneLicense': '(ODbL) – Contains information from timezone-boundary-builder, made available under the',
   'about.copyright': 'boundaries ©',
   'about.osm': 'OpenStreetMap contributors',
   'about.built':
-    'Built with React, Three.js and the Barlow and Martian Mono typefaces. Open source under the MIT licence —',
+    'Built with React, Three.js and the Barlow and Martian Mono typefaces. Open source under the MIT licence –',
   'about.source': 'source code on GitHub',
   'about.privacy': 'Privacy',
   'about.privacyText':

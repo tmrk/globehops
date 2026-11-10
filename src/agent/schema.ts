@@ -69,7 +69,7 @@ const sections = {
 /** The published document contract. Calendar, airport and chronology checks are semantic. */
 export const ITINERARY_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $id: 'https://tmrk.github.io/globehops/agent/itinerary.schema.json',
+  $id: 'https://globehops.marki.im/agent/itinerary.schema.json',
   title: 'GlobeHops itinerary v1',
   type: 'object',
   additionalProperties: false,

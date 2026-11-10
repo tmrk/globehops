@@ -41,7 +41,7 @@ export const hu: Messages = {
   'toasts.unknownAirports': 'Ezek a repülőterek nem találhatók: {0}',
   'toasts.zonesUnavailable': 'Az időzónák nem tölthetők be. Az útvonaltervezés továbbra is elérhető.',
   'panel.routeTitle': '{0} · GlobeHops',
-  'common.documentTitle': 'GlobeHops — az utad egy 3D-s földgömbön',
+  'common.documentTitle': 'GlobeHops – az utad egy 3D-s földgömbön',
   'common.cancel': 'Mégse',
   'toasts.locationDenied': 'A helyhozzáférés le van tiltva a böngésző beállításaiban.',
   'toasts.locationUnavailable': 'A helyzeted most nem érhető el.',
@@ -280,7 +280,7 @@ export const hu: Messages = {
   'about.boundaries':
     '1:50 milliós méretarányú országhatárok, partvonalak és országnevek (közkincs). A tényleges határokat mutatják, és nem foglalnak állást területi vitákban.',
   'about.zones': 'Időzónák:',
-  'about.zoneLicense': '(ODbL) — A timezone-boundary-builder adatait tartalmazza, az alábbi licenc szerint:',
+  'about.zoneLicense': '(ODbL) – A timezone-boundary-builder adatait tartalmazza, az alábbi licenc szerint:',
   'about.copyright': 'határok ©',
   'about.osm': 'OpenStreetMap-közreműködők',
   'about.built':

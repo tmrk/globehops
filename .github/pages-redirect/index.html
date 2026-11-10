@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GlobeHops has moved to globehops.marki.im</title>
+    <link rel="canonical" href="https://globehops.marki.im/" />
+    <script>
+      // GlobeHops moved from https://tmrk.github.io/globehops/ to https://globehops.marki.im/.
+      // Keep the path below /globehops/ (locale pages, files), the query (routes, times, view
+      // options) and the fragment.
+      (function () {
+        var path = location.pathname.replace(/^\/globehops(?=\/|$)/, '') || '/';
+        location.replace('https://globehops.marki.im' + path + location.search + location.hash);
+      })();
+    </script>
+    <noscript><meta http-equiv="refresh" content="0; url=https://globehops.marki.im/" /></noscript>
+    <meta name="theme-color" content="#05080f" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #04060c;
+        color: #a9b2c3;
+        font:
+          17px/1.6 system-ui,
+          sans-serif;
+        text-align: center;
+      }
+      main {
+        padding: 24px 16px;
+      }
+      a {
+        color: #ffc23d;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>GlobeHops has moved to <a href="https://globehops.marki.im/">globehops.marki.im</a>.</p>
+    </main>
+  </body>
+</html>

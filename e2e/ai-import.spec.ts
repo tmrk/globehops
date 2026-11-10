@@ -12,7 +12,7 @@ test('the planner hands over a prompt that turns a booking into a link', async (
   await expect(dialog).toBeVisible();
   const prompt = dialog.locator('code');
   await expect(prompt).toHaveText(
-    'Turn the flights in my attached booking into a GlobeHops link, following https://tmrk.github.io/globehops/llms.txt. Reply with only the link.',
+    'Turn the flights in my attached booking into a GlobeHops link, following https://globehops.marki.im/llms.txt. Reply with only the link.',
   );
   if (browserName === 'chromium') await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await dialog.getByRole('button', { name: 'Copy prompt' }).click();

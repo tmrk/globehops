@@ -211,7 +211,7 @@ export function buildDiversionAirports(inputs: DiversionInputs, options: Diversi
     ]),
   );
   const meta: DiversionMeta = {
-    source: 'OurAirports airports.csv and runways.csv (https://ourairports.com/data/) — public domain',
+    source: 'OurAirports airports.csv and runways.csv (https://ourairports.com/data/) – public domain',
     generatedAt: options.generatedAt ?? new Date().toISOString(),
     upstreamCommit: options.upstreamCommit ?? null,
     files,

@@ -57,8 +57,8 @@ describe('journey text', () => {
     expect(formatLegTimes(j.legs[0])).toEqual({ dep: '08:15', arr: '09:05', dayShift: 0, estimated: false });
     expect(formatLegTimes(j.legs[1]).estimated).toBe(true);
     expect(formatLegTimes({ ...j.legs[0], arrival: null, departure: null })).toEqual({
-      dep: '—',
-      arr: '—',
+      dep: '–',
+      arr: '–',
       dayShift: 0,
       estimated: true,
     });

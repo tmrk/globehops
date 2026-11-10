@@ -1,6 +1,6 @@
 /** Shared limits and vocabulary for browser links, documents and agent clients. */
 export const CONTRACT_VERSION = 1;
-export const DEFAULT_BASE_URL = 'https://tmrk.github.io/globehops/';
+export const DEFAULT_BASE_URL = 'https://globehops.marki.im/';
 export const MAX_TRACK_POINTS = 20_000;
 export const MAX_STOPS = 10;
 export { MAX_JOURNEYS } from '../lib/compare.ts';

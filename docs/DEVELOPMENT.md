@@ -2,7 +2,7 @@
 
 ## Setup and commands
 
-Use Node 22.18+ (CI: Node 24). Run `npm install`, then `npm run dev` and open the printed URL under `/globehops/`. `npm run build` produces `dist/`; `npm run preview -- --port 4173 --strictPort` serves it at `http://localhost:4173/globehops/`. The stack is React 19, TypeScript, Three.js and Vite, with Vitest, Playwright, ESLint, Prettier and sharp for development.
+Use Node 22.18+ (CI: Node 24). Run `npm install`, then `npm run dev` and open the printed URL. `npm run build` produces `dist/`; `npm run preview -- --port 4173 --strictPort` serves it at `http://localhost:4173/`. The stack is React 19, TypeScript, Three.js and Vite, with Vitest, Playwright, ESLint, Prettier and sharp for development.
 
 | Command                         | Purpose                                                                                        |
 | ------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -11,7 +11,7 @@ Use Node 22.18+ (CI: Node 24). Run `npm install`, then `npm run dev` and open th
 | `npm run build`                 | Type-check and build `dist/`.                                                                  |
 | `npm run preview`               | Serve the production build.                                                                    |
 | `npm test`                      | Run unit tests.                                                                                |
-| `npm run test:e2e`              | Build and test the Pages path in all four browser projects.                                    |
+| `npm run test:e2e`              | Build and test the production build in all four browser projects.                              |
 | `npm run lint`                  | ESLint and TypeScript checks.                                                                  |
 | `npm run format`                | Apply Prettier formatting.                                                                     |
 | `npm run data:update`           | Download, validate and regenerate airport data if content changes.                             |
@@ -53,7 +53,7 @@ E2E_PORT=4180 npx playwright test e2e/i18n.spec.ts e2e/follow.spec.ts e2e/place-
 
 Unit tests cover pure geography, flight-time/units, route reducer, URL/storage, search/decoding and the CSV/data pipeline, time-zone conversion/coverage, solar accuracy/alignment, schedule propagation, provenance, progress, timeline and clock. Catalogue/detection/formatter tests check all three locales and metadata; place-name tests cover decoding, conservative matching and overrides. Follow tests cover camera composition, predictive lead and smoothing across frame rates. MCP tests exercise schema parity, handlers, resources/prompts and a real stdio child process; browser command tests validate live-tool inputs. Tests use the checked-in airport dataset; ordinary builds/tests do not download source data.
 
-Playwright builds with Vite and previews the production `/globehops/` path on port 4173 by default. Use a unique `E2E_PORT` for each concurrent worktree (this release uses 4180); the config passes it to the preview and base URL. After an explicit `npm run build`, use `E2E_SKIP_BUILD=1 npm run test:e2e` to reuse build output. A running preview can be reused locally; stop stale servers when validating changed assets. CI always starts a fresh server and runs only the `@smoke` tests (`--grep @smoke`) on desktop Chromium; local `npm run test:e2e` also runs desktop/mobile WebKit. Firefox is not installed/configured here.
+Playwright builds with Vite and previews the production build at the root of port 4173 by default. Use a unique `E2E_PORT` for each concurrent worktree (this release uses 4180); the config passes it to the preview and base URL. After an explicit `npm run build`, use `E2E_SKIP_BUILD=1 npm run test:e2e` to reuse build output. A running preview can be reused locally; stop stale servers when validating changed assets. CI always starts a fresh server and runs only the `@smoke` tests (`--grep @smoke`) on desktop Chromium; local `npm run test:e2e` also runs desktop/mobile WebKit. Firefox is not installed/configured here.
 
 Fresh browser contexts isolate storage. Playwright sets `locale: en-GB`; the shared `e2e/fixtures.ts` auto-fixture seeds `globehops:locale=en` before navigation so host time zones cannot change English assertions. Locale-detection tests use `test.use({ localeChoice: null })` to disable that seed; explicit `/hu/` or `/sv/` paths override it. Tests use roles/labels, auto-waiting assertions and a shared console/page-error audit. Only the test deliberately disabling WebGL allows its expected creation diagnostics. Clipboard testing is desktop Chromium only because WebKit lacks the required permission support and mobile can invoke native sharing. Chromium launches with SwiftShader flags for headless WebGL.
 
@@ -90,7 +90,7 @@ for (const [path, device] of [
   });
   await context.addInitScript(() => localStorage.setItem('globehops:locale', 'en'));
   const page = await context.newPage();
-  await page.goto('http://localhost:4180/globehops/' + route);
+  await page.goto('http://localhost:4180/' + route);
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
   await expect(page.getByRole('application')).toHaveAttribute('data-camera-motion', 'settled');
   await expect(page.getByRole('region', { name: 'Timeline', exact: true }).getByRole('slider'))
@@ -112,11 +112,11 @@ Each change that reaches users is a release (see “Versioning” in [AGENTS.md]
 
 ```sh
 npm version minor --no-git-tag-version   # or patch / major; updates package.json and package-lock.json
-# add “## 1.8.0 — 2026-11-06 — Title” at the top of RECENT_CHANGES.md
+# add “## 1.8.0 – 2026-11-06 – Title” at the top of RECENT_CHANGES.md
 npm test -- scripts/version.test.ts      # version, lockfile and changelog agree
 ```
 
-Commit and push to `main`. After Deploy succeeds, the Tag release workflow creates `v<version>` on that commit if it does not exist yet. The running build shows its version in the bottom-left corner on desktop (hover for commit and date), in About (the only place on phones), and in `agent/dataset.json` (`app.version`, `app.commit`, `app.date`).
+Commit and push to `main`. Cloudflare Pages deploys it; after its production deployment succeeds, the Tag release workflow creates `v<version>` on that commit if it does not exist yet. The running build shows its version in the bottom-left corner on desktop (hover for commit and date), in About (the only place on phones), and in `agent/dataset.json` (`app.version`, `app.commit`, `app.date`).
 
 ## Regeneration
 
@@ -159,10 +159,10 @@ Textures: download the [NASA Blue Marble JPEG](https://assets.science.nasa.gov/c
 Icons: `npm run icons:build` renders Apple touch, standard app and maskable PNG icons from the NASA Earth texture with an original GRU–LHR route, using Canvas 2D in installed Playwright Chromium. It also renders portrait/landscape iOS launch screens on the app backdrop and converts `docs/screenshot{,-mobile}.png` to manifest WebP screenshots. `scripts/pwa-assets.ts` exports their shared catalogue and startup-image link tags. The favicon and logo remain the original vector artwork; this command leaves them and `favicon-32.png` unchanged. The UI SVGs live in `src/components/Icons.tsx` and `Brand.tsx`. To regenerate `public/og-image.png` too, first build and start preview, then run:
 
 ```sh
-npm run icons:build -- --og http://localhost:4173/globehops/
+npm run icons:build -- --og http://localhost:4173/
 ```
 
-Analytics: Google Analytics runs only on `tmrk.github.io` production builds after consent, so `npm run dev`, `npm run preview` and E2E runs never show the notice or contact Google. To review the notice locally, serve the production build and route `https://tmrk.github.io/globehops/**` to the preview in a Playwright script (abort `googletagmanager.com` requests so tests never reach the real property). Never pass airports, dates, times or URLs to `trackEvent`.
+Analytics: Google Analytics runs only on `globehops.marki.im` production builds after consent, so `npm run dev`, `npm run preview` and E2E runs never show the notice or contact Google. To review the notice locally, serve the production build and route `https://globehops.marki.im/**` to the preview in a Playwright script (abort `googletagmanager.com` requests so tests never reach the real property). Never pass airports, dates, times or URLs to `trackEvent`.
 
 ## Local MCP development
 
@@ -183,7 +183,7 @@ Expect server name `globehops`, five tools, four resources, the `plan_and_visual
 
 ## Debugging
 
-- Missing assets: confirm the preview URL contains `/globehops/` and inspect network responses. `BASE_PATH=/` is an explicit build override for other hosts, not the Pages configuration.
+- Missing assets: inspect network responses and look for hard-coded root paths. To check sub-path hosting, build with `BASE_PATH=/globehops/` and preview `http://localhost:4173/globehops/`; production uses the default root base.
 - Blank globe: check WebGL availability, texture responses, console errors and `requestRender()` after changes. Keep Three.js resource disposal intact.
 - Mobile keyboard/picker: preserve synchronous `flushSync` mounting and focus in the tap handler; inspect visual viewport bounds. Emulation does not prove real-device keyboard behaviour.
 - Stale route/unit: inspect `globehops:lastJourney`, legacy `globehops:lastRoute` and `globehops:unit`. An explicit URL route overrides storage; `?route=` starts empty.
@@ -196,7 +196,7 @@ Expect server name `globehops`, five tools, four resources, the `plan_and_visual
 
 ## Testing the offline PWA
 
-The worker and registration run only in production builds. Use `npm run build`, then `npx vite preview --port 4191` and open `http://localhost:4191/globehops/`. In browser developer tools, wait for the worker to control the page, inspect Cache Storage and verify the initial `?__rev=` requests. Disable the network, reload, open a route query and `/globehops/hu/`, and search for an airport. Lazy locales, city names, data, fonts and globe textures must all work offline. Dev-server modules are never cached by this implementation. Clear/unregister a previously installed production worker when switching that origin to a dev server.
+The worker and registration run only in production builds. Use `npm run build`, then `npx vite preview --port 4191` and open `http://localhost:4191/`. In browser developer tools, wait for the worker to control the page, inspect Cache Storage and verify the initial `?__rev=` requests. Disable the network, reload, open a route query and `/hu/`, and search for an airport. Lazy locales, city names, data, fonts and globe textures must all work offline. Dev-server modules are never cached by this implementation. Clear/unregister a previously installed production worker when switching that origin to a dev server.
 
 Playwright's shared configuration blocks service workers so existing tests cannot acquire control mid-test. `e2e/pwa.spec.ts` opts in with `test.use({ serviceWorkers: 'allow' })` and uses the shared console audit. Chromium may bypass `context.route` for worker main-script update checks; in that case the update interception test explicitly skips with an annotation, and injected updater unit tests cover that lifecycle. Run a prebuilt preview with `E2E_PORT=4181 E2E_SKIP_BUILD=1 npx playwright test e2e/pwa.spec.ts --project=desktop-chromium`.
 

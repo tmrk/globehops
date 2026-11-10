@@ -21,8 +21,8 @@
         }
       ]
     },
-    "url": "https://tmrk.github.io/globehops/?route=CPH-AMS-NBO&dep1=2026-11-15T07:00&arr2=2026-11-15T08:20&dep2=2026-11-15T10:20&arr3=2026-11-15T20:55&2.route=NBO-CDG-CPH&2.dep1=2026-11-20T23:55&2.arr2=2026-11-21T06:50&2.dep2=2026-11-21T09:30&2.arr3=2026-11-21T11:25",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzZWN0aW9ucyI6W3sic3RvcHMiOlt7ImFpcnBvcnQiOiJDUEgiLCJkZXBhcnR1cmUiOiIyMDI2LTExLTE1VDA3OjAwIn0seyJhaXJwb3J0IjoiQU1TIiwiYXJyaXZhbCI6IjIwMjYtMTEtMTVUMDg6MjAiLCJkZXBhcnR1cmUiOiIyMDI2LTExLTE1VDEwOjIwIn0seyJhaXJwb3J0IjoiTkJPIiwiYXJyaXZhbCI6IjIwMjYtMTEtMTVUMjA6NTUifV19LHsic3RvcHMiOlt7ImFpcnBvcnQiOiJOQk8iLCJkZXBhcnR1cmUiOiIyMDI2LTExLTIwVDIzOjU1In0seyJhaXJwb3J0IjoiQ0RHIiwiYXJyaXZhbCI6IjIwMjYtMTEtMjFUMDY6NTAiLCJkZXBhcnR1cmUiOiIyMDI2LTExLTIxVDA5OjMwIn0seyJhaXJwb3J0IjoiQ1BIIiwiYXJyaXZhbCI6IjIwMjYtMTEtMjFUMTE6MjUifV19XX0",
+    "url": "https://globehops.marki.im/?route=CPH-AMS-NBO&dep1=2026-11-15T07:00&arr2=2026-11-15T08:20&dep2=2026-11-15T10:20&arr3=2026-11-15T20:55&2.route=NBO-CDG-CPH&2.dep1=2026-11-20T23:55&2.arr2=2026-11-21T06:50&2.dep2=2026-11-21T09:30&2.arr3=2026-11-21T11:25",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzZWN0aW9ucyI6W3sic3RvcHMiOlt7ImFpcnBvcnQiOiJDUEgiLCJkZXBhcnR1cmUiOiIyMDI2LTExLTE1VDA3OjAwIn0seyJhaXJwb3J0IjoiQU1TIiwiYXJyaXZhbCI6IjIwMjYtMTEtMTVUMDg6MjAiLCJkZXBhcnR1cmUiOiIyMDI2LTExLTE1VDEwOjIwIn0seyJhaXJwb3J0IjoiTkJPIiwiYXJyaXZhbCI6IjIwMjYtMTEtMTVUMjA6NTUifV19LHsic3RvcHMiOlt7ImFpcnBvcnQiOiJOQk8iLCJkZXBhcnR1cmUiOiIyMDI2LTExLTIwVDIzOjU1In0seyJhaXJwb3J0IjoiQ0RHIiwiYXJyaXZhbCI6IjIwMjYtMTEtMjFUMDY6NTAiLCJkZXBhcnR1cmUiOiIyMDI2LTExLTIxVDA5OjMwIn0seyJhaXJwb3J0IjoiQ1BIIiwiYXJyaXZhbCI6IjIwMjYtMTEtMjFUMTE6MjUifV19XX0",
     "expected": {
       "totals": {
         "distanceKm": 14809.3,
@@ -106,8 +106,8 @@
         { "stayMinutes": 2880, "stops": [{ "airport": "CDG" }, { "airport": "LHR" }] }
       ]
     },
-    "url": "https://tmrk.github.io/globehops/?route=LHR-FCO&dep1=2026-06-01T09:00&2.route=MXP-CDG&2.label=Milan%20to%20Paris&2.stay=6d&3.route=CDG-LHR&3.stay=2d",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzZWN0aW9ucyI6W3sic3RvcHMiOlt7ImFpcnBvcnQiOiJMSFIiLCJkZXBhcnR1cmUiOiIyMDI2LTA2LTAxVDA5OjAwIn0seyJhaXJwb3J0IjoiRkNPIn1dfSx7ImxhYmVsIjoiTWlsYW4gdG8gUGFyaXMiLCJzdGF5TWludXRlcyI6ODY0MCwic3RvcHMiOlt7ImFpcnBvcnQiOiJNWFAifSx7ImFpcnBvcnQiOiJDREcifV19LHsic3RheU1pbnV0ZXMiOjI4ODAsInN0b3BzIjpbeyJhaXJwb3J0IjoiQ0RHIn0seyJhaXJwb3J0IjoiTEhSIn1dfV19",
+    "url": "https://globehops.marki.im/?route=LHR-FCO&dep1=2026-06-01T09:00&2.route=MXP-CDG&2.label=Milan%20to%20Paris&2.stay=6d&3.route=CDG-LHR&3.stay=2d",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzZWN0aW9ucyI6W3sic3RvcHMiOlt7ImFpcnBvcnQiOiJMSFIiLCJkZXBhcnR1cmUiOiIyMDI2LTA2LTAxVDA5OjAwIn0seyJhaXJwb3J0IjoiRkNPIn1dfSx7ImxhYmVsIjoiTWlsYW4gdG8gUGFyaXMiLCJzdGF5TWludXRlcyI6ODY0MCwic3RvcHMiOlt7ImFpcnBvcnQiOiJNWFAifSx7ImFpcnBvcnQiOiJDREcifV19LHsic3RheU1pbnV0ZXMiOjI4ODAsInN0b3BzIjpbeyJhaXJwb3J0IjoiQ0RHIn0seyJhaXJwb3J0IjoiTEhSIn1dfV19",
     "expected": {
       "totals": {
         "distanceKm": 2389.4,
@@ -213,8 +213,8 @@
       ],
       "view": { "play": true }
     },
-    "url": "https://tmrk.github.io/globehops/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct&play=1",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJqb3VybmV5cyI6W3sibGFiZWwiOiJWaWEgTG9uZG9uIiwic3RvcHMiOlt7ImFpcnBvcnQiOiJCVUQiLCJkZXBhcnR1cmUiOiIyMDI2LTEyLTAxVDA3OjEwIn0seyJhaXJwb3J0IjoiTEhSIn0seyJhaXJwb3J0IjoiSkZLIn1dfSx7ImxhYmVsIjoiRGlyZWN0Iiwic3RvcHMiOlt7ImFpcnBvcnQiOiJCVUQifSx7ImFpcnBvcnQiOiJKRksifV19XSwidmlldyI6eyJwbGF5Ijp0cnVlfX0",
+    "url": "https://globehops.marki.im/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct&play=1",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJqb3VybmV5cyI6W3sibGFiZWwiOiJWaWEgTG9uZG9uIiwic3RvcHMiOlt7ImFpcnBvcnQiOiJCVUQiLCJkZXBhcnR1cmUiOiIyMDI2LTEyLTAxVDA3OjEwIn0seyJhaXJwb3J0IjoiTEhSIn0seyJhaXJwb3J0IjoiSkZLIn1dfSx7ImxhYmVsIjoiRGlyZWN0Iiwic3RvcHMiOlt7ImFpcnBvcnQiOiJCVUQifSx7ImFpcnBvcnQiOiJKRksifV19XSwidmlldyI6eyJwbGF5Ijp0cnVlfX0",
     "expected": {
       "totals": {
         "distanceKm": 7029.3,
@@ -249,8 +249,8 @@
     "title": "Copenhagen to New York",
     "description": "Undated route with flight estimates.",
     "itinerary": { "version": 1, "stops": [{ "airport": "CPH" }, { "airport": "JFK" }] },
-    "url": "https://tmrk.github.io/globehops/?route=CPH-JFK",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCJ9LHsiYWlycG9ydCI6IkpGSyJ9XX0",
+    "url": "https://globehops.marki.im/?route=CPH-JFK",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCJ9LHsiYWlycG9ydCI6IkpGSyJ9XX0",
     "expected": {
       "totals": {
         "distanceKm": 6188.7,
@@ -273,8 +273,8 @@
       "version": 1,
       "stops": [{ "airport": "CPH" }, { "airport": "LHR", "layoverMinutes": 180 }, { "airport": "JFK" }]
     },
-    "url": "https://tmrk.github.io/globehops/?route=CPH-LHR_180-JFK",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCJ9LHsiYWlycG9ydCI6IkxIUiIsImxheW92ZXJNaW51dGVzIjoxODB9LHsiYWlycG9ydCI6IkpGSyJ9XX0",
+    "url": "https://globehops.marki.im/?route=CPH-LHR_180-JFK",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCJ9LHsiYWlycG9ydCI6IkxIUiIsImxheW92ZXJNaW51dGVzIjoxODB9LHsiYWlycG9ydCI6IkpGSyJ9XX0",
     "expected": {
       "totals": {
         "distanceKm": 6519.3,
@@ -301,8 +301,8 @@
         { "airport": "JFK", "arrival": "2026-11-20T13:50" }
       ]
     },
-    "url": "https://tmrk.github.io/globehops/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15&arr2=2026-11-20T09:05&dep2=2026-11-20T11:00&arr3=2026-11-20T13:50",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMDg6MTUifSx7ImFpcnBvcnQiOiJMSFIiLCJhcnJpdmFsIjoiMjAyNi0xMS0yMFQwOTowNSIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMTE6MDAifSx7ImFpcnBvcnQiOiJKRksiLCJhcnJpdmFsIjoiMjAyNi0xMS0yMFQxMzo1MCJ9XX0",
+    "url": "https://globehops.marki.im/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15&arr2=2026-11-20T09:05&dep2=2026-11-20T11:00&arr3=2026-11-20T13:50",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMDg6MTUifSx7ImFpcnBvcnQiOiJMSFIiLCJhcnJpdmFsIjoiMjAyNi0xMS0yMFQwOTowNSIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMTE6MDAifSx7ImFpcnBvcnQiOiJKRksiLCJhcnJpdmFsIjoiMjAyNi0xMS0yMFQxMzo1MCJ9XX0",
     "expected": {
       "totals": {
         "distanceKm": 6519.3,
@@ -331,8 +331,8 @@
       "version": 1,
       "stops": [{ "airport": "CPH", "departure": "2026-11-20T08:15" }, { "airport": "LHR" }, { "airport": "JFK" }]
     },
-    "url": "https://tmrk.github.io/globehops/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMDg6MTUifSx7ImFpcnBvcnQiOiJMSFIifSx7ImFpcnBvcnQiOiJKRksifV19",
+    "url": "https://globehops.marki.im/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMDg6MTUifSx7ImFpcnBvcnQiOiJMSFIifSx7ImFpcnBvcnQiOiJKRksifV19",
     "expected": {
       "totals": {
         "distanceKm": 6519.3,
@@ -364,8 +364,8 @@
         { "airport": "HNL", "arrival": "2026-11-19T10:00" }
       ]
     },
-    "url": "https://tmrk.github.io/globehops/?route=AKL-HNL&dep1=2026-11-20T00:30&arr2=2026-11-19T10:00",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkFLTCIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMDA6MzAifSx7ImFpcnBvcnQiOiJITkwiLCJhcnJpdmFsIjoiMjAyNi0xMS0xOVQxMDowMCJ9XX0",
+    "url": "https://globehops.marki.im/?route=AKL-HNL&dep1=2026-11-20T00:30&arr2=2026-11-19T10:00",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkFLTCIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMDA6MzAifSx7ImFpcnBvcnQiOiJITkwiLCJhcnJpdmFsIjoiMjAyNi0xMS0xOVQxMDowMCJ9XX0",
     "expected": {
       "totals": {
         "distanceKm": 7089.1,
@@ -394,8 +394,8 @@
       "version": 1,
       "stops": [{ "airport": "JFK", "departure": "2026-11-01T01:30-04:00" }, { "airport": "LHR" }]
     },
-    "url": "https://tmrk.github.io/globehops/?route=JFK-LHR&dep1=2026-11-01T01:30-04:00",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkpGSyIsImRlcGFydHVyZSI6IjIwMjYtMTEtMDFUMDE6MzAtMDQ6MDAifSx7ImFpcnBvcnQiOiJMSFIifV19",
+    "url": "https://globehops.marki.im/?route=JFK-LHR&dep1=2026-11-01T01:30-04:00",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkpGSyIsImRlcGFydHVyZSI6IjIwMjYtMTEtMDFUMDE6MzAtMDQ6MDAifSx7ImFpcnBvcnQiOiJMSFIifV19",
     "expected": {
       "totals": {
         "distanceKm": 5539.8,
@@ -437,8 +437,8 @@
         "follow": true
       }
     },
-    "url": "https://tmrk.github.io/globehops/sv/?route=CPH-JFK&dep1=2026-11-20T08:15&t=2026-11-20T09:30Z&speed=3600&clock=utc&units=mi&daynight=0&follow=1&names=1&borders=0&leg=1",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/sv/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMDg6MTUifSx7ImFpcnBvcnQiOiJKRksifV0sInZpZXciOnsidGltZSI6IjIwMjYtMTEtMjBUMDk6MzBaIiwicGxheSI6ZmFsc2UsInNwZWVkIjozNjAwLCJjbG9jayI6InV0YyIsInVuaXRzIjoibWkiLCJkYXlOaWdodCI6ZmFsc2UsImxhbmciOiJzdiIsIm5hbWVzIjp0cnVlLCJib3JkZXJzIjpmYWxzZSwibGVnIjoxLCJmb2xsb3ciOnRydWV9fQ",
+    "url": "https://globehops.marki.im/sv/?route=CPH-JFK&dep1=2026-11-20T08:15&t=2026-11-20T09:30Z&speed=3600&clock=utc&units=mi&daynight=0&follow=1&names=1&borders=0&leg=1",
+    "itineraryParamUrl": "https://globehops.marki.im/sv/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMDg6MTUifSx7ImFpcnBvcnQiOiJKRksifV0sInZpZXciOnsidGltZSI6IjIwMjYtMTEtMjBUMDk6MzBaIiwicGxheSI6ZmFsc2UsInNwZWVkIjozNjAwLCJjbG9jayI6InV0YyIsInVuaXRzIjoibWkiLCJkYXlOaWdodCI6ZmFsc2UsImxhbmciOiJzdiIsIm5hbWVzIjp0cnVlLCJib3JkZXJzIjpmYWxzZSwibGVnIjoxLCJmb2xsb3ciOnRydWV9fQ",
     "expected": {
       "totals": {
         "distanceKm": 6188.7,
@@ -468,8 +468,8 @@
       "stops": [{ "airport": "LHR", "departure": "2026-11-20T11:00" }, { "airport": "JFK" }],
       "view": { "clock": "JFK", "units": "km", "dayNight": true }
     },
-    "url": "https://tmrk.github.io/globehops/?route=LHR-JFK&dep1=2026-11-20T11:00&clock=JFK&units=km&daynight=1",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkxIUiIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMTE6MDAifSx7ImFpcnBvcnQiOiJKRksifV0sInZpZXciOnsiY2xvY2siOiJKRksiLCJ1bml0cyI6ImttIiwiZGF5TmlnaHQiOnRydWV9fQ",
+    "url": "https://globehops.marki.im/?route=LHR-JFK&dep1=2026-11-20T11:00&clock=JFK&units=km&daynight=1",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkxIUiIsImRlcGFydHVyZSI6IjIwMjYtMTEtMjBUMTE6MDAifSx7ImFpcnBvcnQiOiJKRksifV0sInZpZXciOnsiY2xvY2siOiJKRksiLCJ1bml0cyI6ImttIiwiZGF5TmlnaHQiOnRydWV9fQ",
     "expected": {
       "totals": {
         "distanceKm": 5539.8,
@@ -525,8 +525,8 @@
         }
       ]
     },
-    "url": "https://tmrk.github.io/globehops/?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&label=Via%20Frankfurt&2.route=JFK-FRA-BUD&2.dep1=2026-12-10T18:00&b.route=BUD-JFK&b.label=Nonstop&b.2.route=JFK-BUD",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJqb3VybmV5cyI6W3sibGFiZWwiOiJWaWEgRnJhbmtmdXJ0Iiwic2VjdGlvbnMiOlt7InN0b3BzIjpbeyJhaXJwb3J0IjoiQlVEIiwiZGVwYXJ0dXJlIjoiMjAyNi0xMi0wMVQwNzoxMCJ9LHsiYWlycG9ydCI6IkZSQSJ9LHsiYWlycG9ydCI6IkpGSyJ9XX0seyJzdG9wcyI6W3siYWlycG9ydCI6IkpGSyIsImRlcGFydHVyZSI6IjIwMjYtMTItMTBUMTg6MDAifSx7ImFpcnBvcnQiOiJGUkEifSx7ImFpcnBvcnQiOiJCVUQifV19XX0seyJsYWJlbCI6Ik5vbnN0b3AiLCJzZWN0aW9ucyI6W3sic3RvcHMiOlt7ImFpcnBvcnQiOiJCVUQifSx7ImFpcnBvcnQiOiJKRksifV19LHsic3RvcHMiOlt7ImFpcnBvcnQiOiJKRksifSx7ImFpcnBvcnQiOiJCVUQifV19XX1dfQ",
+    "url": "https://globehops.marki.im/?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&label=Via%20Frankfurt&2.route=JFK-FRA-BUD&2.dep1=2026-12-10T18:00&b.route=BUD-JFK&b.label=Nonstop&b.2.route=JFK-BUD",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJqb3VybmV5cyI6W3sibGFiZWwiOiJWaWEgRnJhbmtmdXJ0Iiwic2VjdGlvbnMiOlt7InN0b3BzIjpbeyJhaXJwb3J0IjoiQlVEIiwiZGVwYXJ0dXJlIjoiMjAyNi0xMi0wMVQwNzoxMCJ9LHsiYWlycG9ydCI6IkZSQSJ9LHsiYWlycG9ydCI6IkpGSyJ9XX0seyJzdG9wcyI6W3siYWlycG9ydCI6IkpGSyIsImRlcGFydHVyZSI6IjIwMjYtMTItMTBUMTg6MDAifSx7ImFpcnBvcnQiOiJGUkEifSx7ImFpcnBvcnQiOiJCVUQifV19XX0seyJsYWJlbCI6Ik5vbnN0b3AiLCJzZWN0aW9ucyI6W3sic3RvcHMiOlt7ImFpcnBvcnQiOiJCVUQifSx7ImFpcnBvcnQiOiJKRksifV19LHsic3RvcHMiOlt7ImFpcnBvcnQiOiJKRksifSx7ImFpcnBvcnQiOiJCVUQifV19XX1dfQ",
     "expected": {
       "totals": {
         "distanceKm": 14049.2,
@@ -607,8 +607,8 @@
         { "airport": "JFK" }
       ]
     },
-    "url": "https://tmrk.github.io/globehops/?route=LHR-JFK&trk1=1pdB.w3k6J_65CAwuxV_so3D46Ug0mM_ni6DkmB_l3qB_ni6DA_jk5B_sj0C7gW",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkxIUiIsInRyYWNrIjp7ImtpbmQiOiJwbGFubmVkIiwiZm9ybWF0IjoiZG9jdW1lbnQiLCJwb2ludHMiOltbNTEuNDcsLTAuNDYsMF0sWzU1LC0yMCwxMDY2OF0sWzU3LC00MCwxMTI3OF0sWzUwLC02MCwxMTI3OF0sWzQwLjY0LC03My43OCwwXV19fSx7ImFpcnBvcnQiOiJKRksifV19",
+    "url": "https://globehops.marki.im/?route=LHR-JFK&trk1=1pdB.w3k6J_65CAwuxV_so3D46Ug0mM_ni6DkmB_l3qB_ni6DA_jk5B_sj0C7gW",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkxIUiIsInRyYWNrIjp7ImtpbmQiOiJwbGFubmVkIiwiZm9ybWF0IjoiZG9jdW1lbnQiLCJwb2ludHMiOltbNTEuNDcsLTAuNDYsMF0sWzU1LC0yMCwxMDY2OF0sWzU3LC00MCwxMTI3OF0sWzUwLC02MCwxMTI3OF0sWzQwLjY0LC03My43OCwwXV19fSx7ImFpcnBvcnQiOiJKRksifV19",
     "expected": {
       "totals": {
         "distanceKm": 5631.9,
@@ -646,8 +646,8 @@
         { "airport": "ARN" }
       ]
     },
-    "url": "https://tmrk.github.io/globehops/?route=CPH-ARN&trk1=1rgD.gpvzKg1otCAginw0pDgxtIg3lIg0PgrCg_kJg0mMg9DgrCwzgHgg3L_wTgrC",
-    "itineraryParamUrl": "https://tmrk.github.io/globehops/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsInRyYWNrIjp7ImtpbmQiOiJyZWNvcmRlZCIsImZvcm1hdCI6ImdweCIsInBvaW50cyI6W1s1NS42MiwxMi42NiwwLCIyMDI2LTAzLTAxVDEwOjAwOjAwWiJdLFs1NywxNCw4MDAwLCIyMDI2LTAzLTAxVDEwOjIwOjAwWiJdLFs1OC41LDE2LDEwMDAwLCIyMDI2LTAzLTAxVDEwOjQwOjAwWiJdLFs1OS42NSwxNy45MiwwLCIyMDI2LTAzLTAxVDExOjAwOjAwWiJdXX19LHsiYWlycG9ydCI6IkFSTiJ9XX0",
+    "url": "https://globehops.marki.im/?route=CPH-ARN&trk1=1rgD.gpvzKg1otCAginw0pDgxtIg3lIg0PgrCg_kJg0mMg9DgrCwzgHgg3L_wTgrC",
+    "itineraryParamUrl": "https://globehops.marki.im/?itinerary=eyJ2ZXJzaW9uIjoxLCJzdG9wcyI6W3siYWlycG9ydCI6IkNQSCIsInRyYWNrIjp7ImtpbmQiOiJyZWNvcmRlZCIsImZvcm1hdCI6ImdweCIsInBvaW50cyI6W1s1NS42MiwxMi42NiwwLCIyMDI2LTAzLTAxVDEwOjAwOjAwWiJdLFs1NywxNCw4MDAwLCIyMDI2LTAzLTAxVDEwOjIwOjAwWiJdLFs1OC41LDE2LDEwMDAwLCIyMDI2LTAzLTAxVDEwOjQwOjAwWiJdLFs1OS42NSwxNy45MiwwLCIyMDI2LTAzLTAxVDExOjAwOjAwWiJdXX19LHsiYWlycG9ydCI6IkFSTiJ9XX0",
     "expected": {
       "totals": {
         "distanceKm": 547.4,

@@ -28,7 +28,7 @@ describe('MCP direct handlers', () => {
   it('opens the interactive visualisation with view options', () => {
     const result = handleTool(context, 'visualize_route', validArgs.visualize_route);
     const url = new URL(result.structuredContent!.url as string);
-    expect(url.pathname).toBe('/globehops/');
+    expect(url.origin + url.pathname).toBe('https://globehops.marki.im/');
     expect(url.searchParams.get('route')).toBe('CPH-JFK');
     expect(url.searchParams.get('units')).toBe('mi');
     expect(url.searchParams.get('clock')).toBe('utc');

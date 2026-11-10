@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// E2E_BASE_URL runs the suite against an existing deployment (e.g. the live GitHub Pages site)
+// E2E_BASE_URL runs the suite against an existing deployment (e.g. the live Cloudflare Pages site)
 // instead of a local production preview.
 const externalBaseURL = process.env.E2E_BASE_URL;
 // E2E_PORT lets several checkouts (e.g. git worktrees) run their own preview server side by side.
@@ -16,7 +16,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: externalBaseURL ?? `http://localhost:${port}/globehops/`,
+    baseURL: externalBaseURL ?? `http://localhost:${port}/`,
     locale: 'en-GB',
     serviceWorkers: 'block',
     trace: 'retain-on-failure',
@@ -52,7 +52,7 @@ export default defineConfig({
         command: process.env.E2E_SKIP_BUILD
           ? `npx vite preview --port ${port} --strictPort`
           : `npx vite build && npx vite preview --port ${port} --strictPort`,
-        url: `http://localhost:${port}/globehops/`,
+        url: `http://localhost:${port}/`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
       },

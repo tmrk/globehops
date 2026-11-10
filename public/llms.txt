@@ -2,7 +2,7 @@
 
 > GlobeHops visualises air journeys as great-circle routes on an interactive 3D globe, with shared distance, flight-time, layover, local-time and daylight calculations. Free, static, no account or API key.
 
-This guide lives at the project path `/globehops/llms.txt`, not the site-root `/llms.txt`. These discovery files describe GlobeHops's own contract; they do not claim conformance to a formal agent standard.
+This guide lives at the site root, `https://globehops.marki.im/llms.txt`. GlobeHops moved here from `https://tmrk.github.io/globehops/`; old links still redirect, but build new ones on `https://globehops.marki.im/`. These discovery files describe GlobeHops's own contract; they do not claim conformance to a formal agent standard.
 
 ## Turn a booking into a link
 
@@ -12,30 +12,30 @@ Asked to show a flight booking, confirmation email, PDF, screenshot or pasted it
 2. Times exactly as printed, airport-local, `YYYY-MM-DDTHH:MM`: `depN`/`arrN` are the departure from and arrival at the Nth stop of that route (1-based). Include every departure and arrival given; never convert time zones; omit times you don't have.
 3. Time spent at a destination (anything that isn't a connection) ends the journey. The return or next journey is a new section with its own stop numbers: `2.route`, `2.dep1`, `2.arr2`, … then `3.*` up to `6.*`.
 4. Several offers, or several people's trips, to show together: the 2nd uses `b.route`, `b.dep1`, …, the 3rd `c.*`, the 4th `d.*`; an alternative's return is `b.2.route`, `b.2.dep1`, …. Name each with `label` (URL-encoded, 1–40 characters): the traveller's name for people's trips (`label=Anna&b.label=Ben`), else the airline or offer (`label=Lufthansa&b.label=Nonstop`). Names appear on the tabs, table, timeline and planes.
-5. Use only these readable parameters (not `itinerary=`) and return the full URL starting `https://tmrk.github.io/globehops/?`.
+5. Use only these readable parameters (not `itinerary=`) and return the full URL starting `https://globehops.marki.im/?`.
 
-Example — out via Frankfurt on 1 December, back nonstop on 10 December:
-https://tmrk.github.io/globehops/?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&arr2=2026-12-01T08:40&dep2=2026-12-01T10:10&arr3=2026-12-01T13:05&2.route=JFK-BUD&2.dep1=2026-12-10T18:00&2.arr2=2026-12-11T08:15
+Example – out via Frankfurt on 1 December, back nonstop on 10 December:
+https://globehops.marki.im/?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&arr2=2026-12-01T08:40&dep2=2026-12-01T10:10&arr3=2026-12-01T13:05&2.route=JFK-BUD&2.dep1=2026-12-10T18:00&2.arr2=2026-12-11T08:15
 
-Example — Anna from London and Ben from New York meet in Tokyo and fly home a week later:
-https://tmrk.github.io/globehops/?route=LHR-HND&dep1=2026-12-01T11:00&label=Anna&2.route=HND-LHR&2.dep1=2026-12-08T11:30&b.route=JFK-HND&b.dep1=2026-12-01T12:00&b.label=Ben&b.2.route=HND-JFK&b.2.dep1=2026-12-08T17:00
+Example – Anna from London and Ben from New York meet in Tokyo and fly home a week later:
+https://globehops.marki.im/?route=LHR-HND&dep1=2026-12-01T11:00&label=Anna&2.route=HND-LHR&2.dep1=2026-12-08T11:30&b.route=JFK-HND&b.dep1=2026-12-01T12:00&b.label=Ben&b.2.route=HND-JFK&b.2.dep1=2026-12-08T17:00
 
 ## Build a link
 
-- [Simple CPH–JFK](https://tmrk.github.io/globehops/?route=CPH-JFK): airport codes separated by hyphens.
-- [Three-hour Heathrow connection](https://tmrk.github.io/globehops/?route=CPH-LHR_180-JFK): custom transfer minutes follow `_`; default is 90 minutes.
-- [Scheduled departure](https://tmrk.github.io/globehops/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15): depN/arrN are airport-local times at 1-based stop N. Omitted times are estimated when anchored by an entered time.
-- [Worked examples](https://tmrk.github.io/globehops/agent/examples.json): complete readable and alternative `?itinerary=<base64url UTF-8 JSON>` URLs. The itinerary parameter overrides readable parameters.
+- [Simple CPH–JFK](https://globehops.marki.im/?route=CPH-JFK): airport codes separated by hyphens.
+- [Three-hour Heathrow connection](https://globehops.marki.im/?route=CPH-LHR_180-JFK): custom transfer minutes follow `_`; default is 90 minutes.
+- [Scheduled departure](https://globehops.marki.im/?route=CPH-LHR-JFK&dep1=2026-11-20T08:15): depN/arrN are airport-local times at 1-based stop N. Omitted times are estimated when anchored by an entered time.
+- [Worked examples](https://globehops.marki.im/agent/examples.json): complete readable and alternative `?itinerary=<base64url UTF-8 JSON>` URLs. The itinerary parameter overrides readable parameters.
 
 View parameters: `t` is an ISO instant, `play=1` starts playback (respecting reduced motion), `live=1` follows the real current time, `speed=auto|1800|3600|7200`, `clock=local|utc|<airport code in any journey>`, `units=km|mi`, `daynight=0` disables shading, `follow=1` enables the aircraft camera (off by default; user camera input exits).
 
-Language: use `/globehops/en/`, `/globehops/hu/` or `/globehops/sv/`; `?lang=en|hu|sv` is an alias on the unprefixed path. An explicit locale path wins. Document `view.lang` and MCP `view.lang` generate locale paths. `names=1` enables place-name labels, `borders=0` hides country borders; either accepts 0/1. `leg=N` selects and frames a one-based flight without seeking time. When combined, follow camera takes priority over flight framing. Link view overrides apply to this visit and do not change stored user preferences.
+Language: use `/en/`, `/hu/` or `/sv/`; `?lang=en|hu|sv` is an alias on the unprefixed path. An explicit locale path wins. Document `view.lang` and MCP `view.lang` generate locale paths. `names=1` enables place-name labels, `borders=0` hides country borders; either accepts 0/1. `leg=N` selects and frames a one-based flight without seeking time. When combined, follow camera takes priority over flight framing. Link view overrides apply to this visit and do not change stored user preferences.
 
 ## Compare journeys
 
 Compare 2–4 alternatives on one UTC clock: offers for one traveller, or different people's journeys. Journey A keeps ordinary keys; B–D use `b.route`/`b.depN`/`b.arrN`/`b.label`, then `c.*` and `d.*`. Optional labels (1–40 characters without controls) name each alternative, e.g. the traveller or the airline, on its tab, table row, timeline lane and plane; a single journey's `label` becomes its title. People can rename journeys in the app (Edit → Name), which updates the same parameters. Encode spaces, Unicode, `&` and `=`; keys are case-insensitive. `leg` refers to A. Older clients show A.
 
-Readable example: `https://tmrk.github.io/globehops/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct`.
+Readable example: `https://globehops.marki.im/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct`.
 
 Document example: `{"version":1,"journeys":[{"label":"Direct","stops":[{"airport":"BUD"},{"airport":"JFK"}]},{"stops":[{"airport":"BUD"},{"airport":"LHR"},{"airport":"JFK"}]}]}`. Encode as the existing `?itinerary=` parameter. Exactly one of stops/journeys/sections is allowed; document journeys accept 1–4 items.
 
@@ -45,9 +45,9 @@ MCP `compare_journeys` example: `{"journeys":[{"label":"Direct","route":"BUD-JFK
 
 ## Round trips and multi-stage trips
 
-A trip is a sequence of journeys separated by explicit stays (never layovers). Compare 2–4 trips by giving each alternative the same 1–6 sections. The first section uses ordinary keys; later ones use `2.route`/`2.depN`/`2.arrN`/`2.label`/`2.stay` through `6.*`. Example: `https://tmrk.github.io/globehops/?route=CPH-AMS-NBO&dep1=2026-11-15T07:00&2.route=NBO-CDG-CPH&2.dep1=2026-11-20T23:55`. `N.stay` (`5d`, `36h`, `90m`) places a section without times after the previous one (default 7 days, marked estimated/assumed). Documents use `{"version":1,"sections":[{"stops":[…]},{"label":"Home","stayMinutes":7200,"stops":[…]}]}` (1–6 sections). `calculate_route` returns `kind:"trip"`, sections, stays (minutes, calendar days, source, provenance) and trip totals; timelines add a `stay` phase. `leg` counts flights across the trip.
+A trip is a sequence of journeys separated by explicit stays (never layovers). Compare 2–4 trips by giving each alternative the same 1–6 sections. The first section uses ordinary keys; later ones use `2.route`/`2.depN`/`2.arrN`/`2.label`/`2.stay` through `6.*`. Example: `https://globehops.marki.im/?route=CPH-AMS-NBO&dep1=2026-11-15T07:00&2.route=NBO-CDG-CPH&2.dep1=2026-11-20T23:55`. `N.stay` (`5d`, `36h`, `90m`) places a section without times after the previous one (default 7 days, marked estimated/assumed). Documents use `{"version":1,"sections":[{"stops":[…]},{"label":"Home","stayMinutes":7200,"stops":[…]}]}` (1–6 sections). `calculate_route` returns `kind:"trip"`, sections, stays (minutes, calendar days, source, provenance) and trip totals; timelines add a `stay` phase. `leg` counts flights across the trip.
 
-Compared round trips use A's `route` and `2.route`, then B's `b.route` and `b.2.route` (through `d.6.*`). Example: `https://tmrk.github.io/globehops/?route=BUD-FRA-JFK&2.route=JFK-FRA-BUD&b.route=BUD-JFK&b.2.route=JFK-BUD`. `leg` counts A's flights across its sections; `clock` may name any alternative's section airport. Links tolerate different section counts; documents require equal counts and each journey item contains exactly one of stops or sections (all items use the same form).
+Compared round trips use A's `route` and `2.route`, then B's `b.route` and `b.2.route` (through `d.6.*`). Example: `https://globehops.marki.im/?route=BUD-FRA-JFK&2.route=JFK-FRA-BUD&b.route=BUD-JFK&b.2.route=JFK-BUD`. `leg` counts A's flights across its sections; `clock` may name any alternative's section airport. Links tolerate different section counts; documents require equal counts and each journey item contains exactly one of stops or sections (all items use the same form).
 
 Document example: `{"version":1,"journeys":[{"label":"Via Frankfurt","sections":[{"stops":[{"airport":"BUD"},{"airport":"FRA"},{"airport":"JFK"}]},{"stops":[{"airport":"JFK"},{"airport":"FRA"},{"airport":"BUD"}]}]},{"label":"Nonstop","sections":[{"stops":[{"airport":"BUD"},{"airport":"JFK"}]},{"stops":[{"airport":"JFK"},{"airport":"BUD"}]}]}]}`.
 
@@ -59,8 +59,8 @@ Generated results use great circles unless a call requests `routing: {"avoidAirs
 
 ## Contract and limits
 
-- [Capabilities](https://tmrk.github.io/globehops/agent/capabilities.json): parameters, limits, issue vocabulary and estimation model.
-- [Itinerary v1 schema](https://tmrk.github.io/globehops/agent/itinerary.schema.json): exactly one of stops (1–10), journeys (1–4 labelled alternatives, each stops or equal-count sections) or sections (1–6 trip journeys with optional stays); transfer-only integer layovers 0–10080 minutes. No unknown properties except a top-level string `$schema`.
+- [Capabilities](https://globehops.marki.im/agent/capabilities.json): parameters, limits, issue vocabulary and estimation model.
+- [Itinerary v1 schema](https://globehops.marki.im/agent/itinerary.schema.json): exactly one of stops (1–10), journeys (1–4 labelled alternatives, each stops or equal-count sections) or sections (1–6 trip journeys with optional stays); transfer-only integer layovers 0–10080 minutes. No unknown properties except a top-level string `$schema`.
 - [External agent integration](https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md): link construction, validation and local MCP setup.
 
 Use IATA, ICAO, alphanumeric OurAirports ident or numeric airport id strings; unknown codes are reported and skipped. Hyphenated idents require numeric IDs in readable links. Maximum URL: 8000 characters; itinerary parameter: 6000 characters. Supported calendar years: 1900–2100.
@@ -71,7 +71,7 @@ Local times: `YYYY-MM-DDTHH:MM`, optional `:00` seconds and `±HH:MM` or `Z`. Of
 
 Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distances sum great-circle arcs on a sphere of radius 6371.0088 km, along custom vertices when supplied, otherwise directly between airports unless routing is requested. Winds, oceanic tracks, airways, airline timetables and aircraft types are not modelled. Generated aircraft positions and altitudes are illustrative; custom paths use supplied geometry, usable altitudes and recorded times. There is no live tracking. Entered and estimated times are labelled. Undated comparisons align to the earliest dated departure, else an explicit assumed departure; without either they have totals but no timeline. Time-zone rules come from runtime Intl and may change for future dates.
 
-- [Dataset freshness](https://tmrk.github.io/globehops/agent/dataset.json): build date, upstream airport commit, counts and time-zone release metadata.
+- [Dataset freshness](https://globehops.marki.im/agent/dataset.json): build date, upstream airport commit, counts and time-zone release metadata.
 - [Data sources](https://github.com/tmrk/globehops/blob/main/docs/DATA_SOURCES.md): OurAirports public domain, timezone-boundary-builder/OSM ODbL-1.0, NASA imagery and Natural Earth borders.
 - [Licence notices](https://github.com/tmrk/globehops/blob/main/THIRD_PARTY_NOTICES.md): code is MIT; data retains its own terms.
 
@@ -80,7 +80,7 @@ Flight estimates use 850 km/h plus 30 minutes, rounded to five minutes. Distance
 - [Server source](https://github.com/tmrk/globehops/blob/main/mcp/server.ts): local stdio; clone the repository, run `npm ci` with Node 22.18+, then `node /absolute/path/to/globehops/mcp/server.ts` (or `npm run mcp` in the checkout).
 - [MCP configuration and tool examples](https://github.com/tmrk/globehops/blob/main/docs/AGENT_INTEGRATION.md): search_airports, compare_journeys, calculate_route, validate_itinerary, visualize_route, import_route, get_journey_timeline.
 
-Set `GLOBEHOPS_BASE_URL` to override generated links. There is no remote MCP endpoint: GitHub Pages hosts static files. Tools reuse the same calculations as the browser and require no network services.
+Set `GLOBEHOPS_BASE_URL` to override generated links. There is no remote MCP endpoint: the site is static files on Cloudflare Pages. Tools reuse the same calculations as the browser and require no network services.
 
 MCP also exposes resources `globehops://agent/capabilities.json`, `globehops://agent/itinerary.schema.json`, `globehops://agent/examples.json`, `globehops://agent/usage` and the `plan_and_visualize` prompt (`journey` string). `visualize_route` returns readable `url`, complete `itineraryParamUrl`, one-line `humanSummary` and the structured `summary`.
 

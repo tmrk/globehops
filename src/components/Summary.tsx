@@ -104,7 +104,7 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing, on
         <div className="stat">
           <span className="stat__label">{flights > 1 ? t('summary.totalDistance') : t('summary.distance')}</span>
           <span className="stat__value">
-            {flights ? fmt.distanceNumber(totalKm, unit) : '—'}
+            {flights ? fmt.distanceNumber(totalKm, unit) : '–'}
             <span className="stat__unit">{unit}</span>
           </span>
           {flights !== 1 && (
@@ -128,7 +128,7 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing, on
             </button>
           </span>
           <span className="stat__value">
-            {flights && totalMin ? `${estimated ? '≈ ' : ''}${fmt.duration(totalMin)}` : '—'}
+            {flights && totalMin ? `${estimated ? '≈ ' : ''}${fmt.duration(totalMin)}` : '–'}
           </span>
           {breakdown && <span className="stat__detail">{breakdown}</span>}
         </div>

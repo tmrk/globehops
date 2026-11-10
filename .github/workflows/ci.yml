@@ -1,0 +1,62 @@
+# Checks every push to main and every pull request: lint, unit tests, a production build and the
+# three @smoke E2E tests (desktop Chromium) against that build.
+#
+# Deployment is not done here. Cloudflare Pages builds and publishes main to
+# https://globehops.marki.im/ (and a preview for every other branch and pull request) through its
+# GitHub integration, running the unit tests before its build. See docs/DEPLOYMENT.md.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint & type-check
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # A short smoke check (first visit, globe rendering, same-origin assets under the base path);
+      # the full suite (~12 min in CI) runs locally for broad UI changes.
+      - name: Smoke tests (against the production build)
+        env:
+          E2E_SKIP_BUILD: 1
+        run: npm run test:e2e -- --project=desktop-chromium --grep @smoke
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

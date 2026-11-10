@@ -47,8 +47,8 @@ type State =
   | { phase: 'result'; result: ImportResult; source: string | null };
 
 /**
- * “Import a flight path”: a file (dropped, opened or chosen) or pasted text — GPX, KML/KMZ, GeoJSON, CSV, IGC,
- * Garmin FPL, MSFS/Little Navmap plans or an aviation route string — read on this device, previewed with what
+ * “Import a flight path”: a file (dropped, opened or chosen) or pasted text – GPX, KML/KMZ, GeoJSON, CSV, IGC,
+ * Garmin FPL, MSFS/Little Navmap plans or an aviation route string – read on this device, previewed with what
  * it contains, then shown on the globe or compared with the journey there.
  */
 export const RouteImportDialog = forwardRef<RouteImportDialogHandle, Props>(function RouteImportDialog(

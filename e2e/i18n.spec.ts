@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures.ts';
+import { test, expect, atApp } from './fixtures.ts';
 import { hu } from '../src/i18n/messages/hu.ts';
 import { sv } from '../src/i18n/messages/sv.ts';
 
@@ -20,7 +20,7 @@ test('Hungarian path loads translated chrome and switches to Swedish without rel
   await page.getByRole('radio', { name: 'Svenska', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'sv');
   await expect(page).toHaveTitle('CPH → LHR · GlobeHops');
-  await expect(page).toHaveURL(new RegExp(`/globehops/sv/\\${query}$`));
+  await expect(page).toHaveURL(atApp(`sv/${query}`));
   await expect(page.getByRole('heading', { name: 'Din resa', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Dela', exact: true })).toBeVisible();
   expect(await page.locator('html').getAttribute('data-i18n-session')).toBe('same-document');
@@ -31,7 +31,7 @@ test('Hungarian path loads translated chrome and switches to Swedish without rel
 test('query alias canonicalizes to a locale path without storing an explicit choice', async ({ page }) => {
   await page.goto('./?lang=hu&route=CPH-LHR');
   await expect(page.locator('html')).toHaveAttribute('lang', 'hu');
-  await expect(page).toHaveURL(/\/globehops\/hu\/\?route=CPH-LHR$/);
+  await expect(page).toHaveURL(atApp('hu/?route=CPH-LHR'));
   expect(await page.evaluate(() => localStorage.getItem('globehops:locale'))).toBeNull();
 });
 
@@ -53,7 +53,7 @@ test.describe('country proxy', () => {
     await page.goto('./?route=CPH-LHR');
     await expect(page.locator('html')).toHaveAttribute('lang', 'hu');
     await expect(page.getByRole('heading', { name: 'Az útvonalad' })).toBeVisible();
-    await expect(page).toHaveURL(/\/globehops\/\?route=CPH-LHR$/);
+    await expect(page).toHaveURL(atApp('?route=CPH-LHR'));
   });
   test('stored English beats the country proxy', async ({ page, context }) => {
     await context.addInitScript(() => localStorage.setItem('globehops:locale', 'en'));
@@ -74,7 +74,7 @@ test('Swedish country proxy selects Swedish', async ({ browser, auditPage, baseU
 
 test('selector supports keyboard arrows and About language selection', async ({ page }) => {
   await page.goto('./hu/?route=');
-  await expect(page).toHaveTitle('GlobeHops — az utad egy 3D-s földgömbön');
+  await expect(page).toHaveTitle('GlobeHops – az utad egy 3D-s földgömbön');
   await page.getByRole('button', { name: 'Nyelv: Magyar', exact: true }).click();
   const magyar = page.getByRole('radio', { name: 'Magyar', exact: true });
   await magyar.focus();
@@ -85,7 +85,7 @@ test('selector supports keyboard arrows and About language selection', async ({ 
   await page.getByRole('button', { name: 'Om GlobeHops' }).click();
   await page.getByRole('dialog').getByRole('radio', { name: 'English', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(page).toHaveURL(/\/globehops\/en\/$/);
+  await expect(page).toHaveURL(atApp('en/'));
   await expect(page.getByRole('dialog')).toContainText('How it works');
 });
 
@@ -101,8 +101,8 @@ test('share links are language neutral while editing keeps the locale path', asy
   await page.goto('./sv/?route=CPH-LHR');
   await page.getByRole('button', { name: 'Dela', exact: true }).click();
   const shared = await page.evaluate(() => sessionStorage.getItem('copied-link'));
-  expect(shared).toMatch(/\/globehops\/\?route=CPH-LHR$/);
-  await expect(page).toHaveURL(/\/globehops\/sv\/\?route=CPH-LHR$/);
+  expect(shared).toMatch(atApp('?route=CPH-LHR'));
+  await expect(page).toHaveURL(atApp('sv/?route=CPH-LHR'));
 });
 
 for (const [locale, messages] of [

@@ -1,31 +1,37 @@
-# Tags each successfully deployed new release as v<version> (from package.json) on the deployed
-# commit. Commits that keep the version (fixes in progress, data refreshes) create no tag; an
-# existing tag is never moved. Runs after push-triggered Deploy runs only: data refreshes call
-# Deploy through workflow_call and never change the version.
+# Tags each new release as v<version> (from package.json) on the commit Cloudflare Pages deployed to
+# production. Cloudflare reports every deployment as a "Cloudflare Pages" check run; only successful
+# runs for main are production deployments. Commits that keep the version (fixes in progress, data
+# refreshes) create no tag, and an existing tag is never moved. Data refreshes are pushed with
+# GITHUB_TOKEN, whose check runs start no workflows; they never change the version anyway.
 name: Tag release
 
 on:
-  workflow_run:
-    workflows: [Deploy]
+  check_run:
     types: [completed]
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   tag:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+        github.event.check_run.name == 'Cloudflare Pages' &&
+        github.event.check_run.app.slug == 'cloudflare-workers-and-pages' &&
+        github.event.check_run.conclusion == 'success' &&
+        github.event.check_run.check_suite.head_branch == 'main'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.check_run.head_sha || github.sha }}
 
       - name: Tag the release if its version is new
         env:
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          SHA: ${{ github.event.check_run.head_sha || github.sha }}
         run: |
           version="v$(node -p "require('./package.json').version")"
           if git ls-remote --exit-code --tags origin "refs/tags/${version}" >/dev/null; then

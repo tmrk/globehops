@@ -123,7 +123,7 @@ export function linkFlightCount(link: Pick<LinkState, 'stops' | 'sections'>): nu
   );
 }
 
-export function parseLink(search: string, pathname?: string, base = '/globehops/'): LinkState {
+export function parseLink(search: string, pathname?: string, base = '/'): LinkState {
   const pathLocale = pathname ? localeFromPath(pathname, base) : null;
   const state: LinkState = {
     stops: null,

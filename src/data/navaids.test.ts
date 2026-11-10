@@ -4,7 +4,7 @@ import generated from './generated/navaids.json';
 const tiny = () => ({
   format: 1,
   meta: {
-    source: 'OurAirports — public domain',
+    source: 'OurAirports – public domain',
     generatedAt: '2026-11-10T00:00:00Z',
     files: { 'navaids.csv': { sha256: 'a'.repeat(64), bytes: 200, rows: 2 } },
     counts: { VOR: 1, 'VOR-DME': 0, VORTAC: 0, TACAN: 0, NDB: 1, 'NDB-DME': 0, DME: 0 },

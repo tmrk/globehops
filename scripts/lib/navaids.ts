@@ -70,7 +70,7 @@ export function buildNavaids(text: string, options: NavaidBuildOptions = {}) {
   );
   if (navaids.length < (options.minSelected ?? 5000)) throw new Error('Too few navaids');
   const meta: NavaidMeta = {
-    source: 'OurAirports navaids.csv (https://ourairports.com/data/) — public domain',
+    source: 'OurAirports navaids.csv (https://ourairports.com/data/) – public domain',
     generatedAt: options.generatedAt ?? new Date().toISOString(),
     files: { 'navaids.csv': { sha256: hash(text), bytes: Buffer.byteLength(text), rows: rows.length } },
     counts,

@@ -216,7 +216,7 @@ export function buildDataset(inputs: DatasetInputs, options: BuildOptions = {}) 
   const content = { countries: sorted(countries), regions: sorted(regions), airports };
   const meta = {
     generatedAt: options.generatedAt ?? new Date().toISOString(),
-    source: 'OurAirports (https://ourairports.com/data/) — public domain',
+    source: 'OurAirports (https://ourairports.com/data/) – public domain',
     upstreamCommit: options.upstreamCommit ?? null,
     files,
     counts: {

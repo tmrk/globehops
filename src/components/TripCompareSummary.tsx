@@ -89,7 +89,7 @@ export function TripCompareSummary({ list, metrics, captions, columns, active, o
                 return (
                   <span key={k} className={`trip-compare__cell${best ? ' is-best' : ''}`}>
                     <span className="trip-compare__time">
-                      {minutes === null ? '—' : time(minutes, section.estimated)}
+                      {minutes === null ? '–' : time(minutes, section.estimated)}
                     </span>
                     <span className="trip-compare__bar">
                       {minutes !== null && <span style={{ width: `${(100 * minutes) / longest[k]}%` }} />}
@@ -99,7 +99,7 @@ export function TripCompareSummary({ list, metrics, captions, columns, active, o
               })}
               <span className={`trip-compare__cell trip-compare__total${fastest ? ' is-best' : ''}`}>
                 <span className="trip-compare__time">
-                  {metric.complete ? time(metric.travelMin, metric.estimated) : '—'}
+                  {metric.complete ? time(metric.travelMin, metric.estimated) : '–'}
                 </span>
                 {metric.complete && metrics.fastest !== null ? (
                   fastest ? (

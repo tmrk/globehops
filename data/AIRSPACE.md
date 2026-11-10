@@ -28,7 +28,7 @@ Only facts (bulletin numbers, dates, areas, levels) are recorded; recommendation
 
 ## What a zone records
 
-- `issued`, `revised`, `validUntil`: the bulletin's first issue, latest revision and published end (`null` while none is published). A zone applies to a flight only on days from `issued` to `validUntil` inclusive (UTC), using the flight's departure — entered or estimated — or today for an undated journey. Past flights before a zone's first issue and future flights after its end ignore it; extensions only take effect once the list is updated.
+- `issued`, `revised`, `validUntil`: the bulletin's first issue, latest revision and published end (`null` while none is published). A zone applies to a flight only on days from `issued` to `validUntil` inclusive (UTC), using the flight's departure – entered or estimated – or today for an undated journey. Past flights before a zone's first issue and future flights after its end ignore it; extensions only take effect once the list is updated.
 - `operators`: `easa` (EASA operators) and/or `tco` (EASA-authorised third-country operators). GlobeHops does not know the airline, so it assumes an EU/EEA airline (`easa`), the most restricted case, and says so in the app. The router accepts `tco` or `other` for callers that know better.
 - `ceilingFl`: advisories limited to low levels (e.g. "below FL260") apply only to flights too short to climb above them under the app's altitude model (cruise ≈ FL360).
 - `exemptCountries`: flights to or from these countries ignore the zone (the Persian Gulf bulletin exempts arrivals and departures at Bahrain, Kuwait, Qatar and UAE aerodromes).
@@ -40,9 +40,9 @@ Only facts (bulletin numbers, dates, areas, levels) are recorded; recommendation
 | Id        | Area                                       | Source                  | Valid until | Levels      | Notes                                                                                          |
 | --------- | ------------------------------------------ | ----------------------- | ----------- | ----------- | ---------------------------------------------------------------------------------------------- |
 | `ua`      | Ukraine, including Crimea (FIR Simferopol) | CZIB-2022-01R14         | 2027-01-31  | all         | Over-sea parts of FIRs Odesa/Simferopol not modelled.                                          |
-| `by`      | Belarus (FIR Minsk)                        | SD-2021-02 / SD-2021-03 | —           | all         | Binding Safety Directive.                                                                      |
+| `by`      | Belarus (FIR Minsk)                        | SD-2021-02 / SD-2021-03 | –           | all         | Binding Safety Directive.                                                                      |
 | `ru-west` | Russia west of 60°E                        | CZIB 2025-01 R3         | 2027-01-31  | all         | Kaliningrad and Crimea excluded (other FIRs).                                                  |
-| `ru`      | Russia                                     | Rosaviatsia, 2022-02-28 | —           | all         | EU/EEA airlines only (`easa`).                                                                 |
+| `ru`      | Russia                                     | Rosaviatsia, 2022-02-28 | –           | all         | EU/EEA airlines only (`easa`).                                                                 |
 | `ir`      | Iran (FIR Tehran)                          | CZIB-2026-04-R2         | 2026-11-16  | all         |                                                                                                |
 | `iq`      | Iraq (FIR Baghdad)                         | CZIB-2026-05-R2         | 2026-11-16  | all         |                                                                                                |
 | `lb`      | Lebanon (FIR Beirut)                       | CZIB-2026-06-R2         | 2026-11-16  | all         | Beirut flights start/end inside: reported as not guaranteed.                                   |

@@ -8,9 +8,9 @@ import type { DatasetMeta } from './src/data/airports.ts';
 import type { TimeZoneMeta } from './src/data/timezones.ts';
 import react from '@vitejs/plugin-react';
 
-// GitHub Pages serves the site from https://tmrk.github.io/globehops/
-// Override with BASE_PATH=/ for other hosts.
-const base = process.env.BASE_PATH ?? '/globehops/';
+// Cloudflare Pages serves the site from the domain root, https://globehops.marki.im/
+// Override with BASE_PATH (e.g. BASE_PATH=/globehops/) to serve it from a sub-path on another host.
+const base = process.env.BASE_PATH ?? '/';
 
 // Release version (SemVer, from package.json) and the exact build commit, shown in the corner of
 // the app and in About. See “Versioning” in AGENTS.md.
@@ -24,7 +24,9 @@ function git(...args: string[]): string {
 }
 const build = {
   version,
-  commit: git('rev-parse', '--short=7', 'HEAD') || (process.env.GITHUB_SHA ?? '').slice(0, 7),
+  commit:
+    git('rev-parse', '--short=7', 'HEAD') ||
+    (process.env.CF_PAGES_COMMIT_SHA ?? process.env.GITHUB_SHA ?? '').slice(0, 7),
   // The commit date keeps the build reproducible; it is empty outside a git checkout.
   date: git('log', '-1', '--format=%cs'),
 };

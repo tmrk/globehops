@@ -9,6 +9,7 @@ import {
   openDisplay,
   startEditing,
   launcher,
+  atApp,
 } from './fixtures.ts';
 
 test.use({ timezoneId: 'Europe/Copenhagen' });
@@ -176,7 +177,7 @@ test('desktop entry uses keyboard selection and advances to destination', async 
   test.skip(isMobile, 'Desktop inline picker; takeover is covered separately.');
   await page.goto('./?route=');
   // Canonicalisation happens only after data loading and route initialisation.
-  await expect(page).toHaveURL(/\/globehops\/$/);
+  await expect(page).toHaveURL(atApp(''));
   await openPlanner(page);
   await page.getByRole('button', { name: 'Departure airport: choose an airport' }).click();
   const from = page.getByRole('combobox', { name: 'Departure airport' });
@@ -195,7 +196,7 @@ test('desktop entry uses keyboard selection and advances to destination', async 
 test('autocomplete searches codes, city, aliases and diacritics and Escape clears then closes', async ({ page }) => {
   await page.goto('./?route=');
   // Canonicalisation happens only after data loading and route initialisation.
-  await expect(page).toHaveURL(/\/globehops\/$/);
+  await expect(page).toHaveURL(atApp(''));
   await openPlanner(page);
   await page.getByRole('button', { name: 'Departure airport: choose an airport' }).click();
   const input = airportField(page);
@@ -231,7 +232,7 @@ test('mobile takeover focuses input, keeps results in viewport, selects and canc
   test.skip(!isMobile, 'Mobile takeover only exists below 760px.');
   await page.goto('./?route=');
   // Canonicalisation happens only after data loading and route initialisation.
-  await expect(page).toHaveURL(/\/globehops\/$/);
+  await expect(page).toHaveURL(atApp(''));
   await openPlanner(page);
   await page.getByRole('button', { name: 'Departure airport: choose an airport' }).tap();
   const dialog = page.getByRole('dialog', { name: 'Departure airport', exact: true });
@@ -345,7 +346,7 @@ test('miles persist across reload and URL routes override remembered routes', as
   await expectRoute(page, ['LHR', 'JFK']);
   await page.goto('./?route=');
   // Canonicalisation happens only after data loading and route initialisation.
-  await expect(page).toHaveURL(/\/globehops\/$/);
+  await expect(page).toHaveURL(atApp(''));
   await openPlanner(page);
   await expect(stopButtons(page)).toHaveCount(0);
 });
@@ -386,7 +387,7 @@ test('missing codes show a toast and preserve valid airports; garbage remains ed
   await expect(page.locator('.toast')).toHaveText('Couldn’t find an airport with code “XXX”');
   await expectRoute(page, ['CPH', 'JFK']);
   await page.goto('./?route=%%%');
-  await expect(page).toHaveURL(/\/globehops\/$/);
+  await expect(page).toHaveURL(atApp(''));
   await openPlanner(page);
   await expect(stopButtons(page)).toHaveCount(0);
   await page.getByRole('button', { name: 'Departure airport: choose an airport' }).click();
@@ -493,13 +494,13 @@ test('connections get a default layover that can be changed, totalled, shared an
   await expect(totals).toContainText('8h 40m flying · 1h 30m layover');
   await expect(totals).toContainText('≈ 10h 10m');
   await london.selectOption('180');
-  await expect(page).toHaveURL(/\/globehops\/\?route=CPH-LHR_180-JFK$/);
+  await expect(page).toHaveURL(atApp('?route=CPH-LHR_180-JFK'));
   await expect(totals).toContainText('≈ 11h 40m');
   await expect(totals).toContainText('3h 00m layover');
   // The layover belongs to its stop: reversing keeps it at London.
   await startEditing(page);
   await page.getByRole('button', { name: 'Reverse route', exact: true }).click();
-  await expect(page).toHaveURL(/\/globehops\/\?route=JFK-LHR_180-CPH$/);
+  await expect(page).toHaveURL(atApp('?route=JFK-LHR_180-CPH'));
   await page.reload();
   await expect(page.getByRole('combobox', { name: 'Layover in London' })).toHaveValue('180');
   await page.getByRole('combobox', { name: 'Layover in London' }).selectOption('90');

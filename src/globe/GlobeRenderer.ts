@@ -1060,7 +1060,7 @@ export class GlobeRenderer {
     for (const m of [material, casingMaterial, remainingMaterial]) {
       m.resolution.set(this.width, this.height);
       // Lines are depth-tested against the globe (so far-side routes hide) but don't write
-      // depth themselves — avoids z-fighting between the casing and the coloured line.
+      // depth themselves – avoids z-fighting between the casing and the coloured line.
       m.depthWrite = false;
       // One stencil value per line: a pixel already covered by this line is not blended again, so
       // translucent strokes stay even instead of beading where segment ends overlap.

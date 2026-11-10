@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { launcher, showControls, openPlanner, test, expect, openDisplay } from './fixtures.ts';
+import { launcher, showControls, openPlanner, test, expect, openDisplay, atApp } from './fixtures.ts';
 import type { Page } from '@playwright/test';
 
 const scheduled =
@@ -403,7 +403,7 @@ test('remembered schedules omit transient time and view units; explicit empty ro
   });
   await expect(page.getByRole('radio', { name: 'km', exact: true })).toHaveAttribute('aria-checked', 'true');
   await page.goto('./?route=');
-  await expect(page).toHaveURL(/\/globehops\/$/);
+  await expect(page).toHaveURL(atApp(''));
   await expect(timeline(page)).toHaveCount(0);
   await openPlanner(page);
 });

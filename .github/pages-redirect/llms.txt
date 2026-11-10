@@ -1,0 +1,5 @@
+# GlobeHops has moved
+
+GlobeHops now lives at https://globehops.marki.im/. Read the current agent and LLM guide at https://globehops.marki.im/llms.txt and build every link on https://globehops.marki.im/.
+
+Links that start with https://tmrk.github.io/globehops/ still open in a browser: this address redirects them to the same page at https://globehops.marki.im/ with their query and fragment unchanged.

@@ -1,0 +1,4 @@
+# Cloudflare Pages redirects (https://developers.cloudflare.com/pages/configuration/redirects/).
+# GlobeHops was served from /globehops/ on GitHub Pages; keep that path prefix working here too.
+/globehops /  301
+/globehops/* /:splat 301

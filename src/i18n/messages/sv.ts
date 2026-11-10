@@ -41,7 +41,7 @@ export const sv: Messages = {
   'toasts.unknownAirports': 'Hittade inte flygplatserna: {0}',
   'toasts.zonesUnavailable': 'Tidszonerna kunde inte laddas. Du kan fortfarande planera resor.',
   'panel.routeTitle': '{0} · GlobeHops',
-  'common.documentTitle': 'GlobeHops — din resa på en 3D-jordglob',
+  'common.documentTitle': 'GlobeHops – din resa på en 3D-jordglob',
   'common.cancel': 'Avbryt',
   'toasts.locationDenied': 'Platsåtkomst är blockerad i webbläsarens inställningar.',
   'toasts.locationUnavailable': 'Din plats är inte tillgänglig just nu.',

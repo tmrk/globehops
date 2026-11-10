@@ -25,7 +25,7 @@ Entered times remain absolute. An untimed trip lines up journey by journey with 
 Readable links use A's ordinary keys and `2.*`–`6.*`, then `b.*` and `b.2.*`–`b.6.*`, continuing through `d.6.*`. Within each section, stop numbering starts at 1. For example:
 
 ```text
-https://tmrk.github.io/globehops/?route=BUD-FRA-JFK&2.route=JFK-FRA-BUD&b.route=BUD-JFK&b.2.route=JFK-BUD
+https://globehops.marki.im/?route=BUD-FRA-JFK&2.route=JFK-FRA-BUD&b.route=BUD-JFK&b.2.route=JFK-BUD
 ```
 
 `LinkState.sections` contains A's later sections; `LinkState.compare[i].sections` contains another alternative's. Links accept different section counts; the app pads to a rectangle. Export to a document pads shorter alternatives with `{ stops: [] }`, which remains invalid until edited. Every prefixed group emits its route even when empty. `leg` counts A's flights across its sections; `clock` accepts an airport from any section of any alternative. Existing single/comparison/trip links keep their serialization.

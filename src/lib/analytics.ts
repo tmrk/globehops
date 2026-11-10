@@ -9,7 +9,7 @@
 
 export const GA_MEASUREMENT_ID = 'G-MN3ZVQ1KP4';
 /** Hosts that report to the GlobeHops property; forks and local previews never do. */
-export const GA_HOSTS: readonly string[] = ['tmrk.github.io'];
+export const GA_HOSTS: readonly string[] = ['globehops.marki.im'];
 export const GA_PAGE_TITLE = 'GlobeHops';
 
 export type AnalyticsConsent = 'granted' | 'denied';

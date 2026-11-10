@@ -1,5 +1,5 @@
 /**
- * Compared trips: two to four alternative trips (A–D), each a sequence of journeys separated by stays —
+ * Compared trips: two to four alternative trips (A–D), each a sequence of journeys separated by stays –
  * typically the same round trip flown different ways. Every alternative has the same journeys (outbound,
  * return, …), so journey k of one is compared with journey k of the others.
  *

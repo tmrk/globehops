@@ -192,8 +192,12 @@ it('round trips language, layers and flight selection in readable and document l
   expect(buildLinkUrl('https://example.com/seven/', stops, { lang: 'sv', time: Date.UTC(2026, 10, 20, 10) })).toContain(
     '/seven/sv/?route=CPH-LHR_180-JFK&t=2026-11-20T10:00Z',
   );
-  expect(parseLink(url.search, url.pathname).view).toMatchObject(view);
-  expect(parseLink('?lang=hu', '/globehops/sv/').view.lang).toBe('sv');
+  expect(parseLink(url.search, url.pathname, '/globehops/').view).toMatchObject(view);
+  const root = new URL(buildLinkUrl('https://example.com/', stops, view));
+  expect(root.pathname).toBe('/hu/');
+  expect(parseLink(root.search, root.pathname).view).toMatchObject(view);
+  expect(parseLink('?lang=hu', '/sv/').view.lang).toBe('sv');
+  expect(parseLink('?lang=hu', '/globehops/sv/', '/globehops/').view.lang).toBe('sv');
   expect(buildLinkUrl('https://example.com/elsewhere/en/', stops, { lang: 'sv' })).toContain('/elsewhere/sv/');
   const encoded = encodeItineraryParam({
     version: 1,

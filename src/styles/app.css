@@ -1,5 +1,5 @@
-/* GlobeHops — single stylesheet. Mobile first; desktop overrides under .layout-desktop.
-   Visual direction: a night-flight "moving map" — deep ink background, satellite globe as the
+/* GlobeHops – single stylesheet. Mobile first; desktop overrides under .layout-desktop.
+   Visual direction: a night-flight "moving map" – deep ink background, satellite globe as the
    hero, warm amber routes, signage type with departure-board figures. */
 
 :root {
@@ -20,12 +20,12 @@
   --focus: #9ccbff;
   --danger: #ff8a7a;
   /* Shape scale: crisp, like airport signage and departure boards. Every corner uses one of these roles:
-     sm — rows, fields, list options, tabs, notes: square;
-     xs — tags and badges (split-flap code tiles, globe labels, inline code, bars);
-     btn — text buttons and button-like fields (Play, Edit, menus, toggles);
-     md — menus and toasts;
-     lg — panels, sheets and dialogs;
-     full — only what is naturally round: icon buttons, floating globe controls, dots, switches, thumbs, rules. */
+     sm – rows, fields, list options, tabs, notes: square;
+     xs – tags and badges (split-flap code tiles, globe labels, inline code, bars);
+     btn – text buttons and button-like fields (Play, Edit, menus, toggles);
+     md – menus and toasts;
+     lg – panels, sheets and dialogs;
+     full – only what is naturally round: icon buttons, floating globe controls, dots, switches, thumbs, rules. */
   --radius-sm: 0;
   --radius-xs: 2px;
   --radius-btn: 4px;
@@ -438,7 +438,7 @@ a {
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 
-/* Desktop only: the running release below the journey panel, deliberately faint — there when you
+/* Desktop only: the running release below the journey panel, deliberately faint – there when you
    look for it. It keeps the same --edge margin from the left and bottom as the panel and globe
    controls; the panel's max-height leaves --version-room for it. Phones show it only in About. */
 
@@ -1065,7 +1065,7 @@ button.map-menu__item:hover {
 }
 
 /* ------------------------------------------------------------------------------------------ */
-/* Itinerary: one grid for every row — route line, code, text, trailing tools                 */
+/* Itinerary: one grid for every row – route line, code, text, trailing tools                 */
 
 .stops {
   list-style: none;

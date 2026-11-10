@@ -3,7 +3,7 @@
  * smooth orthographic sphere lighting and an original luminous great-circle ribbon (MIT).
  * Requires Playwright Chromium. Downloads pinned country polygons only if the cache is absent.
  *   node scripts/build-icons.ts
- *   node scripts/build-icons.ts --og http://localhost:4173/globehops/
+ *   node scripts/build-icons.ts --og http://localhost:4173/
  */
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -386,7 +386,7 @@ for (const asset of SCREENSHOTS) {
 
 const ogIndex = process.argv.indexOf('--og');
 if (ogIndex !== -1) {
-  const url = process.argv[ogIndex + 1] ?? 'http://localhost:4173/globehops/';
+  const url = process.argv[ogIndex + 1] ?? 'http://localhost:4173/';
   // 1. Capture the real globe with a route (UI chrome hidden).
   // ≥1000 px wide uses the side-panel layout, so hiding the panel leaves no inset on the globe.
   const page = await browser.newPage({
@@ -410,7 +410,7 @@ if (ogIndex !== -1) {
         <div style="display:flex;align-items:center;gap:18px">${svgAt(logo, 76)}
           <span style="font-size:62px;font-weight:700;letter-spacing:-0.005em;color:#eef1f6">GlobeHops</span></div>
         <p style="margin:28px 0 0;font-size:38px;line-height:1.2;color:#eef1f6;font-weight:600">Your journey by air,<br>on a real 3D globe.</p>
-        <p style="margin:18px 0 0;font-size:25px;line-height:1.35;color:#a9b2c3;font-weight:500">Great-circle routes, distances and<br>estimated flight times — free &amp; open source.</p>
+        <p style="margin:18px 0 0;font-size:25px;line-height:1.35;color:#a9b2c3;font-weight:500">Great-circle routes, distances and<br>estimated flight times – free &amp; open source.</p>
       </div>
     </div>`,
     { width: 1200, height: 630 },

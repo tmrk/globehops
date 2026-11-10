@@ -14,7 +14,7 @@
  *
  * Moon source: NASA Scientific Visualization Studio, CGI Moon Kit (SVS 4720), LRO Camera (LROC) WAC
  * colour mosaic with polar fill, equirectangular, 1024×512, centred on 0° longitude.
- *   https://svs.gsfc.nasa.gov/4720 — Credit: NASA's Scientific Visualization Studio; LRO/LROC data
+ *   https://svs.gsfc.nasa.gov/4720 – Credit: NASA's Scientific Visualization Studio; LRO/LROC data
  *   from NASA/GSFC/Arizona State University.
  *
  * NASA imagery is generally not subject to copyright in the United States; see docs/DATA_SOURCES.md.

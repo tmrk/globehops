@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { installTools, invoke, ready } from './webTools.ts';
-import { test, expect, openDisplay, airportField } from './fixtures.ts';
+import { test, expect, openDisplay, airportField, basePath } from './fixtures.ts';
 import { handleTool } from '../mcp/tools.ts';
 import { context } from '../mcp/data.ts';
 import type { ItineraryDocument } from '../src/agent/itinerary.ts';
@@ -169,7 +169,7 @@ test('live tools validate atomically, patch state, preserve preferences and expo
   await invoke(page, 'select_flight', { leg: null });
   expect((await invoke<Snapshot>(page, 'get_journey')).view.leg).toBeNull();
   const shared = await invoke<{ url: string }>(page, 'get_share_link');
-  expect(shared.url).toContain('/globehops/hu/');
+  expect(new URL(shared.url).pathname).toBe(`${basePath}hu/`);
   expect(shared.url).toContain('t=2026-11-20T12:00Z');
   expect(
     await page.evaluate(() =>
@@ -238,8 +238,8 @@ test('static discovery describes the deployed locale pages, schema, examples and
   await page.goto('./hu/?route=CPH-JFK');
   const capabilityHref = await page.locator('link[rel="describedby"]').getAttribute('href');
   const helpHref = await page.locator('link[rel="help"]').getAttribute('href');
-  expect(capabilityHref).toBe('/globehops/agent/capabilities.json');
-  expect(helpHref).toBe('/globehops/llms.txt');
+  expect(capabilityHref).toBe(`${basePath}agent/capabilities.json`);
+  expect(helpHref).toBe(`${basePath}llms.txt`);
   const capabilities = (await (await request.get(capabilityHref!)).json()) as {
     locales: string[];
     visualisationOptions: string[];
@@ -252,13 +252,13 @@ test('static discovery describes the deployed locale pages, schema, examples and
   );
   expect(capabilities.webMcp.tools).toHaveLength(7);
   expect(capabilities.mcp.resources).toHaveLength(4);
-  const schema = (await (await request.get('/globehops/agent/itinerary.schema.json')).json()) as {
+  const schema = (await (await request.get(`${basePath}agent/itinerary.schema.json`)).json()) as {
     properties: { view: { properties: object } };
   };
   expect(Object.keys(schema.properties.view.properties)).toEqual(
     expect.arrayContaining(['follow', 'lang', 'names', 'borders', 'leg']),
   );
-  const dataset = (await (await request.get('/globehops/agent/dataset.json')).json()) as {
+  const dataset = (await (await request.get(`${basePath}agent/dataset.json`)).json()) as {
     app: { version: string; commit: string };
     airports: { generatedAt: string };
     timeZones: { release: string };
@@ -333,7 +333,7 @@ test('view-only links validate flight bounds and explicit defaults survive reloa
 
 test('live import parses paths, compares through App and leaves the plan unchanged on errors', async ({ page }) => {
   await installTools(page);
-  await page.goto('/globehops/?route=CPH-ARN');
+  await page.goto('./?route=CPH-ARN');
   await ready(page);
   const imported = await invoke<{ flights: { from: string; to: string; points: number }[]; url: string }>(
     page,

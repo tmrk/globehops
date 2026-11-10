@@ -25,8 +25,8 @@ interface PlayLauncherProps {
 }
 
 /**
- * The journey's player before it starts. Play is an amber wayfinding sign — a play mark and the word, like
- * the black-on-yellow signs that point the way through an airport — beside the route it will show, over a
+ * The journey's player before it starts. Play is an amber wayfinding sign – a play mark and the word, like
+ * the black-on-yellow signs that point the way through an airport – beside the route it will show, over a
  * miniature of the timeline it opens with the aircraft waiting at its start. The card sits exactly where
  * the timeline appears (beneath the globe, or atop the phone sheet), so pressing Play reads as one motion.
  */

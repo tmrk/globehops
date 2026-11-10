@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { test, expect, expectRoute, chooseAirport, openDisplay, startEditing } from './fixtures.ts';
+import { test, expect, expectRoute, chooseAirport, openDisplay, startEditing, basePath } from './fixtures.ts';
 
 test('WebGL canvas renders varied pixels and airport labels', { tag: '@smoke' }, async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -96,7 +96,7 @@ test('reduced motion renders routes and responds to changes', async ({ page }) =
 });
 
 test(
-  'production assets and every same-origin request respect the Pages base path',
+  'production assets and every same-origin request respect the base path',
   { tag: '@smoke' },
   async ({ page, baseURL }) => {
     const origin = new URL(baseURL!).origin;
@@ -125,7 +125,7 @@ test(
     expect(responses.some(({ path, status }) => /earth-.*\.webp$/.test(path) && status === 200)).toBe(true);
     expect(responses.some(({ path, status }) => /airports-.*\.json$/.test(path) && status === 200)).toBe(true);
     expect(responses.some(({ path, status }) => /borders-.*\.json$/.test(path) && status === 200)).toBe(true);
-    expect(paths.filter((path) => !path.startsWith('/globehops/'))).toEqual([]);
+    expect(paths.filter((path) => !path.startsWith(basePath))).toEqual([]);
     expect(responses.filter(({ status }) => status >= 400)).toEqual([]);
     expect(failures).toEqual([]);
   },

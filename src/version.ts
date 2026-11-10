@@ -6,7 +6,7 @@ export const APP_COMMIT = __APP_COMMIT__;
 export const APP_DATE = __APP_DATE__;
 export const CHANGELOG_URL = 'https://github.com/tmrk/globehops/blob/main/RECENT_CHANGES.md';
 
-/** “Build 53dabe6, 6 Nov 2026” — or an empty string when nothing is known. */
+/** “Build 53dabe6, 6 Nov 2026” – or an empty string when nothing is known. */
 export function describeBuild(commit: string, date: string): string {
   const day = /^\d{4}-\d{2}-\d{2}$/.test(date)
     ? new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', {

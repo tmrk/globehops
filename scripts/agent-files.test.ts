@@ -50,7 +50,7 @@ describe('committed agent discovery', () => {
 it('parses the booking-to-link example with every outbound and return stop', () => {
   const guide = readFileSync(new URL('../public/llms.txt', import.meta.url), 'utf8');
   const example = guide
-    .split('Example — out via Frankfurt on 1 December, back nonstop on 10 December:\n')[1]
+    .split('Example – out via Frankfurt on 1 December, back nonstop on 10 December:\n')[1]
     ?.split('\n')[0];
   expect(example).toBeDefined();
   const link = parseLink(new URL(example!).search);
@@ -62,7 +62,7 @@ it('parses the booking-to-link example with every outbound and return stop', () 
 it('parses the named travellers example as two named round trips', () => {
   const guide = readFileSync(new URL('../public/llms.txt', import.meta.url), 'utf8');
   const example = guide
-    .split('Example — Anna from London and Ben from New York meet in Tokyo and fly home a week later:\n')[1]
+    .split('Example – Anna from London and Ben from New York meet in Tokyo and fly home a week later:\n')[1]
     ?.split('\n')[0];
   expect(example).toBeDefined();
   const link = parseLink(new URL(example!).search);

@@ -2,15 +2,15 @@
   "name": "GlobeHops",
   "description": "Explore air journeys on an interactive globe; shared route estimates and local-time schedules for people and agents.",
   "contractVersion": 1,
-  "homepage": "https://tmrk.github.io/globehops/",
+  "homepage": "https://globehops.marki.im/",
   "urlTemplates": {
-    "simple": "https://tmrk.github.io/globehops/?route={route}",
-    "comparison": "https://tmrk.github.io/globehops/?route={routeA}&label={labelA}&b.route={routeB}&b.label={labelB}",
-    "trip": "https://tmrk.github.io/globehops/?route={outbound}&dep1={localDeparture}&2.route={return}&2.dep1={localDeparture}&2.stay={stay}",
-    "tripComparison": "https://tmrk.github.io/globehops/?route={outboundA}&2.route={returnA}&b.route={outboundB}&b.2.route={returnB}",
-    "localized": "https://tmrk.github.io/globehops/{lang}/?route={route}",
-    "scheduled": "https://tmrk.github.io/globehops/?route={route}&dep1={localDeparture}",
-    "document": "https://tmrk.github.io/globehops/?itinerary={base64urlJson}"
+    "simple": "https://globehops.marki.im/?route={route}",
+    "comparison": "https://globehops.marki.im/?route={routeA}&label={labelA}&b.route={routeB}&b.label={labelB}",
+    "trip": "https://globehops.marki.im/?route={outbound}&dep1={localDeparture}&2.route={return}&2.dep1={localDeparture}&2.stay={stay}",
+    "tripComparison": "https://globehops.marki.im/?route={outboundA}&2.route={returnA}&b.route={outboundB}&b.2.route={returnB}",
+    "localized": "https://globehops.marki.im/{lang}/?route={route}",
+    "scheduled": "https://globehops.marki.im/?route={route}&dep1={localDeparture}",
+    "document": "https://globehops.marki.im/?itinerary={base64urlJson}"
   },
   "customPaths": {
     "kinds": ["planned", "recorded"],
@@ -191,7 +191,7 @@
     },
     "legFields": "distanceKm is the flown (custom, routed or great-circle) distance used for estimates; greatCircleKm is always present; distanceModel says which; route.airspace and route.diversion describe the modelled constraints."
   },
-  "schema": "https://tmrk.github.io/globehops/agent/itinerary.schema.json",
+  "schema": "https://globehops.marki.im/agent/itinerary.schema.json",
   "limits": {
     "stops": 10,
     "trackPoints": 20000,
@@ -366,7 +366,7 @@
   },
   "versioning": "Additive compatible changes retain v1. Breaking changes require document version 2 and a v2 link parameter/version contract; existing v1 links remain readable.",
   "dataset": {
-    "freshness": "https://tmrk.github.io/globehops/agent/dataset.json",
+    "freshness": "https://globehops.marki.im/agent/dataset.json",
     "airports": "OurAirports, public domain; checked daily, freshness is recorded rather than guaranteed.",
     "timeZones": "timezone-boundary-builder 2026f, derived from OpenStreetMap; ODbL-1.0. Separate derivative database at src/data/generated/timezones.json.",
     "repository": "https://github.com/tmrk/globehops"

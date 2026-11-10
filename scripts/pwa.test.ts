@@ -9,9 +9,12 @@ describe('precache manifest', () => {
       ['', 'hu/', 'en/', 'sv/', 'assets/app.js'],
     );
   });
-  it('excludes only worker, maps, OS files and promotional imagery', () => {
+  it('excludes only worker, maps, OS files, host configuration and promotional imagery', () => {
     for (const path of [
       'sw.js',
+      '_headers',
+      '_redirects',
+      '404.html',
       'a.js.map',
       '.DS_Store',
       'a/.DS_Store',

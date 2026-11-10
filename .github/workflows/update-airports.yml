@@ -7,8 +7,8 @@
 # 3. Commit the dataset to main with the workflow's GITHUB_TOKEN. If branch protection
 #    rejects the push, open a pull request instead (requires "Allow GitHub Actions to
 #    create and approve pull requests" in the repository settings).
-# 4. Redeploy by calling the Deploy workflow directly (pushes made with GITHUB_TOKEN do
-#    not trigger other workflows).
+# 4. Cloudflare Pages deploys the pushed commit through its GitHub integration, which
+#    receives this workflow's GITHUB_TOKEN pushes like any other push to main.
 name: Update airport data
 
 on:
@@ -28,10 +28,6 @@ jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    outputs:
-      changed: ${{ steps.update.outputs.CHANGED }}
-      pushed: ${{ steps.commit.outputs.pushed }}
-      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -79,7 +75,6 @@ jobs:
         run: npm run build
 
       - name: Commit dataset
-        id: commit
         if: steps.update.outputs.CHANGED == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -88,13 +83,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/data/generated/airports.json data/airports-build.json src/data/generated/timezones.json data/timezones-build.json src/data/generated/diversion-airports.json data/diversion-build.json public/agent
           if git diff --cached --quiet; then
-            echo "Nothing to commit."; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
+            echo "Nothing to commit."; exit 0
           fi
           day="$(date -u +%Y-%m-%d)"
           git commit -m "data: refresh OurAirports dataset ($day)"
           if git push origin HEAD:main; then
-            echo "pushed=true" >> "$GITHUB_OUTPUT"
-            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "Pushed $(git rev-parse HEAD); Cloudflare Pages deploys it."
           else
             echo "::warning::Direct push to main was rejected (branch protection?). Opening a pull request instead."
             branch="data/ourairports-$day"
@@ -103,16 +97,4 @@ jobs:
               --title "data: refresh OurAirports dataset ($day)" \
               --body "Automated, validated refresh of the OurAirports dataset. Merging deploys the site." \
               || echo "::warning::Could not open a pull request; enable 'Allow GitHub Actions to create and approve pull requests'."
-            echo "pushed=false" >> "$GITHUB_OUTPUT"
           fi
-
-  deploy:
-    needs: update
-    if: needs.update.outputs.pushed == 'true'
-    uses: ./.github/workflows/deploy.yml
-    with:
-      ref: ${{ needs.update.outputs.sha }}
-    permissions:
-      contents: read
-      pages: write
-      id-token: write

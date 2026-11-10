@@ -1,5 +1,11 @@
 import { test as base, expect, type Page } from '@playwright/test';
 
+/** The app's path: the root locally, or the path of an external `E2E_BASE_URL` deployment. */
+export const basePath = new URL(process.env.E2E_BASE_URL ?? 'http://localhost/').pathname;
+/** Matches exactly the app address `rest` (a path below the base plus query), on any origin. */
+export const atApp = (rest: string) =>
+  new RegExp(`^[a-z]+://[^/]+${(basePath + rest).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+
 type Fixtures = {
   localeChoice: string | null;
   expectedConsoleErrors: RegExp[];
@@ -64,7 +70,7 @@ export async function expectRoute(page: Page, codes: string[]) {
   const stops = stopButtons(page);
   await expect(stops).toHaveCount(codes.length);
   for (const [i, code] of codes.entries()) await expect(stops.nth(i)).toHaveAccessibleName(new RegExp(`\\(${code}\\)`));
-  await expect(page).toHaveURL(new RegExp(`/globehops/\\?route=${codes.join('-')}$`));
+  await expect(page).toHaveURL(atApp(`?route=${codes.join('-')}`));
 }
 
 /**

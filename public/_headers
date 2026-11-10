@@ -1,0 +1,6 @@
+# Cloudflare Pages response headers (https://developers.cloudflare.com/pages/configuration/headers/).
+# Vite gives every bundled asset a content hash, so those can be cached for a year. Everything
+# else keeps the Pages default (revalidate on each request), so pages, sw.js, the manifest and
+# the agent discovery files update as soon as a deployment finishes.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
