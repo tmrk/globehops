@@ -40,7 +40,7 @@ Choose **Add return flight** below your stops to make the journey a trip: a retu
 
 ### Compare journeys
 
-Choose **Compare journeys** below your stops to try up to four flight options. Each journey has its own colour and tab; a new option starts empty and offers a few similar routes between the same airports, such as nonstop or via a different hub, or you can choose any airports yourself. The ticket compares total time, marks the fastest option and shows which arrives first. **Play all** runs every journey on one shared clock, including layovers, with a live status lane for each. Share keeps all the options together. Journeys without times use a common example departure when you play them.
+Choose **Compare journeys** below your stops to try up to four flight options. Each journey has its own colour and tab; a new option starts empty and offers a few similar routes between the same airports, such as nonstop or via a different hub, or you can choose any airports yourself. The ticket compares total time, marks the fastest option and shows which arrives first. **Play all** runs every journey on one shared clock, including layovers, with a live status lane for each. Share keeps all the options together. Journeys without times use a common example departure when you play them. Give each option a name in **Edit**, such as the airline or the person flying it: to see two people's travels together, name them “Anna” and “Ben”, and their names follow them to the tabs, table, timeline and the planes on the globe.
 
 ### Compare round trips
 

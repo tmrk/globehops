@@ -19,6 +19,7 @@ import { Summary } from './components/Summary.tsx';
 import { StayLine, TripSummary } from './components/TripSummary.tsx';
 import { TripCompareSummary } from './components/TripCompareSummary.tsx';
 import { SectionSwitch } from './components/SectionSwitch.tsx';
+import { NameField } from './components/NameField.tsx';
 import { tripCaptions, tripCodes, tripColumnNames } from './components/tripCompareText.ts';
 import { sectionNames } from './components/tripText.ts';
 import { TimeBar } from './components/TimeBar.tsx';
@@ -188,6 +189,17 @@ export default function App() {
   const captions = useMemo(() => (trips ? tripCaptions(trips, { t, fmt }) : []), [trips, t, fmt]);
   const columns = useMemo(() => (trips ? tripColumnNames(trips, { t, fmt }) : []), [trips, t, fmt]);
   const activeTrip = trips?.[shape.option] ?? null;
+  /**
+   * Compared trips' journey names: every trip has the same journeys, so they share the column names
+   * (Outbound, Return, …) unless a later journey has its own; the trip's name is the first journey's label.
+   */
+  const sectionTitles = useMemo(
+    () =>
+      tripNames.map((own, o) =>
+        own.map((name, k) => (k > 0 ? plan.journeys[o * shape.sections + k]?.label : null) ?? columns[k] ?? name),
+      ),
+    [tripNames, plan.journeys, shape.sections, columns],
+  );
   // A trip plays whole, or one journey of it on request; a missing journey falls back to the whole trip.
   const scope = timeOpen && trip && playScope !== null && playScope < trip.sections.length ? playScope : null;
   const scopedRange = trip ? (scope !== null ? trip.sections[scope].timeline : trip.timeline) : playbackRange;
@@ -546,14 +558,19 @@ export default function App() {
   const fastestTrip = tripMetrics?.trips.find((entry) => entry.id === tripMetrics.fastest);
   const tripsAnnouncement = trips
     ? fastestTrip
-      ? t('trips.announcement', fmt.number(trips.length), fastestTrip.id, fmt.duration(fastestTrip.travelMin))
+      ? t(
+          'trips.announcement',
+          fmt.number(trips.length),
+          trips.find((entry) => entry.id === fastestTrip.id)?.label ?? fastestTrip.id,
+          fmt.duration(fastestTrip.travelMin),
+        )
       : t('trips.comparing', fmt.number(trips.length))
     : '';
   const comparisonAnnouncement = fastestJourney
     ? t(
         'compare.announcement',
         compared.length,
-        fastestJourney.id,
+        fastestJourney.label ?? fastestJourney.id,
         fmt.duration(fastestJourney.journey.totals.journeyMin),
       )
     : t('compare.comparing', compared.length);
@@ -651,6 +668,26 @@ export default function App() {
     diversion: diversionRouting ? { failed: routing.failed.diversion } : null,
     reviewed: routing.airspaceReviewed,
   };
+  /**
+   * What Edit's name field names: a trip's journey, a compared trip as a whole (e.g. a traveller), a compared
+   * journey or the journey. Names travel in links as `label`, `b.label`, … and `2.label`, ….
+   */
+  const nameTarget = (() => {
+    const draft = (index: number) => ({ index, key: plan.journeys[index].key });
+    if (tripMode) return { ...draft(plan.active), placeholder: names[plan.active], label: t('trip.nameLabel') };
+    if (activeTrip) {
+      const others = trips!.map((entry) => ({ ...entry, label: null }));
+      return {
+        ...draft(shape.option * shape.sections),
+        placeholder: tripCaptions(others, { t, fmt })[shape.option],
+        label: t('trips.nameLabel', activeTrip.id),
+      };
+    }
+    const codes = filledAirports.map(airportCode).join(' → ');
+    return comparing
+      ? { ...draft(plan.active), placeholder: codes, label: t('compare.nameLabel', compared[plan.active].id) }
+      : { ...draft(0), placeholder: codes || t('panel.yourJourney'), label: t('trip.nameLabel') };
+  })();
   const summary = trip ? (
     <TripSummary
       trip={trip}
@@ -734,7 +771,13 @@ export default function App() {
       trip={trip ? { trip, names, scope } : undefined}
       trips={
         trips && tripMetrics && tripsTimeline
-          ? { list: trips, metrics: tripMetrics, timeline: tripsTimeline, names: tripNames, sections: shape.sections }
+          ? {
+              list: trips,
+              metrics: tripMetrics,
+              timeline: tripsTimeline,
+              names: sectionTitles,
+              sections: shape.sections,
+            }
           : undefined
       }
       active={trips ? shape.option : plan.active}
@@ -939,6 +982,7 @@ export default function App() {
         ) : (
           <>
             <JourneyPanelHeader
+              name={kind === 'single' ? plan.journeys[0].label : null}
               comparing={comparing}
               trip={tripMode}
               comparingTrips={comparingTrips}
@@ -989,10 +1033,7 @@ export default function App() {
                   addLabel={t('trips.add')}
                 />
                 <SectionSwitch
-                  items={tripNames[shape.option].map((own, k) => {
-                    // Every trip has the same journeys, so they share the column names unless named.
-                    const label = k > 0 ? plan.journeys[shape.option * shape.sections + k].label : null;
-                    const name = label ?? columns[k] ?? own;
+                  items={sectionTitles[shape.option].map((name, k) => {
                     const start = activeTrip.trip.sections[k].journey.start;
                     const date = start ? fmt.date(start.local.slice(0, 10), { year: false }) : '';
                     return {
@@ -1038,22 +1079,14 @@ export default function App() {
                 </p>
               ) : (
                 <>
-                  {tripMode && arranging && (
-                    <label className="row section-name">
-                      <span aria-hidden="true" />
-                      <span className="section-name__label">{t('trip.name')}</span>
-                      <input
-                        className="section-name__input"
-                        type="text"
-                        maxLength={40}
-                        value={plan.journeys[plan.active].label ?? ''}
-                        placeholder={names[plan.active]}
-                        aria-label={t('trip.nameLabel')}
-                        onChange={(event) =>
-                          planDispatch({ type: 'setLabel', index: plan.active, label: event.target.value })
-                        }
-                      />
-                    </label>
+                  {arranging && (
+                    <NameField
+                      key={nameTarget.key}
+                      value={plan.journeys[nameTarget.index].label}
+                      placeholder={nameTarget.placeholder}
+                      label={nameTarget.label}
+                      onChange={(label) => planDispatch({ type: 'setLabel', index: nameTarget.index, label })}
+                    />
                   )}
                   {activeTrip &&
                     (() => {

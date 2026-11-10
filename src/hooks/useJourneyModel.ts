@@ -145,7 +145,8 @@ export function useJourneyModel(
             timeline: entry.timeline,
             legOffset: legOffsets[i],
             color: entry.color,
-            tag: entry.id,
+            // Planes carry the journey's name (e.g. a traveller's), else its letter.
+            tag: entry.label ?? entry.id,
           }))
         : trips
           ? trips.map((entry, o) => ({
@@ -154,7 +155,8 @@ export function useJourneyModel(
               trip: { trip: entry.trip, timeline: entry.trip.timeline },
               legOffset: optionOffsets[o],
               color: entry.color,
-              tag: entry.id,
+              // Planes carry the journey's name (e.g. a traveller's), else its letter.
+              tag: entry.label ?? entry.id,
             }))
           : undefined,
     [compared, comparing, trips, optionOffsets, legOffsets],

@@ -49,3 +49,16 @@ it('parses the booking-to-link example with every outbound and return stop', () 
   expect(link.stops).toHaveLength(3);
   expect(link.sections?.[0].stops).toHaveLength(2);
 });
+
+it('parses the named travellers example as two named round trips', () => {
+  const guide = readFileSync(new URL('../public/llms.txt', import.meta.url), 'utf8');
+  const example = guide
+    .split('Example — Anna from London and Ben from New York meet in Tokyo and fly home a week later:\n')[1]
+    ?.split('\n')[0];
+  expect(example).toBeDefined();
+  const link = parseLink(new URL(example!).search);
+  expect(link.issues).toEqual([]);
+  expect(link.label).toBe('Anna');
+  expect(link.sections?.map((section) => section.stops.map((stop) => stop.code))).toEqual([['HND', 'LHR']]);
+  expect(link.compare?.map(({ label, sections }) => [label, sections?.length])).toEqual([['Ben', 1]]);
+});

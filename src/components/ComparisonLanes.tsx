@@ -51,7 +51,10 @@ export function ComparisonLanes({ list, active, onActivate, time, zone, range }:
         >
           <span className="comparison-lane__status">
             <span className="journey-chip">{entry.id}</span>
-            <span>{status(entry)}</span>
+            <span>
+              {entry.label && <span className="comparison-lane__name">{entry.label} · </span>}
+              {status(entry)}
+            </span>
           </span>
           <ComparisonStrip entry={entry} list={list} range={range} />
         </button>
@@ -120,7 +123,10 @@ export function TripComparisonLanes({
         >
           <span className="comparison-lane__status">
             <span className="journey-chip">{entry.id}</span>
-            <span>{status(entry, index)}</span>
+            <span>
+              {entry.label && <span className="comparison-lane__name">{entry.label} · </span>}
+              {status(entry, index)}
+            </span>
           </span>
           <span className="comparison-strip" aria-hidden="true">
             {entry.trip.timeline?.sections.flatMap(({ index: section, timeline }) =>

@@ -100,7 +100,13 @@ export const ITINERARY_SCHEMA = {
         ],
         properties: {
           sections,
-          label: { type: 'string', minLength: 1, maxLength: MAX_LABEL_LENGTH, pattern: LABEL_PATTERN },
+          label: {
+            type: 'string',
+            minLength: 1,
+            maxLength: MAX_LABEL_LENGTH,
+            pattern: LABEL_PATTERN,
+            description: 'Name of this alternative, e.g. the traveller when comparing people’s journeys, or the offer.',
+          },
           stops: { $ref: '#/$defs/stops' },
         },
       },

@@ -3,6 +3,8 @@ import { useI18n } from '../i18n/I18nProvider.tsx';
 import { IconCheck, IconPencil, IconReset, IconShare } from './Icons.tsx';
 
 interface JourneyPanelHeaderProps {
+  /** A single journey's own name, which replaces the title. */
+  name?: string | null;
   comparing: boolean;
   /** The journeys are a trip's (outbound, return, …). */
   trip?: boolean;
@@ -23,6 +25,7 @@ interface JourneyPanelHeaderProps {
  * confirmation slides in from where Reset was, and the usual actions settle back when it is cancelled.
  */
 export function JourneyPanelHeader({
+  name = null,
   comparing,
   trip = false,
   comparingTrips = false,
@@ -58,6 +61,7 @@ export function JourneyPanelHeader({
   };
 
   const title = () => {
+    if (name) return name;
     if (comparingTrips) return t('trips.title');
     if (comparing) return t('compare.title');
     if (trip) return t('trip.title');

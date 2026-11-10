@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.20.0 — 2026-11-10 — Name your journeys
+
+- **Name any journey.** **Edit** now shows a **Name** field for every journey: a compared journey, a compared trip as a whole, or a single journey, as well as each journey of a trip. To show two people's travels together, name them after the people: “Anna” and “Ben” appear on their tabs, in the comparison table, on their timeline lanes and beside their planes on the globe, and the timeline says “Anna arrives first”. A single journey's name becomes its title. Names can have spaces now (a trip journey called “New York” used to lose its space as you typed).
+- **Names travel in links.** A name is part of the link (`label=Anna&b.label=Ben`, with `b.2.route` and so on for each person's way home), so a shared link or one written by an AI assistant opens with everyone named. The guide for assistants (`llms.txt`) and the agent tools now say so, with a worked example of two travellers meeting in Tokyo.
+
 ## 1.19.0 — 2026-11-10 — Compare round trips, and map a booking with AI
 
 - **Compare round trips.** Comparing flight options no longer stops at the way there. With compared journeys, **Add return flights** gives every option its own way home; below a round trip, **Compare trips** adds another option with the same journeys. Each trip keeps its colour and tab, and **Outbound** and **Return** under the tabs switch between its journeys. Switching trips keeps the journey you were looking at, so you can flick between the ways home. A new trip's empty way back offers the way out reversed, with its connections or nonstop.

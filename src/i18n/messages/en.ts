@@ -367,6 +367,8 @@ export const en = {
   'ai.copied': 'Copied',
   'ai.copyPrompt': 'Copy prompt',
   'ai.privacy': 'Your booking goes only to the assistant you choose. GlobeHops never sees it.',
+  'compare.nameLabel': 'Name of journey {0}',
+  'trips.nameLabel': 'Name of trip {0}',
   'timebar.speed': '{0} h/s',
 };
 export type Messages = { [K in keyof typeof en]: string };

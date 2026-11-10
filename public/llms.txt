@@ -11,11 +11,14 @@ Asked to show a flight booking, confirmation email, PDF, screenshot or pasted it
 1. Stops in travel order as IATA codes joined by `-`: `route=BUD-FRA-JFK`. A change of plane on the way (a connection) stays in the same route.
 2. Times exactly as printed, airport-local, `YYYY-MM-DDTHH:MM`: `depN`/`arrN` are the departure from and arrival at the Nth stop of that route (1-based). Include every departure and arrival given; never convert time zones; omit times you don't have.
 3. Time spent at a destination (anything that isn't a connection) ends the journey. The return or next journey is a new section with its own stop numbers: `2.route`, `2.dep1`, `2.arr2`, … then `3.*` up to `6.*`.
-4. Several offers or alternatives to compare: the 2nd uses `b.route`, `b.dep1`, …, the 3rd `c.*`, the 4th `d.*`; an alternative's return is `b.2.route`, `b.2.dep1`, …. Optional names: `label=Lufthansa&b.label=Nonstop` (URL-encoded).
+4. Several offers, or several people's trips, to show together: the 2nd uses `b.route`, `b.dep1`, …, the 3rd `c.*`, the 4th `d.*`; an alternative's return is `b.2.route`, `b.2.dep1`, …. Name each with `label` (URL-encoded, 1–40 characters): the traveller's name for people's trips (`label=Anna&b.label=Ben`), else the airline or offer (`label=Lufthansa&b.label=Nonstop`). Names appear on the tabs, table, timeline and planes.
 5. Use only these readable parameters (not `itinerary=`) and return the full URL starting `https://tmrk.github.io/globehops/?`.
 
 Example — out via Frankfurt on 1 December, back nonstop on 10 December:
 https://tmrk.github.io/globehops/?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&arr2=2026-12-01T08:40&dep2=2026-12-01T10:10&arr3=2026-12-01T13:05&2.route=JFK-BUD&2.dep1=2026-12-10T18:00&2.arr2=2026-12-11T08:15
+
+Example — Anna from London and Ben from New York meet in Tokyo and fly home a week later:
+https://tmrk.github.io/globehops/?route=LHR-HND&dep1=2026-12-01T11:00&label=Anna&2.route=HND-LHR&2.dep1=2026-12-08T11:30&b.route=JFK-HND&b.dep1=2026-12-01T12:00&b.label=Ben&b.2.route=HND-JFK&b.2.dep1=2026-12-08T17:00
 
 ## Build a link
 
@@ -30,7 +33,7 @@ Language: use `/globehops/en/`, `/globehops/hu/` or `/globehops/sv/`; `?lang=en|
 
 ## Compare journeys
 
-Compare 2–4 alternatives on one UTC clock. Journey A keeps ordinary keys; B–D use `b.route`/`b.depN`/`b.arrN`/`b.label`, then `c.*` and `d.*`. Optional labels are 1–40 characters without controls. Encode spaces, Unicode, `&` and `=`; keys are case-insensitive. `leg` refers to A. Older clients show A.
+Compare 2–4 alternatives on one UTC clock: offers for one traveller, or different people's journeys. Journey A keeps ordinary keys; B–D use `b.route`/`b.depN`/`b.arrN`/`b.label`, then `c.*` and `d.*`. Optional labels (1–40 characters without controls) name each alternative, e.g. the traveller or the airline, on its tab, table row, timeline lane and plane; a single journey's `label` becomes its title. People can rename journeys in the app (Edit → Name), which updates the same parameters. Encode spaces, Unicode, `&` and `=`; keys are case-insensitive. `leg` refers to A. Older clients show A.
 
 Readable example: `https://tmrk.github.io/globehops/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct`.
 

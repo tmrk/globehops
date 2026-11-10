@@ -128,7 +128,10 @@ const comparisonJourney = z
       .min(1)
       .max(MAX_LABEL_LENGTH)
       .regex(new RegExp(ITINERARY_SCHEMA.properties.journeys.items.properties.label.pattern))
-      .optional(),
+      .optional()
+      .describe(
+        'Name shown for this alternative on its tab, table row, timeline lane and plane: e.g. the traveller (Anna) when comparing people’s trips, or the offer (Lufthansa).',
+      ),
     route: route.optional(),
     stops: comparisonStops.optional(),
     sections: z.array(comparisonSection).min(1).max(MAX_SECTIONS).optional(),
@@ -187,7 +190,7 @@ export const INPUT_SCHEMAS = {
 export type ToolName = keyof typeof INPUT_SCHEMAS;
 const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   compare_journeys:
-    'Compare 2–4 alternative journeys or round trips and return one GlobeHops link on a shared clock. Each alternative supplies route, stops or sections; route plus returnRoute and optional stay is a round-trip shorthand. Trips require equal section counts and rank travel time excluding stays, with section-by-section winners. Plain journeys report fastest/first arrival. Use airport-local timetable times; untimed trip sections align with the earliest timed counterpart unless the traveller chose the stay; assumeDeparture anchors undated alternatives.',
+    'Compare 2–4 alternative journeys or round trips (offers, or different people’s trips) and return one GlobeHops link on a shared clock. Name each with label (e.g. the traveller). Each alternative supplies route, stops or sections; route plus returnRoute and optional stay is a round-trip shorthand. Trips require equal section counts and rank travel time excluding stays, with section-by-section winners. Plain journeys report fastest/first arrival. Use airport-local timetable times; untimed trip sections align with the earliest timed counterpart unless the traveller chose the stay; assumeDeparture anchors undated alternatives.',
   search_airports: 'Find airports using GlobeHops ranking, with coordinates and IANA time zones.',
   calculate_route:
     'Calculate 1–10 airport stops (or a trip of up to 6 sections with explicit stays), distances in km/mi (great circle by default; routing opts into restricted-airspace and diversion-aware routes), durations in minutes, airport-local and UTC times, canonical links and issues. Flight estimates (850 km/h + 30 min) are not airline schedules.',

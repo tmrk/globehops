@@ -27,7 +27,7 @@ The guide is at the project path `/globehops/llms.txt`, not the domain-root `/ll
 | Parameter           | Meaning                                                                   | Example                        |
 | ------------------- | ------------------------------------------------------------------------- | ------------------------------ |
 | `route`             | Airport tokens separated by hyphens; custom transfer minutes after `_`    | `CPH-LHR_180-JFK`              |
-| `label`             | Journey A label, trimmed, 1–40 characters without controls                | `Via%20London`                 |
+| `label`             | Journey A's name (e.g. a traveller), trimmed, 1–40 chars without controls | `Via%20London`                 |
 | `b.*`, `c.*`, `d.*` | Additional alternatives: route/times/label, with `b.2.*`–`d.6.*` sections | `b.route=BUD-JFK`              |
 | `2.*` … `6.*`       | A trip's later sections: route, depN, arrN, label and `stay`              | `2.route=NBO-CDG-CPH`          |
 | `N.stay`            | Stay before section N while its times don't fix it (`d`, `h`, `m`)        | `2.stay=5d`                    |
@@ -108,7 +108,7 @@ Journey IDs A–D follow array order. Readable links keep A unprefixed and use `
 https://tmrk.github.io/globehops/?route=BUD-LHR-JFK&dep1=2026-12-01T07:10&label=Via%20London&b.route=BUD-JFK&b.label=Direct
 ```
 
-Keys are case-insensitive; gaps compact in letter order. Every prefixed group needs `route`. URL-encode label spaces, Unicode, `&` and `=`. Shared view parameters stay unprefixed; `leg` selects a flight in A, and `clock` may identify an airport in any journey. Older clients display A.
+Labels name each alternative wherever it appears: its tab, the comparison table, its timeline lane, its plane on the globe and the timeline's “Anna arrives first”. Use the traveller's name to show different people's journeys together (`label=Anna&b.label=Ben`), or the airline/offer for options. Visitors can rename journeys in the app (Edit → Name), which writes the same parameters; a single journey's label becomes its title. Keys are case-insensitive; gaps compact in letter order. Every prefixed group needs `route`. URL-encode label spaces, Unicode, `&` and `=`. Shared view parameters stay unprefixed; `leg` selects a flight in A, and `clock` may identify an airport in any journey. Older clients display A.
 
 The same comparison fits the existing v1 document and `?itinerary=` encoding:
 
@@ -192,7 +192,7 @@ Readable link (A via Frankfurt, B nonstop, both returning):
 https://tmrk.github.io/globehops/?route=BUD-FRA-JFK&dep1=2026-12-01T07:10&2.route=JFK-FRA-BUD&2.dep1=2026-12-10T18:00&label=Via%20Frankfurt&b.route=BUD-JFK&b.dep1=2026-12-01T08:00&b.label=Nonstop&b.2.route=JFK-BUD&b.2.dep1=2026-12-10T18:00
 ```
 
-A uses ordinary keys and `2.*`–`6.*`; B uses `b.*` and `b.2.*`–`b.6.*`, through D's `d.6.*`. Each section restarts stop numbering at 1. Labels name alternatives (`label`/`b.label`); later section labels and stays use `2.label`/`2.stay` or `b.2.label`/`b.2.stay`. Prefixed empty routes serialize explicitly. Shared `leg` counts A's flights across its sections; `clock` may name any airport in any section or alternative.
+A uses ordinary keys and `2.*`–`6.*`; B uses `b.*` and `b.2.*`–`b.6.*`, through D's `d.6.*`. Each section restarts stop numbering at 1. Labels name alternatives (`label`/`b.label`), e.g. two travellers' round trips: `?route=LHR-HND&label=Anna&2.route=HND-LHR&b.route=JFK-HND&b.label=Ben&b.2.route=HND-JFK`; later section labels and stays use `2.label`/`2.stay` or `b.2.label`/`b.2.stay`. Prefixed empty routes serialize explicitly. Shared `leg` counts A's flights across its sections; `clock` may name any airport in any section or alternative.
 
 Document:
 

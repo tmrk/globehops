@@ -371,5 +371,7 @@ export const hu: Messages = {
   'ai.copied': 'Másolva',
   'ai.copyPrompt': 'Prompt másolása',
   'ai.privacy': 'A foglalásod csak az általad választott asszisztenshez jut el. A GlobeHops sosem látja.',
+  'compare.nameLabel': 'Az utazás neve ({0})',
+  'trips.nameLabel': 'Az út neve ({0})',
   'timebar.speed': '{0} óra/mp',
 };

@@ -345,6 +345,11 @@ a {
   left: calc(100% + 3px);
   top: 3px;
   min-width: 14px;
+  /* A name (a traveller's, an airline's) is cut short beside its plane. */
+  max-width: 10em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   height: 14px;
   padding: 0 3px;
   border-radius: var(--radius-xs);
@@ -3867,6 +3872,10 @@ button.map-menu__item:hover {
   white-space: nowrap;
 }
 .comparison-lane[aria-pressed='true'] .comparison-lane__status > span:last-child {
+  font-weight: 600;
+}
+.comparison-lane__name {
+  color: var(--text);
   font-weight: 600;
 }
 

@@ -45,6 +45,7 @@
 | `src/lib/{compare,compareView}.ts`                                                 | Positional comparison: schedule alignment/metrics, globe leg mapping, shared route markers and shared-axis bars.      |
 | `src/lib/trip.ts`, `src/lib/tripView.ts`, `src/lib/timeAxis.ts`                    | Trips: stays, placement of untimed journeys, totals, one-traveller state, playback skips; globe route; composed axis. |
 | `src/lib/compareTrips.ts`, `src/components/{TripCompareSummary,SectionSwitch}.tsx` | Compared trips: section-by-section alignment, ranking, shared stays; comparison table and Outbound/Return switch.     |
+| `src/components/NameField.tsx`                                                     | Edit mode's name for a journey, compared journey or compared trip (keeps typed spaces; saved trimmed as `label`).     |
 | `src/components/AiImportDialog.tsx`                                                | “Map your booking with AI”: planner card and the copyable prompt pointing assistants at `llms.txt`.                   |
 | `src/components/{TripSummary.tsx,tripText.ts}`                                     | Trip overview (journeys, stays, totals, Play trip/journey) and journey-name/stay wording.                             |
 | `src/state/clock.ts`                                                               | UTC simulation clock, live time and playback rates.                                                                   |

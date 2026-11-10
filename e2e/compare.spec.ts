@@ -307,3 +307,34 @@ test('compared trips share one clock and skip the stay every traveller shares', 
   await expect(lanes.nth(0)).toContainText(/Return · /, { timeout: 30_000 });
   await expect(bar(page).locator('.time-bar__readout')).toContainText(/1[01] Dec/);
 });
+
+test('names people’s journeys in Edit and in links, also as round trips', async ({ page }) => {
+  await page.goto('./?route=LHR-HND&label=Anna');
+  // A single journey's name is its title.
+  await expect(page.getByRole('heading', { name: 'Anna' })).toBeVisible();
+  await page.goto('./?route=LHR-HND&label=Anna&b.route=JFK-HND&b.label=Ben');
+  const tabs = page.getByRole('tablist', { name: 'Journeys' }).getByRole('tab');
+  await expect(tabs).toHaveText(['AAnna', 'BBen']);
+  await tabs.nth(1).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  const name = page.getByRole('textbox', { name: 'Name of journey B' });
+  await expect(name).toHaveValue('Ben');
+  await name.fill('Ben Smith');
+  await expect(tabs.nth(1)).toHaveText('BBen Smith');
+  await expect(page).toHaveURL(/b\.label=Ben%20Smith/);
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  // Each person comes home: the names stay with their trips.
+  await page.getByRole('button', { name: 'Add return flights' }).click();
+  await expect(page.getByRole('tablist', { name: 'Trips' }).getByRole('tab')).toHaveText(['AAnna', 'BBen Smith']);
+  await expect(page.getByRole('tablist', { name: 'Journeys of trip B' }).getByRole('tab')).toHaveText([
+    'Outbound',
+    'Return',
+  ]);
+  await expect(page.getByRole('region', { name: 'Trip comparison' }).locator('.trip-compare__row')).toHaveText([
+    /^AAnnaLHR → HND → LHR/,
+    /^BBen SmithJFK → HND → JFK/,
+  ]);
+  await expect(page).toHaveURL(/label=Anna&2\.route=HND-LHR&b\.route=JFK-HND&b\.label=Ben%20Smith&b\.2\.route=HND-JFK/);
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Name of trip B' })).toHaveValue('Ben Smith');
+});

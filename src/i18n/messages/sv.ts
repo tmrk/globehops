@@ -366,5 +366,7 @@ export const sv: Messages = {
   'ai.copied': 'Kopierad',
   'ai.copyPrompt': 'Kopiera prompten',
   'ai.privacy': 'Din bokning går bara till den assistent du väljer. GlobeHops ser den aldrig.',
+  'compare.nameLabel': 'Namn på resa {0}',
+  'trips.nameLabel': 'Namn på resa {0}',
   'timebar.speed': '{0} h/s',
 };

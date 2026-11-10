@@ -148,9 +148,9 @@ export function TimeBar({
     const arrival = metrics.firstArrival ? comparison.find((entry) => entry.id === metrics.firstArrival) : null;
     const fastest = metrics.fastest;
     text.title = arrival
-      ? t('compare.firstTitle', arrival.id)
+      ? t('compare.firstTitle', arrival.label ?? arrival.id)
       : fastest
-        ? t('compare.fastestTitle', fastest)
+        ? t('compare.fastestTitle', comparison.find((entry) => entry.id === fastest)?.label ?? fastest)
         : t('compare.comparing', comparison.length);
     const arrivalTime = arrival?.journey.end?.epochMs;
     text.detail =
@@ -158,7 +158,13 @@ export function TimeBar({
         ? comparison
             .flatMap((entry) =>
               entry.id !== arrival?.id && entry.journey.end
-                ? [t('compare.before', fmt.duration((entry.journey.end.epochMs - arrivalTime) / 60000), entry.id)]
+                ? [
+                    t(
+                      'compare.before',
+                      fmt.duration((entry.journey.end.epochMs - arrivalTime) / 60000),
+                      entry.label ?? entry.id,
+                    ),
+                  ]
                 : [],
             )
             .join(' · ')
@@ -166,7 +172,9 @@ export function TimeBar({
   }
   if (trips) {
     const fastest = trips.metrics.fastest;
-    text.title = fastest ? t('compare.fastestTitle', fastest) : t('trips.comparing', fmt.number(trips.list.length));
+    text.title = fastest
+      ? t('compare.fastestTitle', trips.list.find((entry) => entry.id === fastest)?.label ?? fastest)
+      : t('trips.comparing', fmt.number(trips.list.length));
     text.detail = t('trips.sharedClock');
   }
   const errorJourney = allJourneys.findIndex((entry) => entry.issues.some((issue) => issue.severity === 'error'));
