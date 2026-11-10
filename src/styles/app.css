@@ -5363,6 +5363,11 @@ button.map-menu__item:hover {
   text-overflow: ellipsis;
 }
 
+/* One line, however narrow: the docked timeline's wrapping clock does not apply to the mini player. */
+.time-bar--compact .time-bar__readout {
+  white-space: nowrap;
+}
+
 .time-bar__clock-inline {
   font: 500 var(--text-xs) / 1 var(--mono);
   font-stretch: var(--mono-stretch);

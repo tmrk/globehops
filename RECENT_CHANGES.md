@@ -2,6 +2,10 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.22.1 — 2026-11-10 — A one-line small player
+
+- **The small player stays small.** On phones, the time and the flight's progress beneath the playing journey now share one line instead of breaking onto two.
+
 ## 1.22.0 — 2026-11-10 — Cinematic playback and a clearer Play
 
 - **Cinematic playback.** Press Play and everything else steps aside: the planner, the title and the globe tools fade away and the globe fills the screen, with just a small player at the bottom showing what is happening, the time, follow aircraft and a thin line of the journey so far. **Show controls** (or Escape) brings back the full timeline while it keeps playing, and pausing brings back everything. On phones the journey sheet shrinks to the small player, so the flight has nearly the whole screen.
