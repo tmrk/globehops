@@ -21,6 +21,7 @@
     "labels:build": "node scripts/build-country-labels.ts",
     "places:build": "node scripts/build-place-names.ts",
     "borders:build": "node scripts/build-borders.ts",
+    "navaids:build": "node scripts/build-navaids.ts",
     "diversion:build": "node scripts/build-diversion-airports.ts",
     "airspace:build": "node scripts/build-airspace.ts",
     "textures:build": "node scripts/build-textures.ts",
