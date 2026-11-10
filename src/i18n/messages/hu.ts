@@ -50,7 +50,6 @@ export const hu: Messages = {
   'toasts.copyLink': 'Másold ki ezt a linket',
   'toasts.reversedTimes': 'Az útvonal megfordításakor a járatidőpontok törlődtek',
   'picker.replace': '{0} cseréje',
-  'panel.play': 'Lejátszás',
   'errors.globeTitle': 'A 3D-s földgömb nem indítható el',
   'errors.noWebGL': 'Ezen az eszközön nem érhető el a WebGL. Útvonalat továbbra is tervezhetsz az útvonalpanelen.',
   'panel.aboutGlobeHops': 'A GlobeHops névjegye',
@@ -374,4 +373,9 @@ export const hu: Messages = {
   'compare.nameLabel': 'Az utazás neve ({0})',
   'trips.nameLabel': 'Az út neve ({0})',
   'timebar.speed': '{0} óra/mp',
+  'launcher.shortcut': '{0} (Szóköz)',
+  'launcher.space': 'Szóköz',
+  'launcher.compare': '{0} utazás lejátszása együtt',
+  'launcher.compareTrips': '{0} út lejátszása együtt',
+  'launcher.region': 'Lejátszás',
 };

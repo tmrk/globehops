@@ -510,7 +510,7 @@ test('unsupported browser time zones disable local inputs while route editing an
   await expect(editor.getByLabel('Departure date', { exact: true })).toBeDisabled();
   await expect(editor.getByLabel('Arrival date', { exact: true })).toBeEnabled();
   await expect(editor).toContainText('Time zone unavailable in this browser');
-  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.getByRole('button', { name: 'Play journey', exact: true }).click();
   await expect(timeline(page).getByRole('button', { name: 'Pause playback' })).toBeVisible();
   await timeline(page).getByRole('button', { name: 'Pause playback' }).click();
   await expect(timeline(page).getByRole('slider')).toBeVisible();

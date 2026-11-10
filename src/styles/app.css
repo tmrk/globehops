@@ -38,6 +38,8 @@
   /* Live time, like a broadcast's on-air light. */
   --live: #ff5e52;
   --float-h: 44px;
+  /* The play disc: the launcher's and the open timeline's, at the same size and place. */
+  --disc: 52px;
   /* Distance from the screen edges to floating controls (16px on larger screens). */
   --edge: 12px;
   /* Panel side padding and the itinerary's columns: route line, airport code, text. Every row of
@@ -750,21 +752,62 @@ button.map-menu__item:hover {
   backdrop-filter: blur(18px) saturate(140%);
 }
 
+/* Phones: a bottom sheet at one of three heights. Half (here) shows the journey beside the globe; the
+   peek bar (.is-collapsed) leaves the globe to the launcher or the clock; full (.is-full) gives an edit the
+   whole screen but a sliver. One list scrolls inside it, the title and tabs included. */
 .layout-mobile .panel {
   left: 0;
   right: 0;
   bottom: 0;
   max-width: 600px;
   margin-inline: auto;
-  max-height: min(56dvh, calc(100dvh - 190px));
+  max-height: min(60dvh, calc(100dvh - 180px));
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   border-bottom: 0;
   padding: 0 var(--safe-right) 0 var(--safe-left);
 }
 
+/* The sheet's surface continues below its bottom edge, so while it glides to a new height (or follows
+   the finger upwards) the globe never shows through beneath it. */
+.layout-mobile .panel::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: -1px;
+  right: -1px;
+  height: 100dvh;
+  background: var(--surface-solid);
+  border-inline: 1px solid var(--line);
+  pointer-events: none;
+}
+
 /* The docked timeline takes room from the sheet; let it grow a little so the list keeps some. */
 .layout-mobile .panel.has-timeline {
   max-height: min(66dvh, calc(100dvh - 150px));
+}
+
+.layout-mobile main.panel.is-full:not(.is-collapsed) {
+  /* Above the floating globe controls, which a full sheet covers. */
+  z-index: 28;
+  max-height: calc(100dvh - var(--safe-top) - 10px);
+}
+
+/* The title, actions and tabs. On phones they scroll with the journey at half height, so the list keeps
+   the sheet's room; at full height, where editing happens, they stay pinned above it. */
+.panel__chrome {
+  flex: none;
+}
+
+.layout-mobile .panel__scroll > .panel__chrome {
+  margin-inline: calc(-1 * var(--pad));
+}
+
+.layout-mobile .panel.is-full .panel__chrome {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface-solid);
+  box-shadow: 0 1px 0 var(--line);
 }
 
 .layout-desktop .panel {
@@ -1688,10 +1731,6 @@ button.map-menu__item:hover {
   gap: 2px 22px;
 }
 
-.summary__grid.has-action {
-  grid-template-columns: minmax(max-content, 1fr) minmax(max-content, 1fr) auto;
-}
-
 /* A stat is a reading-order group; its parts sit on the grid's shared rows. */
 .stat {
   display: contents;
@@ -1708,16 +1747,6 @@ button.map-menu__item:hover {
   text-align: right;
 }
 
-.has-action .stat--end > * {
-  justify-self: start;
-  text-align: left;
-}
-
-/* Beside Play, the time breakdown may run on beneath the button. */
-.has-action .stat--end > .stat__detail {
-  grid-column: 2 / -1;
-}
-
 .stat .stat__label {
   grid-row: 1;
 }
@@ -1731,12 +1760,6 @@ button.map-menu__item:hover {
   margin-top: 2px;
   font-size: var(--text-sm);
   color: var(--text-3);
-}
-
-.summary__action {
-  grid-column: 3;
-  grid-row: 1 / 3;
-  align-self: center;
 }
 
 .summary__dates {
@@ -2094,6 +2117,9 @@ button.map-menu__item:hover {
 .hud-wrap {
   position: absolute;
   z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   pointer-events: none;
 }
 
@@ -2116,7 +2142,8 @@ button.map-menu__item:hover {
 }
 
 .hud > *,
-.hud-wrap > .time-bar {
+.hud-wrap > .time-bar,
+.hud-wrap > .launcher {
   pointer-events: auto;
 }
 
@@ -2209,12 +2236,31 @@ button.map-menu__item:hover {
   display: grid;
   place-items: center;
   flex: none;
-  width: 44px;
-  height: 44px;
+  width: var(--disc);
+  height: var(--disc);
   border-radius: var(--radius-full);
   color: var(--accent-ink);
   background: var(--accent);
-  transition: background-color 0.15s;
+  box-shadow: 0 4px 16px rgba(255, 194, 75, 0.22);
+  transition:
+    background-color 0.15s,
+    transform 0.18s var(--ease);
+}
+
+.time-bar__play:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+/* The play triangle's visual centre sits right of its box's centre. */
+.time-bar__play svg,
+.launcher__disc svg {
+  translate: 1.5px 0;
+}
+
+.time-bar__play:disabled {
+  background: var(--surface-raised);
+  color: var(--text-3);
+  box-shadow: none;
 }
 
 .time-bar__play:not(:disabled):hover {
@@ -2421,6 +2467,224 @@ button.map-menu__item:hover {
 .time-bar label:has(select:focus-visible) {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Launcher: the journey's player before it starts                                            */
+
+/* Where the open timeline will be, the same width, with its play disc in the same place. */
+.launcher {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: min(560px, 100%);
+  margin-inline: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  animation: launcher-in 0.36s var(--ease);
+}
+
+@keyframes launcher-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* The whole card plays: a large target with one clear meaning. */
+.launcher__main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+  padding: 12px 16px 12px 14px;
+  border-radius: inherit;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+
+.launcher__main:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.launcher__disc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--disc);
+  height: var(--disc);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow:
+    0 0 0 5px rgba(255, 194, 75, 0.12),
+    0 6px 22px rgba(255, 194, 75, 0.3);
+  transition:
+    background-color 0.15s,
+    box-shadow 0.2s,
+    transform 0.18s var(--ease);
+}
+
+.launcher__main:hover .launcher__disc {
+  background: #ffcd69;
+  box-shadow:
+    0 0 0 7px rgba(255, 194, 75, 0.16),
+    0 8px 26px rgba(255, 194, 75, 0.38);
+  transform: scale(1.04);
+}
+
+.launcher__main:active .launcher__disc {
+  transform: scale(0.95);
+}
+
+/* Until a first Play: two soft rings leave the disc once the route has drawn, then never again. */
+.launcher__main.is-cued .launcher__disc::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  animation: launcher-cue 1.7s var(--ease) 1.1s 2 both;
+  pointer-events: none;
+}
+
+@keyframes launcher-cue {
+  from {
+    box-shadow: 0 0 0 0 rgba(255, 194, 75, 0.55);
+  }
+  to {
+    box-shadow: 0 0 0 20px rgba(255, 194, 75, 0);
+  }
+}
+
+.launcher__text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.launcher__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.launcher__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.launcher__detail {
+  overflow: hidden;
+  font: 500 var(--text-xs) / 1.35 var(--mono);
+  font-stretch: var(--mono-stretch);
+  word-spacing: var(--mono-space);
+  color: var(--text-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A miniature of the timeline Play opens: flights solid in their colours, connections dotted. */
+.launcher__strip {
+  display: grid;
+  gap: 3px;
+  margin-top: 6px;
+}
+
+.launcher__lane {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--line);
+}
+
+.launcher__lane:not(:only-child) {
+  height: 3px;
+}
+
+.launcher__segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+
+.launcher__segment--ground {
+  background-image: repeating-linear-gradient(to right, var(--text-3) 0 2px, transparent 2px 5px);
+}
+
+/* Desktop: Space plays too. */
+.launcher__key {
+  flex: none;
+  padding: 3px 6px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-xs);
+  font: 600 var(--text-2xs) / 1 var(--font);
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+
+/* Times that cannot play: the card says which flight to fix and opens it. */
+.launcher.has-problem .launcher__disc {
+  background: rgba(255, 138, 122, 0.14);
+  color: var(--danger);
+  box-shadow: none;
+  transform: none;
+}
+
+.launcher.has-problem .launcher__title {
+  color: var(--danger);
+}
+
+.launcher__more {
+  flex: none;
+  margin-right: 6px;
+}
+
+/* Phones: the top of the journey sheet, just beneath the globe. */
+.launcher--docked {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 0 calc(var(--pad) - 10px) 0 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: sheet-content-in 0.26s var(--ease);
+}
+
+.launcher--docked .launcher__main {
+  padding: 2px 6px 14px var(--pad);
+  border-radius: var(--radius-sm);
+}
+
+.launcher--docked .launcher__main:hover {
+  background: none;
+}
+
+.panel.is-collapsed .launcher--docked .launcher__main {
+  padding-bottom: calc(14px + var(--safe-bottom));
+}
+
+.panel:not(.is-collapsed) .launcher--docked {
+  border-bottom: 1px solid var(--line);
 }
 
 /* The Moon's name, set beneath its small disc while it is in view. */
@@ -3367,13 +3631,6 @@ button.map-menu__item:hover {
     --col-gap: 10px;
     --col-code: 48px;
   }
-  .play-btn {
-    width: 44px;
-    padding: 0;
-  }
-  .play-btn span {
-    display: none;
-  }
   .stat__value {
     font-size: 20px;
   }
@@ -3415,10 +3672,11 @@ button.map-menu__item:hover {
   }
 }
 
-/* Short landscape phones: keep the sheet compact. */
+/* Short screens in the sheet layout (small landscape phones): the sheet may take nearly all of it. */
 @media (max-height: 520px) and (max-width: 759px) {
   .layout-mobile .panel,
-  .layout-mobile .panel.has-timeline {
+  .layout-mobile .panel.has-timeline,
+  .layout-mobile .panel.has-many-journeys:not(.has-timeline) {
     max-height: calc(100dvh - 70px);
   }
 }
@@ -3481,16 +3739,7 @@ button.map-menu__item:hover {
   min-height: var(--float-h);
 }
 
-/* Longer duration units and translated labels share the existing ticket grid. */
-:lang(hu) .summary__grid.has-action,
-:lang(sv) .summary__grid.has-action {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
-  column-gap: 12px;
-}
-:lang(hu) .has-action .stat__value,
-:lang(sv) .has-action .stat__value {
-  font-size: var(--text-xl);
-}
+/* Translated labels may wrap in the ticket grid. */
 :lang(hu) .stat__label,
 :lang(sv) .stat__label {
   height: auto;
@@ -3879,9 +4128,9 @@ button.map-menu__item:hover {
   font-weight: 600;
 }
 
-/* Three or four tickets still leave a useful scroll area for the active stop editor. */
+/* Tabs over the journey still leave a useful list beneath them. */
 .layout-mobile .panel.has-many-journeys:not(.has-timeline) {
-  max-height: min(62dvh, calc(100dvh - 190px));
+  max-height: min(64dvh, calc(100dvh - 170px));
 }
 .layout-mobile .compare-summary__row {
   padding-block: 6px;
@@ -4675,4 +4924,32 @@ button.map-menu__item:hover {
   color: var(--text-3);
   font-size: var(--text-xs);
   line-height: 1.45;
+}
+
+/* Landscape phones in the side-panel layout: the panel takes the screen's full height (the brand gives
+   it the top-left corner), and its totals scroll with the list. */
+@media (max-height: 560px) {
+  .layout-desktop .panel {
+    top: calc(var(--edge) + var(--safe-top));
+    left: calc(var(--edge) + var(--safe-left));
+    width: min(360px, 46vw);
+    max-height: calc(100% - 2 * var(--edge) - var(--safe-top) - var(--safe-bottom));
+  }
+  .layout-desktop .topbar .brand,
+  .layout-desktop .app-version {
+    display: none;
+  }
+  .layout-desktop .panel__head {
+    min-height: 48px;
+    padding-top: 0;
+  }
+  .layout-desktop .hud-wrap {
+    bottom: calc(8px + var(--safe-bottom));
+  }
+  .layout-desktop .launcher__main {
+    padding-block: 8px;
+  }
+  :root {
+    --disc: 44px;
+  }
 }

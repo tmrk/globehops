@@ -50,7 +50,6 @@ export const en = {
   'toasts.copyLink': 'Copy this link',
   'toasts.reversedTimes': 'Flight times cleared for the reversed route',
   'picker.replace': 'Replace {0}',
-  'panel.play': 'Play',
   'errors.globeTitle': 'The 3D globe couldn’t start',
   'errors.noWebGL': 'WebGL isn’t available on this device. You can still plan routes in the journey panel.',
   'panel.aboutGlobeHops': 'About GlobeHops',
@@ -370,5 +369,10 @@ export const en = {
   'compare.nameLabel': 'Name of journey {0}',
   'trips.nameLabel': 'Name of trip {0}',
   'timebar.speed': '{0} h/s',
+  'launcher.shortcut': '{0} (Space)',
+  'launcher.space': 'Space',
+  'launcher.compare': 'Play all {0} journeys',
+  'launcher.compareTrips': 'Play all {0} trips',
+  'launcher.region': 'Playback',
 };
 export type Messages = { [K in keyof typeof en]: string };

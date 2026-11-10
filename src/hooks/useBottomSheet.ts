@@ -1,35 +1,38 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { sheetDragOffset, sheetRelease } from '../lib/sheet.ts';
+import { sheetDragOffset, sheetRelease, type SheetDetent } from '../lib/sheet.ts';
 
-const DURATION = 240;
+const DURATION = 260;
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 /** Approximate collapsed height (handle + peek row), until the sheet has been seen collapsed. */
 const PEEK_HEIGHT = 74;
 /** The sheet's handle; with the timeline docked in the sheet, the collapsed sheet is handle + timeline. */
 const HANDLE_HEIGHT = 22;
 
-/** Estimated height the sheet keeps when collapsed: the docked timeline stays, otherwise the peek bar. */
+/** Estimated height the sheet keeps when collapsed: the docked timeline or launcher stays, else the peek bar. */
 function estimatedPeekHeight(panel: HTMLElement) {
-  const bar = panel.querySelector<HTMLElement>('.time-bar');
+  const bar = panel.querySelector<HTMLElement>('.time-bar, .launcher');
   return bar ? HANDLE_HEIGHT + bar.offsetHeight : PEEK_HEIGHT;
 }
 
 interface Options {
   enabled: boolean;
-  collapsed: boolean;
-  setCollapsed: (collapsed: boolean) => void;
+  detent: SheetDetent;
+  /** Moves the sheet to another detent (state only; the hook animates). */
+  onDetent: (detent: SheetDetent) => void;
   reducedMotion: boolean;
   /**
-   * What the collapsed sheet shows (the timeline, the globe's dial, a route summary). Each kind's measured
-   * height aims later collapse animations, so the sheet comes to rest exactly where its peek will be.
+   * What the collapsed sheet shows (the timeline, the launcher, the globe's dial, a route summary). Each
+   * kind's measured height aims later collapse animations, so the sheet comes to rest exactly where its peek
+   * will be.
    */
   peek: string;
 }
 
 /**
- * Native-feeling bottom sheet: drag the sheet down (from its handle, header, or content scrolled to
- * the top) to collapse it to its peek bar, and lift the peek bar to expand it. Movement is applied
- * imperatively as a transform, so dragging never re-renders React.
+ * Native-feeling bottom sheet with three heights: drag it down (from its handle, header, or content
+ * scrolled to the top) towards its peek bar, lift it to show the journey, and lift a journey that does
+ * not fit further to edit it at nearly full height. Movement is applied imperatively as a transform, so
+ * dragging never re-renders React; a changed height animates from where the sheet was (FLIP).
  */
 export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, options: Options) {
   const latest = useRef(options);
@@ -38,12 +41,12 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
   });
   const busy = useRef(false);
   const cancelSlide = useRef<(() => void) | null>(null);
-  /** Height and drag offset just before the sheet changes state, for a continuous expand animation. */
-  const before = useRef<{ height: number; offset: number } | null>(null);
+  /** The sheet's visual top just before it changed detent, so the new height starts where it was. */
+  const flipFrom = useRef<number | null>(null);
   const peekHeights = useRef(new Map<string, number>());
   useLayoutEffect(() => {
     const panel = panelRef.current;
-    if (panel && options.enabled && options.collapsed && !busy.current)
+    if (panel && options.enabled && options.detent === 'peek' && !busy.current)
       peekHeights.current.set(options.peek, panel.offsetHeight);
   });
 
@@ -52,7 +55,7 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
       cancelSlide.current?.();
       const panel = panelRef.current;
       if (!panel) return done?.();
-      if (latest.current.reducedMotion) {
+      if (latest.current.reducedMotion || Math.abs(from - to) < 1) {
         panel.style.transition = '';
         panel.style.transform = '';
         return done?.();
@@ -85,44 +88,55 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
     [panelRef],
   );
 
-  /** Slides the expanded sheet down to where the peek bar will sit, then collapses it. */
+  /** Slides the sheet down to where the peek bar will sit, then collapses it. */
   const collapse = useCallback(
     (fromOffset = 0) => {
       const panel = panelRef.current;
-      if (!panel || latest.current.collapsed) return;
+      if (!panel || latest.current.detent === 'peek') return;
       const peek = peekHeights.current.get(latest.current.peek) ?? estimatedPeekHeight(panel);
       const target = Math.max(0, panel.offsetHeight - peek);
       slide(fromOffset, target, () => {
-        latest.current.setCollapsed(true);
+        latest.current.onDetent('peek');
         panel.style.transform = '';
       });
     },
     [panelRef, slide],
   );
 
-  const expand = useCallback(
-    (fromOffset = 0) => {
+  /**
+   * Moves to another detent. Collapsing slides the content away first; otherwise the sheet changes height
+   * at once and its top glides from where it was (the sheet's background continues below its bottom edge,
+   * so a shrinking sheet never uncovers the globe beneath it).
+   */
+  const goTo = useCallback(
+    (next: SheetDetent, fromOffset = 0) => {
       const panel = panelRef.current;
-      if (!panel || !latest.current.collapsed) return;
-      before.current = { height: panel.offsetHeight, offset: fromOffset };
-      latest.current.setCollapsed(false);
+      if (!panel) return;
+      if (next === latest.current.detent) return slide(fromOffset, 0);
+      if (next === 'peek') return collapse(fromOffset);
+      cancelSlide.current?.();
+      flipFrom.current = panel.getBoundingClientRect().top;
+      latest.current.onDetent(next);
     },
-    [panelRef],
+    [panelRef, slide, collapse],
   );
+  const expand = useCallback((fromOffset = 0) => goTo('half', fromOffset), [goTo]);
 
   useLayoutEffect(() => {
     if (!options.enabled || options.reducedMotion) cancelSlide.current?.();
     return () => cancelSlide.current?.();
   }, [options.enabled, options.reducedMotion]);
 
-  // Expanding swaps the peek bar for the full sheet; start it where the peek bar was and slide up.
+  // A new height starts where the sheet's top was and glides to its resting place.
   useLayoutEffect(() => {
     const panel = panelRef.current;
-    const start = before.current;
-    before.current = null;
-    if (!panel || options.collapsed || !start) return;
-    slide(Math.max(0, panel.offsetHeight - start.height + start.offset), 0);
-  }, [options.collapsed, panelRef, slide]);
+    const from = flipFrom.current;
+    flipFrom.current = null;
+    if (!panel || from === null || !options.enabled) return;
+    panel.style.transition = 'none';
+    panel.style.transform = '';
+    slide(from - panel.getBoundingClientRect().top, 0);
+  }, [options.detent, options.enabled, panelRef, slide]);
 
   useEffect(() => {
     const panel = panelRef.current;
@@ -135,6 +149,7 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
       offset: number;
       active: boolean;
       scroller: HTMLElement | null;
+      canGrow: boolean;
     } | null = null;
 
     const onStart = (e: TouchEvent) => {
@@ -143,6 +158,7 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
       // Native controls (layover menus, date pickers, the search field, the timeline) keep their own gestures.
       if (target.closest('input, select, textarea')) return;
       const y = e.touches[0].clientY;
+      const list = panel.querySelector<HTMLElement>('.panel__scroll');
       drag = {
         startY: y,
         lastY: y,
@@ -151,6 +167,7 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
         offset: 0,
         active: false,
         scroller: target.closest<HTMLElement>('.panel__scroll'),
+        canGrow: !!list && list.scrollHeight > list.clientHeight + 4,
       };
     };
 
@@ -163,12 +180,14 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
         return;
       }
       const y = e.touches[0].clientY;
-      const collapsed = latest.current.collapsed;
+      const { detent } = latest.current;
       if (!drag.active) {
         const dy = y - drag.startY;
         if (Math.abs(dy) < 6) return;
-        // Content scrolls normally unless it is already at the top and the finger moves down.
-        if (drag.scroller && (dy < 0 || drag.scroller.scrollTop > 0)) {
+        // The list scrolls normally, except that a half sheet whose list does not fit grows first (as native
+        // sheets do), and a list already at its top hands a downward drag to the sheet.
+        const grows = detent === 'half' && drag.canGrow && dy < 0;
+        if (drag.scroller && !grows && (dy < 0 || drag.scroller.scrollTop > 0)) {
           drag = null;
           return;
         }
@@ -184,7 +203,7 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
         drag.lastY = y;
         drag.lastT = e.timeStamp;
       }
-      drag.offset = sheetDragOffset(y - drag.startY, collapsed);
+      drag.offset = sheetDragOffset(y - drag.startY, detent, drag.canGrow);
       panel.style.transform = drag.offset ? `translateY(${drag.offset}px)` : '';
     };
 
@@ -192,16 +211,15 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
       const current = drag;
       drag = null;
       if (!current?.active) return;
-      const { collapsed } = latest.current;
-      const action = sheetRelease({
+      const { detent } = latest.current;
+      const next = sheetRelease({
         offset: current.offset,
         velocity: current.velocity,
         height: panel.offsetHeight,
-        collapsed,
+        detent,
+        canGrow: current.canGrow,
       });
-      if (action === 'collapse') collapse(current.offset);
-      else if (action === 'expand') expand(current.offset);
-      else slide(current.offset, 0);
+      goTo(next, current.offset);
     };
 
     panel.addEventListener('touchstart', onStart, { passive: true });
@@ -217,7 +235,7 @@ export function useBottomSheet(panelRef: React.RefObject<HTMLElement | null>, op
       panel.style.transform = '';
       panel.style.transition = '';
     };
-  }, [options.enabled, panelRef, collapse, expand, slide]);
+  }, [options.enabled, panelRef, goTo]);
 
-  return { collapse, expand };
+  return { collapse, expand, goTo };
 }

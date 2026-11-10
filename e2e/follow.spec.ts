@@ -174,11 +174,11 @@ test('Follow aircraft waits for an aircraft and exits on wheel or flight selecti
   await page.goto('./?route=CPH-LHR-JFK&follow=1');
   await expect(globe(page)).toHaveAttribute('data-follow', 'on');
   releaseAirports();
-  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play journey', exact: true })).toBeVisible();
   await expect(globe(page)).toHaveAttribute('data-follow', 'on');
   await expect(globe(page)).toHaveAttribute('data-camera-motion', 'settled');
   await expect(bar(page)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.getByRole('button', { name: 'Play journey', exact: true }).click();
   await expect(followButton(page)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.globe-plane')).toHaveCSS('opacity', '1');
   await bar(page).getByRole('button', { name: 'Pause playback' }).click();
@@ -186,7 +186,7 @@ test('Follow aircraft waits for an aircraft and exits on wheel or flight selecti
   await expect(globe(page)).toHaveAttribute('data-follow', 'on');
   await expect(globe(page)).toHaveAttribute('data-camera-motion', 'settled');
   if (isMobile) await page.getByRole('button', { name: 'Show journey details' }).first().click();
-  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.getByRole('button', { name: 'Play journey', exact: true }).click();
   await bar(page).getByRole('button', { name: 'Pause playback' }).click();
   await expect(followButton(page)).toHaveAttribute('aria-pressed', 'true');
   await page.locator('canvas.globe-canvas').dispatchEvent('wheel', { deltaY: -100 });

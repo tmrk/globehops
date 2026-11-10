@@ -1,4 +1,15 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type SetStateAction,
+} from 'react';
 import { flushSync } from 'react-dom';
 
 import { AboutDialog, type AboutDialogHandle } from './components/AboutDialog.tsx';
@@ -10,10 +21,11 @@ import { CompareSummary } from './components/CompareSummary.tsx';
 import { ConsentNotice } from './components/ConsentNotice.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { GlobeHud } from './components/GlobeHud.tsx';
-import { IconInfo, IconPlay, IconCompare, IconReturn, IconTrash } from './components/Icons.tsx';
+import { IconInfo, IconCompare, IconReturn, IconTrash } from './components/Icons.tsx';
 import { JourneyPanelHeader } from './components/JourneyPanelHeader.tsx';
 import { JourneyTabs } from './components/JourneyTabs.tsx';
 import { MapTools } from './components/MapTools.tsx';
+import { PlayLauncher } from './components/PlayLauncher.tsx';
 import { StopList } from './components/StopList.tsx';
 import { Summary } from './components/Summary.tsx';
 import { StayLine, TripSummary } from './components/TripSummary.tsx';
@@ -56,11 +68,13 @@ import { MAX_SECTIONS, stayPlaybackSkips, tripStateAt } from './lib/trip.ts';
 import { MAX_JOURNEYS } from './lib/compare.ts';
 import type { LegRouter } from './lib/compare.ts';
 import { sumDurations } from './lib/flightTime.ts';
+import { comparisonPreview, journeyPreview, tripPreview } from './lib/playPreview.ts';
 import { journeyStateAt } from './lib/timeline.ts';
 import { createPlanState, planKind, planReducer, planShape } from './state/plan.ts';
 import { playInRange } from './state/playbackRange.ts';
 import { hasEnteredTimes, type RouteAction } from './state/route.ts';
 import { createSimulationFeed, type SimulationContext } from './state/simulation.ts';
+import { loadPlayed, savePlayed } from './state/storage.ts';
 import type { Airport, LocalTimeInput } from './types.ts';
 
 const GlobeView = lazy(() => import('./globe/GlobeView.tsx'));
@@ -70,6 +84,10 @@ export default function App() {
 
   // Side panel on wide screens and landscape tablets; bottom sheet on phones and portrait tablets.
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  /** A mouse or trackpad: the launcher can mention that Space plays. */
+  const finePointer = useMediaQuery('(pointer: fine)');
+  /** Landscape phones: the side panel spans the screen's height, so its totals scroll with the list. */
+  const shortScreen = useMediaQuery('(max-height: 560px)');
   const preferences = useViewPreferences();
   const {
     unit,
@@ -105,10 +123,24 @@ export default function App() {
   const [arranging, setArranging] = useState(false);
   /** Without a route to show, phones open on the globe and its clock, with the planner one tap away. */
   const [startsEmpty] = useState(() => !opensWithRoute());
-  const [collapsed, setCollapsed] = useState(() => startsEmpty && !window.matchMedia(DESKTOP_MEDIA_QUERY).matches);
+  const [collapsed, setCollapsedState] = useState(() => startsEmpty && !window.matchMedia(DESKTOP_MEDIA_QUERY).matches);
+  /** Phones: the sheet at nearly full height, for editing a journey that does not fit beside the globe. */
+  const [sheetFull, setSheetFull] = useState(false);
+  /** Whether editing (rather than the visitor's own drag) grew the sheet, so finishing returns it to half. */
+  const autoFull = useRef(false);
+  /** Collapsing the sheet also ends its full height: it opens at half height next time. */
+  const setCollapsed = useCallback((next: SetStateAction<boolean>) => {
+    setCollapsedState(next);
+    if (next === true) {
+      setSheetFull(false);
+      autoFull.current = false;
+    }
+  }, []);
   const [fits, setFits] = useState(true);
   const [fitNonce, setFitNonce] = useState(0);
   const [moonNonce, setMoonNonce] = useState(0);
+  /** Until a first Play in this browser, the launcher's disc gives one gentle cue. */
+  const [playCue, setPlayCue] = useState(() => loadPlayed() !== true);
   const [globeReady, setGlobeReady] = useState(false);
   const [globeFailed, setGlobeFailed] = useState(false);
   /** Set when a layout change (collapsing the sheet for playback) should re-frame the globe once insets settle. */
@@ -335,7 +367,9 @@ export default function App() {
     timeOpen,
     initialized,
     arranging,
-    dial: dialShown,
+    floating: isDesktop ? (dialShown ? 'dial' : timeBarShown ? 'timeline' : hasFlights ? 'launcher' : null) : null,
+    // A full sheet covers the globe; keep its framing for when the sheet comes back down.
+    frozen: !isDesktop && sheetFull && !collapsed,
   });
 
   useEffect(() => {
@@ -428,12 +462,40 @@ export default function App() {
     const departure = leg !== null ? journey.legs[leg]?.departure : null;
     if (timeOpen && departure) clock.seek(departure.epochMs);
   };
+  /** Phones: grows the sheet to full height for an edit, returning it to half when the edit ends. */
+  const growForEditing = () => {
+    if (isDesktop || sheetFull) return;
+    sheet.goTo('full');
+    // After the move: moving the sheet otherwise records the visitor's own choice of height.
+    autoFull.current = true;
+  };
+  const endEditing = () => {
+    if (!autoFull.current) return;
+    autoFull.current = false;
+    if (sheetFull && !collapsed) sheet.goTo('half');
+  };
   const editLeg = (leg: number) => {
     selectLeg(leg);
-    setCollapsed(false);
+    if (isDesktop) return;
+    if (collapsed) setCollapsed(false);
+    growForEditing();
+  };
+  /** The list's flight rows open and close their times editor; on phones it gets the sheet's full height. */
+  const selectListLeg = (leg: number | null) => {
+    selectLeg(leg);
+    if (leg === null) {
+      if (!arranging) endEditing();
+    } else growForEditing();
+  };
+  /** The first Play in this browser retires the launcher's cue for good. */
+  const markPlayed = () => {
+    if (!playCue) return;
+    setPlayCue(false);
+    savePlayed(true);
   };
   const togglePlayback = () => {
     if (!timeOpen || !clock.getSnapshot().playing) trackEvent('play_journey', { flights: legs.length });
+    markPlayed();
     if (!timeOpen) {
       openTime();
       playback.requestPlayback({
@@ -454,9 +516,31 @@ export default function App() {
       setCollapsed(true);
     }
   };
+  // Space (or K) plays and pauses from anywhere outside a field or control, like a video player.
+  const shortcutRef = useRef<() => void>(() => {});
+  useLayoutEffect(() => {
+    shortcutRef.current = () => {
+      if (hasFlights && !scheduleErrors) togglePlayback();
+    };
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
+      if (e.key !== ' ' && e.key.toLowerCase() !== 'k') return;
+      const target = e.target instanceof Element ? e.target : null;
+      const inGlobe = !!target?.closest('.stage');
+      if (target && target !== document.body && !inGlobe) return;
+      if (document.querySelector('dialog[open], .takeover')) return;
+      e.preventDefault();
+      shortcutRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   /** Plays a trip whole (null) or one of its journeys from its start, whatever is playing now. */
   const playTripScope = (next: number | null) => {
     if (!trip) return;
+    markPlayed();
     const range = next === null ? trip.timeline : trip.sections[next]?.timeline;
     if (!range || scheduleErrors) {
       togglePlayback();
@@ -533,6 +617,8 @@ export default function App() {
   };
   const toggleArranging = () => {
     if (!arranging && route.selectedLeg !== null) selectLeg(null);
+    if (arranging) endEditing();
+    else growForEditing();
     setArranging((on) => !on);
   };
 
@@ -587,14 +673,19 @@ export default function App() {
   const sheetCollapsed = !isDesktop && collapsed && editing === null;
   const sheet = useBottomSheet(panelRef, {
     enabled: !isDesktop,
-    collapsed: sheetCollapsed,
-    setCollapsed,
+    detent: sheetCollapsed ? 'peek' : sheetFull ? 'full' : 'half',
+    onDetent: (detent) => {
+      // The visitor's own choice of height outlasts the edit that may have grown the sheet.
+      autoFull.current = false;
+      setCollapsed(detent === 'peek');
+      setSheetFull(detent === 'full');
+    },
     reducedMotion,
-    peek: timeBarShown ? 'timeline' : dialShown ? 'dial' : 'route',
+    peek: timeBarShown ? 'timeline' : hasFlights ? 'launcher' : dialShown ? 'dial' : 'route',
   });
-  // On phones, a docked timeline or an open flight-times editor needs the sheet's room more than the
-  // totals do, so the totals scroll with the list instead of staying pinned beneath it.
-  const summaryInList = !isDesktop && (timeOpen || route.selectedLeg !== null);
+  // On phones the totals scroll with the list (the launcher above it carries the route and its time),
+  // so the sheet's height goes to the journey; short landscape screens do the same in the side panel.
+  const summaryInList = !isDesktop || shortScreen;
   const activateJourney = (index: number) => {
     setEditing(null);
     planDispatch({ type: 'activate', index });
@@ -688,6 +779,93 @@ export default function App() {
       ? { ...draft(plan.active), placeholder: codes, label: t('compare.nameLabel', compared[plan.active].id) }
       : { ...draft(0), placeholder: codes || t('panel.yourJourney'), label: t('trip.nameLabel') };
   })();
+  /** Opens a journey's flight in the editor, e.g. to fix times that keep it from playing. */
+  const editJourneyLeg = (index: number, leg: number) => {
+    activateJourney(index);
+    planDispatch({ type: 'route', index, action: { type: 'selectLeg', leg } });
+    setCollapsed(false);
+  };
+  // The launcher: what Play will show, as a miniature of the timeline it opens.
+  const launcherShown = hasFlights && !timeBarShown;
+  const launcherLanes = useMemo(
+    () =>
+      trip
+        ? tripPreview(trip)
+        : trips
+          ? comparisonPreview(trips.map((entry) => ({ color: entry.color, trip: entry.trip })))
+          : comparing
+            ? comparisonPreview(compared.map((entry) => ({ color: entry.color, journey: entry.journey })))
+            : journeyPreview(journey),
+    [trip, trips, comparing, compared, journey],
+  );
+  const launcherLabel = trip
+    ? t('trip.play')
+    : trips
+      ? t('launcher.compareTrips', fmt.number(trips.filter((entry) => entry.trip.totals.flights > 0).length))
+      : comparing
+        ? t('launcher.compare', fmt.number(compared.filter((entry) => entry.journey.legs.length > 0).length))
+        : t('timebar.playJourney');
+  const launcherDetail = (() => {
+    if (trips) return t('trips.sharedClock');
+    if (comparing) return t('compare.sharedClock');
+    if (trip) {
+      const codes = tripRouteCodes(trip.sections.map((s) => s.journey.stops.map((stop) => stop.airport)));
+      const when =
+        trip.start && trip.end
+          ? `${trip.dated ? '' : '≈ '}${fmt.dateRange(trip.start.local.slice(0, 10), trip.end.local.slice(0, 10))}`
+          : t('summary.flights', fmt.number(trip.totals.flights));
+      return `${codes} · ${when}`;
+    }
+    const codes = filledAirports.map(airportCode).join(' → ');
+    return totalMin ? `${codes} · ${estimated ? '≈ ' : ''}${fmt.duration(totalMin)}` : codes;
+  })();
+  /** A schedule that cannot play: the launcher names the flight whose times to fix and opens it. */
+  const launcherProblem = (() => {
+    if (!scheduleErrors) return null;
+    const index = flatJourneys.findIndex((entry) => entry.issues.some((issue) => issue.severity === 'error'));
+    const issue = flatJourneys[index]?.issues.find((entry) => entry.severity === 'error');
+    if (issue) {
+      const leg = issue.leg ?? (issue.field === 'arrival' ? Math.max(0, (issue.stop ?? 1) - 1) : (issue.stop ?? 0));
+      return {
+        title: t('timebar.fixTimes', leg + 1),
+        detail: t('timebar.checkTheLocalDatesAndTimes'),
+        onFix: () => editJourneyLeg(index, leg),
+      };
+    }
+    // Journeys of one trip that overlap: the later one departs before the earlier one lands.
+    const overlaps = trip
+      ? trip.issues.map((entry) => ({ flat: entry.section, name: names[entry.section] }))
+      : (trips ?? []).flatMap((entry, option) =>
+          entry.trip.issues.map((item) => ({
+            flat: option * shape.sections + item.section,
+            name: sectionTitles[option]?.[item.section] ?? '',
+          })),
+        );
+    const overlap = overlaps[0];
+    return overlap
+      ? {
+          title: t('trip.departsBefore', overlap.name),
+          detail: t('timebar.checkTheLocalDatesAndTimes'),
+          onFix: () => {
+            activateJourney(overlap.flat);
+            setCollapsed(false);
+          },
+        }
+      : null;
+  })();
+  const launcher = (docked: boolean) => (
+    <PlayLauncher
+      label={launcherLabel}
+      detail={launcherDetail}
+      lanes={launcherLanes}
+      problem={launcherProblem}
+      docked={docked}
+      shortcut={!docked && finePointer}
+      cue={playCue}
+      onPlay={togglePlayback}
+      onExpand={docked && sheetCollapsed ? sheet.expand : undefined}
+    />
+  );
   const summary = trip ? (
     <TripSummary
       trip={trip}
@@ -715,18 +893,9 @@ export default function App() {
       columns={columns}
       active={shape.option}
       onActivate={activateTrip}
-      onPlay={togglePlayback}
-      timeOpen={timeOpen}
     />
   ) : comparing ? (
-    <CompareSummary
-      list={compared}
-      metrics={metrics}
-      active={plan.active}
-      onActivate={activateJourney}
-      onPlay={togglePlayback}
-      timeOpen={timeOpen}
-    />
+    <CompareSummary list={compared} metrics={metrics} active={plan.active} onActivate={activateJourney} />
   ) : (
     legs.length > 0 && (
       <Summary
@@ -736,14 +905,6 @@ export default function App() {
         layovers={layovers}
         unit={unit}
         routing={routingStatus}
-        action={
-          timeOpen ? null : (
-            <button type="button" className="play-btn" aria-label={t('panel.play')} onClick={togglePlayback}>
-              <IconPlay size={18} />
-              <span>{t('panel.play')}</span>
-            </button>
-          )
-        }
       />
     )
   );
@@ -809,6 +970,103 @@ export default function App() {
       onSeek={exploreTime}
       onLive={changeLive}
     />
+  );
+
+  /**
+   * Title, actions and journey tabs: pinned above the list on desktop; on phones they scroll with the list
+   * at half height and stay pinned at full height, where editing happens.
+   */
+  const panelChrome = (
+    <div className="panel__chrome">
+      <JourneyPanelHeader
+        name={kind === 'single' ? plan.journeys[0].label : null}
+        comparing={comparing}
+        trip={tripMode}
+        comparingTrips={comparingTrips}
+        hasAirports={filledAirports.length > 0}
+        canArrange={canArrange}
+        arranging={arranging}
+        canReset={canReset}
+        onToggleArranging={toggleArranging}
+        onShare={share}
+        onReset={resetJourney}
+      />
+      {kind !== 'single' && (
+        <div className="panel__tabs">
+          {comparing && (
+            <JourneyTabs
+              items={compared.map((entry) => {
+                const airports = entry.journey.stops.map((stop) => airportCode(stop.airport));
+                const label =
+                  entry.label ??
+                  (airports.length
+                    ? (airports.length <= 3 ? airports : [airports[0], '…', airports.at(-1)]).join(' → ')
+                    : t('compare.chooseAirports'));
+                return {
+                  id: entry.id,
+                  chip: entry.id,
+                  color: entry.color,
+                  label,
+                  prose: !label.includes('→'),
+                };
+              })}
+              active={plan.active}
+              label={t('compare.journeys')}
+              onActivate={activateJourney}
+              onAdd={compared.length < MAX_JOURNEYS ? addJourney : undefined}
+              addLabel={t('compare.add')}
+            />
+          )}
+          {trips && activeTrip && (
+            <>
+              <JourneyTabs
+                items={trips.map((entry, i) => ({
+                  id: entry.id,
+                  chip: entry.id,
+                  color: entry.color,
+                  label: captions[i],
+                  prose: !captions[i].includes('→'),
+                }))}
+                active={shape.option}
+                label={t('trips.list')}
+                onActivate={activateTrip}
+                onAdd={trips.length < MAX_JOURNEYS ? addJourney : undefined}
+                addLabel={t('trips.add')}
+              />
+              <SectionSwitch
+                items={sectionTitles[shape.option].map((name, k) => {
+                  const start = activeTrip.trip.sections[k].journey.start;
+                  const date = start ? fmt.date(start.local.slice(0, 10), { year: false }) : '';
+                  return {
+                    name,
+                    detail: date && `${activeTrip.trip.sections[k].anchor === 'entered' ? '' : '≈ '}${date}`,
+                  };
+                })}
+                active={shape.section}
+                color={activeTrip.color}
+                label={t('trips.sections', activeTrip.id)}
+                onActivate={activateSection}
+              />
+            </>
+          )}
+          {trip && (
+            <JourneyTabs
+              items={trip.sections.map((_, i) => ({
+                id: String(i + 1),
+                chip: String(i + 1),
+                label: names[i],
+                prose: false,
+              }))}
+              active={plan.active}
+              label={t('trip.journeys')}
+              onActivate={activateJourney}
+              onAdd={trip.sections.length < MAX_SECTIONS ? addSection : undefined}
+              addLabel={t('trip.addSection')}
+            />
+          )}
+        </div>
+      )}
+    </div>
   );
 
   return (
@@ -916,7 +1174,7 @@ export default function App() {
         />
       )}
 
-      {((isDesktop && timeBarShown) || (!globeFailed && !timeBarShown)) && (
+      {((isDesktop && (timeBarShown || launcherShown)) || (!globeFailed && !timeBarShown)) && (
         <div
           className="hud-wrap"
           style={
@@ -926,17 +1184,18 @@ export default function App() {
             } as React.CSSProperties
           }
         >
-          {isDesktop && timeBarShown && timeBar(false)}
-          {isDesktop && dialShown && timeDial(false)}
           {!globeFailed && !timeOpen && (
             <GlobeHud legs={legs} selectedLeg={route.selectedLeg} fits={fits} onSelectLeg={selectLeg} />
           )}
+          {isDesktop && timeBarShown && timeBar(false)}
+          {isDesktop && launcherShown && launcher(false)}
+          {isDesktop && dialShown && timeDial(false)}
         </div>
       )}
 
       <main
         ref={panelRef}
-        className={`panel${plan.journeys.length >= 3 || tripMode || comparingTrips ? ' has-many-journeys' : ''}${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && timeBarShown ? ' has-timeline' : ''}`}
+        className={`panel${plan.journeys.length >= 3 || tripMode || comparingTrips ? ' has-many-journeys' : ''}${sheetCollapsed ? ' is-collapsed' : ''}${!isDesktop && sheetFull && !sheetCollapsed ? ' is-full' : ''}${!isDesktop && timeBarShown ? ' has-timeline' : ''}`}
         aria-label={t('panel.journeyPlanner')}
       >
         {!isDesktop && (
@@ -952,11 +1211,13 @@ export default function App() {
         )}
 
         {!isDesktop && timeBarShown && timeBar(true)}
+        {!isDesktop && launcherShown && launcher(true)}
         {/* The dial belongs to the globe view; the open planner needs the room. */}
         {!isDesktop && dialShown && sheetCollapsed && timeDial(true)}
 
         {sheetCollapsed ? (
-          !timeBarShown && (
+          !timeBarShown &&
+          !launcherShown && (
             <CollapsedJourneyPeek
               airports={filledAirports}
               routeText={
@@ -981,275 +1242,193 @@ export default function App() {
           )
         ) : (
           <>
-            <JourneyPanelHeader
-              name={kind === 'single' ? plan.journeys[0].label : null}
-              comparing={comparing}
-              trip={tripMode}
-              comparingTrips={comparingTrips}
-              hasAirports={filledAirports.length > 0}
-              canArrange={canArrange}
-              arranging={arranging}
-              canReset={canReset}
-              onToggleArranging={toggleArranging}
-              onShare={share}
-              onReset={resetJourney}
-            />
-
-            {comparing && (
-              <JourneyTabs
-                items={compared.map((entry) => {
-                  const airports = entry.journey.stops.map((stop) => airportCode(stop.airport));
-                  const label =
-                    entry.label ??
-                    (airports.length
-                      ? (airports.length <= 3 ? airports : [airports[0], '…', airports.at(-1)]).join(' → ')
-                      : t('compare.chooseAirports'));
-                  return {
-                    id: entry.id,
-                    chip: entry.id,
-                    color: entry.color,
-                    label,
-                    prose: !label.includes('→'),
-                  };
-                })}
-                active={plan.active}
-                label={t('compare.journeys')}
-                onActivate={activateJourney}
-                onAdd={compared.length < MAX_JOURNEYS ? addJourney : undefined}
-                addLabel={t('compare.add')}
-              />
-            )}
-            {trips && activeTrip && (
-              <>
-                <JourneyTabs
-                  items={trips.map((entry, i) => ({
-                    id: entry.id,
-                    chip: entry.id,
-                    color: entry.color,
-                    label: captions[i],
-                    prose: !captions[i].includes('→'),
-                  }))}
-                  active={shape.option}
-                  label={t('trips.list')}
-                  onActivate={activateTrip}
-                  onAdd={trips.length < MAX_JOURNEYS ? addJourney : undefined}
-                  addLabel={t('trips.add')}
-                />
-                <SectionSwitch
-                  items={sectionTitles[shape.option].map((name, k) => {
-                    const start = activeTrip.trip.sections[k].journey.start;
-                    const date = start ? fmt.date(start.local.slice(0, 10), { year: false }) : '';
-                    return {
-                      name,
-                      detail: date && `${activeTrip.trip.sections[k].anchor === 'entered' ? '' : '≈ '}${date}`,
-                    };
-                  })}
-                  active={shape.section}
-                  color={activeTrip.color}
-                  label={t('trips.sections', activeTrip.id)}
-                  onActivate={activateSection}
-                />
-              </>
-            )}
-            {trip && (
-              <JourneyTabs
-                items={trip.sections.map((_, i) => ({
-                  id: String(i + 1),
-                  chip: String(i + 1),
-                  label: names[i],
-                  prose: false,
-                }))}
-                active={plan.active}
-                label={t('trip.journeys')}
-                onActivate={activateJourney}
-                onAdd={trip.sections.length < MAX_SECTIONS ? addSection : undefined}
-                addLabel={t('trip.addSection')}
-              />
-            )}
-            <div
-              ref={listRef}
-              role={kind !== 'single' ? 'tabpanel' : undefined}
-              id={kind !== 'single' ? 'journey-panel' : undefined}
-              aria-labelledby={
-                comparing
-                  ? `journey-tab-${compared[plan.active].id}`
-                  : tripMode
-                    ? `journey-tab-${plan.active + 1}`
-                    : activeTrip
-                      ? `journey-tab-${activeTrip.id} section-tab-${shape.section}`
-                      : undefined
-              }
-              className="panel__scroll"
-            >
-              {dataError ? (
-                <p className="panel__error" role="alert">
-                  {t('errors.airportsUnavailable')}
-                </p>
-              ) : (
-                <>
-                  {arranging && (
-                    <NameField
-                      key={nameTarget.key}
-                      value={plan.journeys[nameTarget.index].label}
-                      placeholder={nameTarget.placeholder}
-                      label={nameTarget.label}
-                      onChange={(label) => planDispatch({ type: 'setLabel', index: nameTarget.index, label })}
-                    />
-                  )}
-                  {activeTrip &&
-                    (() => {
-                      const stay = activeTrip.trip.stays.find((entry) => entry.section === shape.section);
-                      return stay ? (
-                        <StayLine
-                          className="stay-before"
-                          stay={stay}
-                          onChange={(minutes) => planDispatch({ type: 'setStay', index: plan.active, minutes })}
-                        />
-                      ) : null;
-                    })()}
-                  <StopList
-                    key={plan.journeys[plan.active].key}
-                    journeyColor={comparing ? compared[plan.active].color : activeTrip?.color}
-                    legOffset={tripMode ? legOffsets[plan.active] : undefined}
-                    journey={journey}
-                    activeLeg={activeState?.phase === 'flight' ? activeState.leg : null}
-                    activeStop={activeState?.phase === 'transfer' ? activeState.stop : null}
-                    onTimeChange={changeTime}
-                    stops={route.stops}
-                    legs={legs}
-                    layovers={layovers}
-                    lookup={lookup}
-                    unit={unit}
-                    selectedLeg={route.selectedLeg}
-                    editing={isDesktop ? editing : null}
-                    arranging={arranging}
-                    renderPicker={(i) => (
-                      <AirportPicker
-                        key={route.stops[i].key}
-                        variant="inline"
-                        index={index}
-                        {...pickerText(i)}
-                        onSelect={onSelectAirport}
-                        onCancel={cancelEditor}
+            {isDesktop && panelChrome}
+            <div ref={listRef} className="panel__scroll">
+              {!isDesktop && panelChrome}
+              <div
+                role={kind !== 'single' ? 'tabpanel' : undefined}
+                id={kind !== 'single' ? 'journey-panel' : undefined}
+                aria-labelledby={
+                  comparing
+                    ? `journey-tab-${compared[plan.active].id}`
+                    : tripMode
+                      ? `journey-tab-${plan.active + 1}`
+                      : activeTrip
+                        ? `journey-tab-${activeTrip.id} section-tab-${shape.section}`
+                        : undefined
+                }
+                className="panel__list"
+              >
+                {dataError ? (
+                  <p className="panel__error" role="alert">
+                    {t('errors.airportsUnavailable')}
+                  </p>
+                ) : (
+                  <>
+                    {arranging && (
+                      <NameField
+                        key={`name-${nameTarget.key}`}
+                        value={plan.journeys[nameTarget.index].label}
+                        placeholder={nameTarget.placeholder}
+                        label={nameTarget.label}
+                        onChange={(label) => planDispatch({ type: 'setLabel', index: nameTarget.index, label })}
                       />
                     )}
-                    onEdit={openEditor}
-                    onRemove={(i) => dispatch({ type: 'removeStop', index: i })}
-                    onInsert={(i) => addStop(i)}
-                    onAdd={() => addStop()}
-                    onMove={(from, to) => dispatch({ type: 'moveStop', from, to })}
-                    onLayoverChange={(index, minutes) => dispatch({ type: 'setLayover', index, minutes })}
-                    onSelectLeg={selectLeg}
-                    onReverse={reverse}
-                  />
-                  {similar && (
-                    <RouteSuggestions title={similar.title} routes={similar.routes} codes onSelect={chooseSimilar} />
-                  )}
-                  {(kind !== 'single' || legs.length > 0) && (
-                    <div className="itinerary__actions">
-                      {comparing && compared.some((entry) => entry.journey.stops.length >= 2) && (
-                        <button type="button" className="row row--action compare-entry" onClick={addReturn}>
-                          <span aria-hidden="true" />
-                          <span className="row__icon">
-                            <IconReturn size={17} />
-                          </span>
-                          <span>{t('trips.addReturns')}</span>
-                        </button>
+                    {activeTrip &&
+                      (() => {
+                        const stay = activeTrip.trip.stays.find((entry) => entry.section === shape.section);
+                        return stay ? (
+                          <StayLine
+                            className="stay-before"
+                            stay={stay}
+                            onChange={(minutes) => planDispatch({ type: 'setStay', index: plan.active, minutes })}
+                          />
+                        ) : null;
+                      })()}
+                    <StopList
+                      key={plan.journeys[plan.active].key}
+                      journeyColor={comparing ? compared[plan.active].color : activeTrip?.color}
+                      legOffset={tripMode ? legOffsets[plan.active] : undefined}
+                      journey={journey}
+                      activeLeg={activeState?.phase === 'flight' ? activeState.leg : null}
+                      activeStop={activeState?.phase === 'transfer' ? activeState.stop : null}
+                      onTimeChange={changeTime}
+                      stops={route.stops}
+                      legs={legs}
+                      layovers={layovers}
+                      lookup={lookup}
+                      unit={unit}
+                      selectedLeg={route.selectedLeg}
+                      editing={isDesktop ? editing : null}
+                      arranging={arranging}
+                      renderPicker={(i) => (
+                        <AirportPicker
+                          key={route.stops[i].key}
+                          variant="inline"
+                          index={index}
+                          {...pickerText(i)}
+                          onSelect={onSelectAirport}
+                          onCancel={cancelEditor}
+                        />
                       )}
-                      {tripMode && plan.journeys.length <= MAX_SECTIONS && (
-                        <button type="button" className="row row--action compare-entry" onClick={addJourney}>
-                          <span aria-hidden="true" />
-                          <span className="row__icon">
-                            <IconCompare size={17} />
-                          </span>
-                          <span>{t('trips.entry')}</span>
-                        </button>
-                      )}
-                      {comparingTrips ? (
-                        <>
-                          {shape.section > 0 && (
+                      onEdit={openEditor}
+                      onRemove={(i) => dispatch({ type: 'removeStop', index: i })}
+                      onInsert={(i) => addStop(i)}
+                      onAdd={() => addStop()}
+                      onMove={(from, to) => dispatch({ type: 'moveStop', from, to })}
+                      onLayoverChange={(index, minutes) => dispatch({ type: 'setLayover', index, minutes })}
+                      onSelectLeg={selectListLeg}
+                      onReverse={reverse}
+                    />
+                    {similar && (
+                      <RouteSuggestions title={similar.title} routes={similar.routes} codes onSelect={chooseSimilar} />
+                    )}
+                    {(kind !== 'single' || legs.length > 0) && (
+                      <div className="itinerary__actions">
+                        {comparing && compared.some((entry) => entry.journey.stops.length >= 2) && (
+                          <button type="button" className="row row--action compare-entry" onClick={addReturn}>
+                            <span aria-hidden="true" />
+                            <span className="row__icon">
+                              <IconReturn size={17} />
+                            </span>
+                            <span>{t('trips.addReturns')}</span>
+                          </button>
+                        )}
+                        {tripMode && plan.journeys.length <= MAX_SECTIONS && (
+                          <button type="button" className="row row--action compare-entry" onClick={addJourney}>
+                            <span aria-hidden="true" />
+                            <span className="row__icon">
+                              <IconCompare size={17} />
+                            </span>
+                            <span>{t('trips.entry')}</span>
+                          </button>
+                        )}
+                        {comparingTrips ? (
+                          <>
+                            {shape.section > 0 && (
+                              <button
+                                type="button"
+                                className="row row--action compare-remove"
+                                onClick={() => {
+                                  setEditing(null);
+                                  planDispatch({ type: 'removeSection', section: shape.section });
+                                }}
+                              >
+                                <span aria-hidden="true" />
+                                <span className="row__icon">
+                                  <IconTrash size={16} />
+                                </span>
+                                <span>
+                                  {shape.sections === 2
+                                    ? t('trips.removeReturns')
+                                    : t('trips.removeSection', columns[shape.section] ?? '')}
+                                </span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="row row--action compare-remove"
                               onClick={() => {
                                 setEditing(null);
-                                planDispatch({ type: 'removeSection', section: shape.section });
+                                planDispatch({ type: 'removeOption', option: shape.option });
                               }}
                             >
                               <span aria-hidden="true" />
                               <span className="row__icon">
                                 <IconTrash size={16} />
                               </span>
-                              <span>
-                                {shape.sections === 2
-                                  ? t('trips.removeReturns')
-                                  : t('trips.removeSection', columns[shape.section] ?? '')}
-                              </span>
+                              <span>{t('trips.remove')}</span>
                             </button>
-                          )}
+                          </>
+                        ) : comparing || tripMode ? (
                           <button
                             type="button"
                             className="row row--action compare-remove"
                             onClick={() => {
                               setEditing(null);
-                              planDispatch({ type: 'removeOption', option: shape.option });
+                              planDispatch({ type: 'remove', index: plan.active });
                             }}
                           >
                             <span aria-hidden="true" />
                             <span className="row__icon">
                               <IconTrash size={16} />
                             </span>
-                            <span>{t('trips.remove')}</span>
+                            <span>{tripMode ? t('trip.remove') : t('compare.remove', compared[plan.active].id)}</span>
                           </button>
-                        </>
-                      ) : comparing || tripMode ? (
-                        <button
-                          type="button"
-                          className="row row--action compare-remove"
-                          onClick={() => {
-                            setEditing(null);
-                            planDispatch({ type: 'remove', index: plan.active });
-                          }}
-                        >
-                          <span aria-hidden="true" />
-                          <span className="row__icon">
-                            <IconTrash size={16} />
-                          </span>
-                          <span>{tripMode ? t('trip.remove') : t('compare.remove', compared[plan.active].id)}</span>
-                        </button>
-                      ) : (
-                        <>
-                          {filledAirports[0]?.id !== filledAirports.at(-1)?.id && (
-                            <button type="button" className="row row--action compare-entry" onClick={addReturn}>
+                        ) : (
+                          <>
+                            {filledAirports[0]?.id !== filledAirports.at(-1)?.id && (
+                              <button type="button" className="row row--action compare-entry" onClick={addReturn}>
+                                <span aria-hidden="true" />
+                                <span className="row__icon">
+                                  <IconReturn size={17} />
+                                </span>
+                                <span>{t('trip.addReturn')}</span>
+                              </button>
+                            )}
+                            <button type="button" className="row row--action compare-entry" onClick={addJourney}>
                               <span aria-hidden="true" />
                               <span className="row__icon">
-                                <IconReturn size={17} />
+                                <IconCompare size={17} />
                               </span>
-                              <span>{t('trip.addReturn')}</span>
+                              <span>{t('compare.entry')}</span>
                             </button>
-                          )}
-                          <button type="button" className="row row--action compare-entry" onClick={addJourney}>
-                            <span aria-hidden="true" />
-                            <span className="row__icon">
-                              <IconCompare size={17} />
-                            </span>
-                            <span>{t('compare.entry')}</span>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-              {showSuggestions && !dataError && <AiImportEntry onOpen={() => aiRef.current?.open()} />}
-              {showSuggestions && (
-                <RouteSuggestions
-                  title={t('panel.orTryOneOfThese')}
-                  routes={welcomeRoutes}
-                  chosen={chosenSuggestion ?? null}
-                  onSelect={chooseSuggestion}
-                />
-              )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+                {showSuggestions && !dataError && <AiImportEntry onOpen={() => aiRef.current?.open()} />}
+                {showSuggestions && (
+                  <RouteSuggestions
+                    title={t('panel.orTryOneOfThese')}
+                    routes={welcomeRoutes}
+                    chosen={chosenSuggestion ?? null}
+                    onSelect={chooseSuggestion}
+                  />
+                )}
+              </div>
               {summaryInList && summary}
               <footer className="panel__foot">
                 <button type="button" className="credits" onClick={() => aboutRef.current?.open()}>

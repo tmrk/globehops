@@ -8,6 +8,7 @@ import {
   airportField,
   openDisplay,
   startEditing,
+  launcher,
 } from './fixtures.ts';
 
 test.use({ timezoneId: 'Europe/Copenhagen' });
@@ -37,7 +38,9 @@ test(
     await expect(dial).toHaveCount(0);
     const totals = page.getByRole('region', { name: 'Journey totals' });
     await expect(totals).toContainText(/≈ (?:1[2-9]|2\d)h \d+m/);
-    await expect(totals.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+    // Play has one home: the launcher beneath the globe (atop the sheet on phones), not the totals.
+    await expect(launcher(page).getByRole('button', { name: 'Play journey', exact: true })).toBeVisible();
+    await expect(launcher(page)).toContainText('CPH → SIN');
     await expect(page.getByRole('button', { name: 'Reset journey', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Compare journeys' })).toBeVisible();
     await startEditing(page);
@@ -577,32 +580,46 @@ async function swipe(target: import('@playwright/test').Locator, dy: number) {
   }, dy);
 }
 
-test('mobile sheet is dismissed by dragging it down and restored by lifting the peek bar', async ({
-  page,
-  isMobile,
-}) => {
+test('mobile sheet rests at three heights: peek, half and full for editing', async ({ page, isMobile }, info) => {
   test.skip(!isMobile, 'The bottom sheet exists on phones.');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('./?route=CPH-LHR-JFK');
   await expectRoute(page, ['CPH', 'LHR', 'JFK']);
+  const panel = page.locator('.panel');
   const head = page.locator('.panel__head');
   // A short drag springs back.
   await swipe(head, 40);
-  await expect(page.locator('.panel')).not.toHaveClass(/is-collapsed/);
+  await expect(panel).not.toHaveClass(/is-collapsed/);
   await expect(stopButtons(page)).toHaveCount(3);
-  // A long drag down collapses the sheet to its peek bar, leaving the globe uncovered.
+  // A long drag down lowers the sheet to its peek bar: the globe, with Play beneath it.
   await swipe(head, 260);
-  const peek = page.locator('.peek');
-  await expect(peek).toBeVisible();
-  await expect(peek).toContainText('CPH → LHR → JFK');
-  await expect(page.locator('.panel')).toHaveClass(/is-collapsed/);
+  await expect(panel).toHaveClass(/is-collapsed/);
+  await expect(launcher(page)).toContainText('CPH → LHR → JFK');
+  await expect(launcher(page).getByRole('button', { name: 'Play journey', exact: true })).toBeInViewport();
   // Lifting the peek bar brings the journey back.
-  await swipe(peek, -80);
+  await swipe(launcher(page), -80);
   await expect(stopButtons(page)).toHaveCount(3);
   await expect(page.getByRole('button', { name: 'Hide journey details' })).toBeVisible();
-  // Content scrolled to the top also drags the sheet; the handle still toggles it for taps and keyboards.
+  // A journey taller than the half sheet lifts until all of it fits (up to nearly the full screen), as
+  // native sheets do, and back.
+  const half = (await panel.boundingBox())!.y;
+  const list = page.locator('.panel__scroll');
+  expect(await list.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await swipe(list, -160);
+  await expect(panel).toHaveClass(/is-full/);
+  await expect.poll(async () => (await panel.boundingBox())!.y).toBeLessThan(half - 100);
+  expect(await list.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  await swipe(head, 220);
+  await expect(panel).not.toHaveClass(/is-full|is-collapsed/);
+  // Editing grows the sheet by itself, and Done returns it to half height.
+  await startEditing(page);
+  await expect(panel).toHaveClass(/is-full/);
+  await page.screenshot({ path: `test-results/sheet-full-edit-${info.project.name}.png`, animations: 'disabled' });
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(panel).not.toHaveClass(/is-full|is-collapsed/);
+  // Content scrolled to the top also drags the sheet down; the handle toggles it for taps and keyboards.
   await swipe(page.locator('.panel__scroll'), 260);
-  await expect(page.locator('.panel')).toHaveClass(/is-collapsed/);
+  await expect(panel).toHaveClass(/is-collapsed/);
   await page.getByRole('button', { name: 'Show journey details' }).first().click();
   await expect(stopButtons(page)).toHaveCount(3);
 });

@@ -50,7 +50,6 @@ export const sv: Messages = {
   'toasts.copyLink': 'Kopiera den här länken',
   'toasts.reversedTimes': 'Flygtiderna har rensats för den omvända rutten',
   'picker.replace': 'Byt ut {0}',
-  'panel.play': 'Spela',
   'errors.globeTitle': 'Det gick inte att starta 3D-jordgloben',
   'errors.noWebGL': 'WebGL är inte tillgängligt på den här enheten. Du kan fortfarande planera resor i resepanelen.',
   'panel.aboutGlobeHops': 'Om GlobeHops',
@@ -369,4 +368,9 @@ export const sv: Messages = {
   'compare.nameLabel': 'Namn på resa {0}',
   'trips.nameLabel': 'Namn på resa {0}',
   'timebar.speed': '{0} h/s',
+  'launcher.shortcut': '{0} (Mellanslag)',
+  'launcher.space': 'Mellanslag',
+  'launcher.compare': 'Spela alla {0} resor',
+  'launcher.compareTrips': 'Spela alla {0} resor',
+  'launcher.region': 'Uppspelning',
 };

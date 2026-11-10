@@ -79,6 +79,9 @@ export async function openPlanner(page: Page) {
   await expect(from).toBeVisible();
 }
 
+/** The play launcher: the journey's player before it starts (beneath the globe, or atop the phone sheet). */
+export const launcher = (page: Page) => page.getByRole('region', { name: 'Playback', exact: true });
+
 /** Opens the globe's display menu (map layers, distance unit, globe time) unless it is open. */
 export async function openDisplay(page: Page) {
   const button = page.getByRole('button', { name: 'Display options' });

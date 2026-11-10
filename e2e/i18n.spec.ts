@@ -139,7 +139,7 @@ for (const [locale, messages] of [
     await expect(editor).toContainText(/nov/);
     await capture('schedule');
     await editor.getByRole('button', { name: messages['schedule.done'].trim(), exact: true }).click();
-    await page.getByRole('button', { name: messages['panel.play'], exact: true }).click();
+    await page.getByRole('button', { name: messages['timebar.playJourney'], exact: true }).click();
     const bar = page.locator('.time-bar');
     await expect(bar.getByRole('button', { name: messages['timebar.pausePlayback'] })).toBeVisible();
     await capture('playback');

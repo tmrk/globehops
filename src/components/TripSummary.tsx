@@ -231,7 +231,8 @@ export function TripSummary(props: Props) {
             </>
           )}
         </span>
-        {(!timeOpen || playScope !== null) && (
+        {/* The launcher beneath the globe plays the trip; while one journey plays alone, this widens it again. */}
+        {timeOpen && playScope !== null && (
           <button
             type="button"
             className="play-btn"

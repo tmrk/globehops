@@ -86,7 +86,7 @@ test('all journeys play on one axis with live lanes and overlapping aircraft', a
   await expect(bar(page)).toBeVisible();
   // Close the auto-open timetable to start through the primary ticket action.
   await bar(page).getByRole('button', { name: 'Close timeline' }).click();
-  await page.getByRole('button', { name: 'Play all', exact: true }).click();
+  await page.getByRole('button', { name: 'Play all 2 journeys', exact: true }).click();
   await expect(bar(page).getByRole('button', { name: 'Pause playback' })).toBeVisible();
   await bar(page).getByRole('button', { name: 'Pause playback' }).click();
   const lanes = bar(page).locator('.comparison-lane');
@@ -220,7 +220,7 @@ test('four journeys keep the phone globe visible and tabs reachable', async ({ p
     const scroll = await page.locator('.panel__scroll').boundingBox();
     expect(scroll!.height).toBeGreaterThan(100);
   }
-  await page.getByRole('button', { name: 'Play all' }).click();
+  await page.getByRole('button', { name: 'Play all 4 journeys', exact: true }).click();
   await expect(bar(page).locator('.comparison-lane')).toHaveCount(4);
   await bar(page).getByRole('button', { name: 'Pause playback' }).click();
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);

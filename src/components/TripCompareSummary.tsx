@@ -3,7 +3,7 @@ import { useI18n } from '../i18n/I18nProvider.tsx';
 import type { ComparedTrip, TripComparisonMetrics } from '../lib/compareTrips.ts';
 import { DEFAULT_FLIGHT_TIME_MODEL } from '../lib/flightTime.ts';
 import { DEFAULT_LAYOVER_MIN } from '../lib/layover.ts';
-import { IconInfo, IconPlay } from './Icons.tsx';
+import { IconInfo } from './Icons.tsx';
 import { tripCodes } from './tripCompareText.ts';
 
 interface Props {
@@ -15,8 +15,6 @@ interface Props {
   columns: string[];
   active: number;
   onActivate: (option: number) => void;
-  onPlay: () => void;
-  timeOpen: boolean;
 }
 
 /**
@@ -24,7 +22,7 @@ interface Props {
  * total time travelling. A bar under each time shows it against the same journey of the other trips; the
  * quickest of each column stands out, and the quickest trip overall is marked Fastest.
  */
-export function TripCompareSummary({ list, metrics, captions, columns, active, onActivate, onPlay, timeOpen }: Props) {
+export function TripCompareSummary({ list, metrics, captions, columns, active, onActivate }: Props) {
   const { t, fmt } = useI18n();
   const [showInfo, setShowInfo] = useState(false);
   const infoId = useId();
@@ -133,18 +131,6 @@ export function TripCompareSummary({ list, metrics, captions, columns, active, o
         <span className="compare-summary__note">
           {list.some((entry) => entry.anchor === 'assumed') && t('trips.assumed')}
         </span>
-        {!timeOpen && (
-          <button
-            type="button"
-            className="play-btn"
-            aria-label={t('compare.playAll')}
-            onClick={onPlay}
-            disabled={!list.some((entry) => entry.trip.totals.flights)}
-          >
-            <IconPlay size={18} />
-            <span>{t('compare.playAll')}</span>
-          </button>
-        )}
       </div>
       <div id={infoId} className="summary__info" hidden={!showInfo}>
         <p>{t('summary.method', `${fmt.number(model.cruiseSpeedKmh)} km/h`, model.overheadMinutes)}</p>

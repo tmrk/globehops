@@ -65,6 +65,8 @@ export const { load: loadDayNight, save: saveDayNight } = booleanSetting('globeh
 export const { load: loadAvoidAirspace, save: saveAvoidAirspace } = booleanSetting('globehops:avoidAirspace');
 /** Keep long oceanic routes within modelled reach of potential diversion airports; unset means on. */
 export const { load: loadDiversionRouting, save: saveDiversionRouting } = booleanSetting('globehops:diversionRouting');
+/** Whether this browser has ever played a journey; until then the play launcher gives one gentle cue. */
+export const { load: loadPlayed, save: savePlayed } = booleanSetting('globehops:played');
 
 const JOURNEY_KEY = 'globehops:lastJourney';
 const CLOCK_ZONE_KEY = 'globehops:clockZone';

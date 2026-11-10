@@ -5,18 +5,16 @@ import type { ComparedJourney, ComparisonMetrics } from '../lib/compare.ts';
 import { DEFAULT_FLIGHT_TIME_MODEL } from '../lib/flightTime.ts';
 import { DEFAULT_LAYOVER_MIN } from '../lib/layover.ts';
 import { ComparisonStrip } from './ComparisonStrip.tsx';
-import { IconInfo, IconPlay } from './Icons.tsx';
+import { IconInfo } from './Icons.tsx';
 
 interface Props {
   list: ComparedJourney[];
   metrics: ComparisonMetrics;
   active: number;
   onActivate: (index: number) => void;
-  onPlay: () => void;
-  timeOpen: boolean;
 }
 
-export function CompareSummary({ list, metrics, active, onActivate, onPlay, timeOpen }: Props) {
+export function CompareSummary({ list, metrics, active, onActivate }: Props) {
   const { t, fmt } = useI18n();
   const [showInfo, setShowInfo] = useState(false);
   const infoId = useId();
@@ -79,18 +77,6 @@ export function CompareSummary({ list, metrics, active, onActivate, onPlay, time
         <span className="compare-summary__note">
           {list.some((entry) => entry.anchor === 'assumed') && t('compare.assumed')}
         </span>
-        {!timeOpen && (
-          <button
-            type="button"
-            className="play-btn"
-            aria-label={t('compare.playAll')}
-            onClick={onPlay}
-            disabled={!list.some((entry) => entry.journey.legs.length)}
-          >
-            <IconPlay size={18} />
-            <span>{t('compare.playAll')}</span>
-          </button>
-        )}
       </div>
       <div id={infoId} className="summary__info" hidden={!showInfo}>
         <p>{t('summary.method', `${fmt.number(model.cruiseSpeedKmh)} km/h`, model.overheadMinutes)}</p>

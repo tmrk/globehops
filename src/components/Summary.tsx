@@ -19,12 +19,10 @@ interface SummaryProps {
   unit: DistanceUnit;
   /** Route avoidance and diversion-aware routing, while each is on; `reviewed` dates the airspace list. */
   routing?: RoutingStatus & { reviewed: string | null };
-  /** The primary action beside the totals (Play), if any. */
-  action?: React.ReactNode;
 }
 
 /** Journey totals, pinned to the bottom of the panel like the total on a ticket. */
-export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing, action }: SummaryProps) {
+export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing }: SummaryProps) {
   const { t, fmt } = useI18n();
 
   const [showInfo, setShowInfo] = useState(false);
@@ -79,12 +77,12 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing, ac
   const issue = journey.issues.find((i) => i.severity === 'error');
   const issueLeg = issue?.leg ?? (issue?.field === 'arrival' ? Math.max(0, (issue.stop ?? 1) - 1) : (issue?.stop ?? 0));
 
-  // Justified like the total on a ticket: distance flush left and time flush right, or, beside Play,
-  // two even columns. Each stat stays one group in reading order; CSS places its parts on shared
-  // label, value and detail rows, with departure and arrival spread across the full width below.
+  // Justified like the total on a ticket: distance flush left and time flush right. Each stat stays one
+  // group in reading order; CSS places its parts on shared label, value and detail rows, with departure
+  // and arrival spread across the full width below. Play lives in the launcher beneath the globe.
   return (
     <section className="summary" aria-label={t('summary.journeyTotals')}>
-      <div className={`summary__grid${action ? ' has-action' : ''}`}>
+      <div className="summary__grid">
         <div className="stat">
           <span className="stat__label">{flights > 1 ? t('summary.totalDistance') : t('summary.distance')}</span>
           <span className="stat__value">
@@ -116,7 +114,6 @@ export function Summary({ journey, onCheckLeg, legs, layovers, unit, routing, ac
           </span>
           {breakdown && <span className="stat__detail">{breakdown}</span>}
         </div>
-        {action ? <div className="summary__action">{action}</div> : null}
         {dates ? (
           <p className="summary__dates">
             <span>{dates.departs}</span> <span>{dates.arrives}</span>
