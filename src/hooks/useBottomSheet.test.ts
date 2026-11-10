@@ -78,3 +78,55 @@ it('finishes only the panel transform and cancels pending collapse on disable or
     await act(() => root.unmount());
   }
 });
+
+it('grows to another height at once and glides its top from where it was', async () => {
+  const detents: string[] = [];
+  let goTo: ReturnType<typeof useBottomSheet>['goTo'] = () => {};
+  function Probe({ detent }: { detent: 'peek' | 'half' | 'full' }) {
+    const ref = useRef<HTMLDivElement>(null);
+    const sheet = useBottomSheet(ref, {
+      enabled: true,
+      reducedMotion: false,
+      detent,
+      onDetent: (next) => detents.push(next),
+      peek: 'launcher',
+    });
+    goTo = sheet.goTo;
+    return createElement('div', { ref }, createElement('span'));
+  }
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  try {
+    await act(() => root.render(createElement(Probe, { detent: 'half' })));
+    const panel = container.firstElementChild as HTMLElement;
+    let top = 400;
+    panel.getBoundingClientRect = () => ({ top }) as DOMRect;
+    await act(() => goTo('full'));
+    expect(detents).toEqual(['full']);
+    // The full sheet's top is higher; it starts where the half sheet's was and slides up into place.
+    top = 60;
+    const starts: string[] = [];
+    const style = panel.style;
+    const set = Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype, 'transform')?.set;
+    Object.defineProperty(style, 'transform', {
+      configurable: true,
+      get: () => style.getPropertyValue('transform'),
+      set: (value: string) => {
+        starts.push(value);
+        if (set) set.call(style, value);
+        else style.setProperty('transform', value);
+      },
+    });
+    await act(() => root.render(createElement(Probe, { detent: 'full' })));
+    expect(starts).toContain('translateY(340px)');
+    expect(style.transition).toContain('transform');
+    await act(() => vi.runAllTimers());
+    expect(style.transform).toBe('');
+    expect(style.transition).toBe('');
+    // Moving to the current height only settles the sheet.
+    await act(() => goTo('full'));
+    expect(detents).toEqual(['full']);
+  } finally {
+    await act(() => root.unmount());
+  }
+});
