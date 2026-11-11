@@ -3784,7 +3784,9 @@ button.map-menu__item:hover {
   left: 0;
   pointer-events: none;
   white-space: nowrap;
-  will-change: transform, opacity;
+  /* The renderer moves labels with the `translate` property; this centres each one on its point. */
+  transform: translate(-50%, -50%);
+  will-change: translate, transform, opacity;
   /* Projection and collision boxes must agree, including under the global reduced-motion rule. */
   transition-property: none;
   text-transform: uppercase;

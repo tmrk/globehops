@@ -5,12 +5,13 @@ import {
   labelLocale,
   labelPriority,
   type LabelLocale,
+  type LabelStyle,
   mapZoom,
   placeLabels,
   type CountryLabel,
   type LabelRect,
 } from '../lib/countryLabels.ts';
-import { labelOpacity, LABEL_RADIUS, LABEL_FADE_START, latLngToVector3, surfaceFacing } from './math3d.ts';
+import { clamp01, LABEL_RADIUS, LABEL_FADE_RANGE, LABEL_FADE_START, latLngToVector3 } from './math3d.ts';
 import { setStyle } from './dom.ts';
 
 interface LabelEntry {
@@ -23,15 +24,25 @@ interface LabelEntry {
   y: number;
   opacity: number;
   fontPx: number;
-  style: ReturnType<typeof labelStyle>;
+  /** This label's look at the measured zoom: `look` itself, or null while the zoom hides it. */
+  style: LabelStyle | null;
+  look: LabelStyle;
+  /** What the element shows, so a frame builds style strings only for values that changed. */
+  shown: { x: number; y: number; opacity: number; fontPx: number };
+  /** How squarely the label's spot faces the camera this frame (see `surfaceFacing`). */
+  facing: number;
   measure: HTMLSpanElement | null;
 }
+const NO_INSETS = { top: 0, right: 0, bottom: 0, left: 0 };
+/** Zoom steps finer than this change no label visibly, so a drifting camera need not restyle every frame. */
+const ZOOM_STEP = 0.01;
 /** Decorative HTML layer, updated only by the renderer's existing on-demand frame. */
 export class CountryLabelLayer {
   private container = document.createElement('div');
   private labels: LabelEntry[] = [];
   private candidates: LabelEntry[] = [];
   private rectangles: LabelRect[] = [];
+  private placed: boolean[] = [];
   private projected = new Vector3();
   private pendingMeasurements: LabelEntry[] = [];
   private measuredZoom = NaN;
@@ -102,7 +113,7 @@ export class CountryLabelLayer {
         const el = document.createElement('span');
         el.className = `country-label country-label--${label.kind}`;
         el.textContent = this.text(label);
-        el.style.display = 'none';
+        setStyle(el, 'display', 'none');
         this.container.append(el);
         return {
           label,
@@ -115,6 +126,9 @@ export class CountryLabelLayer {
           opacity: 0,
           fontPx: 0,
           style: null,
+          look: { opacity: 0, fontPx: 0 },
+          shown: { x: NaN, y: NaN, opacity: NaN, fontPx: NaN },
+          facing: 0,
           measure: null,
         };
       });
@@ -127,20 +141,31 @@ export class CountryLabelLayer {
   }
 
   /** Batch all metric writes, then reads, before the renderer places any projected DOM. */
-  measure(camera: PerspectiveCamera, height: number): void {
+  measure(cameraObject: PerspectiveCamera, height: number): void {
     if ((!this.placesVisible && !this.waterVisible) || this.disposed) return;
-    const pxPerRadian = height / 2 / Math.tan((camera.fov * Math.PI) / 360) / (camera.position.length() - 1);
-    const zoom = mapZoom(pxPerRadian);
+    const pxPerRadian =
+      height / 2 / Math.tan((cameraObject.fov * Math.PI) / 360) / (cameraObject.position.length() - 1);
+    const zoom = Math.round(mapZoom(pxPerRadian) / ZOOM_STEP) * ZOOM_STEP;
     const changed = zoom !== this.measuredZoom;
     this.measuredZoom = zoom;
     this.pendingMeasurements.length = 0;
-    for (const entry of this.labels) {
-      if (changed) entry.style = labelStyle(entry.label, zoom);
+    const camera = cameraObject.position;
+    // Both loops here and in update() run for every label each frame, so they index rather than iterate and
+    // write their arithmetic out instead of calling helpers that would box each number they return.
+    for (let i = 0; i < this.labels.length; i++) {
+      const entry = this.labels[i];
+      const p = entry.position;
+      const dx = camera.x - p.x;
+      const dy = camera.y - p.y;
+      const dz = camera.z - p.z;
+      // surfaceFacing(): every label sits at LABEL_RADIUS.
+      entry.facing = (p.x * dx + p.y * dy + p.z * dz) / (Math.sqrt(dx * dx + dy * dy + dz * dz) * LABEL_RADIUS);
+      if (changed) entry.style = labelStyle(entry.label, zoom, entry.look);
       const style = entry.style;
       if (
         !style ||
         !(entry.label.kind === 'country' ? this.placesVisible : this.waterVisible) ||
-        surfaceFacing(entry.position, camera.position) <= LABEL_FADE_START
+        entry.facing <= LABEL_FADE_START
       )
         continue;
       const fontPx = Math.round(style.fontPx * 2) / 2;
@@ -165,18 +190,30 @@ export class CountryLabelLayer {
     for (const entry of this.pendingMeasurements) if (entry.measure) entry.measure.style.display = 'none';
   }
 
-  update(camera: PerspectiveCamera, width: number, height: number, reserved: readonly LabelRect[]): void {
+  /**
+   * Places labels for the camera measure() saw this frame, around the airport labels' `reserved` boxes and
+   * only within `room`, the part of the view no panel covers (panels are translucent: names beneath them
+   * would show through, and moving them would be wasted work).
+   */
+  update(
+    camera: PerspectiveCamera,
+    width: number,
+    height: number,
+    reserved: readonly LabelRect[],
+    room: { top: number; right: number; bottom: number; left: number } = NO_INSETS,
+  ): void {
     if ((!this.placesVisible && !this.waterVisible) || this.disposed) return;
     this.candidates.length = 0;
     this.rectangles.length = 0;
-    for (const entry of this.labels) {
+    for (let i = 0; i < this.labels.length; i++) {
+      const entry = this.labels[i];
       if (!(entry.label.kind === 'country' ? this.placesVisible : this.waterVisible)) {
         this.hide(entry);
         continue;
       }
       const style = entry.style;
-      const facing = surfaceFacing(entry.position, camera.position);
-      const opacity = style ? style.opacity * labelOpacity(facing) : 0;
+      // labelOpacity(), written out.
+      const opacity = style ? style.opacity * clamp01((entry.facing - LABEL_FADE_START) / LABEL_FADE_RANGE) : 0;
       if (!style || opacity <= 0) {
         this.hide(entry);
         continue;
@@ -196,30 +233,48 @@ export class CountryLabelLayer {
       r.x1 = entry.x + size.width / 2;
       r.y0 = entry.y - size.height / 2;
       r.y1 = entry.y + size.height / 2;
-      if (r.x0 < 0 || r.y0 < 0 || r.x1 > width || r.y1 > height || entry.opacity <= 0) {
+      if (
+        r.x0 < room.left ||
+        r.y0 < room.top ||
+        r.x1 > width - room.right ||
+        r.y1 > height - room.bottom ||
+        entry.opacity <= 0
+      ) {
         this.hide(entry);
         continue;
       }
       this.candidates.push(entry);
       this.rectangles.push(r);
     }
-    const placed = placeLabels(this.rectangles, reserved);
+    const placed = placeLabels(this.rectangles, reserved, this.placed);
     for (let i = 0; i < this.candidates.length; i++) {
       const entry = this.candidates[i];
       if (!placed[i]) {
         this.hide(entry);
         continue;
       }
-      const transform = `translate3d(${entry.x}px, ${entry.y}px, 0px) translate(-50%, -50%)`;
-      setStyle(entry.el, 'transform', transform);
-      setStyle(entry.el, 'opacity', String(entry.opacity));
-      setStyle(entry.el, 'fontSize', `${entry.fontPx}px`);
+      const shown = entry.shown;
+      if (shown.x !== entry.x || shown.y !== entry.y) {
+        shown.x = entry.x;
+        shown.y = entry.y;
+        // The stylesheet centres the label with `transform`; `translate` is applied before it, as in a
+        // `translate3d(x, y, 0) translate(-50%, -50%)` chain, but makes a shorter string to build every frame.
+        setStyle(entry.el, 'translate', `${entry.x}px ${entry.y}px`);
+      }
+      if (shown.opacity !== entry.opacity) {
+        shown.opacity = entry.opacity;
+        setStyle(entry.el, 'opacity', String(entry.opacity));
+      }
+      if (shown.fontPx !== entry.fontPx) {
+        shown.fontPx = entry.fontPx;
+        setStyle(entry.el, 'fontSize', `${entry.fontPx}px`);
+      }
       setStyle(entry.el, 'display', '');
     }
   }
 
   private hide(entry: LabelEntry): void {
-    if (entry.el.style.display !== 'none') entry.el.style.display = 'none';
+    setStyle(entry.el, 'display', 'none');
   }
 
   dispose(): void {

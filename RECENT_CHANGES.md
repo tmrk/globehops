@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.26.1 – 2026-11-11 – Following the aircraft without hiccups
+
+- **No more small jumps while following the aircraft.** With country names on, the camera following a plane could jump slightly about once a second, on phones and computers alike. The globe was creating short-lived data on every frame faster than the browser could clear it quietly, so every second or so it paused to tidy up. It now creates less than a third as much, the timeline updates its text about ten times a second instead of on every frame, and following a flight stays smooth.
+- **Names stay out from under the panels.** Country and sea names no longer show faintly through the journey sheet on phones or the planner on computers; they appear only on the part of the globe you can see.
+
 ## 1.26.0 – 2026-11-11 – Smoother motion and clearer tools for assistants
 
 - **Smoother playback and camera moves.** The globe now draws each frame once, straight after the clock moves, instead of sometimes twice. Panels over the globe no longer blur what is behind them, a blur the browser had to redo on every frame, so playing with the full timeline, following the aircraft and turning the globe keep a steady frame rate. The globe's momentum after a drag, and its glide when panels open or close, now keep the same pace on 60 Hz, 120 Hz and faster screens.

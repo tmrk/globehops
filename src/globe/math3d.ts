@@ -5,7 +5,7 @@ import type { LatLng } from '../types.ts';
 const DEG = Math.PI / 180;
 export const LABEL_RADIUS = 1.002;
 export const LABEL_FADE_START = 0.02;
-const LABEL_FADE_RANGE = 0.12;
+export const LABEL_FADE_RANGE = 0.12;
 
 /**
  * Scene convention (Three.js, y-up): lat/lng (0,0) → +X, north pole → +Y, lng 90°W → +Z.

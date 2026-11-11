@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { compareMetrics, comparisonRange, type ComparedJourney } from '../lib/compare.ts';
 import { ComparisonLanes, TripComparisonLanes } from './ComparisonLanes.tsx';
 import type { ComparedTrip, TripComparisonMetrics, TripComparisonTimeline } from '../lib/compareTrips.ts';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import { airportCode } from '../data/airports.ts';
-import { useClock } from '../hooks/useClock.ts';
+import { useClockText } from '../hooks/useClock.ts';
 
 import type { Journey } from '../lib/schedule.ts';
 import { journeyStateAt, type Timeline } from '../lib/timeline.ts';
@@ -21,7 +21,7 @@ import {
   zoneAbbreviation,
 } from '../lib/timezone.ts';
 import { legColor } from '../lib/legColors.ts';
-import { PLAYBACK_SPEEDS, type PlaybackSpeed, type SimulationClock } from '../state/clock.ts';
+import { PLAYBACK_SPEEDS, type ClockSnapshot, type PlaybackSpeed, type SimulationClock } from '../state/clock.ts';
 import { DateTimeField } from './DateTimeField.tsx';
 import { LiveButton } from './LiveButton.tsx';
 import {
@@ -100,7 +100,9 @@ export function TimeBar({
 }: Props) {
   const { t, fmt } = useI18n();
 
-  const snapshot = useClock(clock);
+  // The bar re-renders only when its text could change (about ten times a second while playing); the thumb
+  // and the progress line move every frame through `paint` below, without React.
+  const snapshot = useClockText(clock);
   const browserZone = browserTimeZone();
   const allJourneys = useMemo(
     () =>
@@ -252,11 +254,9 @@ export function TimeBar({
         allJourneys.flatMap((entry) => entry.legs.flatMap((leg) => (leg.departure ? [leg.departure.epochMs] : []))),
       ),
     ].sort((a, b) => a - b);
-    const target =
-      direction > 0
-        ? departures.find((t) => t > snapshot.time + 1000)
-        : departures.findLast((t) => t < snapshot.time - 1000);
-    seek(target ?? (direction > 0 ? departures.at(-1) : departures[0]) ?? snapshot.time);
+    const now = clock.getSnapshot().time;
+    const target = direction > 0 ? departures.find((t) => t > now + 1000) : departures.findLast((t) => t < now - 1000);
+    seek(target ?? (direction > 0 ? departures.at(-1) : departures[0]) ?? now);
   };
   const options = useMemo(() => {
     const choices = [
@@ -286,14 +286,17 @@ export function TimeBar({
     (time: number) => (100 * (scale.toPos(time) - scale.min)) / Math.max(1, scale.max - scale.min),
     [scale],
   );
+  const skipping = axis ? snapshot.skipping : null;
   // Skipping a stay, time holds at the arrival while the thumb glides across the break, landing where
   // playback continues; reduced motion jumps instead.
-  const skipping = axis ? snapshot.skipping : null;
-  const glide = skipping && document.documentElement.dataset.motion !== 'reduce' ? easeInOut(skipping.progress) : 0;
-  const thumbPos = skipping
-    ? scale.toPos(snapshot.time) + glide * (scale.toPos(skipping.to) - scale.toPos(snapshot.time))
-    : scale.toPos(snapshot.time);
-  const thumbAt = (100 * (thumbPos - scale.min)) / Math.max(1, scale.max - scale.min);
+  const thumbOf = (now: ClockSnapshot) => {
+    const skip = axis ? now.skipping : null;
+    const glide = skip && document.documentElement.dataset.motion !== 'reduce' ? easeInOut(skip.progress) : 0;
+    return skip
+      ? scale.toPos(now.time) + glide * (scale.toPos(skip.to) - scale.toPos(now.time))
+      : scale.toPos(now.time);
+  };
+  const percentOf = (position: number) => (100 * (position - scale.min)) / Math.max(1, scale.max - scale.min);
   // The track's own width (between the thumb's centres at either end) decides when the thumb reaches a label.
   const scrubberRef = useRef<HTMLDivElement>(null);
   const [trackPx, setTrackPx] = useState(0);
@@ -306,6 +309,43 @@ export function TimeBar({
     observer.observe(scrubber);
     return () => observer.disconnect();
   }, [axis]);
+  // Each stay's label and where it sits; the label steps aside (fades) whenever the thumb comes within reach.
+  const breaks = (axis?.breaks ?? []).map((gap) => {
+    const stay = trip?.trip.stays.find((s) => s.arrival?.epochMs === gap.start);
+    const label = stay
+      ? stayLength(stay.minutes, stay.days, { t, fmt })
+      : trips
+        ? stayLength((gap.end - gap.start) / 60000, null, { t, fmt })
+        : '';
+    return {
+      gap,
+      label,
+      centre: (at(gap.start) + at(gap.end)) / 2,
+      reach: THUMB_RADIUS + LABEL_CHAR_PX * label.length * 0.5 + 6,
+    };
+  });
+  const rangeRef = useRef<HTMLInputElement>(null);
+  const elapsedRef = useRef<HTMLSpanElement>(null);
+  const breaksRef = useRef<HTMLDivElement>(null);
+  /** Moves the thumb and the progress line to the clock's current time, and steps break labels aside. */
+  const paint = () => {
+    const position = thumbOf(clock.getSnapshot());
+    const percent = percentOf(position);
+    if (rangeRef.current) rangeRef.current.value = String(position);
+    elapsedRef.current?.style.setProperty('clip-path', `inset(0 ${Math.max(0, 100 - percent)}% 0 0)`);
+    const labels = breaksRef.current?.children;
+    for (let i = 0; labels && i < labels.length && i < breaks.length; i++) {
+      const { centre, reach } = breaks[i];
+      labels[i].classList.toggle('is-covered', !trackPx || (Math.abs(percent - centre) / 100) * trackPx < reach);
+    }
+  };
+  const paintRef = useRef(paint);
+  // After every render (which may have replaced class names or elements), then on every clock change.
+  useLayoutEffect(() => {
+    paintRef.current = paint;
+    paint();
+  });
+  useLayoutEffect(() => clock.subscribe(() => paintRef.current()), [clock]);
   // Stays are true gaps in the track, so the two journeys read as separate bars.
   const trackGaps = axis?.breaks.length
     ? `linear-gradient(to right, ${[
@@ -410,7 +450,7 @@ export function TimeBar({
             <span
               key={String(elapsed)}
               className={`time-bar__progress-layer${elapsed ? ' is-elapsed' : ''}`}
-              style={elapsed ? { clipPath: `inset(0 ${Math.max(0, 100 - thumbAt)}% 0 0)` } : undefined}
+              ref={elapsed ? elapsedRef : undefined}
             >
               {trackSegments ?? (
                 <span
@@ -525,23 +565,13 @@ export function TimeBar({
           {trackSegments}
         </div>
         {axis && (
-          <div className="time-bar__breaks" aria-hidden="true">
-            {axis?.breaks.map((gap) => {
-              const stay = trip?.trip.stays.find((s) => s.arrival?.epochMs === gap.start);
-              const label = stay
-                ? stayLength(stay.minutes, stay.days, { t, fmt })
-                : trips
-                  ? stayLength((gap.end - gap.start) / 60000, null, { t, fmt })
-                  : '';
-              const centre = (at(gap.start) + at(gap.end)) / 2;
-              // The label steps aside (fades) whenever the thumb comes within reach, never sitting under it.
-              const reach = THUMB_RADIUS + LABEL_CHAR_PX * label.length * 0.5 + 6;
-              const covered = !trackPx || (Math.abs(thumbAt - centre) / 100) * trackPx < reach;
+          <div className="time-bar__breaks" aria-hidden="true" ref={breaksRef}>
+            {breaks.map(({ gap, label }) => {
               const active = skipping && skipping.from >= gap.start && skipping.to <= gap.end;
               return (
                 <span
                   key={gap.start}
-                  className={`time-bar__break${active ? ' is-skipping' : ''}${covered ? ' is-covered' : ''}`}
+                  className={`time-bar__break${active ? ' is-skipping' : ''}`}
                   style={{ left: `${at(gap.start)}%`, width: `${at(gap.end) - at(gap.start)}%` }}
                 >
                   {label && <span className="time-bar__break-label">{label}</span>}
@@ -550,14 +580,16 @@ export function TimeBar({
             })}
           </div>
         )}
+        {/* Uncontrolled: `paint` moves it every frame, and React would otherwise restore a minute-old value. */}
         <input
+          ref={rangeRef}
           aria-label={t('timebar.journeyTime')}
           aria-valuetext={`${spoken}. ${text.title}. ${text.detail}`}
           type="range"
           min={scale.min}
           max={scale.max}
           step={scale.step}
-          value={thumbPos}
+          defaultValue={thumbOf(clock.getSnapshot())}
           onChange={(e) => seek(scale.toTime(Number(e.target.value)))}
         />
       </div>
@@ -627,7 +659,7 @@ export function TimeBar({
               placeholder={t('timebar.date')}
               onChange={(value) => {
                 const local = parseLocalDateTime(
-                  `${value}T${formatLocalDateTime(utcToLocal(zone, snapshot.time)).slice(11)}`,
+                  `${value}T${formatLocalDateTime(utcToLocal(zone, clock.getSnapshot().time)).slice(11)}`,
                 );
                 if (local) seek(epochAtLocal(zone, local));
               }}

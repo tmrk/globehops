@@ -93,19 +93,27 @@ export function journeyStateAt(j: Journey, tl: Timeline, epochMs: number): Journ
     track && recordedTime !== null
       ? trackFractionAtTime(track, recordedTime)
       : distanceFractionAt(models.progress, elapsedMin);
+  // Position and altitude are worked out when first read: playback asks for the state several times a frame
+  // but draws the aircraft from its distance fraction alone.
+  let position: LatLng | undefined;
+  let altitudeKm: number | undefined;
   return {
     phase: 'flight',
     leg: leg.index,
     timeFraction: elapsedMin / duration,
     distanceFraction,
-    position: track
-      ? pointAlongPath(track.path, distanceFraction)
-      : leg.route?.path
-        ? pointAlongPath(leg.route.path, distanceFraction)
-        : interpolateGreatCircle(leg.from, leg.to, distanceFraction),
-    altitudeKm:
-      (track ? displayAltitudeKm(track.path, track.altitudesKm, track.kind, distanceFraction) : null) ??
-      altitudeAt(models.altitude, distanceFraction * leg.distanceKm),
+    get position() {
+      return (position ??= track
+        ? pointAlongPath(track.path, distanceFraction)
+        : leg.route?.path
+          ? pointAlongPath(leg.route.path, distanceFraction)
+          : interpolateGreatCircle(leg.from, leg.to, distanceFraction));
+    },
+    get altitudeKm() {
+      return (altitudeKm ??=
+        (track ? displayAltitudeKm(track.path, track.altitudesKm, track.kind, distanceFraction) : null) ??
+        altitudeAt(models.altitude, distanceFraction * leg.distanceKm));
+    },
     flightPhase:
       track && recordedTime !== null
         ? trackFlightPhaseAt(track, recordedTime)

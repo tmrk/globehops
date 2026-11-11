@@ -84,23 +84,34 @@ function namePx(base: number, rank: number, beyond: number): number {
  */
 const OCEAN_QUIET = { fullBelow: 3.6, goneAt: 5.2, fontPx: 2.5, opacity: 0.3 };
 
-export function labelStyle(label: CountryLabel, zoom: number): { opacity: number; fontPx: number } | null {
+export interface LabelStyle {
+  opacity: number;
+  fontPx: number;
+}
+
+/** A label's look at a zoom, or null while it is hidden; written into `target` when given (no allocation). */
+export function labelStyle(
+  label: CountryLabel,
+  zoom: number,
+  target: LabelStyle = { opacity: 0, fontPx: 0 },
+): LabelStyle | null {
   if (!Number.isFinite(zoom) || zoom < label.minZoom) return null;
   const beyond = zoom - label.minZoom;
   const opacity = Math.min(1, beyond / 0.6);
   if (label.kind === 'ocean') {
     const quiet = Math.min(1, Math.max(0, (OCEAN_QUIET.goneAt - zoom) / (OCEAN_QUIET.goneAt - OCEAN_QUIET.fullBelow)));
-    return {
-      opacity: opacity * (1 - OCEAN_QUIET.opacity * quiet),
-      // Oceans appear first but never outgrow the leading country names at the same zoom.
-      fontPx: Math.max(
-        10,
-        namePx(14.5, LEADING_COUNTRY.rank, zoom - LEADING_COUNTRY.minZoom) - OCEAN_QUIET.fontPx * quiet,
-      ),
-    };
+    target.opacity = opacity * (1 - OCEAN_QUIET.opacity * quiet);
+    // Oceans appear first but never outgrow the leading country names at the same zoom.
+    target.fontPx = Math.max(
+      10,
+      namePx(14.5, LEADING_COUNTRY.rank, zoom - LEADING_COUNTRY.minZoom) - OCEAN_QUIET.fontPx * quiet,
+    );
+    return target;
   }
   // Seas sit just below countries of the same rank.
-  return { opacity, fontPx: namePx(label.kind === 'sea' ? 13 : 14.5, label.rank, beyond) };
+  target.opacity = opacity;
+  target.fontPx = namePx(label.kind === 'sea' ? 13 : 14.5, label.rank, beyond);
+  return target;
 }
 
 /**
@@ -117,14 +128,29 @@ export function labelPriority(a: CountryLabel, b: CountryLabel): number {
 }
 
 /** Input order is priority; airports always win. Padding keeps neighbouring text visually separate. */
-export function placeLabels(candidates: readonly LabelRect[], reserved: readonly LabelRect[]): boolean[] {
-  const placed = [...reserved];
-  const padding = 4;
-  return candidates.map((r) => {
-    const collides = placed.some(
-      (p) => r.x0 < p.x1 + padding && r.x1 > p.x0 - padding && r.y0 < p.y1 + padding && r.y1 > p.y0 - padding,
-    );
-    if (!collides) placed.push(r);
-    return !collides;
-  });
+const LABEL_PADDING = 4;
+const overlaps = (r: LabelRect, p: LabelRect) =>
+  r.x0 < p.x1 + LABEL_PADDING &&
+  r.x1 > p.x0 - LABEL_PADDING &&
+  r.y0 < p.y1 + LABEL_PADDING &&
+  r.y1 > p.y0 - LABEL_PADDING;
+
+/**
+ * Greedy placement in candidate order: a label shows unless it overlaps a reserved box or a label already
+ * shown. Fills and returns `result`, so a caller placing labels every frame can reuse one array.
+ */
+export function placeLabels(
+  candidates: readonly LabelRect[],
+  reserved: readonly LabelRect[],
+  result: boolean[] = [],
+): boolean[] {
+  result.length = candidates.length;
+  for (let i = 0; i < candidates.length; i++) {
+    const r = candidates[i];
+    let free = true;
+    for (let j = 0; free && j < reserved.length; j++) free = !overlaps(r, reserved[j]);
+    for (let j = 0; free && j < i; j++) free = !(result[j] && overlaps(r, candidates[j]));
+    result[i] = free;
+  }
+  return result;
 }

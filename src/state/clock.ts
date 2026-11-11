@@ -80,7 +80,16 @@ export class SimulationClock {
     };
   };
   private update(next: Partial<ClockSnapshot>): void {
-    if (this.disposed || Object.entries(next).every(([k, v]) => this.snapshot[k as keyof ClockSnapshot] === v)) return;
+    if (this.disposed) return;
+    let changed = false;
+    // A loop rather than Object.entries: playback calls this every frame and should not allocate to compare.
+    for (const key in next) {
+      if (next[key as keyof ClockSnapshot] !== this.snapshot[key as keyof ClockSnapshot]) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
     this.snapshot = { ...this.snapshot, ...next };
     for (const listener of this.listeners) listener();
   }

@@ -11,7 +11,7 @@ import {
   type SimulationFeed,
   type Sky,
 } from '../globe/simFeed.ts';
-import type { SimulationClock } from './clock.ts';
+import type { ClockSnapshot, SimulationClock } from './clock.ts';
 
 export const skyAt = (time: number): Sky => ({
   sun: subsolarPoint(time),
@@ -183,11 +183,15 @@ export function createSimulationFeed(
   getContext: () => SimulationContext,
 ): SimulationFeed & { refresh(): void } {
   let cached: SimFrame | null = null;
+  /** The clock snapshot and context `cached` was worked out for: listeners ask again right after a refresh. */
+  let cachedFor: { snapshot: ClockSnapshot; ctx: SimulationContext } | null = null;
   let unsubscribeClock: (() => void) | null = null;
   const listeners = new Set<() => void>();
   const getFrame = () => {
     const ctx = getContext();
     const snapshot = clock.getSnapshot();
+    if (cached && cachedFor?.snapshot === snapshot && cachedFor.ctx === ctx) return cached;
+    cachedFor = { snapshot, ctx };
     const frame = ctx.trip
       ? tripFrameAt(ctx.trip.trip, ctx.open ? ctx.trip.timeline : null, snapshot.time, ctx.dayNight)
       : simFrameAt(
@@ -209,7 +213,9 @@ export function createSimulationFeed(
     if (!cached || !sameFrame(frame, cached)) cached = frame;
     return cached;
   };
+  /** Works the frame out afresh (the clock moved or the context changed) and tells listeners if it differs. */
   const refresh = () => {
+    cachedFor = null;
     const previous = cached;
     if (getFrame() !== previous) listeners.forEach((listener) => listener());
   };

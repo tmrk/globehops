@@ -61,7 +61,7 @@ export class AirportLabelLayer {
       label.className = 'globe-marker__label';
       label.textContent = marker.code;
       el.append(dot, label);
-      el.style.opacity = '0';
+      setStyle(el, 'opacity', '0');
       this.parent.insertBefore(el, this.before);
       this.markers.push({
         ...marker,

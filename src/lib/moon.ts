@@ -109,14 +109,18 @@ export function moonAt(epochMs: number): MoonState {
   const F = 93.272095 + 483202.0175233 * t - 0.0036539 * t * t;
   // Terms involving the Sun's anomaly shrink with Earth's decreasing orbital eccentricity.
   const E = 1 - 0.002516 * t - 0.0000074 * t * t;
-  const argument = ([d, m, mm, f]: readonly number[]) => d * D + m * M + mm * Mm + f * F;
+  // This runs every animation frame: the series loops index their tables and write each term's argument
+  // (D·d + M·m + M′·m′ + F·f, in degrees) and eccentricity factor out, rather than calling helpers per term.
+  const eccentricity = [1, E, E * E];
   const A1 = 119.75 + 131.849 * t;
   let longitude = 3958 * sin(A1) + 1962 * sin(L - F) + 318 * sin(53.09 + 479264.29 * t);
   let distance = 0;
-  for (const term of LONGITUDE_AND_DISTANCE) {
-    const e = E ** Math.abs(term[1]);
-    longitude += term[4] * e * sin(argument(term));
-    distance += term[5] * e * cos(argument(term));
+  for (let i = 0; i < LONGITUDE_AND_DISTANCE.length; i++) {
+    const term = LONGITUDE_AND_DISTANCE[i];
+    const e = eccentricity[Math.abs(term[1])];
+    const argument = (term[0] * D + term[1] * M + term[2] * Mm + term[3] * F) * RAD;
+    longitude += term[4] * e * Math.sin(argument);
+    distance += term[5] * e * Math.cos(argument);
   }
   let latitude =
     -2235 * sin(L) +
@@ -124,7 +128,13 @@ export function moonAt(epochMs: number): MoonState {
     175 * (sin(A1 - F) + sin(A1 + F)) +
     127 * sin(L - Mm) -
     115 * sin(L + Mm);
-  for (const term of LATITUDE) latitude += term[4] * E ** Math.abs(term[1]) * sin(argument(term));
+  for (let i = 0; i < LATITUDE.length; i++) {
+    const term = LATITUDE[i];
+    latitude +=
+      term[4] *
+      eccentricity[Math.abs(term[1])] *
+      Math.sin((term[0] * D + term[1] * M + term[2] * Mm + term[3] * F) * RAD);
+  }
 
   const obliquity = 23.4392911 - 0.0130042 * t;
   const gmst = 280.46061837 + 360.98564736629 * days + 0.000387933 * t * t;

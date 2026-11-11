@@ -71,7 +71,7 @@ import {
 import { CountryLabelLayer } from './countryLabels.ts';
 import { GlobeTextures } from './textures.ts';
 import { AirportLabelLayer } from './airportLabels.ts';
-import { setClass, setStyle } from './dom.ts';
+import { setClass, setStyle, setVar, writtenStyle } from './dom.ts';
 import { FOLLOW_APPROACH_MS, followBlend, followDistance, followLead } from './followCamera.ts';
 import { sameAircraft, type AircraftView, type FleetAircraft, type Sky } from './simFeed.ts';
 import { moonVantage, SkyBodies } from './skyBodies.ts';
@@ -260,6 +260,8 @@ export class GlobeRenderer {
   private width = 1;
   private height = 1;
   private insets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  /** Where country names may go: the view less the panels covering it. */
+  private labelRoom: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
   private targetInsets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
   /** Camera distance of the empty globe's last automatic fit; null with a route or once the visitor zooms. */
   private emptyFit: number | null = null;
@@ -559,8 +561,7 @@ export class GlobeRenderer {
     for (let i = 0; fleet && i < fleet.length; i++) {
       const entry = fleet[i];
       const plane = this.fleetPlanes[i];
-      if (plane.style.getPropertyValue('--plane-color') !== entry.color)
-        plane.style.setProperty('--plane-color', entry.color);
+      setVar(plane, '--plane-color', entry.color);
       const badge = plane.lastElementChild;
       if (badge && badge.textContent !== entry.tag) badge.textContent = entry.tag;
       setClass(plane, 'is-ground', entry.view.kind === 'ground');
@@ -925,7 +926,11 @@ export class GlobeRenderer {
     this.updateUserLocation();
     this.skyBodies.placeLabels(this.camera, this.width, this.height);
     const reserved = this.airportLabels.update(this.camera, this.width, this.height);
-    this.countryLabels.update(this.camera, this.width, this.height, reserved);
+    // Names stay off the translucent panels (the phone sheet or the timeline below, the planner on the left);
+    // the top bar has no background, so names may still use the room beside its title.
+    this.labelRoom.bottom = this.insets.bottom;
+    this.labelRoom.left = this.insets.left;
+    this.countryLabels.update(this.camera, this.width, this.height, reserved, this.labelRoom);
     if (this.fleet?.length) {
       setStyle(this.plane, 'opacity', '0');
       const points = this.fleet.map((entry, i) => this.placeAircraft(this.fleetPlanes[i], entry.view));
@@ -1303,9 +1308,7 @@ export class GlobeRenderer {
     const fade = Math.min(1, f * 12, (1 - f) * 12);
     setStyle(plane, 'opacity', visible ? (simulated ? '1' : String(Math.min(fade, facing * 6))) : '0');
     setStyle(plane, 'transform', `translate3d(${a.x}px, ${a.y}px, 0) translate(-50%, -50%)`);
-    const heading = `${angle}deg`;
-    if (plane.style.getPropertyValue('--plane-heading') !== heading)
-      plane.style.setProperty('--plane-heading', heading);
+    setVar(plane, '--plane-heading', `${angle}deg`);
     return { x: a.x, y: a.y };
   }
 
@@ -1314,14 +1317,14 @@ export class GlobeRenderer {
     const visited = new Set<number>();
     const shifts = points.map(() => 0);
     for (let i = 0; i < points.length; i++) {
-      if (visited.has(i) || !points[i] || this.fleetPlanes[i].style.opacity === '0') continue;
+      if (visited.has(i) || !points[i] || writtenStyle(this.fleetPlanes[i], 'opacity') === '0') continue;
       const cluster = [i];
       visited.add(i);
       for (let k = 0; k < cluster.length; k++) {
         const point = points[cluster[k]]!;
         for (let j = 0; j < points.length; j++) {
           const other = points[j];
-          if (visited.has(j) || !other || this.fleetPlanes[j].style.opacity === '0') continue;
+          if (visited.has(j) || !other || writtenStyle(this.fleetPlanes[j], 'opacity') === '0') continue;
           if (Math.hypot(point.x - other.x, point.y - other.y) <= 28) {
             visited.add(j);
             cluster.push(j);
@@ -1333,7 +1336,7 @@ export class GlobeRenderer {
     for (let i = 0; i < this.fleetPlanes.length; i++) {
       const plane = this.fleetPlanes[i];
       const shift = `${shifts[i]}px`;
-      if (plane.style.getPropertyValue('--tag-shift') !== shift) plane.style.setProperty('--tag-shift', shift);
+      setVar(plane, '--tag-shift', shift);
     }
   }
 

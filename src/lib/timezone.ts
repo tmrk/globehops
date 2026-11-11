@@ -10,20 +10,35 @@ export const MIN_YEAR = 1900;
 export const MAX_YEAR = 2100;
 const MINUTE = 60_000;
 const DAY = 86_400_000;
-const formatters = new Map<string, Map<string, Intl.DateTimeFormat>>();
 const supportedZones = new Map<string, boolean>();
+/**
+ * Formatters by options object, then zone, then locale. Clocks format every animation frame, so the options
+ * are shared constants (looked up by identity) rather than literals that would need a computed key.
+ */
+const formatters = new WeakMap<Intl.DateTimeFormatOptions, Map<string, Map<string, Intl.DateTimeFormat>>>();
+const NO_OPTIONS: Intl.DateTimeFormatOptions = {};
+const DATE_TIME_PARTS: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+};
+const ZONE_NAME: Intl.DateTimeFormatOptions = { timeZoneName: 'short' };
+const HOURS_MINUTES: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+const WEEKDAY: Intl.DateTimeFormatOptions = { weekday: 'short' };
+const DAY_MONTH: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
 
 function formatter(zone: string, locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
-  let byOptions = formatters.get(zone);
-  if (!byOptions) {
-    byOptions = new Map();
-    formatters.set(zone, byOptions);
-  }
-  const key = JSON.stringify([locale, Object.entries(options).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))]);
-  let cached = byOptions.get(key);
+  let byZone = formatters.get(options);
+  if (!byZone) formatters.set(options, (byZone = new Map()));
+  let byLocale = byZone.get(zone);
+  if (!byLocale) byZone.set(zone, (byLocale = new Map()));
+  let cached = byLocale.get(locale);
   if (!cached) {
     cached = new Intl.DateTimeFormat(locale, { ...options, timeZone: zone, hourCycle: 'h23' });
-    byOptions.set(key, cached);
+    byLocale.set(locale, cached);
   }
   return cached;
 }
@@ -74,7 +89,7 @@ export function isSupportedTimeZone(zone: string): boolean {
   const cached = supportedZones.get(zone);
   if (cached !== undefined) return cached;
   try {
-    formatter(zone, 'en-GB', {});
+    formatter(zone, 'en-GB', NO_OPTIONS);
     supportedZones.set(zone, true);
     return true;
   } catch {
@@ -84,14 +99,7 @@ export function isSupportedTimeZone(zone: string): boolean {
 }
 
 function localParts(zone: string, epochMs: number): LocalDateTime & { second: number } {
-  const parts = formatter(zone, 'en-GB-u-ca-gregory-nu-latn', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(epochMs);
+  const parts = formatter(zone, 'en-GB-u-ca-gregory-nu-latn', DATE_TIME_PARTS).formatToParts(epochMs);
   const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value);
   return {
     year: value('year'),
@@ -194,7 +202,7 @@ export function formatIsoOffset(offsetMin: number): string {
 export function zoneAbbreviation(zone: string, epochMs: number): string {
   // ICU's short names depend on locale: en-GB has CET, en-US has EDT.
   for (const locale of ['en-GB', 'en-US']) {
-    const name = formatter(zone, locale, { timeZoneName: 'short' })
+    const name = formatter(zone, locale, ZONE_NAME)
       .formatToParts(epochMs)
       .find((p) => p.type === 'timeZoneName')?.value;
     if (name && !/^(?:GMT|UTC)[+−-]/.test(name)) return name;
@@ -225,13 +233,13 @@ export function formatClock(
   opts: { weekday?: boolean; date?: boolean; locale?: string } = {},
 ): string {
   const locale = opts.locale ?? 'en-GB';
-  const clock = formatter(zone, locale, { hour: '2-digit', minute: '2-digit' })
+  const clock = formatter(zone, locale, HOURS_MINUTES)
     .formatToParts(epochMs)
     .map((part) => (part.type === 'hour' && part.value === '24' ? '00' : part.value))
     .join('');
   const prefix = [
-    opts.weekday ? formatter(zone, locale, { weekday: 'short' }).format(epochMs) : '',
-    opts.date ? formatter(zone, locale, { day: 'numeric', month: 'short' }).format(epochMs) : '',
+    opts.weekday ? formatter(zone, locale, WEEKDAY).format(epochMs) : '',
+    opts.date ? formatter(zone, locale, DAY_MONTH).format(epochMs) : '',
   ]
     .filter(Boolean)
     .join(' ');
