@@ -424,6 +424,7 @@ export const hu: Messages = {
   'track.shareReduced': 'A link egyszerűsített útvonalat tartalmaz ({1} pontból {0}). Töltsd le az útvonalat, hogy minden pontot megoszthass.',
   'track.download': 'Útvonal letöltése',
   'launcher.play': 'Lejátszás',
+  'timebar.pause': 'Szünet',
   'launcher.fix': 'Javítás',
   'launcher.journeys': '{0} utazás',
   'launcher.trips': '{0} út',

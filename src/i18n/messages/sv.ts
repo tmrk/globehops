@@ -419,6 +419,7 @@ export const sv: Messages = {
   'track.shareReduced': 'Länken bär en förenklad flygväg ({0} av {1} punkter). Ladda ner flygvägen för att dela alla punkter.',
   'track.download': 'Ladda ner flygvägen',
   'launcher.play': 'Spela',
+  'timebar.pause': 'Paus',
   'launcher.fix': 'Rätta',
   'launcher.journeys': '{0} resor',
   'launcher.trips': '{0} resor',

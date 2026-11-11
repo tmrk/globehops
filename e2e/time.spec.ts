@@ -120,9 +120,9 @@ test('scheduled playback advances, pauses, scrubs all phases, changes speed and 
   const bar = timeline(page);
   await expect(bar).toBeVisible();
   await expect(bar).toContainText('En route to London Heathrow');
-  // A link that opens on a moment invites Play with the launcher's sign, the word and all, until it plays.
+  // A link that opens on a moment shows the launcher's amber sign, its word and all, in every state.
   await expect(bar.getByRole('button', { name: 'Play journey' })).toBeEnabled();
-  await expect(bar.getByRole('button', { name: 'Play journey' })).toHaveText('Play');
+  await expect(bar.getByRole('button', { name: 'Play journey' }).getByText('Play', { exact: true })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Layover in London' })).toHaveCount(0);
   await expect(page.locator('.layover')).toContainText('1h 55m layover');
   const slider = bar.getByRole('slider', { name: 'Journey time' });
@@ -133,11 +133,12 @@ test('scheduled playback advances, pauses, scrubs all phases, changes speed and 
   // Playing is cinematic: a mini player until the controls are asked for.
   await expect(bar.getByRole('slider')).toHaveCount(0);
   await showControls(page);
+  await expect(bar.getByRole('button', { name: 'Pause playback' }).getByText('Pause', { exact: true })).toBeVisible();
   await expect.poll(() => slider.inputValue()).not.toBe(initial);
   await expect.poll(() => bar.locator('.time-bar__clock').innerText()).not.toBe(initialClock);
   await expect(page.locator('.globe-plane')).toHaveCSS('opacity', '1');
   await bar.getByRole('button', { name: 'Pause playback' }).click();
-  await expect(bar.getByRole('button', { name: 'Play journey' })).toHaveText('');
+  await expect(bar.getByRole('button', { name: 'Play journey' }).getByText('Play', { exact: true })).toBeVisible();
   const paused = await slider.inputValue();
   await page.evaluate(
     () =>

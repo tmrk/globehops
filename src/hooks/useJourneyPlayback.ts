@@ -23,13 +23,6 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
   const [linkedTime, setLinkedTime] = useState<number | null>(null);
   const [pausedTime, setPausedTime] = useState<number | null>(null);
   const [speed, setSpeed] = useState(clock.getSnapshot().speed);
-  /** Whether the open timeline has played yet: until it has, its Play is the amber sign, not the disc. */
-  const [played, setPlayedState] = useState(false);
-  const playedRef = useRef(false);
-  const setPlayed = useCallback((next: boolean) => {
-    playedRef.current = next;
-    setPlayedState(next);
-  }, []);
   const pendingViewRef = useRef<LinkView | null>(null);
   const pendingExplicitPlayRef = useRef(false);
   const reducedMotionRef = useRef(reducedMotion);
@@ -47,7 +40,6 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
         )
       );
       setTimeOpen(open);
-      setPlayed(false);
       if (
         (link.view.play || link.view.live) &&
         !reducedMotionRef.current &&
@@ -64,7 +56,7 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
       pendingExplicitPlayRef.current = false;
       if (!open) clock.goLive();
     },
-    [clock, setCollapsed, setPlayed],
+    [clock, setCollapsed],
   );
   // Debounce paused scrubs. Playback frames never cause App state updates or URL writes.
   useEffect(() => {
@@ -73,8 +65,6 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
       clearTimeout(timer);
       const snapshot = clock.getSnapshot();
       if (snapshot.speed !== speed) setSpeed(snapshot.speed);
-      // Any way of playing counts (Play, Space, a link, an agent); state changes once, not per frame.
-      if (timeOpen && snapshot.playing && !playedRef.current) setPlayed(true);
       if (snapshot.playing || snapshot.live || !timeOpen) return;
       timer = setTimeout(() => setPausedTime(clock.getSnapshot().time), 450);
     };
@@ -84,7 +74,7 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
       clearTimeout(timer);
       unsubscribe();
     };
-  }, [clock, timeOpen, speed, setPlayed]);
+  }, [clock, timeOpen, speed]);
 
   const openTime = () => {
     setAssumedStart(Date.now());
@@ -92,7 +82,6 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
   };
   const closeTime = () => {
     setTimeOpen(false);
-    setPlayed(false);
     setPausedTime(null);
     setLinkedTime(null);
     clock.setRange(null, null);
@@ -111,7 +100,6 @@ export function useJourneyPlayback(reducedMotion: boolean, setCollapsed: Dispatc
     requestPlayback,
     clock,
     timeOpen,
-    played,
     assumedStart,
     linkedTime,
     pausedTime,

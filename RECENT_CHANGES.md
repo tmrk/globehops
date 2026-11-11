@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.25.1 – 2026-11-11 – Play stays a sign, and a roomier timeline
+
+- **Play stays the amber sign.** The timeline's Play no longer turns back into a small round button after the first Play: it stays the amber sign, reading **Pause** while the journey plays, at one width. The small player keeps it as a square sign with just its mark.
+- **A roomier, better aligned timeline.** On phones and in a landscape phone's panel the sign has its own row, with **Live** and close beside it, so what's happening reads on one or two full-width lines instead of a narrow column. A title without a detail line, such as "Comparing 2 trips", is centred on the sign, compared journeys and trips get more room beneath the title, and a stay's label no longer crowds the line above it. On larger screens the timeline and Play card are a little wider, so longer titles fit.
+
 ## 1.25.0 – 2026-11-11 – Play invites you in from shared links
 
 - **Play stands out on shared links.** A link with flight times (from a booking, an assistant or a friend's Share) opens the timeline at its moment. Until you play it, the timeline's Play is now the same amber **Play** sign as beneath an untimed route, instead of a small round button, with the same gentle cue on your first visit. On phones the sign gets a row of its own, with **Live** and close beside it and what's happening below. After the first Play it becomes the round play and pause button again.

@@ -68,11 +68,6 @@ interface Props {
    * screen. Pausing, or Show controls, brings the full timeline back.
    */
   compact?: boolean;
-  /**
-   * Not yet played since the timeline opened (e.g. a link with dates or a time): while paused, Play is the
-   * launcher's amber sign rather than the disc, so it reads as the first thing to do.
-   */
-  ready?: boolean;
   /** A one-time, motion-safe nudge for visitors who have never pressed Play. */
   cue?: boolean;
   onShowControls?: () => void;
@@ -99,7 +94,6 @@ export function TimeBar({
   followAircraft,
   onFollowAircraft,
   compact = false,
-  ready = false,
   cue = false,
   onShowControls,
   onHideControls,
@@ -349,8 +343,13 @@ export function TimeBar({
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="time-bar__head">
-          <button type="button" className="time-bar__play" aria-label={playLabel} onClick={onToggle}>
-            {snapshot.playing ? <IconPause /> : <IconPlay />}
+          <button
+            type="button"
+            className={`time-bar__play play-sign${snapshot.playing ? ' is-playing' : ''}`}
+            aria-label={playLabel}
+            onClick={onToggle}
+          >
+            <PlaySignFace playing={snapshot.playing} />
           </button>
           {/* A pointer can reach the controls from anywhere on the bar; the button beside it is the control. */}
           <div className="time-bar__status" onClick={onShowControls}>
@@ -415,10 +414,9 @@ export function TimeBar({
         </div>
       </section>
     );
-  const inviting = ready && !snapshot.playing && !snapshot.live && !!sharedRange && !error;
   return (
     <section
-      className={`time-bar${docked ? ' time-bar--docked' : ''}${inviting ? ' is-ready' : ''}`}
+      className={`time-bar${docked ? ' time-bar--docked' : ''}`}
       aria-label={t('timebar.timeline')}
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
@@ -435,28 +433,14 @@ export function TimeBar({
       }}
     >
       <div className="time-bar__head">
-        {/* One button throughout, so focus stays on it as the sign becomes the disc. */}
         <button
           type="button"
-          className={`time-bar__play${inviting ? ` play-sign${cue ? ' is-cued' : ''}` : ''}`}
+          className={`time-bar__play play-sign${snapshot.playing ? ' is-playing' : cue && sharedRange && !error ? ' is-cued' : ''}`}
           aria-label={playLabel}
           disabled={!sharedRange || !!error}
           onClick={onToggle}
         >
-          {inviting ? (
-            <>
-              <span className="play-sign__glyph" aria-hidden="true">
-                <IconPlay size={16} />
-              </span>
-              <span className="play-sign__word" aria-hidden="true">
-                {t('launcher.play')}
-              </span>
-            </>
-          ) : snapshot.playing ? (
-            <IconPause />
-          ) : (
-            <IconPlay />
-          )}
+          <PlaySignFace playing={snapshot.playing} />
         </button>
         <div className="time-bar__status">
           <div className="time-bar__title">
@@ -671,3 +655,22 @@ const THUMB_RADIUS = 14;
 /** Approximate width of one character of a break label (condensed mono at --text-2xs). */
 const LABEL_CHAR_PX = 5.4;
 const easeInOut = (x: number) => (x < 0.5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2);
+
+/**
+ * The amber Play sign's face, as on the launcher: the play or pause mark and its word. Both words are set
+ * in one cell, so the sign keeps its width as it switches between them.
+ */
+function PlaySignFace({ playing }: { playing: boolean }) {
+  const { t } = useI18n();
+  return (
+    <>
+      <span className="play-sign__glyph" aria-hidden="true">
+        {playing ? <IconPause size={16} /> : <IconPlay size={16} />}
+      </span>
+      <span className="play-sign__word play-sign__word--toggle" aria-hidden="true">
+        <span className={playing ? 'is-off' : undefined}>{t('launcher.play')}</span>
+        <span className={playing ? undefined : 'is-off'}>{t('timebar.pause')}</span>
+      </span>
+    </>
+  );
+}

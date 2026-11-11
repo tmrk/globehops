@@ -420,6 +420,7 @@ export const en = {
   'track.shareReduced': 'The link carries a simplified path ({0} of {1} points). Download the path to share every point.',
   'track.download': 'Download path',
   'launcher.play': 'Play',
+  'timebar.pause': 'Pause',
   'launcher.fix': 'Fix',
   'launcher.journeys': '{0} journeys',
   'launcher.trips': '{0} trips',

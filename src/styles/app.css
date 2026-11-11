@@ -38,7 +38,7 @@
   /* Live time, like a broadcast's on-air light. */
   --live: #ff5e52;
   --float-h: 44px;
-  /* The play disc: the launcher's and the open timeline's, at the same size and place. */
+  /* The height of the timeline's Play sign (the launcher's grows with its card). */
   --disc: 52px;
   /* Distance from the screen edges to floating controls (16px on larger screens). */
   --edge: 12px;
@@ -2195,9 +2195,10 @@ button.map-menu__item:hover {
 
 .time-bar {
   position: relative;
-  width: min(560px, 100%);
+  width: min(600px, 100%);
   margin-inline: auto;
-  padding: 12px 14px 12px;
+  /* The launcher's padding, so its Play sign and the timeline's sit in the same place. */
+  padding: 14px 16px 14px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -2232,85 +2233,85 @@ button.map-menu__item:hover {
   gap: 12px;
 }
 
+/* Play is the launcher's amber sign throughout: Play while paused, Pause while playing, one width. */
 .time-bar__play {
-  display: grid;
-  place-items: center;
   flex: none;
-  width: var(--disc);
-  height: var(--disc);
-  border-radius: var(--radius-full);
-  color: var(--accent-ink);
-  background: var(--accent);
-  box-shadow: 0 4px 16px rgba(255, 194, 75, 0.22);
-  transition:
-    background-color 0.15s,
-    transform 0.18s var(--ease);
-}
-
-.time-bar__play:not(:disabled):active {
-  transform: scale(0.95);
-}
-
-/* The play triangle's visual centre sits right of its box's centre. */
-.time-bar__play svg {
-  translate: 1.5px 0;
-}
-
-.time-bar__play:disabled {
-  background: var(--surface-raised);
-  color: var(--text-3);
-  box-shadow: none;
-}
-
-.time-bar__play:not(:disabled):hover {
-  background: #ffcd69;
-}
-
-/* Until the timeline first plays (a link that opens on a moment), Play is the launcher's sign, not the disc. */
-.time-bar__play.play-sign {
-  width: auto;
   height: var(--disc);
   gap: 10px;
   padding: 0 20px 0 10px;
   font-size: var(--text-lg);
 }
 
-/* A narrow timeline gives the sign its own row, with Live and close beside it and what is happening below,
-   rather than squeezing the status beside a wider button. */
-@container time-bar (max-width: 439px) {
-  .time-bar.is-ready .time-bar__head {
+.play-sign:disabled {
+  background: var(--surface-raised);
+  color: var(--text-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.play-sign:disabled .play-sign__glyph {
+  background: var(--line);
+  color: var(--text-3);
+}
+
+/* A narrow timeline (phones, a landscape phone's panel) gives the sign a row of its own, with Live and
+   close beside it and what is happening at full width below, instead of squeezing the status into a
+   column of short lines. */
+@container time-bar (max-width: 479px) {
+  .time-bar:not(.time-bar--compact) .time-bar__head {
     flex-wrap: wrap;
-    row-gap: 10px;
+    row-gap: 8px;
   }
-  .time-bar.is-ready .time-bar__play {
+  /* The height of the phone controls around it, so the sheet keeps the globe its share of the screen. */
+  .time-bar:not(.time-bar--compact) .time-bar__play {
+    height: 44px;
     margin-right: auto;
   }
-  .time-bar.is-ready .time-bar__status {
+  .time-bar:not(.time-bar--compact) .play-sign__glyph {
+    width: 30px;
+    height: 30px;
+  }
+  .time-bar:not(.time-bar--compact) .time-bar__status {
     order: 1;
     flex-basis: 100%;
   }
 }
 
 .time-bar__status {
+  display: grid;
+  gap: 2px;
   flex: 1;
   min-width: 0;
 }
 
+/* Up to two lines beside the sign; the detail line below stays one. */
 .time-bar__title {
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   font-size: var(--text-base);
   font-weight: 600;
+  line-height: 1.3;
 }
 
 .time-bar__detail {
-  min-height: 18px;
   font-size: var(--text-sm);
+  line-height: 1.35;
   color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Without a detail (comparing trips), the title alone is centred on the sign. */
+.time-bar__detail:empty {
+  display: none;
+}
+
+/* In the sheet the scrubber is a 44px touch target, which already leaves room above for a stay's label. */
+.time-bar--docked .time-bar__scrubber {
+  margin: 4px 0 2px;
 }
 
 .time-bar__detail .text-btn {
@@ -2329,7 +2330,8 @@ button.map-menu__item:hover {
   display: flex;
   align-items: center;
   height: 36px;
-  margin: 4px 0 2px;
+  /* Room above for a stay's label, which sits over the track. */
+  margin: 10px 0 4px;
 }
 
 /* The track runs between the thumb's centre at each end, so segments line up with the thumb. */
@@ -2530,7 +2532,7 @@ button.map-menu__item:hover {
   align-items: center;
   column-gap: 16px;
   row-gap: 10px;
-  width: min(560px, 100%);
+  width: min(600px, 100%);
   margin-inline: auto;
   padding: 14px 16px 14px 14px;
   border: 1px solid var(--line);
@@ -2581,7 +2583,7 @@ button.map-menu__item:hover {
     transform 0.18s var(--ease);
 }
 
-.play-sign:hover,
+.play-sign:not(:disabled):hover,
 .launcher:hover .play-sign {
   background: #ffcd69;
   box-shadow:
@@ -2589,7 +2591,7 @@ button.map-menu__item:hover {
     0 10px 32px rgba(255, 194, 75, 0.42);
 }
 
-.play-sign:active {
+.play-sign:not(:disabled):active {
   transform: scale(0.97);
 }
 
@@ -2605,8 +2607,27 @@ button.map-menu__item:hover {
   color: var(--accent);
 }
 
+/* The play triangle's visual centre sits right of its box's centre; the pause bars are symmetric. */
 .play-sign__glyph svg {
   translate: 1.5px 0;
+}
+
+.play-sign.is-playing .play-sign__glyph svg {
+  translate: none;
+}
+
+/* Play and Pause share one cell, so the sign is as wide as the longer word in either state. */
+.play-sign__word--toggle {
+  display: grid;
+  justify-items: start;
+}
+
+.play-sign__word--toggle > * {
+  grid-area: 1 / 1;
+}
+
+.play-sign__word--toggle > .is-off {
+  visibility: hidden;
 }
 
 /* Until a first Play: two soft rings leave the sign once the route has drawn, then never again. */
@@ -4166,7 +4187,7 @@ button.map-menu__item:hover {
 .comparison-lanes {
   display: grid;
   gap: 2px;
-  margin-top: 6px;
+  margin-top: 12px;
 }
 .comparison-lane {
   display: grid;
@@ -5388,12 +5409,20 @@ button.map-menu__item:hover {
   gap: 12px;
 }
 
+/* The mini player keeps the sign, as a square with just its mark, so the globe keeps the screen. */
 .time-bar--compact .time-bar__play {
+  justify-content: center;
   width: 44px;
   height: 44px;
+  padding: 0;
+}
+
+.time-bar--compact .play-sign__word {
+  display: none;
 }
 
 .time-bar--compact .time-bar__title {
+  display: block;
   font-size: var(--text-md);
   white-space: nowrap;
   overflow: hidden;
