@@ -68,6 +68,13 @@ interface Props {
    * screen. Pausing, or Show controls, brings the full timeline back.
    */
   compact?: boolean;
+  /**
+   * Not yet played since the timeline opened (e.g. a link with dates or a time): while paused, Play is the
+   * launcher's amber sign rather than the disc, so it reads as the first thing to do.
+   */
+  ready?: boolean;
+  /** A one-time, motion-safe nudge for visitors who have never pressed Play. */
+  cue?: boolean;
   onShowControls?: () => void;
   /** While playing with the full timeline: back to the cinematic view. */
   onHideControls?: () => void;
@@ -92,6 +99,8 @@ export function TimeBar({
   followAircraft,
   onFollowAircraft,
   compact = false,
+  ready = false,
+  cue = false,
   onShowControls,
   onHideControls,
 }: Props) {
@@ -406,9 +415,10 @@ export function TimeBar({
         </div>
       </section>
     );
+  const inviting = ready && !snapshot.playing && !snapshot.live && !!sharedRange && !error;
   return (
     <section
-      className={`time-bar${docked ? ' time-bar--docked' : ''}`}
+      className={`time-bar${docked ? ' time-bar--docked' : ''}${inviting ? ' is-ready' : ''}`}
       aria-label={t('timebar.timeline')}
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
@@ -425,14 +435,28 @@ export function TimeBar({
       }}
     >
       <div className="time-bar__head">
+        {/* One button throughout, so focus stays on it as the sign becomes the disc. */}
         <button
           type="button"
-          className="time-bar__play"
+          className={`time-bar__play${inviting ? ` play-sign${cue ? ' is-cued' : ''}` : ''}`}
           aria-label={playLabel}
           disabled={!sharedRange || !!error}
           onClick={onToggle}
         >
-          {snapshot.playing ? <IconPause /> : <IconPlay />}
+          {inviting ? (
+            <>
+              <span className="play-sign__glyph" aria-hidden="true">
+                <IconPlay size={16} />
+              </span>
+              <span className="play-sign__word" aria-hidden="true">
+                {t('launcher.play')}
+              </span>
+            </>
+          ) : snapshot.playing ? (
+            <IconPause />
+          ) : (
+            <IconPlay />
+          )}
         </button>
         <div className="time-bar__status">
           <div className="time-bar__title">

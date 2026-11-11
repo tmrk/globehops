@@ -57,16 +57,16 @@ export function PlayLauncher({
       <div className="launcher__row">
         <button
           type="button"
-          className={`launcher__play${cue && !problem ? ' is-cued' : ''}`}
+          className={`launcher__play play-sign${cue && !problem ? ' is-cued' : ''}`}
           aria-label={problem ? problem.title : label}
           aria-describedby={detailId}
           title={!problem && shortcut ? t('launcher.shortcut', label) : undefined}
           onClick={act}
         >
-          <span className="launcher__glyph" aria-hidden="true">
+          <span className="launcher__glyph play-sign__glyph" aria-hidden="true">
             {problem ? <IconAlert size={16} /> : <IconPlay size={16} />}
           </span>
-          <span className="launcher__word" aria-hidden="true">
+          <span className="play-sign__word" aria-hidden="true">
             {problem ? t('launcher.fix') : t('launcher.play')}
           </span>
         </button>

@@ -2,6 +2,10 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.25.0 – 2026-11-11 – Play invites you in from shared links
+
+- **Play stands out on shared links.** A link with flight times (from a booking, an assistant or a friend's Share) opens the timeline at its moment. Until you play it, the timeline's Play is now the same amber **Play** sign as beneath an untimed route, instead of a small round button, with the same gentle cue on your first visit. On phones the sign gets a row of its own, with **Live** and close beside it and what's happening below. After the first Play it becomes the round play and pause button again.
+
 ## 1.24.0 – 2026-11-10 – A tidier Play and plainer comparisons
 
 - **A tidier Play.** The amber Play sign now fills the left of its card at full height, with the route, its length and the miniature timeline lined up beside it, beneath the globe and at the top of the phone sheet alike.

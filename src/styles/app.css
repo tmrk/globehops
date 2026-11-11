@@ -2266,6 +2266,31 @@ button.map-menu__item:hover {
   background: #ffcd69;
 }
 
+/* Until the timeline first plays (a link that opens on a moment), Play is the launcher's sign, not the disc. */
+.time-bar__play.play-sign {
+  width: auto;
+  height: var(--disc);
+  gap: 10px;
+  padding: 0 20px 0 10px;
+  font-size: var(--text-lg);
+}
+
+/* A narrow timeline gives the sign its own row, with Live and close beside it and what is happening below,
+   rather than squeezing the status beside a wider button. */
+@container time-bar (max-width: 439px) {
+  .time-bar.is-ready .time-bar__head {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .time-bar.is-ready .time-bar__play {
+    margin-right: auto;
+  }
+  .time-bar.is-ready .time-bar__status {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
+
 .time-bar__status {
   flex: 1;
   min-width: 0;
@@ -2535,22 +2560,18 @@ button.map-menu__item:hover {
   display: contents;
 }
 
-/* Play: an amber wayfinding sign, black on yellow like the signs that point the way through an airport. */
-.launcher__play {
+/* Play: an amber wayfinding sign, black on yellow like the signs that point the way through an airport.
+   The launcher and the timeline (until its first Play) share it, so Play looks the same wherever it waits. */
+.play-sign {
   position: relative;
-  grid-area: play;
-  align-self: stretch;
   display: inline-flex;
   align-items: center;
-  gap: 11px;
-  min-height: 54px;
-  padding: 0 24px 0 12px;
   border-radius: var(--radius-btn);
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: var(--text-xl);
   font-weight: 700;
   letter-spacing: 0.01em;
+  white-space: nowrap;
   box-shadow:
     0 0 0 1px rgba(255, 210, 120, 0.5) inset,
     0 8px 26px rgba(255, 194, 75, 0.32);
@@ -2560,20 +2581,20 @@ button.map-menu__item:hover {
     transform 0.18s var(--ease);
 }
 
-.launcher__play:hover,
-.launcher:hover .launcher__play {
+.play-sign:hover,
+.launcher:hover .play-sign {
   background: #ffcd69;
   box-shadow:
     0 0 0 1px rgba(255, 220, 140, 0.6) inset,
     0 10px 32px rgba(255, 194, 75, 0.42);
 }
 
-.launcher__play:active {
+.play-sign:active {
   transform: scale(0.97);
 }
 
 /* The play mark: an ink disc with the amber triangle cut from it, the symbol everyone knows. */
-.launcher__glyph {
+.play-sign__glyph {
   display: grid;
   place-items: center;
   flex: none;
@@ -2584,27 +2605,37 @@ button.map-menu__item:hover {
   color: var(--accent);
 }
 
-.launcher__glyph svg {
+.play-sign__glyph svg {
   translate: 1.5px 0;
 }
 
 /* Until a first Play: two soft rings leave the sign once the route has drawn, then never again. */
-.launcher__play.is-cued::after {
+.play-sign.is-cued::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  animation: launcher-cue 1.7s var(--ease) 1.1s 2 both;
+  animation: play-cue 1.7s var(--ease) 1.1s 2 both;
   pointer-events: none;
 }
 
-@keyframes launcher-cue {
+@keyframes play-cue {
   from {
     box-shadow: 0 0 0 0 rgba(255, 194, 75, 0.6);
   }
   to {
     box-shadow: 0 0 0 16px rgba(255, 194, 75, 0);
   }
+}
+
+/* The launcher's sign fills the left of its card at the card's full height. */
+.launcher__play {
+  grid-area: play;
+  align-self: stretch;
+  gap: 11px;
+  min-height: 54px;
+  padding: 0 24px 0 12px;
+  font-size: var(--text-xl);
 }
 
 .launcher__info {

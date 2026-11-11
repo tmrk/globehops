@@ -175,7 +175,8 @@ export default function App() {
   const [fileOver, setFileOver] = useState(false);
   const analytics = useAnalyticsConsent();
   const playback = useJourneyPlayback(reducedMotion, setCollapsed);
-  const { clock, timeOpen, assumedStart, linkedTime, pausedTime, speed, applyView, openTime, closeTime } = playback;
+  const { clock, timeOpen, played, assumedStart, linkedTime, pausedTime, speed, applyView, openTime, closeTime } =
+    playback;
   const { dataset, zones, zonesLoaded, index, suggestions, dataError, initialized, lookup, loadCodes, applyLink } =
     useAppLinks({
       route,
@@ -837,7 +838,18 @@ export default function App() {
       setSheetFull(detent === 'full');
     },
     reducedMotion,
-    peek: timeBarShown ? (cinematic ? 'cinema' : 'timeline') : hasFlights ? 'launcher' : dialShown ? 'dial' : 'route',
+    // Before its first Play the timeline's head is taller on phones (the Play sign has a row of its own).
+    peek: timeBarShown
+      ? cinematic
+        ? 'cinema'
+        : played
+          ? 'timeline'
+          : 'ready'
+      : hasFlights
+        ? 'launcher'
+        : dialShown
+          ? 'dial'
+          : 'route',
   });
   // On phones the totals scroll with the list (the launcher above it carries the route and its time),
   // so the sheet's height goes to the journey; short landscape screens do the same in the side panel.
@@ -1130,6 +1142,8 @@ export default function App() {
       onLive={changeLive}
       onEditLeg={editLeg}
       compact={cinematic}
+      ready={!played}
+      cue={playCue}
       onShowControls={() => setControlsShown(true)}
       onHideControls={
         globeFailed
