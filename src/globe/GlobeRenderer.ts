@@ -56,6 +56,7 @@ import { displayAltitudeKm, simplifyTrackIndices, type TrackKind } from '../lib/
 import { SOLAR_SHADING_GLSL } from '../lib/sun.ts';
 import type { LatLng } from '../types.ts';
 import {
+  canvasPixelRatio,
   clamp01,
   LABEL_RADIUS,
   LABEL_FADE_START,
@@ -331,7 +332,18 @@ export class GlobeRenderer {
     this.labelLayer.className = 'globe-labels';
     this.labelLayer.setAttribute('aria-hidden', 'true');
     container.appendChild(this.labelLayer);
-    this.countryLabels = new CountryLabelLayer(this.labelLayer, options.countryLabelsUrl, this.requestRender);
+    this.countryLabels = new CountryLabelLayer(
+      this.scene,
+      this.renderer,
+      options.countryLabelsUrl,
+      this.requestRender,
+      container,
+    );
+    // Names are drawn into the canvas, so tests and diagnostics read where they went from the container.
+    Object.defineProperty(container, 'placeNames', {
+      configurable: true,
+      get: () => this.countryLabels.placedNames(),
+    });
     this.countryLabels.setLocale(options.labelLocale ?? 'en');
     this.countryLabels.setVisible(options.showCountryLabels, options.showWaterLabels);
     this.userLocationDot = document.createElement('div');
@@ -858,6 +870,7 @@ export class GlobeRenderer {
     this.renderer.forceContextLoss();
     this.canvas.remove();
     this.labelLayer.remove();
+    delete (this.container as HTMLElement & { placeNames?: unknown }).placeNames;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -918,9 +931,7 @@ export class GlobeRenderer {
     this.camera.updateMatrixWorld();
     // Recompute even for paused sunlight: orbit/damping changes the normals' view space every frame.
     this.sunView.value.copy(this.sunScene).transformDirection(this.camera.matrixWorldInverse);
-    this.renderer.render(this.scene, this.camera);
-    this.drawn = true;
-    this.drawnAt = performance.now();
+    // Place names go into this frame's draw, after the airport labels they give way to.
     this.airportLabels.measure();
     this.countryLabels.measure(this.camera, this.height);
     this.updateUserLocation();
@@ -930,7 +941,10 @@ export class GlobeRenderer {
     // the top bar has no background, so names may still use the room beside its title.
     this.labelRoom.bottom = this.insets.bottom;
     this.labelRoom.left = this.insets.left;
-    this.countryLabels.update(this.camera, this.width, this.height, reserved, this.labelRoom);
+    this.countryLabels.update(this.camera, this.width, this.height, reserved, this.labelRoom, !cameraMoving);
+    this.renderer.render(this.scene, this.camera);
+    this.drawn = true;
+    this.drawnAt = performance.now();
     if (this.fleet?.length) {
       setStyle(this.plane, 'opacity', '0');
       const points = this.fleet.map((entry, i) => this.placeAircraft(this.fleetPlanes[i], entry.view));
@@ -1564,7 +1578,7 @@ export class GlobeRenderer {
     if (w === this.width && h === this.height) return;
     this.width = w;
     this.height = h;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(canvasPixelRatio(window.devicePixelRatio, w, h));
     this.renderer.setSize(w, h, false);
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
@@ -1678,6 +1692,7 @@ export class GlobeRenderer {
   private onContextRestored = () => {
     this.contextLost = false;
     this.textures.restore();
+    this.countryLabels.restore();
     this.requestRender();
   };
 }

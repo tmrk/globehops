@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { Matrix3, PerspectiveCamera, SphereGeometry, Vector3 } from 'three';
 import { toVec3 } from '../lib/geo.ts';
 import {
+  canvasPixelRatio,
   ecefToScene,
+  MAX_CANVAS_PIXELS,
   latLngToVector3,
   sceneToEcef,
   slerpUnit,
@@ -173,5 +175,31 @@ describe('screen-space geometry', () => {
     }
     expect(surfaceFacing(new Vector3(), camera)).toBe(0);
     expect(surfaceFacing(camera, camera)).toBe(0);
+  });
+});
+
+describe('canvasPixelRatio', () => {
+  it('uses the device pixel ratio up to 2 for windows within the pixel budget', () => {
+    expect(canvasPixelRatio(1, 1372, 891)).toBe(1);
+    expect(canvasPixelRatio(1.5, 1920, 1080)).toBe(1.5);
+    expect(canvasPixelRatio(3, 402, 874)).toBe(2);
+    expect(canvasPixelRatio(2, 1920, 1080)).toBe(2);
+  });
+
+  it('lowers the ratio so a large window stays within the budget', () => {
+    const ratio = canvasPixelRatio(2, 2560, 1440);
+    expect(ratio).toBeCloseTo(1.5, 10);
+    expect(2560 * 1440 * ratio * ratio).toBeLessThanOrEqual(MAX_CANVAS_PIXELS + 1e-6);
+  });
+
+  it('never drops below one canvas pixel per CSS pixel or above the device ratio', () => {
+    expect(canvasPixelRatio(2, 5120, 2880)).toBe(1);
+    expect(canvasPixelRatio(1, 5120, 2880)).toBe(1);
+    expect(canvasPixelRatio(0.8, 3000, 2000)).toBe(0.8);
+  });
+
+  it('falls back to 1 for a missing or invalid device ratio', () => {
+    expect(canvasPixelRatio(Number.NaN, 800, 600)).toBe(1);
+    expect(canvasPixelRatio(0, 800, 600)).toBe(1);
   });
 });

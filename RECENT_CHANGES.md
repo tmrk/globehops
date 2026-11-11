@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.26.2 – 2026-11-11 – Smooth following on big screens
+
+- **No more small jumps while following the aircraft, on big screens too.** In a large browser window, such as one filling a 5K display, the globe asked the graphics chip for more than it could draw 144 times a second, so it skipped about every third frame; and each country and sea name was a separate piece of the page that the browser had to move every frame. The globe now draws at most about as many pixels as a 4K screen (phones and ordinary windows keep their full sharpness) and draws the names itself, in the same picture as the Earth. Following a flight in a full-screen window on a 144 Hz 5K display went from about 230 skipped frames in six seconds to none, and zooming with names on no longer stutters.
+- **Names look as before**, in the same type, sizes and shadows, and still give way to airports and stay out from under the panels.
+
 ## 1.26.1 – 2026-11-11 – Following the aircraft without hiccups
 
 - **No more small jumps while following the aircraft.** With country names on, the camera following a plane could jump slightly about once a second, on phones and computers alike. The globe was creating short-lived data on every frame faster than the browser could clear it quietly, so every second or so it paused to tidy up. It now creates less than a third as much, the timeline updates its text about ten times a second instead of on every frame, and following a flight stays smooth.

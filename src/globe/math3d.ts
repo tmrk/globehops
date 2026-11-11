@@ -66,6 +66,24 @@ export function slerpUnit(a: Vector3, b: Vector3, t: number, target = new Vector
 export const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 export const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
 
+/**
+ * The most pixels the globe draws each frame, about a 4K UHD screen. Multisampled (antialiased) drawing costs
+ * the GPU far more than its pixel count beyond about 9 million: on a 144 Hz 5K display a maximised window
+ * (13 million at 2x) took ~10 ms a frame against a 6.9 ms budget and dropped every third frame, while 8.3
+ * million took ~2.5 ms.
+ */
+export const MAX_CANVAS_PIXELS = 3840 * 2160;
+
+/**
+ * The globe canvas's pixel ratio: the device's, at most 2 (finer adds nothing visible), and lowered towards 1
+ * so that a large window stays within MAX_CANVAS_PIXELS.
+ */
+export function canvasPixelRatio(devicePixelRatio: number, width: number, height: number): number {
+  const device = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? Math.min(devicePixelRatio, 2) : 1;
+  const fit = Math.sqrt(MAX_CANVAS_PIXELS / Math.max(1, width * height));
+  return Math.min(device, Math.max(1, fit));
+}
+
 /** Projects into a caller-owned buffer; false means the point is beyond the far clip plane. */
 export function projectToScreen(
   point: Vector3,

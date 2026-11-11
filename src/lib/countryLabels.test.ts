@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   decodeCountryLabels,
+  labelLines,
+  labelText,
   labelStyle,
   mapZoom,
   placeLabels,
@@ -177,5 +179,35 @@ describe('label locales and priority', () => {
       }),
     ).toHaveLength(2);
     expect(() => decodeCountryLabels({ ...raw, labels: [['river', 'A', 'A', 'A', 0, 0, 1, 0]] })).toThrow();
+  });
+});
+
+describe('label text', () => {
+  const label = (kind: CountryLabel['kind'], en: string, hu = en): CountryLabel => ({
+    kind,
+    name: en,
+    names: { en, hu, sv: en },
+    lat: 0,
+    lng: 0,
+    minZoom: 0,
+    rank: 1,
+  });
+
+  it('sets countries and oceans in capitals and keeps seas as written', () => {
+    expect(labelText(label('country', 'Hungary', 'Magyarország'), 'hu')).toBe('MAGYARORSZÁG');
+    expect(labelText(label('sea', 'Bay of Biscay'), 'en')).toBe('Bay of Biscay');
+  });
+
+  it("puts a long ocean name's generic term on a line of its own", () => {
+    expect(labelText(label('ocean', 'North Atlantic Ocean'), 'en')).toBe('NORTH ATLANTIC\nOCEAN');
+    expect(labelText(label('ocean', 'Arctic Ocean'), 'en')).toBe('ARCTIC OCEAN');
+  });
+
+  it('keeps written lines and wraps between words at the width', () => {
+    const width = (line: string) => line.length * 10;
+    expect(labelLines('NORTH ATLANTIC\nOCEAN', Infinity, width)).toEqual(['NORTH ATLANTIC', 'OCEAN']);
+    expect(labelLines('Gulf of Saint Lawrence', 110, width)).toEqual(['Gulf of', 'Saint', 'Lawrence']);
+    expect(labelLines('Mediterranean Sea', 50, width)).toEqual(['Mediterranean', 'Sea']);
+    expect(labelLines('Red Sea', 110, width)).toEqual(['Red Sea']);
   });
 });

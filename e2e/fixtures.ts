@@ -116,3 +116,67 @@ export async function chooseAirport(page: Page, query: string, code: string) {
     .getByRole('option', { name: new RegExp(`^${code}\\b`) })
     .click();
 }
+
+export type PlaceKind = 'country' | 'ocean' | 'sea';
+export interface PlaceName {
+  kind: PlaceKind;
+  name: string;
+  opacity: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** The place names the globe drew in its last frame (they are drawn into the canvas, not the page). */
+export async function placeNames(page: Page, ...kinds: PlaceKind[]): Promise<PlaceName[]> {
+  const names = await page
+    .locator('.globe-view')
+    .evaluate((el) => (el as HTMLElement & { placeNames?: PlaceName[] }).placeNames ?? []);
+  return kinds.length ? names.filter((name) => kinds.includes(name.kind)) : names;
+}
+
+/** Waits until a drawn place name of `kind` matches `name`. */
+export async function expectPlaceName(page: Page, kind: PlaceKind, name: string | RegExp) {
+  await expect
+    .poll(async () =>
+      (await placeNames(page, kind)).some((place) =>
+        typeof name === 'string' ? place.name.includes(name) : name.test(place.name),
+      ),
+    )
+    .toBe(true);
+}
+
+/** Drawn place names that overlap each other or a visible airport label or dot. */
+export async function placeNameOverlaps(page: Page): Promise<string[]> {
+  return page.locator('.globe-view').evaluate((globe) => {
+    const origin = globe.getBoundingClientRect();
+    const names = ((globe as HTMLElement & { placeNames?: PlaceName[] }).placeNames ?? []).map((place) => ({
+      name: place.name,
+      rect: {
+        left: origin.left + place.x0,
+        right: origin.left + place.x1,
+        top: origin.top + place.y0,
+        bottom: origin.top + place.y1,
+      },
+    }));
+    const airports = [...document.querySelectorAll('.globe-marker')]
+      .filter((el) => getComputedStyle(el).visibility !== 'hidden')
+      .flatMap((el) => [...el.querySelectorAll('.globe-marker__label, .globe-marker__dot')])
+      .map((el) => ({ name: el.textContent || 'airport dot', rect: el.getBoundingClientRect() }));
+    const result: string[] = [];
+    for (let i = 0; i < names.length; i++) {
+      const a = names[i];
+      for (const b of [...names.slice(i + 1), ...airports]) {
+        if (
+          a.rect.left < b.rect.right &&
+          a.rect.right > b.rect.left &&
+          a.rect.top < b.rect.bottom &&
+          a.rect.bottom > b.rect.top
+        )
+          result.push(`${a.name} / ${b.name}`);
+      }
+    }
+    return result;
+  });
+}

@@ -1,5 +1,16 @@
 import sharp from 'sharp';
-import { test, expect, expectRoute, chooseAirport, openDisplay, startEditing, basePath } from './fixtures.ts';
+import {
+  test,
+  expect,
+  expectRoute,
+  chooseAirport,
+  openDisplay,
+  startEditing,
+  basePath,
+  expectPlaceName,
+  placeNameOverlaps,
+  placeNames,
+} from './fixtures.ts';
 
 test('WebGL canvas renders varied pixels and airport labels', { tag: '@smoke' }, async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -173,57 +184,34 @@ test('country names are optional, lazy, remembered and do not overlap', async ({
   await expect(page.locator('.stage')).toHaveClass(/is-ready/);
   await openDisplay(page);
   const toggle = page.getByRole('button', { name: 'Country names', exact: true });
-  const names = page.locator('.country-label--country:visible');
+  const countryNames = async () => (await placeNames(page, 'country')).map((place) => place.name);
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-  await expect(names).toHaveCount(0);
+  expect(await countryNames()).toEqual([]);
   expect(requests).toEqual([]);
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => names.count()).toBeGreaterThan(0);
-  await expect(names.filter({ hasText: /^(Greenland|Brazil)$/ }).first()).toBeVisible();
+  await expect.poll(async () => (await countryNames()).length).toBeGreaterThan(0);
+  await expectPlaceName(page, 'country', /^(Greenland|Brazil)$/);
   expect(requests).toHaveLength(1);
 
-  const expectNoOverlap = async () => {
-    const overlaps = await names.evaluateAll((elements) => {
-      const boxes = elements.map((el) => ({ name: el.textContent, rect: el.getBoundingClientRect() }));
-      const airports = [...document.querySelectorAll('.globe-marker')]
-        .filter((el) => getComputedStyle(el).visibility !== 'hidden')
-        .flatMap((el) => [...el.querySelectorAll('.globe-marker__label, .globe-marker__dot')])
-        .map((el) => ({ name: el.textContent || 'airport dot', rect: el.getBoundingClientRect() }));
-      const result: string[] = [];
-      for (let i = 0; i < boxes.length; i++) {
-        const a = boxes[i];
-        for (const b of [...boxes.slice(i + 1), ...airports]) {
-          if (
-            a.rect.left < b.rect.right &&
-            a.rect.right > b.rect.left &&
-            a.rect.top < b.rect.bottom &&
-            a.rect.bottom > b.rect.top
-          )
-            result.push(`${a.name} / ${b.name}`);
-        }
-      }
-      return result;
-    });
-    expect(overlaps).toEqual([]);
-  };
+  const expectNoOverlap = async () => expect(await placeNameOverlaps(page)).toEqual([]);
   await expectNoOverlap();
   await page.screenshot({ path: testInfo.outputPath('country-names.png'), animations: 'disabled' });
   await page.reload();
   await openDisplay(page);
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => names.count()).toBeGreaterThan(0);
+  await expect.poll(async () => (await countryNames()).length).toBeGreaterThan(0);
   await expectNoOverlap();
   // Zooming re-lays out visible labels without permitting text collisions.
   await page.getByRole('application').press('+');
-  await expect.poll(() => names.count()).toBeGreaterThan(0);
+  await expect.poll(async () => (await countryNames()).length).toBeGreaterThan(0);
   await expectNoOverlap();
   await toggle.click();
-  await expect(names).toHaveCount(0);
+  await expect.poll(countryNames).toEqual([]);
   await page.reload();
   await openDisplay(page);
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-  await expect(names).toHaveCount(0);
+  expect(await countryNames()).toEqual([]);
 });
 
 test('invalid country-name data stays decorative and warns only once', async ({ page }) => {
@@ -244,7 +232,7 @@ test('invalid country-name data stays decorative and warns only once', async ({ 
   const toggle = page.getByRole('button', { name: 'Country names', exact: true });
   await toggle.click();
   await expect.poll(() => warnings.length).toBe(1);
-  await expect(page.locator('.country-label:visible')).toHaveCount(0);
+  expect(await placeNames(page)).toEqual([]);
   await toggle.click();
   await toggle.click();
   await page.keyboard.press('Escape');

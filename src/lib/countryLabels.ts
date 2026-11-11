@@ -66,6 +66,93 @@ export function decodeCountryLabels(raw: unknown): CountryLabel[] {
   });
 }
 
+/** How a kind of place name is set. */
+export interface LabelType {
+  italic: boolean;
+  weight: number;
+  /** Letter spacing in em; null takes the stylesheet's tracking for capitals (`--track-caps`). */
+  tracking: number | null;
+  lineHeight: number;
+  uppercase: boolean;
+  color: string;
+  /** Lines wrap between words at this width in em; null keeps each written line whole. */
+  wrapEm: number | null;
+}
+
+/**
+ * Countries in tracked capitals; oceans in italic capitals, with their generic term on a second line; seas in
+ * italic upper and lower case, wrapped at 11 em. Water is as bright as land, so it reads as background.
+ */
+export const LABEL_TYPE: Record<LabelKind, LabelType> = {
+  country: {
+    italic: false,
+    weight: 600,
+    tracking: 0.14,
+    lineHeight: 1.3,
+    uppercase: true,
+    color: 'rgba(244, 241, 234, 0.78)',
+    wrapEm: null,
+  },
+  ocean: {
+    italic: true,
+    weight: 500,
+    tracking: null,
+    lineHeight: 1.45,
+    uppercase: true,
+    color: 'rgba(177, 206, 222, 0.8)',
+    wrapEm: null,
+  },
+  sea: {
+    italic: true,
+    weight: 500,
+    tracking: 0.04,
+    lineHeight: 1.3,
+    uppercase: false,
+    color: 'rgba(177, 206, 222, 0.8)',
+    wrapEm: 11,
+  },
+};
+
+/** Shadows that keep names legible over bright land and cloud, in CSS pixels, the topmost first. */
+export const LABEL_SHADOWS = [
+  { y: 1, blur: 4, color: 'rgba(3, 10, 19, 0.9)' },
+  { y: 0, blur: 10, color: 'rgba(3, 10, 19, 0.5)' },
+] as const;
+
+/** A label's text in a locale, as set: a long ocean name keeps its generic term on a line of its own. */
+export function labelText(label: CountryLabel, locale: LabelLocale): string {
+  const name = label.names[locale];
+  const text =
+    label.kind === 'ocean' && name.length > 12 && name.includes(' ')
+      ? `${name.slice(0, name.lastIndexOf(' '))}\n${name.slice(name.lastIndexOf(' ') + 1)}`
+      : name;
+  return LABEL_TYPE[label.kind].uppercase ? text.toLocaleUpperCase(locale) : text;
+}
+
+/**
+ * Breaks text into lines at its own line breaks, then between words wherever a line would grow wider than
+ * `maxWidth` (a single longer word keeps its own line). `measure` gives a line's width.
+ */
+export function labelLines(text: string, maxWidth: number, measure: (line: string) => number): string[] {
+  const lines: string[] = [];
+  for (const written of text.split('\n')) {
+    if (!(maxWidth < Infinity)) {
+      lines.push(written);
+      continue;
+    }
+    let line = '';
+    for (const word of written.split(' ')) {
+      const longer = line ? `${line} ${word}` : word;
+      if (line && measure(longer) > maxWidth) {
+        lines.push(line);
+        line = word;
+      } else line = longer;
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
 /** CSS pixels per radian, equivalent to a 256px web-map tile at the equator. */
 export function mapZoom(pxPerRadian: number): number {
   return Math.log2((pxPerRadian * 2 * Math.PI) / 256);

@@ -1,4 +1,4 @@
-import { test, expect, atApp } from './fixtures.ts';
+import { test, expect, atApp, expectPlaceName, placeNames } from './fixtures.ts';
 import { hu } from '../src/i18n/messages/hu.ts';
 import { sv } from '../src/i18n/messages/sv.ts';
 
@@ -221,17 +221,15 @@ test.describe('welcome suggestion translations', () => {
     expect(requests).toHaveLength(0);
     await page.getByRole('button', { name: 'Display options', exact: true }).click();
     await page.getByRole('button', { name: 'Oceans and seas', exact: true }).click();
-    await expect(page.locator('.country-label--ocean:visible').filter({ hasText: 'North Atlantic' })).toBeVisible();
+    await expectPlaceName(page, 'ocean', 'North Atlantic');
     await page.getByRole('button', { name: 'Language: English', exact: true }).click();
     await page.getByRole('radio', { name: 'Magyar', exact: true }).click();
     await expect(page.locator('.stop__city').first()).toHaveText('Koppenhága');
-    await expect(
-      page.locator('.country-label--ocean:visible').filter({ hasText: 'Atlanti-óceán' }).first(),
-    ).toBeVisible();
+    await expectPlaceName(page, 'ocean', 'Atlanti-óceán');
     await page.getByRole('button', { name: 'Nyelv: Magyar', exact: true }).click();
     await page.getByRole('radio', { name: 'Svenska', exact: true }).click();
     await expect(page.locator('.stop__city').first()).toHaveText('Köpenhamn');
-    await expect(page.locator('.country-label--ocean:visible').filter({ hasText: 'Atlanten' }).first()).toBeVisible();
+    await expectPlaceName(page, 'ocean', 'Atlanten');
     expect(requests).toHaveLength(1);
     await page.keyboard.press('Escape');
     await page.goto('./hu/?route=');
@@ -277,6 +275,8 @@ for (const [locale, messages, cities, query] of [
     await expect(bar.getByRole('button', { name: messages['timebar.pausePlayback'], exact: true })).toBeVisible();
     await expect(bar.locator('.time-bar__title')).toContainText(locale === 'hu' ? 'Bécs' : 'Wien');
     expect(await bar.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    // Cinematic playback keeps the speed menu with the full timeline.
+    await page.getByRole('button', { name: messages['timebar.showControls'], exact: true }).click();
     await bar.getByRole('combobox', { name: messages['timebar.playbackSpeed'], exact: true }).selectOption('3600');
     await expect(bar.locator('.time-bar__speed')).toContainText(locale === 'hu' ? '1 óra/mp' : '1 h/s');
     const readout = bar.locator('.time-bar__readout');
@@ -286,16 +286,11 @@ for (const [locale, messages, cities, query] of [
     await capture('follow');
     await page.goto(`./${locale}/?route=CPH-JFK&follow=0`);
     await expect(page.locator('.stage')).toHaveClass(/is-ready/);
-    await expect(
-      page
-        .locator('.country-label--ocean:visible')
-        .filter({ hasText: locale === 'hu' ? 'Atlanti-óceán' : 'Atlanten' })
-        .first(),
-    ).toBeVisible();
+    await expectPlaceName(page, 'ocean', locale === 'hu' ? 'Atlanti-óceán' : 'Atlanten');
     await capture('ocean');
     await page.goto(`./${locale}/?route=FCO-ATH&follow=0`);
     await expect(page.locator('.stage')).toHaveClass(/is-ready/);
-    await expect(page.locator('.country-label--sea:visible').first()).toBeVisible();
+    await expect.poll(async () => (await placeNames(page, 'sea')).length).toBeGreaterThan(0);
     await capture('sea');
   });
 }

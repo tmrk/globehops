@@ -1,9 +1,23 @@
-import { Vector3, type PerspectiveCamera } from 'three';
+import {
+  CanvasTexture,
+  Group,
+  LinearFilter,
+  Mesh,
+  PlaneGeometry,
+  ShaderMaterial,
+  Vector3,
+  Vector4,
+  type Object3D,
+  type PerspectiveCamera,
+  type Texture,
+} from 'three';
 import {
   decodeCountryLabels,
   labelStyle,
   labelLocale,
   labelPriority,
+  labelText,
+  type LabelKind,
   type LabelLocale,
   type LabelStyle,
   mapZoom,
@@ -12,13 +26,29 @@ import {
   type LabelRect,
 } from '../lib/countryLabels.ts';
 import { clamp01, LABEL_RADIUS, LABEL_FADE_RANGE, LABEL_FADE_START, latLngToVector3 } from './math3d.ts';
-import { setStyle } from './dom.ts';
+import { createLabelTextPainter, LABEL_TEXT_PAD, type LabelTextBox, type LabelTextPainter } from './labelText.ts';
+
+/** What the layer needs from the WebGL renderer: its pixel ratio, and uploading a texture straight away. */
+export interface LabelRenderer {
+  getPixelRatio(): number;
+  initTexture(texture: Texture): void;
+}
+
+/** A name as placed this frame: its text box in CSS pixels from the globe's top left. */
+export interface PlacedName extends LabelRect {
+  kind: LabelKind;
+  name: string;
+  opacity: number;
+}
 
 interface LabelEntry {
   label: CountryLabel;
+  /** Position in priority order (0 first). */
+  order: number;
+  /** The name as set in the current locale (capitals included). */
+  text: string;
   position: Vector3;
-  el: HTMLSpanElement;
-  sizes: Map<number, { width: number; height: number }>;
+  sizes: Map<number, LabelTextBox>;
   rect: LabelRect;
   x: number;
   y: number;
@@ -27,24 +57,55 @@ interface LabelEntry {
   /** This label's look at the measured zoom: `look` itself, or null while the zoom hides it. */
   style: LabelStyle | null;
   look: LabelStyle;
-  /** What the element shows, so a frame builds style strings only for values that changed. */
-  shown: { x: number; y: number; opacity: number; fontPx: number };
   /** How squarely the label's spot faces the camera this frame (see `surfaceFacing`). */
   facing: number;
-  measure: HTMLSpanElement | null;
+  mesh: Mesh<PlaneGeometry, ShaderMaterial> | null;
+  /** The drawn name: at what size and scale, and its texture's size in CSS pixels. */
+  texture: Texture | null;
+  textureFontPx: number;
+  textureScale: number;
+  textureWidth: number;
+  textureHeight: number;
 }
+
 const NO_INSETS = { top: 0, right: 0, bottom: 0, left: 0 };
 /** Zoom steps finer than this change no label visibly, so a drifting camera need not restyle every frame. */
 const ZOOM_STEP = 0.01;
-/** Decorative HTML layer, updated only by the renderer's existing on-demand frame. */
+/** Above every route line; the airport labels and aircraft stay on the page above the globe. */
+const RENDER_ORDER = 1_000_000;
+/** Setting names is the costly part (blurred shadows), so a frame sets at most this long's worth. */
+const DRAW_BUDGET_MS = 3;
+
+/** A quad drawn straight in clip space: `box` is its centre and size there; the texture is premultiplied. */
+const VERTEX_SHADER = /* glsl */ `
+uniform vec4 box;
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = vec4(box.xy + position.xy * box.zw, 0.0, 1.0);
+}`;
+const FRAGMENT_SHADER = /* glsl */ `
+uniform sampler2D map;
+uniform float opacity;
+varying vec2 vUv;
+void main() {
+  gl_FragColor = texture2D(map, vUv) * opacity;
+}`;
+
+/**
+ * Country, ocean and sea names, drawn by the globe itself: each name it places is a texture (set once per size
+ * with the 2D canvas) on a quad in the same frame as the Earth. As page elements, moving ~100 names a frame
+ * cost a compositing layer each and dropped frames while following an aircraft.
+ */
 export class CountryLabelLayer {
-  private container = document.createElement('div');
+  private group = new Group();
+  private geometry = new PlaneGeometry(1, 1);
   private labels: LabelEntry[] = [];
   private candidates: LabelEntry[] = [];
   private rectangles: LabelRect[] = [];
   private placed: boolean[] = [];
+  private shown: LabelEntry[] = [];
   private projected = new Vector3();
-  private pendingMeasurements: LabelEntry[] = [];
   private measuredZoom = NaN;
   private abort = new AbortController();
   private placesVisible = false;
@@ -52,20 +113,24 @@ export class CountryLabelLayer {
   private locale: LabelLocale = 'en';
   private disposed = false;
   private started = false;
-  private url: string;
-  private requestRender: () => void;
+  private painter: LabelTextPainter | null;
 
-  constructor(parent: HTMLElement, url: string, requestRender: () => void) {
-    this.url = url;
-    this.requestRender = requestRender;
-    this.container.className = 'country-labels';
-    this.container.setAttribute('aria-hidden', 'true');
-    this.container.style.display = 'none';
-    parent.prepend(this.container);
-    // Fonts can finish loading after the first labels are measured. Re-measure once in that case.
-    void document.fonts.ready.then(() => {
+  constructor(
+    scene: Object3D,
+    private renderer: LabelRenderer,
+    private url: string,
+    private requestRender: () => void,
+    styleSource: Element,
+    painter: (onFontLoaded: () => void) => LabelTextPainter | null = (loaded) =>
+      createLabelTextPainter(styleSource, loaded),
+  ) {
+    this.group.name = 'Place names';
+    this.group.visible = false;
+    scene.add(this.group);
+    // A face that arrives later sets every name again, in it.
+    this.painter = painter(() => {
       if (this.disposed) return;
-      for (const entry of this.labels) entry.sizes.clear();
+      this.forgetText();
       this.requestRender();
     });
   }
@@ -75,7 +140,7 @@ export class CountryLabelLayer {
     this.placesVisible = places;
     this.waterVisible = water;
     const visible = places || water;
-    this.container.style.display = visible ? '' : 'none';
+    this.group.visible = visible;
     if (visible && !this.started) void this.load();
     this.requestRender();
   }
@@ -84,21 +149,33 @@ export class CountryLabelLayer {
     const next = labelLocale(locale);
     if (this.disposed || next === this.locale) return;
     this.locale = next;
-    for (const entry of this.labels) {
-      entry.el.textContent = this.text(entry.label);
-      entry.sizes.clear();
-    }
+    for (const entry of this.labels) entry.text = labelText(entry.label, next);
+    this.forgetText();
     this.requestRender();
   }
 
-  private text(label: CountryLabel): string {
-    const name = label.names[this.locale];
-    // Keep the ocean identity together; use a second line for its generic geographic term.
-    if (label.kind === 'ocean' && name.length > 12 && name.includes(' ')) {
-      const split = name.lastIndexOf(' ');
-      return name.slice(0, split) + '\n' + name.slice(split + 1);
+  /** After a lost WebGL context the textures are gone; names are set again as they show. */
+  restore(): void {
+    for (const entry of this.labels) this.releaseTexture(entry);
+    this.requestRender();
+  }
+
+  /** The names placed in the last frame (for tests and diagnostics; worked out when asked). */
+  placedNames(): PlacedName[] {
+    if (!this.group.visible) return [];
+    return this.shown.map((entry) => ({
+      kind: entry.label.kind,
+      name: entry.label.names[this.locale],
+      opacity: entry.opacity,
+      ...entry.rect,
+    }));
+  }
+
+  private forgetText(): void {
+    for (const entry of this.labels) {
+      entry.sizes.clear();
+      this.releaseTexture(entry);
     }
-    return name;
   }
 
   private async load(): Promise<void> {
@@ -109,29 +186,27 @@ export class CountryLabelLayer {
       const raw: unknown = await response.json();
       const labels = decodeCountryLabels(raw);
       if (this.disposed) return;
-      this.labels = labels.sort(labelPriority).map((label) => {
-        const el = document.createElement('span');
-        el.className = `country-label country-label--${label.kind}`;
-        el.textContent = this.text(label);
-        setStyle(el, 'display', 'none');
-        this.container.append(el);
-        return {
-          label,
-          el,
-          position: latLngToVector3(label.lat, label.lng, LABEL_RADIUS),
-          sizes: new Map<number, { width: number; height: number }>(),
-          rect: { x0: 0, y0: 0, x1: 0, y1: 0 },
-          x: 0,
-          y: 0,
-          opacity: 0,
-          fontPx: 0,
-          style: null,
-          look: { opacity: 0, fontPx: 0 },
-          shown: { x: NaN, y: NaN, opacity: NaN, fontPx: NaN },
-          facing: 0,
-          measure: null,
-        };
-      });
+      this.labels = labels.sort(labelPriority).map((label, order) => ({
+        label,
+        order,
+        text: labelText(label, this.locale),
+        position: latLngToVector3(label.lat, label.lng, LABEL_RADIUS),
+        sizes: new Map<number, LabelTextBox>(),
+        rect: { x0: 0, y0: 0, x1: 0, y1: 0 },
+        x: 0,
+        y: 0,
+        opacity: 0,
+        fontPx: 0,
+        style: null,
+        look: { opacity: 0, fontPx: 0 },
+        facing: 0,
+        mesh: null,
+        texture: null,
+        textureFontPx: 0,
+        textureScale: 0,
+        textureWidth: 0,
+        textureHeight: 0,
+      }));
       this.measuredZoom = NaN;
       this.requestRender();
     } catch (error) {
@@ -140,15 +215,14 @@ export class CountryLabelLayer {
     }
   }
 
-  /** Batch all metric writes, then reads, before the renderer places any projected DOM. */
+  /** Works out each label's look and text size for the camera, before the frame draws. */
   measure(cameraObject: PerspectiveCamera, height: number): void {
-    if ((!this.placesVisible && !this.waterVisible) || this.disposed) return;
+    if ((!this.placesVisible && !this.waterVisible) || this.disposed || !this.painter) return;
     const pxPerRadian =
       height / 2 / Math.tan((cameraObject.fov * Math.PI) / 360) / (cameraObject.position.length() - 1);
     const zoom = Math.round(mapZoom(pxPerRadian) / ZOOM_STEP) * ZOOM_STEP;
     const changed = zoom !== this.measuredZoom;
     this.measuredZoom = zoom;
-    this.pendingMeasurements.length = 0;
     const camera = cameraObject.position;
     // Both loops here and in update() run for every label each frame, so they index rather than iterate and
     // write their arithmetic out instead of calling helpers that would box each number they return.
@@ -171,29 +245,15 @@ export class CountryLabelLayer {
       const fontPx = Math.round(style.fontPx * 2) / 2;
       entry.fontPx = fontPx;
       if (entry.sizes.has(fontPx)) continue;
-      if (!entry.measure) {
-        entry.measure = document.createElement('span');
-        entry.measure.className = entry.el.className;
-        entry.measure.style.visibility = 'hidden';
-        entry.measure.style.transform = 'translate3d(-10000px, -10000px, 0)';
-        this.container.append(entry.measure);
-      }
-      entry.measure.textContent = entry.el.textContent;
-      entry.measure.style.fontSize = `${fontPx}px`;
-      entry.measure.style.display = '';
-      this.pendingMeasurements.push(entry);
+      const size = this.painter.measure(entry.text, entry.label.kind, fontPx);
+      if (size) entry.sizes.set(fontPx, size);
     }
-    for (const entry of this.pendingMeasurements) {
-      const measure = entry.measure;
-      if (measure) entry.sizes.set(entry.fontPx, { width: measure.offsetWidth, height: measure.offsetHeight });
-    }
-    for (const entry of this.pendingMeasurements) if (entry.measure) entry.measure.style.display = 'none';
   }
 
   /**
-   * Places labels for the camera measure() saw this frame, around the airport labels' `reserved` boxes and
-   * only within `room`, the part of the view no panel covers (panels are translucent: names beneath them
-   * would show through, and moving them would be wasted work).
+   * Places labels for the camera measure() saw, around the airport labels' `reserved` boxes and only within
+   * `room`, the part of the view no panel covers, and readies their quads for this frame's draw. While the
+   * camera is `settled`, quads sit on whole device pixels so the text is as sharp as the page's.
    */
   update(
     camera: PerspectiveCamera,
@@ -201,7 +261,9 @@ export class CountryLabelLayer {
     height: number,
     reserved: readonly LabelRect[],
     room: { top: number; right: number; bottom: number; left: number } = NO_INSETS,
+    settled = true,
   ): void {
+    this.shown.length = 0;
     if ((!this.placesVisible && !this.waterVisible) || this.disposed) return;
     this.candidates.length = 0;
     this.rectangles.length = 0;
@@ -224,22 +286,19 @@ export class CountryLabelLayer {
         continue;
       }
       const size = entry.sizes.get(entry.fontPx);
-      if (!size) continue;
-      entry.x = Math.round(((p.x + 1) / 2) * width * 10) / 10;
-      entry.y = Math.round(((1 - p.y) / 2) * height * 10) / 10;
-      entry.opacity = Math.round(opacity * 100) / 100;
+      if (!size) {
+        this.hide(entry);
+        continue;
+      }
+      entry.x = ((p.x + 1) / 2) * width;
+      entry.y = ((1 - p.y) / 2) * height;
+      entry.opacity = opacity;
       const r = entry.rect;
       r.x0 = entry.x - size.width / 2;
       r.x1 = entry.x + size.width / 2;
       r.y0 = entry.y - size.height / 2;
       r.y1 = entry.y + size.height / 2;
-      if (
-        r.x0 < room.left ||
-        r.y0 < room.top ||
-        r.x1 > width - room.right ||
-        r.y1 > height - room.bottom ||
-        entry.opacity <= 0
-      ) {
+      if (r.x0 < room.left || r.y0 < room.top || r.x1 > width - room.right || r.y1 > height - room.bottom) {
         this.hide(entry);
         continue;
       }
@@ -247,43 +306,115 @@ export class CountryLabelLayer {
       this.rectangles.push(r);
     }
     const placed = placeLabels(this.rectangles, reserved, this.placed);
+    const scale = this.renderer.getPixelRatio();
+    const deadline = performance.now() + DRAW_BUDGET_MS;
+    let waiting = false;
     for (let i = 0; i < this.candidates.length; i++) {
       const entry = this.candidates[i];
       if (!placed[i]) {
         this.hide(entry);
         continue;
       }
-      const shown = entry.shown;
-      if (shown.x !== entry.x || shown.y !== entry.y) {
-        shown.x = entry.x;
-        shown.y = entry.y;
-        // The stylesheet centres the label with `transform`; `translate` is applied before it, as in a
-        // `translate3d(x, y, 0) translate(-50%, -50%)` chain, but makes a shorter string to build every frame.
-        setStyle(entry.el, 'translate', `${entry.x}px ${entry.y}px`);
+      this.shown.push(entry);
+      // A name whose size changed keeps its last texture, scaled, until its turn to be set again.
+      if (entry.textureFontPx !== entry.fontPx || entry.textureScale !== scale) {
+        if (!entry.texture || performance.now() < deadline) this.drawText(entry, scale);
+        if (entry.textureFontPx !== entry.fontPx || entry.textureScale !== scale) waiting = true;
       }
-      if (shown.opacity !== entry.opacity) {
-        shown.opacity = entry.opacity;
-        setStyle(entry.el, 'opacity', String(entry.opacity));
+      if (!entry.texture || !entry.mesh) {
+        this.hide(entry);
+        continue;
       }
-      if (shown.fontPx !== entry.fontPx) {
-        shown.fontPx = entry.fontPx;
-        setStyle(entry.el, 'fontSize', `${entry.fontPx}px`);
-      }
-      setStyle(entry.el, 'display', '');
+      this.placeQuad(entry, width, height, scale, settled);
     }
+    if (waiting) this.requestRender();
+  }
+
+  /** Sets the name in its current size into a texture, uploaded now because the canvas is shared. */
+  private drawText(entry: LabelEntry, scale: number): void {
+    const canvas = this.painter?.draw(entry.text, entry.label.kind, entry.fontPx, scale);
+    if (!canvas) return;
+    this.releaseTexture(entry);
+    const texture = new CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    texture.premultiplyAlpha = true;
+    this.renderer.initTexture(texture);
+    entry.texture = texture;
+    entry.textureFontPx = entry.fontPx;
+    entry.textureScale = scale;
+    entry.textureWidth = canvas.width / scale;
+    entry.textureHeight = canvas.height / scale;
+    if (!entry.mesh) {
+      const material = new ShaderMaterial({
+        uniforms: { map: { value: texture }, opacity: { value: 0 }, box: { value: new Vector4() } },
+        vertexShader: VERTEX_SHADER,
+        fragmentShader: FRAGMENT_SHADER,
+        transparent: true,
+        premultipliedAlpha: true,
+        depthTest: false,
+        depthWrite: false,
+      });
+      entry.mesh = new Mesh(this.geometry, material);
+      entry.mesh.name = entry.label.name;
+      entry.mesh.frustumCulled = false;
+      entry.mesh.matrixAutoUpdate = false;
+      // Higher-priority names draw last, so where shadows meet theirs stay on top.
+      entry.mesh.renderOrder = RENDER_ORDER + this.labels.length - entry.order;
+      entry.mesh.visible = false;
+      this.group.add(entry.mesh);
+    } else entry.mesh.material.uniforms.map.value = texture;
+  }
+
+  private placeQuad(entry: LabelEntry, width: number, height: number, scale: number, settled: boolean): void {
+    const mesh = entry.mesh;
+    if (!mesh) return;
+    // The texture's text box sits LABEL_TEXT_PAD from its top left; a stale size is scaled to the new one.
+    const k = entry.fontPx / entry.textureFontPx;
+    let left = entry.rect.x0 - LABEL_TEXT_PAD * k;
+    let top = entry.rect.y0 - LABEL_TEXT_PAD * k;
+    if (settled && k === 1) {
+      left = Math.round(left * scale) / scale;
+      top = Math.round(top * scale) / scale;
+    }
+    const w = entry.textureWidth * k;
+    const h = entry.textureHeight * k;
+    const uniforms = mesh.material.uniforms;
+    (uniforms.box.value as Vector4).set(
+      ((left + w / 2) / width) * 2 - 1,
+      1 - ((top + h / 2) / height) * 2,
+      (w / width) * 2,
+      (h / height) * 2,
+    );
+    uniforms.opacity.value = entry.opacity;
+    mesh.visible = true;
   }
 
   private hide(entry: LabelEntry): void {
-    setStyle(entry.el, 'display', 'none');
+    if (entry.mesh) entry.mesh.visible = false;
+  }
+
+  private releaseTexture(entry: LabelEntry): void {
+    entry.texture?.dispose();
+    entry.texture = null;
+    entry.textureFontPx = entry.textureScale = 0;
+    this.hide(entry);
   }
 
   dispose(): void {
     this.disposed = true;
     this.abort.abort();
-    this.container.remove();
+    for (const entry of this.labels) {
+      entry.texture?.dispose();
+      entry.mesh?.material.dispose();
+    }
+    this.group.removeFromParent();
+    this.group.clear();
+    this.geometry.dispose();
     this.labels = [];
     this.candidates = [];
     this.rectangles = [];
-    this.pendingMeasurements = [];
+    this.shown = [];
   }
 }
