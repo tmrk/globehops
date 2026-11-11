@@ -1,4 +1,4 @@
-import { WEB_TOOL_NAMES } from '../src/agent/webTools.ts';
+import { WEB_TOOL_DEFINITIONS, WEB_TOOL_NAMES } from '../src/agent/webTools.ts';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { format } from 'prettier';
@@ -613,8 +613,14 @@ export async function generateAgentFiles(): Promise<Record<string, string>> {
     },
     webMcp: {
       experimental: true,
-      api: 'document.modelContext (AbortSignal cleanup), legacy navigator.modelContext registerTool/unregisterTool or provideContext',
+      api: 'document.modelContext.registerTool(tool, {signal}): plain JSON results, {error} on failure; legacy navigator.modelContext registerTool/unregisterTool or provideContext: MCP text content',
       tools: WEB_TOOL_NAMES,
+      readOnly: WEB_TOOL_DEFINITIONS.filter((tool) => 'annotations' in tool && 'readOnlyHint' in tool.annotations).map(
+        (tool) => tool.name,
+      ),
+      untrustedContent: WEB_TOOL_DEFINITIONS.filter(
+        (tool) => 'annotations' in tool && 'untrustedContentHint' in tool.annotations,
+      ).map((tool) => tool.name),
       network: false,
     },
     locales: ['en', 'hu', 'sv'],

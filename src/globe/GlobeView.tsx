@@ -196,8 +196,8 @@ export default function GlobeView(props: GlobeViewProps) {
       r.setSky(frame.sky);
       r.setAircraft(frame.aircraft);
       r.setFleet(frame.fleet ?? null);
+      // These ask for a draw; one inside the clock's update draws later in that same frame.
       r.setHighlightLeg(frame.highlightLeg);
-      r.flush();
     };
     const unsubscribe = sim.subscribe(update);
     update();

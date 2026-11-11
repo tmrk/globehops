@@ -73,9 +73,10 @@ import { GlobeTextures } from './textures.ts';
 import { AirportLabelLayer } from './airportLabels.ts';
 import { setClass, setStyle } from './dom.ts';
 import { FOLLOW_APPROACH_MS, followBlend, followDistance, followLead } from './followCamera.ts';
-import type { AircraftView, FleetAircraft, Sky } from './simFeed.ts';
+import { sameAircraft, type AircraftView, type FleetAircraft, type Sky } from './simFeed.ts';
 import { moonVantage, SkyBodies } from './skyBodies.ts';
 import { routeGeometrySignature } from './routeGeometry.ts';
+import { appFrames, type FrameScheduler } from '../state/frames.ts';
 
 export type MarkerRole = 'origin' | 'transfer' | 'destination' | 'single';
 
@@ -146,10 +147,18 @@ export interface GlobeRendererOptions {
   onFollowAircraftChange?: (enabled: boolean) => void;
   onFitChange?: (fitsInView: boolean) => void;
   onTextureReady?: (quality: 'preview' | 'full') => void;
+  /** The frame loop to draw in; defaults to the app's, after the simulation clock's update. */
+  frames?: FrameScheduler;
 }
 
 const GLOBE_SEGMENTS = 128;
 const INSET_KEYS = ['top', 'right', 'bottom', 'left'] as const;
+/** Panels' room eases in with this time constant (about a fifth of the way each 60 Hz frame). */
+const INSET_EASE_MS = 67;
+/** OrbitControls damps once per update; this is its share at 60 Hz, scaled to the actual frame time. */
+const ORBIT_DAMPING = 0.09;
+/** Frame time assumed for the first frame after the globe was still. */
+const NOMINAL_FRAME_MS = 1000 / 60;
 const ILLUMINATION_FADE_MS = 360;
 const CAMERA_REPORT_INTERVAL_MS = 100;
 const LEG_HIT_TOLERANCE_PX = 18;
@@ -255,7 +264,13 @@ export class GlobeRenderer {
   /** Camera distance of the empty globe's last automatic fit; null with a route or once the visitor zooms. */
   private emptyFit: number | null = null;
   private drawn = false;
+  private frames: FrameScheduler;
+  /** The pending draw's id in the frame loop, or 0. */
   private frame = 0;
+  /** When the previous frame drew, while the globe keeps animating; null once it rests. */
+  private previousFrameAt: number | null = null;
+  /** When any frame last drew; sharper textures wait until the globe has been still for a moment. */
+  private drawnAt = -Infinity;
   private cameraTween: CameraTween | null = null;
   private reveal: RevealAnim | null = null;
   private planeAnim: PlaneAnim | null = null;
@@ -296,6 +311,7 @@ export class GlobeRenderer {
     private container: HTMLElement,
     private options: GlobeRendererOptions,
   ) {
+    this.frames = options.frames ?? appFrames();
     // The stencil buffer lets translucent border segments blend once where they overlap at joints.
     this.renderer = new WebGLRenderer({
       antialias: true,
@@ -424,7 +440,7 @@ export class GlobeRenderer {
     this.controls = new OrbitControls(this.camera, this.canvas);
     this.controls.enablePan = false;
     this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.09;
+    this.controls.dampingFactor = ORBIT_DAMPING;
     this.controls.zoomSpeed = 0.7;
     this.controls.rotateSpeed = 0.6;
     this.controls.minDistance = MIN_DISTANCE;
@@ -456,6 +472,7 @@ export class GlobeRenderer {
       illuminated: () => this.sky !== null,
       requestRender: this.requestRender,
       onReady: options.onTextureReady,
+      lastDrawAt: () => this.drawnAt,
     });
     void this.textures.load();
     this.skyBodies = new SkyBodies({
@@ -498,18 +515,7 @@ export class GlobeRenderer {
   }
 
   setAircraft(view: AircraftView | null) {
-    const old = this.aircraft;
-    if (
-      (old === null && view === null) ||
-      (old &&
-        view &&
-        old.kind === view.kind &&
-        old.leg === view.leg &&
-        (old.kind === 'air' && view.kind === 'air'
-          ? old.fraction === view.fraction && old.fractionPerSecond === view.fractionPerSecond
-          : old.kind === 'ground' && view.kind === 'ground' && old.at === view.at))
-    )
-      return;
+    if (sameAircraft(this.aircraft, view)) return;
     this.aircraft = view ? { ...view } : null;
     if (!view) {
       if (this.followAircraft) this.cancelTween();
@@ -813,7 +819,7 @@ export class GlobeRenderer {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
-    cancelAnimationFrame(this.frame);
+    this.frames.cancel(this.frame);
     this.resizeObserver.disconnect();
     this.borderAbort.abort();
     this.controls.removeEventListener('start', this.onControlsStart);
@@ -856,18 +862,19 @@ export class GlobeRenderer {
   // ---------------------------------------------------------------------------------------------
   // Rendering loop
 
+  /**
+   * Draws in the frame loop's render phase: right after the simulation clock's update when that asks for it,
+   * so the aircraft, trail and labels show the frame's own time and each frame draws once.
+   */
   requestRender = () => {
     if (this.disposed || this.contextLost || this.frame) return;
-    this.frame = requestAnimationFrame(this.renderFrame);
+    this.frame = this.frames.request('render', this.renderFrame);
   };
 
-  /**
-   * Draws a pending frame now. Simulation updates arrive inside the clock's animation frame; drawing
-   * there (instead of in the next one) keeps the aircraft, trail and labels in step with the clock.
-   */
+  /** Draws a pending frame now instead of in the frame loop. */
   flush() {
     if (this.disposed || !this.frame) return;
-    cancelAnimationFrame(this.frame);
+    this.frames.cancel(this.frame);
     this.frame = 0;
     this.renderFrame(performance.now());
   }
@@ -876,8 +883,11 @@ export class GlobeRenderer {
     this.frame = 0;
     if (this.disposed || this.contextLost) return;
     let active = false;
+    // Easing and damping follow elapsed time, so motion keeps its pace at any refresh rate or dropped frame.
+    const elapsed =
+      this.previousFrameAt === null ? NOMINAL_FRAME_MS : Math.min(100, Math.max(0, now - this.previousFrameAt));
 
-    active = this.stepInsets() || active;
+    active = this.stepInsets(elapsed) || active;
     let cameraMoving = this.stepFollowAircraft(now);
     cameraMoving = this.stepTween(now) || cameraMoving;
     active = this.stepReveal(now) || active;
@@ -885,8 +895,10 @@ export class GlobeRenderer {
     active = this.stepIllumination(now) || active;
     active = this.textures.stepLights(now) || active;
     // OrbitControls.update() returns true while damping is still moving the camera.
-    if (!this.cameraTween && !(this.followAircraft && this.aircraft))
+    if (!this.cameraTween && !(this.followAircraft && this.aircraft)) {
+      this.controls.dampingFactor = 1 - (1 - ORBIT_DAMPING) ** (elapsed / NOMINAL_FRAME_MS);
       cameraMoving = this.controls.update() || cameraMoving;
+    }
     active = cameraMoving || active;
     const motion = cameraMoving ? 'moving' : 'settled';
     if (this.container.dataset.cameraMotion !== motion) this.container.dataset.cameraMotion = motion;
@@ -907,6 +919,7 @@ export class GlobeRenderer {
     this.sunView.value.copy(this.sunScene).transformDirection(this.camera.matrixWorldInverse);
     this.renderer.render(this.scene, this.camera);
     this.drawn = true;
+    this.drawnAt = performance.now();
     this.airportLabels.measure();
     this.countryLabels.measure(this.camera, this.height);
     this.updateUserLocation();
@@ -921,6 +934,7 @@ export class GlobeRenderer {
       const view = this.aircraft;
       this.placeAircraft(this.plane, view);
     }
+    this.previousFrameAt = active ? now : null;
     if (active) this.requestRender();
   };
 
@@ -1468,9 +1482,10 @@ export class GlobeRenderer {
     }
   }
 
-  private stepInsets(): boolean {
+  private stepInsets(elapsed: number): boolean {
     const a = this.insets;
     const b = this.targetInsets;
+    const blend = 1 - Math.exp(-elapsed / INSET_EASE_MS);
     let moving = false;
     let changed = false;
     for (const k of INSET_KEYS) {
@@ -1478,7 +1493,7 @@ export class GlobeRenderer {
       if (d === 0) continue;
       changed = true;
       if (Math.abs(d) > 0.5) {
-        a[k] += d * 0.22;
+        a[k] += d * blend;
         moving = true;
       } else a[k] = b[k];
     }
@@ -1537,7 +1552,6 @@ export class GlobeRenderer {
   private updateRotateSpeed() {
     const d = this.camera.position.length();
     this.controls.rotateSpeed = Math.max(0.12, Math.min(0.75, (d - 1) * 0.28));
-    this.controls.zoomSpeed = 0.7;
   }
 
   private resize() {
@@ -1653,8 +1667,9 @@ export class GlobeRenderer {
   private onContextLost = (e: Event) => {
     e.preventDefault();
     this.contextLost = true;
-    cancelAnimationFrame(this.frame);
+    this.frames.cancel(this.frame);
     this.frame = 0;
+    this.previousFrameAt = null;
   };
 
   private onContextRestored = () => {

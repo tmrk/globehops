@@ -420,7 +420,7 @@
   },
   "webMcp": {
     "experimental": true,
-    "api": "document.modelContext (AbortSignal cleanup), legacy navigator.modelContext registerTool/unregisterTool or provideContext",
+    "api": "document.modelContext.registerTool(tool, {signal}): plain JSON results, {error} on failure; legacy navigator.modelContext registerTool/unregisterTool or provideContext: MCP text content",
     "tools": [
       "import_route",
       "get_journey",
@@ -430,6 +430,8 @@
       "select_flight",
       "get_share_link"
     ],
+    "readOnly": ["get_journey", "get_share_link"],
+    "untrustedContent": ["import_route", "get_journey"],
     "network": false
   },
   "locales": ["en", "hu", "sv"],

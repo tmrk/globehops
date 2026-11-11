@@ -10,8 +10,14 @@ const MAX_ANISOTROPY = 8;
 const CITY_LIGHTS = 1.4;
 const CITY_LIGHTS_FADE_MS = 700;
 const CITY_LIGHTS_UPLOAD_DELAY_MS = 50;
+/** The globe counts as still once it has not drawn for this long. */
+const STILL_MS = 200;
+/** A sharper map or the night lights wait at most this long for the globe to be still. */
+const STILL_DEADLINE_MS = 2000;
 
 type LoadState = 'idle' | 'loading' | 'done';
+const isBitmap = (source: unknown): source is ImageBitmap =>
+  typeof ImageBitmap !== 'undefined' && source instanceof ImageBitmap;
 interface TextureContext {
   material: MeshLambertMaterial;
   capabilities: { maxTextureSize: number; getMaxAnisotropy(): number };
@@ -21,6 +27,12 @@ interface TextureContext {
   illuminated(): boolean;
   requestRender(): void;
   onReady: GlobeRendererOptions['onTextureReady'];
+  /**
+   * When the globe last drew (performance.now() time). Uploading a large texture or compiling a shader takes
+   * a frame or several, so changes that only add detail wait until the globe stands still. Without it they
+   * apply at once.
+   */
+  lastDrawAt?(): number;
 }
 
 /**
@@ -41,6 +53,11 @@ export class GlobeTextures {
   private lightsState: LoadState = 'idle';
   private lightsFadeStart: number | null = null;
   private moonMap: Promise<Texture | null> | null = null;
+  /** A sharper day map waiting for the globe to be still, and the night lights' arrival. */
+  private pendingMap: { texture: Texture; quality: number } | null = null;
+  private pendingLights: (() => void) | null = null;
+  private stillSince: number | null = null;
+  private stillTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private context: TextureContext) {}
 
@@ -97,12 +114,16 @@ export class GlobeTextures {
     void this.decode(url, NoColorSpace)
       .then((texture) => {
         if (!texture || this.disposed) return;
-        this.context.material.emissiveMap = texture;
-        this.context.material.needsUpdate = true;
-        this.context.cityLights.value = this.context.reducedMotion() ? CITY_LIGHTS : 0;
-        // Let the shader upload finish before starting the fade.
-        if (!this.context.reducedMotion()) this.lightsFadeStart = performance.now() + CITY_LIGHTS_UPLOAD_DELAY_MS;
-        this.context.requestRender();
+        // Adding the map recompiles the globe's shader, so it waits for a still moment too.
+        this.pendingLights = () => {
+          this.context.material.emissiveMap = texture;
+          this.context.material.needsUpdate = true;
+          this.context.cityLights.value = this.context.reducedMotion() ? CITY_LIGHTS : 0;
+          // Let the shader upload finish before starting the fade.
+          if (!this.context.reducedMotion()) this.lightsFadeStart = performance.now() + CITY_LIGHTS_UPLOAD_DELAY_MS;
+          this.context.requestRender();
+        };
+        this.whenStill();
       })
       .catch((error: unknown) => {
         if (!this.disposed) console.warn('City lights unavailable', error);
@@ -129,14 +150,39 @@ export class GlobeTextures {
     return t < 1;
   }
 
+  /**
+   * Decodes off the main thread where the browser can: uploading an `<img>` to the GPU makes it decode the
+   * image again, synchronously (most of a second for the 8K map), while an ImageBitmap uploads directly.
+   */
   private async decode(url: string, colorSpace: ColorSpace = SRGBColorSpace): Promise<Texture | null> {
-    const image = new Image();
-    image.decoding = 'async';
-    image.src = url;
-    await image.decode();
+    let source: ImageBitmap | HTMLImageElement;
+    if (typeof createImageBitmap === 'function' && typeof fetch === 'function') {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status} loading ${url}`);
+      source = await createImageBitmap(await response.blob(), {
+        premultiplyAlpha: 'none',
+        // As three.js uploads an <img>: the browser's colour conversion for colour maps, none for data.
+        colorSpaceConversion: colorSpace === NoColorSpace ? 'none' : 'default',
+      });
+    } else {
+      source = new Image();
+      source.decoding = 'async';
+      source.src = url;
+      await source.decode();
+    }
     // Decoding cannot be cancelled. Never create a GPU resource after teardown.
-    if (this.disposed) return null;
-    const texture = new Texture(image);
+    if (this.disposed) {
+      if (isBitmap(source)) source.close();
+      return null;
+    }
+    const texture = new Texture(source);
+    if (isBitmap(source)) {
+      // WebGL ignores flipY for bitmaps, and not every browser honours createImageBitmap's own flip:
+      // keep the bitmap as decoded and turn the texture coordinates upside down instead.
+      texture.flipY = false;
+      texture.repeat.y = -1;
+      texture.offset.y = 1;
+    }
     texture.colorSpace = colorSpace;
     texture.anisotropy = Math.min(MAX_ANISOTROPY, this.context.capabilities.getMaxAnisotropy());
     texture.needsUpdate = true;
@@ -144,11 +190,41 @@ export class GlobeTextures {
     return texture;
   }
 
+  /** A first map shows at once; a sharper one replaces it when the globe is still. */
   private apply(texture: Texture, quality: number): void {
-    if (this.disposed || quality <= this.quality) {
+    if (this.disposed || quality <= Math.max(this.quality, this.pendingMap?.quality ?? 0)) {
       this.release(texture);
       return;
     }
+    if (!this.context.material.map) {
+      this.swap(texture, quality);
+      return;
+    }
+    if (this.pendingMap) this.release(this.pendingMap.texture);
+    this.pendingMap = { texture, quality };
+    this.whenStill();
+  }
+
+  /** Applies waiting changes once the globe has not drawn for a moment, or after the deadline regardless. */
+  private whenStill(): void {
+    if (this.disposed || (!this.pendingMap && !this.pendingLights)) return;
+    const now = performance.now();
+    this.stillSince ??= now;
+    const drawnAt = this.context.lastDrawAt?.() ?? -Infinity;
+    clearTimeout(this.stillTimer);
+    if (now - drawnAt < STILL_MS && now - this.stillSince < STILL_DEADLINE_MS) {
+      this.stillTimer = setTimeout(() => this.whenStill(), STILL_MS / 2);
+      return;
+    }
+    this.stillSince = null;
+    const map = this.pendingMap;
+    const lights = this.pendingLights;
+    this.pendingMap = this.pendingLights = null;
+    if (map) this.swap(map.texture, map.quality);
+    lights?.();
+  }
+
+  private swap(texture: Texture, quality: number): void {
     const previous = this.context.material.map;
     this.quality = quality;
     this.context.material.map = texture;
@@ -169,7 +245,10 @@ export class GlobeTextures {
   }
 
   private release(texture: Texture): void {
-    if (this.textures.delete(texture)) texture.dispose();
+    if (!this.textures.delete(texture)) return;
+    texture.dispose();
+    // A bitmap holds its decoded pixels until closed; it stays open while its texture may be uploaded again.
+    if (isBitmap(texture.image)) texture.image.close();
   }
 
   restore(): void {
@@ -180,8 +259,9 @@ export class GlobeTextures {
     if (this.disposed) return;
     this.disposed = true;
     cancelAnimationFrame(this.retirementFrame);
-    for (const texture of this.textures) texture.dispose();
-    this.textures.clear();
+    clearTimeout(this.stillTimer);
+    this.pendingMap = this.pendingLights = null;
+    for (const texture of [...this.textures]) this.release(texture);
     this.retired.clear();
     this.context.material.map = null;
     this.context.material.emissiveMap = null;

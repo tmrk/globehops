@@ -242,6 +242,15 @@ const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   get_journey_timeline:
     'Sample 2–1000 instants (or up to 1000 explicit ISO instants with offsets): state, latitude/longitude in degrees, track altitude when available, otherwise illustrative altitude in km, and daylight. Undated routes require assumeDeparture; a single stop has no timeline.',
 };
+const TOOL_TITLES: Record<ToolName, string> = {
+  import_route: 'Import a flight path',
+  search_airports: 'Search airports',
+  compare_journeys: 'Compare journeys',
+  calculate_route: 'Calculate a route',
+  validate_itinerary: 'Validate an itinerary',
+  visualize_route: 'Visualise on the globe',
+  get_journey_timeline: 'Journey timeline',
+};
 function result(value: Record<string, unknown>, isError = false): CallToolResult {
   return {
     structuredContent: value,
@@ -721,6 +730,7 @@ export function registerTools(server: McpServer, ctx: AgentContext) {
     server.registerTool(
       name,
       {
+        title: TOOL_TITLES[name],
         description: TOOL_DESCRIPTIONS[name],
         inputSchema: INPUT_SCHEMAS[name],
         outputSchema: OUTPUT_SCHEMAS[name],

@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import type { ComparedJourney } from '../lib/compare.ts';
 import { comparisonSegments } from '../lib/compareView.ts';
 
-export function ComparisonStrip({
+/** Memoised: the playing timeline re-renders every frame, but a journey's strip only changes with its journeys. */
+export const ComparisonStrip = memo(function ComparisonStrip({
   entry,
   list,
   range,
@@ -24,4 +25,4 @@ export function ComparisonStrip({
       ))}
     </span>
   );
-}
+});

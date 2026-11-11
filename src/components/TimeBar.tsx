@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { compareMetrics, comparisonRange, type ComparedJourney } from '../lib/compare.ts';
 import { ComparisonLanes, TripComparisonLanes } from './ComparisonLanes.tsx';
 import type { ComparedTrip, TripComparisonMetrics, TripComparisonTimeline } from '../lib/compareTrips.ts';
@@ -274,10 +274,18 @@ export function TimeBar({
   // A whole trip shows its stays as short breaks, so flights stay readable; other timelines are linear in ms.
   const stays = trip && trip.scope === null ? trip.trip.timeline?.stays : trips?.timeline.gaps;
   const axis = useMemo(() => (stays?.length ? composedAxis(start, end, stays) : null), [stays, start, end]);
-  const scale = axis
-    ? { min: 0, max: axis.length, step: 1, toPos: axis.toPos, toTime: axis.toTime }
-    : { min: start, max: end, step: 60000, toPos: (time: number) => time, toTime: (pos: number) => pos };
-  const at = (time: number) => (100 * (scale.toPos(time) - scale.min)) / Math.max(1, scale.max - scale.min);
+  // Stable while the range is, so the parts drawn from it can skip the re-render of each playing frame.
+  const scale = useMemo(
+    () =>
+      axis
+        ? { min: 0, max: axis.length, step: 1, toPos: axis.toPos, toTime: axis.toTime }
+        : { min: start, max: end, step: 60000, toPos: (time: number) => time, toTime: (pos: number) => pos },
+    [axis, start, end],
+  );
+  const at = useCallback(
+    (time: number) => (100 * (scale.toPos(time) - scale.min)) / Math.max(1, scale.max - scale.min),
+    [scale],
+  );
   // Skipping a stay, time holds at the arrival while the thumb glides across the break, landing where
   // playback continues; reduced motion jumps instead.
   const skipping = axis ? snapshot.skipping : null;
@@ -310,22 +318,35 @@ export function TimeBar({
         `#000 ${at(axis.breaks[axis.breaks.length - 1].end)}% 100%`,
       ].join(', ')})`
     : undefined;
-  const trackSegments = trip
-    ? (trip.scope === null
-        ? trip.trip.timeline?.sections
-        : trip.trip.timeline?.sections.filter((s) => s.index === trip.scope)
-      )?.flatMap((entry) =>
-        entry.timeline.segments.map((segment) => ({
-          ...segment,
-          color: segment.kind === 'flight' ? legColor(entry.legOffset + segment.leg) : undefined,
-        })),
-      )
-    : !comparison && !trips
-      ? timeline?.segments.map((segment) => ({
-          ...segment,
-          color: segment.kind === 'flight' ? legColor(segment.leg ?? 0) : undefined,
-        }))
-      : undefined;
+  const trackSegments = useMemo(() => {
+    const segments = trip
+      ? (trip.scope === null
+          ? trip.trip.timeline?.sections
+          : trip.trip.timeline?.sections.filter((s) => s.index === trip.scope)
+        )?.flatMap((entry) =>
+          entry.timeline.segments.map((segment) => ({
+            ...segment,
+            color: segment.kind === 'flight' ? legColor(entry.legOffset + segment.leg) : undefined,
+          })),
+        )
+      : !comparison && !trips
+        ? timeline?.segments.map((segment) => ({
+            ...segment,
+            color: segment.kind === 'flight' ? legColor(segment.leg ?? 0) : undefined,
+          }))
+        : undefined;
+    return segments?.map((segment, index) => (
+      <span
+        key={index}
+        className={`time-bar__segment time-bar__segment--${segment.kind}`}
+        style={{
+          left: `${at(segment.start)}%`,
+          width: `${at(segment.end) - at(segment.start)}%`,
+          backgroundColor: segment.color,
+        }}
+      />
+    ));
+  }, [trip, comparison, trips, timeline, at]);
   const playLabel = snapshot.playing
     ? t('timebar.pausePlayback')
     : comparison || trips
@@ -391,19 +412,7 @@ export function TimeBar({
               className={`time-bar__progress-layer${elapsed ? ' is-elapsed' : ''}`}
               style={elapsed ? { clipPath: `inset(0 ${Math.max(0, 100 - thumbAt)}% 0 0)` } : undefined}
             >
-              {trackSegments ? (
-                trackSegments.map((segment, index) => (
-                  <span
-                    key={index}
-                    className={`time-bar__segment time-bar__segment--${segment.kind}`}
-                    style={{
-                      left: `${at(segment.start)}%`,
-                      width: `${at(segment.end) - at(segment.start)}%`,
-                      backgroundColor: segment.color,
-                    }}
-                  />
-                ))
-              ) : (
+              {trackSegments ?? (
                 <span
                   className="time-bar__segment"
                   style={{ left: 0, width: '100%', backgroundColor: 'var(--accent)' }}
@@ -513,17 +522,7 @@ export function TimeBar({
           aria-hidden="true"
           style={trackGaps ? { maskImage: trackGaps, WebkitMaskImage: trackGaps } : undefined}
         >
-          {trackSegments?.map((segment, index) => (
-            <span
-              key={index}
-              className={`time-bar__segment time-bar__segment--${segment.kind}`}
-              style={{
-                left: `${at(segment.start)}%`,
-                width: `${at(segment.end) - at(segment.start)}%`,
-                backgroundColor: segment.color,
-              }}
-            />
-          ))}
+          {trackSegments}
         </div>
         {axis && (
           <div className="time-bar__breaks" aria-hidden="true">

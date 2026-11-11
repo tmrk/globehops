@@ -44,3 +44,11 @@ export interface SimulationFeed {
   /** Stable until the frame changes. */
   getFrame(): SimFrame;
 }
+
+/** Whether two aircraft views place the aircraft identically (and predict the same camera lead). */
+export function sameAircraft(a: AircraftView | null, b: AircraftView | null): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.leg !== b.leg) return false;
+  if (a.kind === 'ground') return b.kind === 'ground' && a.at === b.at;
+  return b.kind === 'air' && a.fraction === b.fraction && a.fractionPerSecond === b.fractionPerSecond;
+}

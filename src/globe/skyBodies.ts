@@ -1,6 +1,7 @@
 import {
   AdditiveBlending,
   Group,
+  Matrix3,
   Matrix4,
   Mesh,
   PlaneGeometry,
@@ -129,17 +130,24 @@ export class SkyBodies {
     this.moon = new Mesh(
       new SphereGeometry(MOON_RADIUS, 48, 24),
       new ShaderMaterial({
-        uniforms: { uMap: { value: null }, uSun: { value: options.sunDirection }, uFade: options.fade },
+        uniforms: {
+          uMap: { value: null },
+          uMapTransform: { value: new Matrix3() },
+          uSun: { value: options.sunDirection },
+          uFade: options.fade,
+        },
         transparent: true,
         vertexShader: /* glsl */ `
           varying vec3 vNormal;
           varying vec3 vWorld;
           varying vec2 vUv;
+          uniform mat3 uMapTransform;
           void main() {
             vec4 world = modelMatrix * vec4(position, 1.0);
             vWorld = world.xyz;
             vNormal = normalize(mat3(modelMatrix) * normal);
-            vUv = uv;
+            // The texture's own offset/repeat, as built-in materials apply them (a decoded bitmap is flipped).
+            vUv = (uMapTransform * vec3(uv, 1.0)).xy;
             gl_Position = projectionMatrix * viewMatrix * world;
           }`,
         fragmentShader: /* glsl */ `
@@ -287,7 +295,9 @@ export class SkyBodies {
     this.sun.material.uniforms.uSize.value = this.options.far * 0.9 * Math.tan(angularRadius) * GLARE_RADII;
     this.map ??= this.options.loadMoonMap().then((texture) => {
       if (!texture || this.disposed) return;
+      texture.updateMatrix();
       this.moon.material.uniforms.uMap.value = texture;
+      this.moon.material.uniforms.uMapTransform.value = texture.matrix;
       this.moon.visible = true;
       this.options.requestRender();
     });

@@ -63,6 +63,9 @@ const fleet: FleetAircraft[] = [
 
 let container: HTMLDivElement;
 let renderer: GlobeRenderer;
+let frameId = 0;
+/** The renderer's frame loop; tests draw with flush() instead of running frames. */
+const frames = { request: vi.fn(() => ++frameId), cancel: vi.fn() };
 const state = () => renderer as unknown as RenderState;
 const planes = () => [...container.querySelectorAll<HTMLElement>('.globe-plane')];
 
@@ -96,6 +99,7 @@ beforeEach(() => {
     showCountryLabels: false,
     showWaterLabels: false,
     reducedMotion: true,
+    frames,
   });
   renderer.setRoute(route, { animate: false, frame: false });
 });
@@ -272,10 +276,10 @@ describe('fleet renderer', () => {
     renderer.setFleet(fleet);
     renderer.flush();
     renderer.flush();
-    vi.mocked(requestAnimationFrame).mockClear();
+    frames.request.mockClear();
     renderer.flush();
     renderer.setFleet(fleet);
-    expect(requestAnimationFrame).not.toHaveBeenCalled();
+    expect(frames.request).not.toHaveBeenCalled();
   });
 });
 
@@ -317,14 +321,14 @@ it('suspends frame scheduling until a lost WebGL context is restored', async () 
   await Promise.resolve();
   renderer.flush();
   state().renderer.render.mockClear();
-  vi.mocked(requestAnimationFrame).mockClear();
+  frames.request.mockClear();
   const lost = new Event('webglcontextlost', { cancelable: true });
   renderer.canvas.dispatchEvent(lost);
   expect(lost.defaultPrevented).toBe(true);
   renderer.setAircraft(fleet[0].view);
   renderer.flush();
   renderer.requestRender();
-  expect(requestAnimationFrame).not.toHaveBeenCalled();
+  expect(frames.request).not.toHaveBeenCalled();
   expect(state().renderer.render).not.toHaveBeenCalled();
   renderer.canvas.dispatchEvent(new Event('webglcontextrestored'));
   renderer.flush();

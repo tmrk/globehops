@@ -1,3 +1,5 @@
+import { appFrames } from './frames.ts';
+
 export type PlaybackSpeed = 'auto' | 1800 | 3600 | 7200;
 /** Live time follows the wall clock: twice a minute for the ambient globe, every second while tracking a journey. */
 export const AMBIENT_TICK_MS = 30_000;
@@ -33,6 +35,7 @@ export interface PlaybackSkipState extends PlaybackSkip {
 /** Real time playback lingers at a skip before jumping, so the arrival and the jump both read. */
 export const SKIP_DWELL_MS = 1000;
 export interface ClockDependencies {
+  /** Defaults to the update phase of the app's shared frame loop, so the globe draws each frame once after it. */
   now?: () => number;
   requestFrame?: (cb: (t: number) => void) => number;
   cancelFrame?: (id: number) => void;
@@ -54,8 +57,8 @@ export class SimulationClock {
   constructor(deps: ClockDependencies = {}) {
     this.deps = {
       now: deps.now ?? Date.now,
-      requestFrame: deps.requestFrame ?? ((cb) => globalThis.requestAnimationFrame(cb)),
-      cancelFrame: deps.cancelFrame ?? ((id) => globalThis.cancelAnimationFrame(id)),
+      requestFrame: deps.requestFrame ?? ((cb) => appFrames().request('update', cb)),
+      cancelFrame: deps.cancelFrame ?? ((id) => appFrames().cancel(id)),
       setTimeout: deps.setTimeout ?? ((cb, ms) => globalThis.setTimeout(cb, ms)),
       clearTimeout: deps.clearTimeout ?? ((id) => globalThis.clearTimeout(id)),
     };

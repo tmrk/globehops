@@ -2,6 +2,12 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.26.0 – 2026-11-11 – Smoother motion and clearer tools for assistants
+
+- **Smoother playback and camera moves.** The globe now draws each frame once, straight after the clock moves, instead of sometimes twice. Panels over the globe no longer blur what is behind them, a blur the browser had to redo on every frame, so playing with the full timeline, following the aircraft and turning the globe keep a steady frame rate. The globe's momentum after a drag, and its glide when panels open or close, now keep the same pace on 60 Hz, 120 Hz and faster screens.
+- **No more freeze when zooming in.** On computers, the sharper Earth imagery that loads as you zoom in used to stop the globe for most of a second. It is now decoded in the background and swapped in once the globe is still, and the night lights arrive the same way.
+- **For assistants.** The in-page browser tools follow the latest WebMCP draft: each has a title and hints (the reading tools are marked read-only, and results that can carry names from someone else's link or file are marked as untrusted content), results arrive as plain data and an assistant can cancel a call. The local MCP server's tools have titles too, `llms.txt` is tidier, and a new `robots.txt` says that search engines and AI assistants are welcome.
+
 ## 1.25.1 – 2026-11-11 – Play stays a sign, and a roomier timeline
 
 - **Play stays the amber sign.** The timeline's Play no longer turns back into a small round button after the first Play: it stays the amber sign, reading **Pause** while the journey plays, at one width. The small player keeps it as a square sign with just its mark.

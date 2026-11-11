@@ -13,6 +13,7 @@ import {
   zoneAbbreviation,
 } from '../lib/timezone.ts';
 import { TRACKING_TICK_MS, type SimulationClock } from '../state/clock.ts';
+import { appFrames } from '../state/frames.ts';
 import { DateTimeField } from './DateTimeField.tsx';
 import { IconChevronDown } from './Icons.tsx';
 import { LiveButton } from './LiveButton.tsx';
@@ -76,24 +77,25 @@ export function TimeDial({
   const drag = useRef<{ x: number; from: number; last: number; at: number; velocity: number } | null>(null);
   const fling = useRef(0);
   const stopFling = () => {
-    cancelAnimationFrame(fling.current);
+    appFrames().cancel(fling.current);
     fling.current = 0;
   };
   useEffect(() => stopFling, []);
   const seek = (next: number) => onSeek(clampTime(next));
 
+  // Momentum moves time in the frame loop's update, so the globe draws each step in the same frame.
   const startFling = (from: number, velocity: number) => {
-    let previous = performance.now();
+    let previous: number | null = null;
     let position = from;
     const step = (now: number) => {
-      const elapsed = now - previous;
+      const elapsed = previous === null ? 1000 / 60 : now - previous;
       previous = now;
       velocity *= Math.exp(-elapsed / FLING_DECAY_MS);
       position = clampTime(position + velocity * elapsed);
       onSeek(position);
-      fling.current = Math.abs(velocity) / MS_PER_PX > 0.02 ? requestAnimationFrame(step) : 0;
+      fling.current = Math.abs(velocity) / MS_PER_PX > 0.02 ? appFrames().request('update', step) : 0;
     };
-    fling.current = requestAnimationFrame(step);
+    fling.current = appFrames().request('update', step);
   };
 
   // Hour ticks in the zone's offset at the needle, labelled every three hours and with the day at midnight.

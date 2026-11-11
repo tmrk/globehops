@@ -27,10 +27,17 @@ export type WebCommand =
   | { type: 'set_view'; view: Partial<LinkView> }
   | { type: 'select_flight'; leg: number | null };
 const emptySchema = { type: 'object', properties: {}, additionalProperties: false };
+/**
+ * WebMCP hints: reading tools change nothing, and a journey or an import can carry text from a link or file
+ * someone else wrote (journey, track and waypoint names), which agents should treat as data.
+ */
+const untrusted = { untrustedContentHint: true } as const;
 const { time: instantSchema, ...viewProperties } = ITINERARY_SCHEMA.properties.view.properties;
 export const WEB_TOOL_DEFINITIONS = [
   {
     name: 'import_route',
+    title: 'Import a flight path',
+    annotations: untrusted,
     description:
       'Parse flight-file text or an aviation route string locally, then show its paths on the globe. Supports GPX, KML, GeoJSON, CSV, IGC, Garmin FPL and MSFS/Little Navmap PLN. mode compare adds one imported journey to the current alternatives; replace loads connected flights as journeys and open jaws as trip sections. Returns flights, warnings and a share link; long share paths may be simplified. KMZ binary input is available through local MCP only.',
     inputSchema: {
@@ -47,12 +54,15 @@ export const WEB_TOOL_DEFINITIONS = [
   },
   {
     name: 'get_journey',
+    title: 'Read the journey',
+    annotations: { readOnlyHint: true, ...untrusted },
     description:
       'Read each flight path (generated/planned/recorded, distance and point count), the live journey, km/mi totals, airport-local and UTC times, issues, view and share link. In compare mode also returns comparison.',
     inputSchema: emptySchema,
   },
   {
     name: 'set_route',
+    title: 'Show a route',
     description:
       'Replace the route with 1–10 airport codes (transfer suffix _minutes), or an itinerary v1 document (sections for a round trip or multi-stage trip with explicit stays). Stops may carry planned or recorded custom tracks; recorded times anchor missing endpoints. Local times belong to each airport. Supply exactly one input; an empty route clears the journey.',
     inputSchema: {
@@ -64,12 +74,14 @@ export const WEB_TOOL_DEFINITIONS = [
   },
   {
     name: 'compare_journeys',
+    title: 'Compare journeys',
     description:
       'Compare 2–4 alternative journeys or round trips on one shared clock. Use airport-local timetable times; undated alternatives align to the earliest dated departure. Replaces the route for this visit.',
     inputSchema: COMPARISON_INPUT_SCHEMA,
   },
   {
     name: 'set_view',
+    title: 'Change the view',
     description:
       'Patch the view for this visit. t is an ISO instant with offset; speed is simulation seconds per second (auto ≈15s journey). airspace/diversion switch restricted-airspace avoidance and diversion-aware routing for the visit. In a trip, leg counts flights across its journeys. Explicit play is a user-requested action. No preferences are saved.',
     inputSchema: {
@@ -82,6 +94,7 @@ export const WEB_TOOL_DEFINITIONS = [
   },
   {
     name: 'select_flight',
+    title: 'Select a flight',
     description: 'Frame a one-based flight number; null restores the route overview.',
     inputSchema: {
       type: 'object',
@@ -92,6 +105,8 @@ export const WEB_TOOL_DEFINITIONS = [
   },
   {
     name: 'get_share_link',
+    title: 'Get a share link',
+    annotations: { readOnlyHint: true },
     description:
       'Return a share URL with the current view and open timeline instant/play state; a live globe remains live. Never writes playback frames to history.',
     inputSchema: emptySchema,

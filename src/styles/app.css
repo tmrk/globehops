@@ -5,7 +5,7 @@
 :root {
   color-scheme: dark;
   --bg: #04060c;
-  --surface: rgba(10, 14, 23, 0.9);
+  --surface: rgba(10, 14, 23, 0.93);
   --surface-solid: #0b101a;
   --surface-raised: #111827;
   --hover: rgba(255, 255, 255, 0.055);
@@ -48,7 +48,7 @@
   --col-rail: 24px;
   --col-code: 52px;
   --col-gap: 12px;
-  --surface-float: rgba(9, 13, 22, 0.8);
+  --surface-float: rgba(9, 13, 22, 0.86);
   --surface-float-hover: rgba(22, 29, 44, 0.9);
   --shadow-float: 0 6px 20px rgba(0, 0, 0, 0.35);
   /* Typography. Two families with distinct jobs:
@@ -327,6 +327,8 @@ a {
 
 .globe-plane {
   --plane-color: #fff;
+  /* Moved every frame like the markers; the global reduced-motion duration must not animate it. */
+  transition-property: none;
   position: absolute;
   left: 0;
   top: 0;
@@ -505,8 +507,6 @@ a {
   border: 1px solid var(--line);
   background: var(--surface-float);
   box-shadow: var(--shadow-float);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
   border-radius: var(--radius-full);
 }
 
@@ -611,8 +611,6 @@ a {
   border: 1px solid var(--line-strong);
   background: rgba(15, 20, 31, 0.94);
   box-shadow: var(--shadow);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
   animation: popover-in 0.14s var(--ease);
 }
 
@@ -748,8 +746,6 @@ button.map-menu__item:hover {
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  backdrop-filter: blur(18px) saturate(140%);
 }
 
 /* Phones: a bottom sheet at one of three heights. Half (here) shows the journey beside the globe; the
@@ -2157,8 +2153,6 @@ button.map-menu__item:hover {
   border-radius: var(--radius-full);
   background: var(--surface-float);
   box-shadow: var(--shadow-float);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
 }
 
 .leg-stepper__label {
@@ -2203,8 +2197,6 @@ button.map-menu__item:hover {
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-float);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
   touch-action: none;
 }
 
@@ -2218,8 +2210,6 @@ button.map-menu__item:hover {
   border-radius: var(--radius-sm);
   background: none;
   box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
 .panel:not(.is-collapsed) .time-bar--docked {
@@ -2539,8 +2529,6 @@ button.map-menu__item:hover {
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-float);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
   cursor: pointer;
   animation: launcher-in 0.36s var(--ease);
 }
@@ -2768,8 +2756,6 @@ button.map-menu__item:hover {
   border-radius: var(--radius-sm);
   background: none;
   box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
   animation: sheet-content-in 0.26s var(--ease);
 }
 
@@ -2862,8 +2848,6 @@ button.map-menu__item:hover {
   border-radius: var(--radius-lg);
   background: var(--surface-float);
   box-shadow: var(--shadow-float);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
   pointer-events: auto;
 }
 
@@ -2971,8 +2955,6 @@ button.map-menu__item:hover {
   border-radius: var(--radius-sm);
   background: none;
   box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
   animation: sheet-content-in 0.26s var(--ease);
 }
 
@@ -4058,7 +4040,7 @@ button.map-menu__item:hover {
 
 /* Summary: key in the rail column, routes and bars from the code column, figures flush right. */
 .compare-summary {
-  /* Keep Chromium's text painting separate from the scrolling list under the glass panel. */
+  /* Keep Chromium's text painting separate from the scrolling list under the translucent panel. */
   contain: paint;
 }
 .compare-summary__rows {

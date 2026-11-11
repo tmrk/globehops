@@ -1,0 +1,5 @@
+# GlobeHops is a free, static flight-route visualiser. Search engines and AI agents are welcome to read
+# and link to it; agents should start with /llms.txt, which explains how to build links and use its tools.
+User-agent: *
+Content-Signal: search=yes, ai-input=yes
+Allow: /

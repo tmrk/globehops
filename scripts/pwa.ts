@@ -13,8 +13,8 @@ export function precacheUrl(file: string): string {
   return file === 'index.html' ? '' : file.replace(/\/index\.html$/, '/');
 }
 
-/** Host configuration and the error page are never served as ordinary same-origin app files. */
-const HOST_FILES = new Set(['_headers', '_redirects', '404.html']);
+/** Host and crawler configuration and the error page are never served as ordinary same-origin app files. */
+const HOST_FILES = new Set(['_headers', '_redirects', '404.html', 'robots.txt']);
 
 export function excludedFromPrecache(file: string): boolean {
   return (

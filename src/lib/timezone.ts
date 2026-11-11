@@ -19,7 +19,7 @@ function formatter(zone: string, locale: string, options: Intl.DateTimeFormatOpt
     byOptions = new Map();
     formatters.set(zone, byOptions);
   }
-  const key = JSON.stringify([locale, Object.entries(options).sort(([a], [b]) => a.localeCompare(b))]);
+  const key = JSON.stringify([locale, Object.entries(options).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))]);
   let cached = byOptions.get(key);
   if (!cached) {
     cached = new Intl.DateTimeFormat(locale, { ...options, timeZone: zone, hourCycle: 'h23' });
@@ -242,6 +242,14 @@ export function localDayDifference(a: LocalDateTime, b: LocalDateTime): number {
   return (wallEpoch({ ...b, hour: 0, minute: 0 }) - wallEpoch({ ...a, hour: 0, minute: 0 })) / DAY;
 }
 
+let deviceZone: { zone: string; readAt: number } | null = null;
+/**
+ * The device's time zone. Clocks ask for it every animation frame, so it is read again (building a
+ * formatter) at most once a second; a zone changed in the system settings still shows up promptly.
+ */
 export function browserTimeZone(): string {
-  return new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const now = Date.now();
+  if (!deviceZone || Math.abs(now - deviceZone.readAt) >= 1000)
+    deviceZone = { zone: new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', readAt: now };
+  return deviceZone.zone;
 }

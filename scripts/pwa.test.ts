@@ -15,6 +15,7 @@ describe('precache manifest', () => {
       '_headers',
       '_redirects',
       '404.html',
+      'robots.txt',
       'a.js.map',
       '.DS_Store',
       'a/.DS_Store',

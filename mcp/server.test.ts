@@ -39,6 +39,8 @@ describe('real stdio MCP server', () => {
       for (const tool of list.tools) {
         expect(tool.inputSchema.type).toBe('object');
         expect(tool.outputSchema).toBeDefined();
+        expect(tool.title).toMatch(/^[A-Z]/);
+        expect(tool.annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false });
       }
       const calls = [
         ['import_route', { text: 'EGLL CPT KJFK' }],

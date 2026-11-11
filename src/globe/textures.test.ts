@@ -185,3 +185,74 @@ describe('progressive globe textures', () => {
     expect(frames.size).toBe(0);
   });
 });
+
+describe('texture uploads that keep motion smooth', () => {
+  it('decodes to bitmaps off the main thread, flips their coordinates and closes them when released', async () => {
+    class FakeBitmap {
+      width = 2;
+      height = 1;
+      close = vi.fn();
+    }
+    vi.stubGlobal('ImageBitmap', FakeBitmap);
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => new FakeBitmap()),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, blob: async () => new Blob() })),
+    );
+    await textures.load();
+    const map = material.map!;
+    expect(map.image).toBeInstanceOf(FakeBitmap);
+    expect([map.flipY, map.repeat.y, map.offset.y]).toEqual([false, -1, 1]);
+    const bitmap = map.image as FakeBitmap;
+    textures.dispose();
+    expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
+  it('swaps in a sharper map only once the globe is still, or after a deadline', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+    let drawnAt = -Infinity;
+    const still = new GlobeTextures({
+      material,
+      capabilities: { maxTextureSize: 8192, getMaxAnisotropy: () => 16 },
+      urls: { preview: 'a1k', medium: 'a4k', large: 'a8k', lightsSmall: 'l2k', lightsLarge: 'l4k', moon: 'm' },
+      cityLights: { value: 0 },
+      reducedMotion: () => false,
+      illuminated: () => false,
+      requestRender: vi.fn(),
+      onReady: vi.fn(),
+      lastDrawAt: () => drawnAt,
+    });
+    try {
+      const loading = still.load();
+      await complete('a1k');
+      expect(urlOfMap()).toBe('a1k');
+      const draw = () => (drawnAt = performance.now());
+      draw();
+      await complete('a4k');
+      await loading;
+      for (let i = 0; i < 4; i++) {
+        vi.advanceTimersByTime(100);
+        draw();
+      }
+      expect(urlOfMap()).toBe('a1k');
+      vi.advanceTimersByTime(300);
+      expect(urlOfMap()).toBe('a4k');
+
+      still.maybeUpgrade(2);
+      draw();
+      await complete('a8k');
+      for (let i = 0; i < 25 && urlOfMap() !== 'a8k'; i++) {
+        vi.advanceTimersByTime(100);
+        draw();
+      }
+      expect(urlOfMap()).toBe('a8k');
+      expect(performance.now() - drawnAt).toBeLessThan(200);
+    } finally {
+      still.dispose();
+      vi.useRealTimers();
+    }
+  });
+});

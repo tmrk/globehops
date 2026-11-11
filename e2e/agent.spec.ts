@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { installTools, invoke, ready } from './webTools.ts';
+import { call, installTools, invoke, ready } from './webTools.ts';
 import { test, expect, openDisplay, airportField, basePath } from './fixtures.ts';
 import { handleTool } from '../mcp/tools.ts';
 import { context } from '../mcp/data.ts';
@@ -137,9 +137,15 @@ test('live tools validate atomically, patch state, preserve preferences and expo
     dayNight: false,
     leg: 2,
   });
-  const bad = await page.evaluate(() => window.globeAgentTools.set_route.execute({ route: 'CPH-ZZZ-JFK' }));
-  expect(bad.isError).toBe(true);
-  expect(bad.content[0].text).toContain('Unknown airport ZZZ');
+  expect(
+    await page.evaluate(() =>
+      Object.fromEntries(
+        Object.values(window.globeAgentTools).map((tool) => [tool.name, [tool.title, tool.annotations?.readOnlyHint]]),
+      ),
+    ),
+  ).toMatchObject({ get_journey: [expect.any(String), true], set_route: [expect.any(String), undefined] });
+  const bad = await call(page, 'set_route', { route: 'CPH-ZZZ-JFK' });
+  expect(bad.error).toContain('Unknown airport ZZZ');
   expect((await invoke<Snapshot>(page, 'get_journey')).stops).toEqual(initial.stops);
   await invoke(page, 'set_view', {
     t: '2026-11-20T12:00Z',

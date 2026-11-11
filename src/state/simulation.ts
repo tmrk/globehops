@@ -1,9 +1,16 @@
 import type { Journey } from '../lib/schedule.ts';
 import { moonAt } from '../lib/moon.ts';
 import { subsolarPoint, sunDistanceKm } from '../lib/sun.ts';
-import { journeyStateAt, type Timeline } from '../lib/timeline.ts';
+import { journeyStateAt, type JourneyState, type Timeline } from '../lib/timeline.ts';
 import { tripStateAt, type Trip, type TripTimeline } from '../lib/trip.ts';
-import type { AircraftView, FleetAircraft, SimFrame, SimulationFeed, Sky } from '../globe/simFeed.ts';
+import {
+  sameAircraft,
+  type AircraftView,
+  type FleetAircraft,
+  type SimFrame,
+  type SimulationFeed,
+  type Sky,
+} from '../globe/simFeed.ts';
 import type { SimulationClock } from './clock.ts';
 
 export const skyAt = (time: number): Sky => ({
@@ -11,6 +18,21 @@ export const skyAt = (time: number): Sky => ({
   sunDistanceKm: sunDistanceKm(time),
   moon: moonAt(time),
 });
+
+/**
+ * A journey's aircraft at one of its states, on global leg indices from `offset`: flying its leg, or parked
+ * at the start, the connection or the end, with the leg it last flew (or is about to fly) highlighted.
+ */
+function aircraftAt(state: JourneyState, offset: number): { view: AircraftView; highlightLeg: number } {
+  const highlightLeg = offset + (state.phase === 'transfer' ? state.leg - 1 : state.leg);
+  return {
+    highlightLeg,
+    view:
+      state.phase === 'flight'
+        ? { kind: 'air', leg: offset + state.leg, fraction: state.distanceFraction }
+        : { kind: 'ground', leg: highlightLeg, at: state.phase === 'before' ? 'start' : 'end' },
+  };
+}
 
 export function simFrameAt(
   journey: Journey,
@@ -30,39 +52,32 @@ export function simFrameAt(
     frame.fleet = [];
     for (let i = 0; i < fleet.length; i++) {
       const entry = fleet[i];
-      let view: AircraftView;
-      let highlightLeg: number;
+      let placed: { view: AircraftView; highlightLeg: number };
       if (entry.trip) {
         // A compared trip's traveller, on its own trip's legs after the alternatives before it.
         const traveller = tripFrameAt(entry.trip.trip, entry.trip.timeline, time, false);
         if (!traveller.aircraft || traveller.highlightLeg === null) continue;
-        view = { ...traveller.aircraft, leg: entry.legOffset + traveller.aircraft.leg };
-        highlightLeg = entry.legOffset + traveller.highlightLeg;
+        placed = {
+          view: { ...traveller.aircraft, leg: entry.legOffset + traveller.aircraft.leg },
+          highlightLeg: entry.legOffset + traveller.highlightLeg,
+        };
       } else {
         if (!entry.timeline) continue;
-        const state = journeyStateAt(entry.journey, entry.timeline, time);
-        highlightLeg = entry.legOffset + (state.phase === 'transfer' ? state.leg - 1 : state.leg);
-        view =
-          state.phase === 'flight'
-            ? { kind: 'air', leg: entry.legOffset + state.leg, fraction: state.distanceFraction }
-            : { kind: 'ground', leg: highlightLeg, at: state.phase === 'before' ? 'start' : 'end' };
+        placed = aircraftAt(journeyStateAt(entry.journey, entry.timeline, time), entry.legOffset);
       }
-      const aircraft: FleetAircraft = { view, color: entry.color, tag: entry.tag, highlightLeg };
+      const aircraft: FleetAircraft = { ...placed, color: entry.color, tag: entry.tag };
       frame.fleet.push(aircraft);
       if (i === primary) {
         frame.aircraft = aircraft.view;
-        frame.highlightLeg = highlightLeg;
+        frame.highlightLeg = aircraft.highlightLeg;
       }
     }
     return frame;
   }
   if (!timeline || !journey.playable) return frame;
-  const state = journeyStateAt(journey, timeline, time);
-  frame.highlightLeg = state.phase === 'transfer' ? state.leg - 1 : state.leg;
-  frame.aircraft =
-    state.phase === 'flight'
-      ? { kind: 'air', leg: state.leg, fraction: state.distanceFraction }
-      : { kind: 'ground', leg: frame.highlightLeg, at: state.phase === 'before' ? 'start' : 'end' };
+  const { view, highlightLeg } = aircraftAt(journeyStateAt(journey, timeline, time), 0);
+  frame.aircraft = view;
+  frame.highlightLeg = highlightLeg;
   return frame;
 }
 /**
@@ -80,13 +95,9 @@ export function tripFrameAt(trip: Trip, timeline: TripTimeline | null, time: num
     frame.aircraft = { kind: 'ground', leg, at: 'end' };
     return frame;
   }
-  const local = state.state;
-  const leg = state.legOffset + (local.phase === 'transfer' ? local.leg - 1 : local.leg);
-  frame.highlightLeg = leg;
-  frame.aircraft =
-    local.phase === 'flight'
-      ? { kind: 'air', leg: state.legOffset + local.leg, fraction: local.distanceFraction }
-      : { kind: 'ground', leg, at: local.phase === 'before' ? 'start' : 'end' };
+  const { view, highlightLeg } = aircraftAt(state.state, state.legOffset);
+  frame.aircraft = view;
+  frame.highlightLeg = highlightLeg;
   return frame;
 }
 
@@ -141,12 +152,6 @@ export interface SimulationContext {
   trip?: { trip: Trip; timeline: TripTimeline | null };
 }
 const EMPTY_FLEET: NonNullable<SimulationContext['fleet']> = [];
-function sameAircraft(a: AircraftView | null, b: AircraftView | null): boolean {
-  if (a === b) return true;
-  if (!a || !b || a.leg !== b.leg) return false;
-  if (a.kind === 'ground') return b.kind === 'ground' && a.at === b.at;
-  return b.kind === 'air' && a.fraction === b.fraction && a.fractionPerSecond === b.fractionPerSecond;
-}
 
 function sameFrame(a: SimFrame, b: SimFrame): boolean {
   if (

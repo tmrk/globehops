@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { memo, type CSSProperties } from 'react';
 import { useI18n } from '../i18n/I18nProvider.tsx';
 import type { ComparedJourney } from '../lib/compare.ts';
 import { journeyStateAt } from '../lib/timeline.ts';
@@ -128,19 +128,26 @@ export function TripComparisonLanes({
               {status(entry, index)}
             </span>
           </span>
-          <span className="comparison-strip" aria-hidden="true">
-            {entry.trip.timeline?.sections.flatMap(({ index: section, timeline }) =>
-              timeline.segments.map((segment, i) => (
-                <span
-                  key={`${section}:${i}`}
-                  className={`comparison-strip__${segment.kind}`}
-                  style={{ left: `${at(segment.start)}%`, width: `${at(segment.end) - at(segment.start)}%` }}
-                />
-              )),
-            )}
-          </span>
+          <TripStrip trip={entry.trip} at={at} />
         </button>
       ))}
     </div>
   );
 }
+
+/** A trip's lane on the shared axis; memoised, as it changes only with the trip and the axis, not with time. */
+const TripStrip = memo(function TripStrip({ trip, at }: { trip: ComparedTrip['trip']; at: (time: number) => number }) {
+  return (
+    <span className="comparison-strip" aria-hidden="true">
+      {trip.timeline?.sections.flatMap(({ index: section, timeline }) =>
+        timeline.segments.map((segment, i) => (
+          <span
+            key={`${section}:${i}`}
+            className={`comparison-strip__${segment.kind}`}
+            style={{ left: `${at(segment.start)}%`, width: `${at(segment.end) - at(segment.start)}%` }}
+          />
+        )),
+      )}
+    </span>
+  );
+});
