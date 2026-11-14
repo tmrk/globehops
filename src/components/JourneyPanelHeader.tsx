@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n/I18nProvider.tsx';
-import { IconCheck, IconPencil, IconReset, IconShare } from './Icons.tsx';
+import { IconBookmark, IconCheck, IconPencil, IconReset, IconShare } from './Icons.tsx';
 
 interface JourneyPanelHeaderProps {
   /** A single journey's own name, which replaces the title. */
@@ -18,10 +18,13 @@ interface JourneyPanelHeaderProps {
   onToggleArranging: () => void;
   onShare: () => void;
   onReset: () => void;
+  /** Whether the plan on the globe is one of the saved trips; omit to leave saving out. */
+  saved?: boolean;
+  onToggleSaved?: () => void;
 }
 
 /**
- * Title plus Edit, Share and Reset; Reset asks for confirmation in place of the other actions. The
+ * Title plus Edit, Share, Save and Reset; Reset asks for confirmation in place of the other actions. The
  * confirmation slides in from where Reset was, and the usual actions settle back when it is cancelled.
  */
 export function JourneyPanelHeader({
@@ -36,12 +39,16 @@ export function JourneyPanelHeader({
   onToggleArranging,
   onShare,
   onReset,
+  saved = false,
+  onToggleSaved,
 }: JourneyPanelHeaderProps) {
   const { t } = useI18n();
   const [confirmingReset, setConfirmingReset] = useState(false);
   /** Set once the confirmation has been dismissed, so only that return animates, not every first render. */
   const [returned, setReturned] = useState(false);
   const confirming = confirmingReset && canReset;
+  /** The bookmark settles in only when the reader saves here, not whenever a saved trip opens. */
+  const [settling, setSettling] = useState(false);
   const resetRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   // The safe choice takes focus, so a second Enter or Space cannot reset by accident.
@@ -106,6 +113,26 @@ export function JourneyPanelHeader({
             <button type="button" className="head-btn" onClick={onShare}>
               <IconShare size={17} />
               <span>{t('panel.share')}</span>
+            </button>
+          )}
+          {hasAirports && onToggleSaved && (
+            <button
+              type="button"
+              className={`head-btn head-btn--icon head-btn--save${saved ? ' is-on' : ''}`}
+              aria-pressed={saved}
+              aria-label={t('saved.save')}
+              title={saved ? t('saved.unsave') : t('saved.save')}
+              onClick={() => {
+                if (!saved) setSettling(true);
+                onToggleSaved();
+              }}
+            >
+              <IconBookmark
+                size={17}
+                filled={saved}
+                className={settling && saved ? 'is-new' : undefined}
+                onAnimationEnd={() => setSettling(false)}
+              />
             </button>
           )}
           {canReset && (

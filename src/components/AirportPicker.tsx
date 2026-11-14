@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 
 import { searchAirports, type SearchIndex } from '../data/search.ts';
 import type { Airport } from '../types.ts';
+import { extractLinkQuery } from '../state/sharedLink.ts';
 import { CodeBadge } from './CodeBadge.tsx';
 import { IconBack, IconSearch } from './Icons.tsx';
 
@@ -17,6 +18,7 @@ export interface AirportPickerProps {
   variant: 'inline' | 'takeover';
   onSelect: (airport: Airport) => void;
   onCancel: () => void;
+  onOpenLink?: (query: string) => void;
 }
 
 export interface AirportPickerHandle {
@@ -29,7 +31,7 @@ export interface AirportPickerHandle {
  * OurAirports dataset on every keystroke (well under a millisecond per query).
  */
 export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>(function AirportPicker(
-  { index, label, caption, placeholder, variant, onSelect, onCancel },
+  { index, label, caption, placeholder, variant, onSelect, onCancel, onOpenLink },
   ref,
 ) {
   const { t, fmt } = useI18n();
@@ -220,6 +222,13 @@ export const AirportPicker = forwardRef<AirportPickerHandle, AirportPickerProps>
               listRef.current?.scrollTo?.({ top: 0 });
             }}
             onKeyDown={onKeyDown}
+            onPaste={(event) => {
+              const query = extractLinkQuery(event.clipboardData.getData('text/plain'));
+              if (query && onOpenLink) {
+                event.preventDefault();
+                onOpenLink(query);
+              }
+            }}
           />
         </div>
       </div>

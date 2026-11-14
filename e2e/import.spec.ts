@@ -41,7 +41,7 @@ test('a pasted flight plan resolves beacons and coordinates, and compares with G
   await openPlanner(page);
   await page.getByRole('button', { name: /^Import a flight path/ }).click();
   await dialog(page)
-    .getByLabel('Or paste a path or a route')
+    .getByLabel('Or paste a path, a route or a GlobeHops link', { exact: true })
     .fill('EGLL/27R CPT3F CPT UL9 STU DCT 52N020W 53N030W 52N040W 50N050W DCT YQX DCT KJFK/31L');
   await dialog(page).getByRole('button', { name: 'Read', exact: true }).click();
   await expect(dialog(page).getByRole('list', { name: 'Flights found' })).toContainText('Planned path');

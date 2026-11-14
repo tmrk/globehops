@@ -77,7 +77,14 @@ export function useSavedTrips({
           ? previous.trips.find((trip) => trip.id === opening.current)
           : findSavedTrip(previous.trips, query);
       opening.current = null;
-      commit({ ...previous, attachment: target ? { id: target.id, generation } : null });
+      const trips =
+        target && query && query !== target.query
+          ? updateSavedTrip(previous.trips, target.id, query, Date.now())
+          : previous.trips;
+      commit({
+        trips: trips !== previous.trips && storeSavedTrips(trips) ? trips : previous.trips,
+        attachment: target ? { id: target.id, generation } : null,
+      });
       return;
     }
     if (previous.attachment?.generation !== generation || !query) return;

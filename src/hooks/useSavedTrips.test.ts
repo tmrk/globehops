@@ -114,6 +114,48 @@ it('saves, removes and restores the current entry, and leaves other summaries me
   }
 });
 
+it('stores a normalized opened query immediately so a reload attaches to the same trip', async () => {
+  const normalized = '?dep1=2026-11-20T08:15&route=CPH-LHR';
+  storeSavedTrips([seed('a', '?route=EKCH-EGLL&dep1=2026-11-20T08:15')]);
+  const hook = await mount({ journeyQuery: '?route=JFK-LAX', generation: 1, ready: true });
+  try {
+    await act(() => hook.value.markOpening('a'));
+    await hook.render({ generation: 2, journeyQuery: normalized });
+    expect(hook.value.currentId).toBe('a');
+    expect(hook.value.trips[0].query).toBe(normalized);
+    expect(hook.value.trips[0].summary.alternatives).toEqual([[['CPH', 'LHR']]]);
+    expect(loadSavedTrips()[0].query).toBe(normalized);
+  } finally {
+    await hook.unmount();
+  }
+  const reloaded = await mount({ journeyQuery: normalized, generation: 1, ready: true });
+  try {
+    expect(reloaded.value.currentId).toBe('a');
+  } finally {
+    await reloaded.unmount();
+  }
+});
+
+it('does not replace an opened trip with an empty query or an unsuccessful normalization write', async () => {
+  storeSavedTrips([seed('a', '?route=EKCH-EGLL')]);
+  const hook = await mount();
+  try {
+    await act(() => hook.value.markOpening('a'));
+    await hook.render({ generation: 2, journeyQuery: '' });
+    expect(loadSavedTrips()[0].query).toBe('?route=EKCH-EGLL');
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
+    await act(() => hook.value.markOpening('a'));
+    await hook.render({ generation: 3, journeyQuery: '?route=CPH-LHR' });
+    expect(hook.value.currentId).toBe('a');
+    expect(hook.value.trips[0].query).toBe('?route=EKCH-EGLL');
+    expect(loadSavedTrips()[0].query).toBe('?route=EKCH-EGLL');
+  } finally {
+    await hook.unmount();
+  }
+});
+
 it('reloads cross-tab changes and keeps the attachment only while its id exists', async () => {
   storeSavedTrips([seed('a', '?route=CPH-LHR')]);
   const hook = await mount();

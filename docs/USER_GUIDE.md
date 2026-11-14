@@ -30,6 +30,14 @@ GlobeHops opens on the globe as it is right now, lit by the Sun, with its live c
 - **Switch kilometres and miles** in the display menu. The journey totals at the bottom of the panel show the total distance and number of flights on the left, and the overall journey time with its flying and layover time on the right.
 - **Share the journey.** The page address always holds the current route, so you can bookmark it or send it to someone. The Share button copies it or opens your device’s share sheet. Shared links let the recipient use their own language.
 
+### Saved trips
+
+Use the bookmark beside **Share** to save a trip. It keeps your edits as you go. The bookmark at the top opens **Saved trips**; saved trips also appear in the empty planner. Remove a trip from the list and choose **Undo** to bring it back. Saved trips stay only on this device and are not synced.
+
+### Opening a link in the installed app
+
+Paste a GlobeHops link in **Saved trips**, the import box or an airport search. On a computer, you can also paste it anywhere outside a text field. On Android, share a link to GlobeHops. iPhone and iPad home-screen apps cannot receive links from Safari, so copy the link and paste it into GlobeHops.
+
 ### Round trips and multi-stage trips
 
 Choose **Add return flight** below your stops to make the journey a trip: a return from your destination home appears in its own **Return** tab, ready for its own connections and times. Use **+** beside the tabs to add further journeys, such as Nairobi to Johannesburg before flying home, and **Edit** to rename a journey or remove it. The overview at the bottom shows each journey with its date, route and time, and the stay between them, such as “5 days in Nairobi · 15–20 Nov”. A stay is never counted as a layover: connections belong to a journey, stays sit between journeys. Until a journey has its own times, its stay is an estimate you can change (a week to begin with). **Play trip** flies one plane through the whole trip and skips each stay after a short pause, keeping the real dates, times and daylight; the timeline shows stays as short breaks. The play button on a journey's row plays that journey alone. To weigh up different ways of making the same trip, use **Compare trips** (below).

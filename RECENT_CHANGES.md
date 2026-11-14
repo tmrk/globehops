@@ -2,6 +2,12 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.27.0 – 2026-11-14 – Saved trips, and links that open in the app
+
+- **Save a trip with one tap.** The bookmark beside Share keeps the journey, trip or comparison on the globe in **Saved trips**. A saved trip works like a document: later changes to it are saved as you go, and Reset, a suggestion or a link starts something new without overwriting it. Tap the filled bookmark again to remove the trip.
+- **Your trips, one tap away.** Once something is saved, a bookmark button appears beside About. It lists your saved trips with their dates, opens any of them, and lets you remove one with a moment to undo. When the planner is empty, your latest saved trips are listed under the airport fields as well. Saved trips stay on this device and are never uploaded.
+- **Open a GlobeHops link in the installed app.** Links from messages open in the browser, so the installed app couldn't reach them. Now you can paste a GlobeHops link into Saved trips, the import box or an airport search (or anywhere in the window on a computer), and the trip opens right there. On Android, you can also share a link straight to GlobeHops from any app.
+
 ## 1.26.2 – 2026-11-11 – Smooth following on big screens
 
 - **No more small jumps while following the aircraft, on big screens too.** In a large browser window, such as one filling a 5K display, the globe asked the graphics chip for more than it could draw 144 times a second, so it skipped about every third frame; and each country and sea name was a separate piece of the page that the browser had to move every frame. The globe now draws at most about as many pixels as a 4K screen (phones and ordinary windows keep their full sharpness) and draws the names itself, in the same picture as the Earth. Following a flight in a full-screen window on a 144 Hz 5K display went from about 230 skipped frames in six seconds to none, and zooming with names on no longer stutters.

@@ -285,3 +285,19 @@ export const IconImport = (p: IconProps) => (
     <path d="M3.5 12.5v2.3c0 .9.8 1.7 1.7 1.7h9.6c.9 0 1.7-.8 1.7-1.7v-2.3" />
   </Icon>
 );
+/** A bookmark ribbon; `filled` once the trip is saved. */
+export const IconBookmark = ({ filled = false, ...p }: IconProps & { filled?: boolean }) => (
+  <Icon {...p}>
+    <path
+      d="M6.2 3.2h7.6c.6 0 1 .4 1 1v12.6L10 13.4l-4.8 3.4V4.2c0-.6.4-1 1-1z"
+      fill={filled ? 'currentColor' : 'none'}
+    />
+  </Icon>
+);
+export const IconLink = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M8.6 11.4l2.8-2.8" />
+    <path d="M9.2 6.3l1.2-1.2a3.1 3.1 0 0 1 4.4 4.4l-1.2 1.2" />
+    <path d="M10.8 13.7l-1.2 1.2a3.1 3.1 0 0 1-4.4-4.4l1.2-1.2" />
+  </Icon>
+);

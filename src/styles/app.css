@@ -5454,3 +5454,357 @@ button.map-menu__item:hover {
     font-size: var(--text-md);
   }
 }
+
+/* ------------------------------------------------------------------------------------------ */
+/* Saved trips: a bookmark beside Share, a button beside About once something is saved, a list  */
+/* dialog, and the empty planner's shortcut                                                    */
+
+.topbar__end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Saving drops the bookmark into place, filled amber. */
+.head-btn--save svg.is-new {
+  animation: bookmark-settle 0.42s var(--ease);
+}
+
+@keyframes bookmark-settle {
+  from {
+    opacity: 0.4;
+    transform: translateY(-6px) scale(0.7);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(1px) scale(1.14);
+  }
+}
+
+.saved-btn {
+  position: relative;
+  animation: saved-btn-in 0.32s var(--ease) both;
+}
+
+@keyframes saved-btn-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+
+/* A trip just saved: one amber ring leaves the button, so the eye finds where it went. */
+.saved-btn__pulse {
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+  animation: saved-pulse 1.1s var(--ease) both;
+}
+
+.saved-btn:has(.saved-btn__pulse) svg {
+  animation: saved-glint 1.1s var(--ease);
+}
+
+@keyframes saved-pulse {
+  from {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+@keyframes saved-glint {
+  from,
+  40% {
+    color: var(--accent);
+  }
+}
+
+.saved-trips {
+  width: min(460px, calc(100% - 32px));
+}
+
+/* The list dialog opens over the live globe: dim it without a blur, which would redraw every frame. */
+.saved-trips::backdrop {
+  background: rgba(2, 4, 8, 0.68);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.saved-trips__inner {
+  padding-bottom: 20px;
+}
+
+.saved-trips__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 36px;
+  color: var(--text);
+}
+
+.saved-trips__head h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.saved-trips__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 194, 75, 0.3), transparent 70%),
+    color-mix(in srgb, var(--accent) 10%, var(--surface-raised));
+  box-shadow: inset 0 0 0 1px rgba(255, 194, 75, 0.32);
+  color: var(--accent);
+}
+
+.saved-trips__lede {
+  margin: 12px 0 10px;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.saved-trips__empty {
+  margin: 16px 0 4px;
+  padding: 18px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: var(--text-md);
+  line-height: 1.45;
+  text-align: center;
+}
+
+/* Rows reach 10px into the dialog's padding, so their titles line up with the heading's text. */
+.saved-list {
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  margin: 0 -10px;
+  padding: 0;
+}
+
+.saved-item {
+  display: flex;
+  align-items: center;
+  min-height: 58px;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s;
+}
+
+.saved-item:not(.is-removed):hover,
+.saved-item.is-current {
+  background: var(--hover);
+}
+
+.saved-item.is-current {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.saved-item__open {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  min-height: 58px;
+  padding: 8px 10px;
+  color: var(--text);
+  text-align: left;
+}
+
+.saved-item__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--hover);
+  color: var(--text-3);
+}
+
+.saved-item.is-current .saved-item__icon {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.saved-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.saved-item__title,
+.saved-item__detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-item__title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.saved-item__title.is-codes {
+  font: 600 var(--text-md) / 1.25 var(--mono);
+  font-stretch: var(--mono-stretch);
+  letter-spacing: var(--track-code);
+  word-spacing: var(--mono-space);
+}
+
+.saved-item__detail {
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.saved-item__tag {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.saved-item__remove {
+  width: 44px;
+  height: 44px;
+}
+
+/* With a mouse, Remove waits for the row; touch keeps it in view. */
+@media (hover: hover) and (pointer: fine) {
+  .saved-item__remove {
+    opacity: 0;
+  }
+  .saved-item:hover .saved-item__remove,
+  .saved-item__remove:focus-visible {
+    opacity: 1;
+  }
+}
+
+.saved-item.is-removed {
+  justify-content: space-between;
+  gap: 12px;
+  padding-left: 54px;
+  color: var(--text-3);
+  font-size: var(--text-md);
+  animation: actions-in 0.22s var(--ease);
+}
+
+.saved-item__removed {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-item__undo,
+.saved-item__undo:not(:disabled):hover {
+  flex: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.saved-link {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.saved-link__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.saved-link__label svg {
+  color: var(--text-3);
+}
+
+.saved-link__row {
+  display: flex;
+  gap: 8px;
+}
+
+.saved-link__input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-btn);
+  background: var(--bg);
+  color: var(--text);
+  /* At least 16px: iOS zooms into smaller fields. */
+  font: 400 16px var(--font);
+}
+
+.saved-link__input::placeholder {
+  color: var(--text-3);
+}
+
+.saved-link__input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.saved-link__input[aria-invalid='true'] {
+  border-color: color-mix(in srgb, var(--danger) 65%, transparent);
+}
+
+.saved-link__open {
+  flex: none;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-btn);
+  background: var(--hover);
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.saved-link__open:hover:not(:disabled) {
+  background: var(--press);
+}
+
+.saved-link__open:disabled {
+  color: var(--text-3);
+}
+
+/* The empty planner's shortcut: suggestion rows with a bookmark, then a quiet “All saved trips”. */
+.saved-inline .suggestion svg {
+  color: var(--accent);
+}
+
+.saved-inline .suggestion__route {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-inline__all {
+  margin: 2px 0 0 calc(var(--col-rail) + var(--col-gap) + var(--col-code) + var(--col-gap) - 10px);
+}

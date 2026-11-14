@@ -58,6 +58,10 @@
 | `src/state/simulation.ts`                                                          | Imperative clock-to-renderer feed, aircraft velocity and separate active-leg follow transitions.                      |
 | `src/state/url.ts`                                                                 | Tolerant route/layover tokens, code resolution and language-neutral share URLs.                                       |
 | `src/state/storage.ts`                                                             | Defensive preferences (including aircraft follow/label layers/motion) and remembered journey with legacy fallback.    |
+| `src/hooks/useSavedTrips.ts`                                                        | Device-only saved trips attached to the current plan; ordinary edits keep the entry up to date.                       |
+| `src/state/{savedTrips,savedTripSummary}.ts`                                        | Canonical saved-trip queries, defensive persistence and route/date summaries for the list.                            |
+| `src/state/{sharedLink,shareTarget,pendingShare}.ts`                                | Pasted app-link extraction, installed-app share decoding and the one-time startup handoff.                            |
+| `src/components/SavedTrips.tsx`                                                     | Saved list button, dialog with remove/Undo and link opening, and empty-planner shortcuts.                             |
 | `src/data/airports.ts`                                                             | Tuple validation/decoding and airport display helpers.                                                                |
 | `src/data/search.ts`                                                               | Normalised prefix index, ranking, code lookup and optional city-exonym extra names.                                   |
 | `src/data/placeNames.ts`, `src/data/placeNames.test.ts`                            | Validated city-table decoding/loading and original-name fallback via localizedCity.                                   |

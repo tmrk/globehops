@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -39,6 +40,12 @@ import { TimeBar } from './components/TimeBar.tsx';
 import { TimeDial } from './components/TimeDial.tsx';
 import { Toast } from './components/Toast.tsx';
 import { RouteSuggestions, type SuggestedRoute } from './components/RouteSuggestions.tsx';
+import {
+  SavedTripsButton,
+  SavedTripsDialog,
+  SavedTripsInline,
+  type SavedTripsDialogHandle,
+} from './components/SavedTrips.tsx';
 import { DESKTOP_MEDIA_QUERY } from './hooks/appMedia.ts';
 import { useAnalyticsConsent } from './hooks/useAnalyticsConsent.ts';
 import { opensWithRoute, useAppLinks } from './hooks/useAppLinks.ts';
@@ -55,6 +62,7 @@ import { usePickerHistory } from './hooks/usePickerHistory.ts';
 import { useToast } from './hooks/useToast.ts';
 import { useViewPreferences } from './hooks/useViewPreferences.ts';
 import { useRouting } from './hooks/useRouting.ts';
+import { useSavedTrips, type SavedTripView } from './hooks/useSavedTrips.ts';
 import { DEFAULT_DIVERSION_PROFILE } from './lib/diversion.ts';
 import { useVisualViewportVars } from './hooks/useVisualViewport.ts';
 import type { GlobeRoute } from './globe/GlobeRenderer.ts';
@@ -80,6 +88,10 @@ import { playInRange } from './state/playbackRange.ts';
 import { hasEnteredTimes, type RouteAction } from './state/route.ts';
 import { createSimulationFeed, type SimulationContext } from './state/simulation.ts';
 import { loadPlayed, savePlayed } from './state/storage.ts';
+import { parseLink } from './state/link.ts';
+import { takePendingShare } from './state/pendingShare.ts';
+import { MAX_SAVED_TRIPS } from './state/savedTrips.ts';
+import { extractLinkQuery } from './state/sharedLink.ts';
 import type { Airport, LocalTimeInput } from './types.ts';
 
 const GlobeView = lazy(() => import('./globe/GlobeView.tsx'));
@@ -171,6 +183,8 @@ export default function App() {
   const aboutRef = useRef<AboutDialogHandle>(null);
   const aiRef = useRef<AiImportDialogHandle>(null);
   const importRef = useRef<RouteImportDialogHandle>(null);
+  const savedRef = useRef<SavedTripsDialogHandle>(null);
+  const [savedPulse, setSavedPulse] = useState(0);
   /** Desktop: a file dragged over the app, to import as a flight path. */
   const [fileOver, setFileOver] = useState(false);
   const analytics = useAnalyticsConsent();
@@ -338,7 +352,7 @@ export default function App() {
     closeTime();
   };
 
-  const { shareUrl, shareReduction } = useJourneyAddressWithReduction({
+  const { shareUrl, shareReduction, journeyQuery } = useJourneyAddressWithReduction({
     model,
     preferences,
     plan,
@@ -350,6 +364,39 @@ export default function App() {
     initialized,
     updatePickerAddress,
   });
+  const savedTrips = useSavedTrips({ journeyQuery, generation: plan.generation, ready: initialized });
+  const toggleSaved = () => {
+    if (savedTrips.currentId) {
+      savedTrips.unsave();
+      showToast(t('saved.unsaved'));
+      return;
+    }
+    switch (savedTrips.save()) {
+      case 'saved':
+        showToast(t('saved.added'));
+        setSavedPulse((pulse) => pulse + 1);
+        break;
+      case 'full':
+        showToast(t('saved.full', fmt.number(MAX_SAVED_TRIPS)));
+        break;
+      case 'failed':
+        showToast(t('saved.failed'));
+        break;
+    }
+  };
+  const openLinkQuery = (query: string, toast: boolean) => {
+    if (!index) return;
+    setEditing(null);
+    setArranging(false);
+    if (timeOpen) closeTimeline();
+    applyLink(parseLink(query), index, query);
+    if (toast) showToast(t('saved.linkOpened'));
+    requestAnimationFrame(() => listRef.current?.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' }));
+  };
+  const openSavedTrip = (trip: SavedTripView) => {
+    savedTrips.markOpening(trip.id);
+    openLinkQuery(trip.query, false);
+  };
 
   /** Every journey in plan order (alternative by alternative), matching `legOffsets`. */
   const flatJourneys = useMemo(
@@ -696,7 +743,7 @@ export default function App() {
     if (timeOpen) closeTimeline();
     if (mode === 'compare' && canCompareImport) {
       const current = plan.journeys.map(loadedDraft);
-      planDispatch({ type: 'load', journeys: [...current, loaded[0]] });
+      planDispatch({ type: 'load', journeys: [...current, loaded[0]], continued: true });
       planDispatch({ type: 'activate', index: current.length });
     } else planDispatch({ type: 'load', journeys: loaded, trip: loaded.length > 1 });
     if (!isDesktop && collapsed) setCollapsed(false);
@@ -736,6 +783,7 @@ export default function App() {
     setArranging(false);
     planDispatch({
       type: 'load',
+      continued: true,
       journeys: [
         current,
         { ...current, tracks: undefined, arrivals: undefined, departures: undefined, label: t('track.labelGenerated') },
@@ -782,13 +830,26 @@ export default function App() {
     importRef.current?.open({ file: launchedFile.current });
     launchedFile.current = null;
   }, [importReady]);
-  // Pasting a path or a route anywhere outside a field offers to import it.
+  useEffect(() => {
+    if (!importReady) return;
+    const share = takePendingShare();
+    if (share?.kind === 'text') importRef.current?.open({ text: share.text });
+    else if (share?.kind === 'empty') showToast(t('saved.shareEmpty'));
+  }, [importReady, showToast, t]);
+  const openPastedLink = useEffectEvent((query: string) => openLinkQuery(query, true));
+  // Pasting outside a field opens a shared link or offers to import a path or route.
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest('input, textarea, [contenteditable="true"], dialog')) return;
       const text = event.clipboardData?.getData('text/plain') ?? '';
       if (!text.trim() || text.length > 20_000_000) return;
+      const query = extractLinkQuery(text);
+      if (query) {
+        event.preventDefault();
+        openPastedLink(query);
+        return;
+      }
       void import('./lib/import/index.ts').then(({ looksLikeRoute }) => {
         if (looksLikeRoute(text)) importRef.current?.open({ text });
       });
@@ -814,6 +875,10 @@ export default function App() {
     };
   };
   const cancelEditor = () => closeEditor({ cancelled: true });
+  const openPickerLink = (query: string) => {
+    cancelEditor();
+    openLinkQuery(query, true);
+  };
   const tripsAnnouncement = trips ? t('trips.comparing', fmt.number(trips.length)) : '';
   const comparisonAnnouncement = t('compare.comparing', compared.length);
   const totalKm = legs.reduce((s, l) => s + l.distanceKm, 0);
@@ -1172,6 +1237,8 @@ export default function App() {
         canReset={canReset}
         onToggleArranging={toggleArranging}
         onShare={share}
+        saved={savedTrips.currentId !== null}
+        onToggleSaved={toggleSaved}
         onReset={resetJourney}
       />
       {kind !== 'single' && (
@@ -1330,14 +1397,19 @@ export default function App() {
       <header className="topbar" inert={cinematic}>
         <h1 className="sr-only">GlobeHops</h1>
         <Brand />
-        <button
-          type="button"
-          className="float-btn"
-          aria-label={t('panel.aboutGlobeHops')}
-          onClick={() => aboutRef.current?.open()}
-        >
-          <IconInfo />
-        </button>
+        <div className="topbar__end">
+          {savedTrips.trips.length > 0 && (
+            <SavedTripsButton pulse={savedPulse} onOpen={() => savedRef.current?.open()} />
+          )}
+          <button
+            type="button"
+            className="float-btn"
+            aria-label={t('panel.aboutGlobeHops')}
+            onClick={() => aboutRef.current?.open()}
+          >
+            <IconInfo />
+          </button>
+        </div>
       </header>
 
       {initialized && analytics.available && analytics.consent === null && (
@@ -1517,6 +1589,7 @@ export default function App() {
                           {...pickerText(i)}
                           onSelect={onSelectAirport}
                           onCancel={cancelEditor}
+                          onOpenLink={openPickerLink}
                         />
                       )}
                       onEdit={openEditor}
@@ -1663,10 +1736,17 @@ export default function App() {
                   </>
                 )}
                 {showSuggestions && !dataError && (
-                  <div className="entries">
-                    <RouteImportEntry onOpen={() => importRef.current?.open()} />
-                    <AiImportEntry onOpen={() => aiRef.current?.open()} />
-                  </div>
+                  <>
+                    <SavedTripsInline
+                      trips={savedTrips.trips}
+                      onOpenTrip={openSavedTrip}
+                      onShowAll={() => savedRef.current?.open()}
+                    />
+                    <div className="entries">
+                      <RouteImportEntry onOpen={() => importRef.current?.open()} />
+                      <AiImportEntry onOpen={() => aiRef.current?.open()} />
+                    </div>
+                  </>
                 )}
                 {showSuggestions && (
                   <RouteSuggestions
@@ -1699,6 +1779,7 @@ export default function App() {
             {...pickerText(editing)}
             onSelect={onSelectAirport}
             onCancel={cancelEditor}
+            onOpenLink={openPickerLink}
           />
         </div>
       )}
@@ -1725,12 +1806,22 @@ export default function App() {
       <Toast toast={toast} />
       <AboutDialog ref={aboutRef} meta={dataset?.meta ?? null} analytics={analytics} />
       <AiImportDialog ref={aiRef} />
+      <SavedTripsDialog
+        ref={savedRef}
+        trips={savedTrips.trips}
+        currentId={savedTrips.currentId}
+        onOpenTrip={openSavedTrip}
+        onRemove={savedTrips.remove}
+        onRestore={savedTrips.restore}
+        onOpenLink={(query) => openLinkQuery(query, true)}
+      />
       <RouteImportDialog
         ref={importRef}
         context={importContext}
         unit={unit}
         canCompare={canCompareImport}
         onImport={importFlights}
+        onOpenLink={(query) => openLinkQuery(query, true)}
       />
       {fileOver && (
         <div className="drop-overlay" aria-hidden="true">

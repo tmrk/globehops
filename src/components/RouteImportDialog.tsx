@@ -7,6 +7,7 @@ import type { ImportContext, ImportIssue, ImportResult, ImportWarningCode } from
 import { groupFlights } from '../lib/import/group.ts';
 import { legTrack, type TrackFormat } from '../lib/track.ts';
 import { trackEvent } from '../analytics.ts';
+import { extractLinkQuery } from '../state/sharedLink.ts';
 import type { DistanceUnit } from '../types.ts';
 import { IconAlert, IconClose, IconImport, IconTrack } from './Icons.tsx';
 
@@ -22,6 +23,7 @@ interface Props {
   /** Whether a journey is on the globe to compare an import with. */
   canCompare: boolean;
   onImport: (result: ImportResult, mode: 'replace' | 'compare') => void;
+  onOpenLink: (query: string) => void;
 }
 
 /** Files GlobeHops reads, for the file picker. */
@@ -52,7 +54,7 @@ type State =
  * it contains, then shown on the globe or compared with the journey there.
  */
 export const RouteImportDialog = forwardRef<RouteImportDialogHandle, Props>(function RouteImportDialog(
-  { context, unit, canCompare, onImport },
+  { context, unit, canCompare, onImport, onOpenLink },
   ref,
 ) {
   const { t, fmt } = useI18n();
@@ -66,6 +68,12 @@ export const RouteImportDialog = forwardRef<RouteImportDialogHandle, Props>(func
 
   const read = useCallback(
     async (input: string | Uint8Array, fileName: string | null) => {
+      const query = typeof input === 'string' ? extractLinkQuery(input) : null;
+      if (query) {
+        dialogRef.current?.close();
+        onOpenLink(query);
+        return;
+      }
       if (!context) return;
       setState({ phase: 'reading' });
       const { importRoute, detectFormat } = await import('../lib/import/index.ts');
@@ -78,7 +86,7 @@ export const RouteImportDialog = forwardRef<RouteImportDialogHandle, Props>(func
         result.ok ? { phase: 'result', result, source: fileName } : { phase: 'input', error: importError(result, t) },
       );
     },
-    [context, t],
+    [context, t, onOpenLink],
   );
 
   const readFile = useCallback(

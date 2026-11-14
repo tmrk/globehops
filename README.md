@@ -24,6 +24,7 @@ GlobeHops draws your flights as great-circle routes on an interactive 3D globe, 
 - **Realistic routes** that can curve around restricted airspace (EASA conflict zones) and stay within reach of diversion airports (ETOPS-style), or plain great circles.
 - **The Earth at any moment** from 1900 to 2100: day and night, city lights, and the Sun and Moon at their real positions.
 - **Share** any journey: the address always holds it. In English, Magyar and Svenska.
+- **Save trips** on this device, keep edits automatically, and paste GlobeHops links to open them in the app.
 
 The [user guide](docs/USER_GUIDE.md) walks through every feature and explains [how the numbers are worked out](docs/USER_GUIDE.md#how-the-numbers-are-worked-out). Distances and times are estimates, not airline schedules or flight planning.
 
