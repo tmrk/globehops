@@ -1,19 +1,19 @@
 {
   "source": "OurAirports airports.csv and runways.csv (https://ourairports.com/data/) – public domain",
-  "generatedAt": "2026-11-09T15:33:37.004Z",
-  "upstreamCommit": null,
+  "generatedAt": "2026-11-14T11:38:08.905Z",
+  "upstreamCommit": "873df94470d9c8f4fdfe8b41bf7976fe7992297c",
   "files": {
     "airports.csv": {
-      "sha256": "8ed1da427be3cab1ae5f6fbbb4464a0a74c6bd2570ff9a73089539b7ccfef7f2",
-      "bytes": 12758041,
-      "lastModified": null,
-      "rows": 86345
+      "sha256": "5b3b48a429c8513853ff13a51a03282d1ef159ddf347f40203ff66b583574e8b",
+      "bytes": 12760412,
+      "lastModified": "Sat, 14 Nov 2026 02:54:01 GMT",
+      "rows": 86363
     },
     "runways.csv": {
-      "sha256": "bb0e928bce53e70bc41e61b3e6fcf79652ee879b6ca06e733008cb81ba8d78aa",
-      "bytes": 3974052,
-      "lastModified": null,
-      "rows": 48412
+      "sha256": "84d66ace2234e57c39a6a1d61d02db116e45f963137446c0829bae0547456b31",
+      "bytes": 3974694,
+      "lastModified": "Sat, 14 Nov 2026 02:54:01 GMT",
+      "rows": 48424
     }
   },
   "criteria": {
@@ -25,9 +25,9 @@
   },
   "counts": {
     "airports": 2626,
-    "inputAirports": 86345,
-    "inputRunways": 48412,
-    "excludedType": 81063,
+    "inputAirports": 86363,
+    "inputRunways": 48424,
+    "excludedType": 81081,
     "excludedPosition": 0,
     "excludedReviewed": 1,
     "excludedNoRunway": 2655,
@@ -2674,7 +2674,7 @@
   "surfaceMapping": {
     "?STEEL?": { "surface": "unknown", "count": 1 },
     "'CONCRETE'": { "surface": "unknown", "count": 1 },
-    "(blank)": { "surface": "unknown", "count": 510 },
+    "(blank)": { "surface": "unknown", "count": 511 },
     "A": { "surface": "unknown", "count": 8 },
     "ALUM": { "surface": "unknown", "count": 8 },
     "ALUM-DECK": { "surface": "unknown", "count": 1 },
@@ -2688,7 +2688,7 @@
     "ASHP": { "surface": "unknown", "count": 1 },
     "ASHPALT": { "surface": "unknown", "count": 1 },
     "ASHPHALT": { "surface": "unknown", "count": 1 },
-    "ASP": { "surface": "asphalt", "count": 11400 },
+    "ASP": { "surface": "asphalt", "count": 11401 },
     "ASP-G": { "surface": "asphalt", "count": 1 },
     "ASP/CON": { "surface": "paved", "count": 9 },
     "ASP/CONC": { "surface": "paved", "count": 2 },
@@ -2771,7 +2771,7 @@
     "CERAMIC BRICK": { "surface": "unknown", "count": 1 },
     "CHIPSEAL": { "surface": "unknown", "count": 1 },
     "CLA": { "surface": "unknown", "count": 19 },
-    "CLAY": { "surface": "unpaved", "count": 29 },
+    "CLAY": { "surface": "unpaved", "count": 30 },
     "CLAY / GRASS": { "surface": "unpaved", "count": 1 },
     "CLAY/GRASS": { "surface": "unpaved", "count": 6 },
     "CLAY/GRAVEL": { "surface": "unpaved", "count": 5 },
@@ -2788,7 +2788,7 @@
     "COMPACTED SAND": { "surface": "unpaved", "count": 2 },
     "COMPACTED SOIL": { "surface": "unknown", "count": 1 },
     "COMPOSITE": { "surface": "unknown", "count": 1 },
-    "CON": { "surface": "concrete", "count": 3696 },
+    "CON": { "surface": "concrete", "count": 3699 },
     "CON-ROOF": { "surface": "unknown", "count": 2 },
     "CON/ASP": { "surface": "paved", "count": 2 },
     "CON/GRS": { "surface": "unpaved", "count": 7 },
@@ -2866,7 +2866,7 @@
     "DIRT/ROCK": { "surface": "unpaved", "count": 1 },
     "DIRT/TURF": { "surface": "unpaved", "count": 1 },
     "DRY LAKE": { "surface": "unknown", "count": 1 },
-    "EARTH": { "surface": "unpaved", "count": 688 },
+    "EARTH": { "surface": "unpaved", "count": 693 },
     "EARTH/ASPHALT": { "surface": "unpaved", "count": 1 },
     "EARTH/SAND": { "surface": "unpaved", "count": 2 },
     "EARTH/SNOW": { "surface": "unpaved", "count": 1 },
@@ -3176,7 +3176,7 @@
     "TRTD-DIRT-F": { "surface": "unpaved", "count": 1 },
     "TRTD-DIRT-P": { "surface": "unpaved", "count": 2 },
     "TUEF": { "surface": "unknown", "count": 1 },
-    "TURF": { "surface": "unpaved", "count": 8858 },
+    "TURF": { "surface": "unpaved", "count": 8859 },
     "TURF / GRASS": { "surface": "unpaved", "count": 1 },
     "TURF / GRAVEL": { "surface": "unpaved", "count": 1 },
     "TURF / SNOW": { "surface": "unpaved", "count": 1 },
