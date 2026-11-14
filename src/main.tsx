@@ -5,6 +5,8 @@ import { I18nProvider } from './i18n/I18nProvider.tsx';
 import { loadMessages } from './i18n/catalogue.ts';
 import { loadLocaleChoice, resolveLocale } from './i18n/detect.ts';
 import { replaceUrl } from './analytics.ts';
+import { readShareTarget } from './state/shareTarget.ts';
+import { setPendingShare } from './state/pendingShare.ts';
 import { visitLocaleAddress } from './state/visitLocale.ts';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -30,6 +32,11 @@ document.documentElement.dataset.motion = effectiveReducedMotion(
   : 'full';
 
 async function start() {
+  const shared = readShareTarget(location.search);
+  if (shared) {
+    replaceUrl(location.pathname + (shared.kind === 'link' ? shared.query : ''));
+    if (shared.kind !== 'link') setPendingShare(shared);
+  }
   const resolved = resolveLocale({
     pathname: location.pathname,
     search: location.search,

@@ -79,6 +79,11 @@ describe('precache manifest', () => {
       id: './',
       start_url: './',
       scope: './',
+      share_target: {
+        action: './',
+        method: 'GET',
+        params: { title: 'share-title', text: 'share-text', url: 'share-url' },
+      },
       lang: 'en',
       dir: 'ltr',
       display: 'fullscreen',

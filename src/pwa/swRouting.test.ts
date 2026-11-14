@@ -8,6 +8,7 @@ describe('worker routing under any deployment base', () => {
       for (const path of ['', 'index.html']) {
         expect(navigationCacheUrl(`${scope}${path}?route=CPH-LHR&b.route=JFK-LAX&lang=sv`, scope)).toBe(scope);
       }
+      expect(navigationCacheUrl(`${scope}?share-text=CPH+LHR&share-title=Trip`, scope)).toBe(scope);
       for (const locale of ['en', 'hu', 'sv']) {
         for (const suffix of ['', '/', '/index.html']) {
           expect(navigationCacheUrl(`${scope}${locale}${suffix}?route=CPH-LHR`, scope)).toBe(`${scope}${locale}/`);

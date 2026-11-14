@@ -5,6 +5,7 @@ import { expect, it, vi } from 'vitest';
 import { useJourneyAddress, useJourneyAddressWithReduction } from './useJourneyAddress.ts';
 import { useJourneyModel } from './useJourneyModel.ts';
 import { useViewPreferences } from './useViewPreferences.ts';
+import { canonicalTripQuery } from '../state/savedTrips.ts';
 import { createPlanState, planReducer } from '../state/plan.ts';
 import { decodeDataset } from '../data/airports.ts';
 import raw from '../data/generated/airports.json';
@@ -58,6 +59,7 @@ it('keeps the string hook compatible and exposes reduction from the companion ho
   try {
     await act(() => root.render(createElement(Probe)));
     expect(url).toBe(result!.shareUrl);
+    expect(result!.journeyQuery).toBe(canonicalTripQuery(new URL(url).search));
     expect(url.length).toBeLessThanOrEqual(8000);
     expect(result!.shareReduction?.total).toBe(20000);
     expect(result!.shareReduction!.kept).toBeLessThan(20000);

@@ -89,7 +89,7 @@ describe('plan editor', () => {
     expect(next.journeys[2].route.stops[0].airportId).toBe(30);
     expect(planReducer(state, { type: 'load', journeys: [] }).journeys).toHaveLength(1);
     const empty = createPlanState();
-    expect(planReducer(empty, { type: 'load', journeys: [] })).toBe(empty);
+    expect(planReducer(empty, { type: 'load', journeys: [], continued: true })).toBe(empty);
   });
 
   describe('trips', () => {
@@ -143,7 +143,7 @@ describe('plan editor', () => {
       const trip = planReducer(createPlanState(), { type: 'load', journeys, trip: true });
       expect(trip).toMatchObject({ trip: true, active: 0 });
       expect(trip.journeys[1]).toMatchObject({ stayMin: 5 * 1440, label: 'Home' });
-      expect(planReducer(trip, { type: 'load', journeys, trip: true })).toBe(trip);
+      expect(planReducer(trip, { type: 'load', journeys, trip: true, continued: true })).toBe(trip);
       const compared = planReducer(trip, { type: 'load', journeys });
       expect(compared.trip).toBe(false);
       expect(planKind(compared)).toBe('compare');
@@ -257,9 +257,41 @@ it('loads tracks, compares them structurally, and starts the return with generat
   const action = { type: 'load' as const, journeys: [{ airportIds: [1, 2], tracks: [track] }] };
   const state = planReducer(createPlanState(), action);
   expect(state.journeys[0].route.stops[0].track?.track).toBe(track);
-  expect(planReducer(state, structuredClone(action))).toBe(state);
+  expect(planReducer(state, { ...structuredClone(action), continued: true })).toBe(state);
   const returned = planReducer(state, { type: 'addReturn' });
   expect(returned.journeys[0].route.stops[0].track?.track).toBe(track);
   expect(returned.journeys[1].route.stops.every((s) => !s.track)).toBe(true);
   expect(planReducer(state, { ...action, journeys: [{ airportIds: [1, 2], tracks: [] }] })).not.toBe(state);
+});
+
+it('advances generation only for replacement loads, including identical and empty loads', () => {
+  const initial = createPlanState();
+  expect(initial.generation).toBe(0);
+  const loaded = planReducer(initial, { type: 'load', journeys: [] });
+  expect(loaded.generation).toBe(1);
+  expect(loaded.journeys).toBe(initial.journeys);
+  const input = [{ airportIds: [1, 2] }];
+  let state = planReducer(loaded, { type: 'load', journeys: input });
+  expect(state.generation).toBe(2);
+  state = planReducer(state, { type: 'load', journeys: input });
+  expect(state.generation).toBe(3);
+  state = planReducer(state, { type: 'load', journeys: [{ airportIds: [1, 3] }], continued: true });
+  expect(state.generation).toBe(3);
+  const actions = [
+    { type: 'route', action: { type: 'setAirport', index: 0, airportId: 7 } },
+    { type: 'setLabel', index: 0, label: 'Named' },
+    { type: 'add' },
+    { type: 'activate', index: 0 },
+    { type: 'remove', index: 1 },
+    { type: 'addReturn' },
+    { type: 'setStay', index: 1, minutes: 1440 },
+    { type: 'addSection' },
+    { type: 'add' },
+    { type: 'removeSection', section: 2 },
+    { type: 'removeOption', option: 1 },
+  ] satisfies import('./plan.ts').PlanAction[];
+  for (const action of actions) {
+    state = planReducer(state, action);
+    expect(state.generation).toBe(3);
+  }
 });

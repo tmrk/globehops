@@ -22,6 +22,8 @@ export interface JourneyDraft {
   stayMin: number | null;
 }
 export interface PlanState {
+  /** Bulk replacement identity; ordinary edits keep the current generation. */
+  generation: number;
   journeys: JourneyDraft[];
   active: number;
   /** True when each alternative is a trip of sequential journeys (sections) rather than one journey. */
@@ -74,7 +76,7 @@ export type PlanAction =
   | { type: 'setLabel'; index: number; label: string | null }
   | { type: 'setStay'; index: number; minutes: number | null }
   /** `journeys` alternative by alternative; with `trip`, `sections` per alternative (default: all of them). */
-  | { type: 'load'; journeys: LoadedJourney[]; trip?: boolean; sections?: number };
+  | { type: 'load'; journeys: LoadedJourney[]; trip?: boolean; sections?: number; continued?: boolean };
 let nextKey = 0;
 const sameTime = (a: LocalTimeInput | null, b: LocalTimeInput | null) =>
   a === b || (a?.local === b?.local && a?.offsetMin === b?.offsetMin);
@@ -91,7 +93,7 @@ function draft(source?: LoadedJourney): JourneyDraft {
   };
 }
 export function createPlanState(): PlanState {
-  return { journeys: [draft()], active: 0, trip: false, sections: 1 };
+  return { generation: 0, journeys: [draft()], active: 0, trip: false, sections: 1 };
 }
 const ends = (journey: JourneyDraft) => {
   const ids = filledAirportIds(journey.route.stops);
@@ -122,12 +124,19 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
           journeys: [...state.journeys, ...Array.from({ length: shape.sections }, () => draft())],
           active: state.journeys.length,
         };
-      return { journeys: [...state.journeys, draft()], active: state.journeys.length, trip: false, sections: 1 };
+      return {
+        ...state,
+        journeys: [...state.journeys, draft()],
+        active: state.journeys.length,
+        trip: false,
+        sections: 1,
+      };
     case 'addReturn': {
       if (kind === 'single') {
         const journey = ends(state.journeys[0]);
         if (!journey) return state;
         return {
+          ...state,
           journeys: [state.journeys[0], draft({ airportIds: [journey.last, journey.first] })],
           active: 1,
           trip: true,
@@ -137,6 +146,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
       if (kind !== 'compare') return state;
       // Every alternative comes home its own way; one without a route yet gets an empty return.
       return {
+        ...state,
         journeys: state.journeys.flatMap((journey) => {
           const route = ends(journey);
           return [journey, draft(route ? { airportIds: [route.last, route.first] } : undefined)];
@@ -163,6 +173,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
       if (state.trip && action.index === 0) journeys[0] = { ...journeys[0], stayMin: null };
       const trip = state.trip && journeys.length > 1;
       return {
+        ...state,
         journeys,
         active: action.index <= state.active ? Math.max(0, state.active - 1) : state.active,
         trip,
@@ -176,7 +187,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
       const journeys = state.journeys.filter((_, index) => Math.floor(index / sections) !== action.option);
       const next = action.option <= option ? Math.max(0, option - 1) : option;
       // One trip left is simply a trip.
-      return { journeys, active: next * sections + section, trip: true, sections };
+      return { ...state, journeys, active: next * sections + section, trip: true, sections };
     }
     case 'removeSection': {
       const { options, sections, option, section } = shape;
@@ -194,6 +205,7 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
         .map((journey, index) => (index % left === 0 ? { ...journey, stayMin: null } : journey));
       const kept = action.section <= section ? Math.max(0, section - 1) : section;
       return {
+        ...state,
         journeys,
         active: Math.min(options * left - 1, option * left + kept),
         trip: left > 1,
@@ -247,7 +259,9 @@ export function planReducer(state: PlanState, action: PlanAction): PlanState {
             })
           );
         });
-      return unchanged ? state : { journeys: loaded, active: 0, trip, sections: trip ? sections : 1 };
+      const generation = state.generation + (action.continued ? 0 : 1);
+      if (unchanged) return generation === state.generation ? state : { ...state, generation };
+      return { generation, journeys: loaded, active: 0, trip, sections: trip ? sections : 1 };
     }
   }
 }

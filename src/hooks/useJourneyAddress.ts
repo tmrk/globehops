@@ -3,6 +3,7 @@ import { useI18n } from '../i18n/I18nProvider.tsx';
 import { localizedPath } from '../i18n/detect.ts';
 import { airportCode } from '../data/airports.ts';
 import { serializeLink, serializeLinkWithReduction, type LinkView } from '../state/link.ts';
+import { canonicalTripQuery } from '../state/savedTrips.ts';
 import { saveLastJourney } from '../state/storage.ts';
 import { replaceUrl } from '../analytics.ts';
 import { planShape, type PlanState } from '../state/plan.ts';
@@ -24,7 +25,7 @@ export interface JourneyAddressOptions {
 }
 
 /**
- * Address/share state for track-aware UI: returns `{ shareUrl, shareReduction: { kept, total } | null }`.
+ * Address/share state for track-aware UI: returns `{ shareUrl, shareReduction, journeyQuery }`.
  * Fitting changes only the shared copy. The original useJourneyAddress(options) still returns a string.
  */
 export function useJourneyAddressWithReduction({
@@ -99,6 +100,10 @@ export function useJourneyAddressWithReduction({
       explicitDefaults,
     ],
   );
+  const journeyQuery = useMemo(
+    () => canonicalTripQuery(serializeLink(primaryStops, {}, false, linkExtra)),
+    [primaryStops, linkExtra],
+  );
   const shareUrl = window.location.origin + localizedPath(import.meta.env.BASE_URL, null) + query;
   const addressUrl = window.location.origin + window.location.pathname + query;
   useEffect(() => {
@@ -145,7 +150,7 @@ export function useJourneyAddressWithReduction({
     t,
   ]);
 
-  return { shareUrl, shareReduction };
+  return { shareUrl, shareReduction, journeyQuery };
 }
 
 /** Backwards-compatible string API used by App; import the companion hook to show reduction details. */
