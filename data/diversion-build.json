@@ -1,19 +1,19 @@
 {
   "source": "OurAirports airports.csv and runways.csv (https://ourairports.com/data/) – public domain",
-  "generatedAt": "2026-11-14T11:38:08.905Z",
-  "upstreamCommit": "873df94470d9c8f4fdfe8b41bf7976fe7992297c",
+  "generatedAt": "2026-11-15T12:04:27.485Z",
+  "upstreamCommit": "e951a586d5ff20a4d1b56859d599ab26483918c7",
   "files": {
     "airports.csv": {
-      "sha256": "5b3b48a429c8513853ff13a51a03282d1ef159ddf347f40203ff66b583574e8b",
-      "bytes": 12760412,
-      "lastModified": "Sat, 14 Nov 2026 02:54:01 GMT",
-      "rows": 86363
+      "sha256": "aa5d3ebadde95f8bf4d9b574f0cf85c2285fbe2ba40fb3f9d82681070cf7d05d",
+      "bytes": 12761365,
+      "lastModified": "Sun, 15 Nov 2026 02:53:57 GMT",
+      "rows": 86368
     },
     "runways.csv": {
-      "sha256": "84d66ace2234e57c39a6a1d61d02db116e45f963137446c0829bae0547456b31",
-      "bytes": 3974694,
-      "lastModified": "Sat, 14 Nov 2026 02:54:01 GMT",
-      "rows": 48424
+      "sha256": "4b53733f63b740517291d3c73cccbc6c4356a2d31334a9cafb8c73ff92d2a673",
+      "bytes": 3975349,
+      "lastModified": "Sun, 15 Nov 2026 02:53:57 GMT",
+      "rows": 48428
     }
   },
   "criteria": {
@@ -25,9 +25,9 @@
   },
   "counts": {
     "airports": 2626,
-    "inputAirports": 86363,
-    "inputRunways": 48424,
-    "excludedType": 81081,
+    "inputAirports": 86368,
+    "inputRunways": 48428,
+    "excludedType": 81086,
     "excludedPosition": 0,
     "excludedReviewed": 1,
     "excludedNoRunway": 2655,
@@ -2729,7 +2729,7 @@
     "ASPH/GRVL": { "surface": "unpaved", "count": 6 },
     "ASPH/GRVL-F": { "surface": "unpaved", "count": 1 },
     "ASPH/TURF": { "surface": "unpaved", "count": 1 },
-    "ASPHALT": { "surface": "asphalt", "count": 499 },
+    "ASPHALT": { "surface": "asphalt", "count": 500 },
     "ASPHALT CONCRETE": { "surface": "unknown", "count": 3 },
     "ASPHALT DIRT": { "surface": "unpaved", "count": 1 },
     "ASPHALT PARTIAL": { "surface": "unknown", "count": 1 },
@@ -2887,7 +2887,7 @@
     "GRAS": { "surface": "unknown", "count": 16 },
     "GRAS REINFORCED": { "surface": "unknown", "count": 1 },
     "GRAS TURF": { "surface": "unpaved", "count": 3 },
-    "GRASS": { "surface": "unpaved", "count": 1275 },
+    "GRASS": { "surface": "unpaved", "count": 1278 },
     "GRASS - HERBE  (AVION)": { "surface": "unpaved", "count": 1 },
     "GRASS - HERBE  (PLANEUR)": { "surface": "unpaved", "count": 1 },
     "GRASS - HERBE -> AVION - ULM": { "surface": "unpaved", "count": 1 },
@@ -3002,10 +3002,10 @@
     "GREY GRAVEL": { "surface": "unpaved", "count": 2 },
     "GREY SILT CLAY": { "surface": "unpaved", "count": 1 },
     "GROUND": { "surface": "unknown", "count": 27 },
-    "GRS": { "surface": "unpaved", "count": 2256 },
+    "GRS": { "surface": "unpaved", "count": 2257 },
     "GRS EMERGENCY STRIP": { "surface": "unpaved", "count": 1 },
     "GRS/GVL": { "surface": "unpaved", "count": 1 },
-    "GRV": { "surface": "unknown", "count": 36 },
+    "GRV": { "surface": "unknown", "count": 35 },
     "GRV/ASP": { "surface": "unknown", "count": 2 },
     "GRV/GRASS": { "surface": "unpaved", "count": 17 },
     "GRV/MAICILLO": { "surface": "unknown", "count": 1 },
@@ -3034,7 +3034,7 @@
     "GRVL/GRASS": { "surface": "unpaved", "count": 1 },
     "GRVL/PIÇ": { "surface": "unpaved", "count": 1 },
     "GRVL/TURF": { "surface": "unpaved", "count": 1 },
-    "GVL": { "surface": "unpaved", "count": 1100 },
+    "GVL": { "surface": "unpaved", "count": 1101 },
     "H": { "surface": "unknown", "count": 2 },
     "HARD": { "surface": "unknown", "count": 14 },
     "HARD CLAY": { "surface": "unpaved", "count": 1 },
@@ -3083,7 +3083,7 @@
     "OON": { "surface": "unknown", "count": 2 },
     "PACKED DIRT": { "surface": "unpaved", "count": 1 },
     "PACKED GRAVEL": { "surface": "unpaved", "count": 1 },
-    "PAD": { "surface": "unknown", "count": 36 },
+    "PAD": { "surface": "unknown", "count": 35 },
     "PAD/CON": { "surface": "unknown", "count": 1 },
     "PAD/GRASS": { "surface": "unpaved", "count": 3 },
     "PAVED": { "surface": "paved", "count": 48 },
