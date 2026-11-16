@@ -1,19 +1,19 @@
 {
   "source": "OurAirports airports.csv and runways.csv (https://ourairports.com/data/) – public domain",
-  "generatedAt": "2026-11-15T12:04:27.485Z",
-  "upstreamCommit": "e951a586d5ff20a4d1b56859d599ab26483918c7",
+  "generatedAt": "2026-11-16T12:56:38.436Z",
+  "upstreamCommit": "1cdbf9cbed1e47bed8f115ec173b91aeb999e44f",
   "files": {
     "airports.csv": {
-      "sha256": "aa5d3ebadde95f8bf4d9b574f0cf85c2285fbe2ba40fb3f9d82681070cf7d05d",
-      "bytes": 12761365,
-      "lastModified": "Sun, 15 Nov 2026 02:53:57 GMT",
+      "sha256": "9d6a27f0a3067364cd92ea49589c3f515d0330c3aa5ff30e98b007cbfabd05df",
+      "bytes": 12761443,
+      "lastModified": "Mon, 16 Nov 2026 02:53:59 GMT",
       "rows": 86368
     },
     "runways.csv": {
-      "sha256": "4b53733f63b740517291d3c73cccbc6c4356a2d31334a9cafb8c73ff92d2a673",
-      "bytes": 3975349,
-      "lastModified": "Sun, 15 Nov 2026 02:53:57 GMT",
-      "rows": 48428
+      "sha256": "c4d38b7eb3ae11fe30ac6b00193a9e9db65956b0663c796038aff711ba5a9f5c",
+      "bytes": 3975466,
+      "lastModified": "Mon, 16 Nov 2026 02:53:59 GMT",
+      "rows": 48430
     }
   },
   "criteria": {
@@ -26,7 +26,7 @@
   "counts": {
     "airports": 2626,
     "inputAirports": 86368,
-    "inputRunways": 48428,
+    "inputRunways": 48430,
     "excludedType": 81086,
     "excludedPosition": 0,
     "excludedReviewed": 1,
@@ -2688,7 +2688,7 @@
     "ASHP": { "surface": "unknown", "count": 1 },
     "ASHPALT": { "surface": "unknown", "count": 1 },
     "ASHPHALT": { "surface": "unknown", "count": 1 },
-    "ASP": { "surface": "asphalt", "count": 11401 },
+    "ASP": { "surface": "asphalt", "count": 11402 },
     "ASP-G": { "surface": "asphalt", "count": 1 },
     "ASP/CON": { "surface": "paved", "count": 9 },
     "ASP/CONC": { "surface": "paved", "count": 2 },
@@ -2788,7 +2788,7 @@
     "COMPACTED SAND": { "surface": "unpaved", "count": 2 },
     "COMPACTED SOIL": { "surface": "unknown", "count": 1 },
     "COMPOSITE": { "surface": "unknown", "count": 1 },
-    "CON": { "surface": "concrete", "count": 3699 },
+    "CON": { "surface": "concrete", "count": 3700 },
     "CON-ROOF": { "surface": "unknown", "count": 2 },
     "CON/ASP": { "surface": "paved", "count": 2 },
     "CON/GRS": { "surface": "unpaved", "count": 7 },
