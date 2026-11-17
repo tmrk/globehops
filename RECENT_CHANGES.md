@@ -2,6 +2,10 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.29.1 – 2026-11-17 – Closer zoom with full-resolution imagery
+
+- **Zoom in closer with the sharper maps.** Once Full-resolution imagery is on and ready, you can zoom in closer than usual. Turning the switch off while you are closer than the ordinary limit eases the view back out, rather than jumping.
+
 ## 1.29.0 – 2026-11-17 – Sharper Earth imagery, if you want it
 
 - **Full-resolution imagery (optional).** About now has a **Full-resolution imagery** switch. It is off by default, and nothing extra is downloaded until you turn it on. When you do, GlobeHops first tells you how much it will download (about 11 MB) and waits for you to confirm; Cancel leaves everything as it was.

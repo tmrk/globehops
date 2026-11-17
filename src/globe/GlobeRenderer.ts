@@ -54,6 +54,7 @@ import { countSegments, decodeBorders, densifyLine } from '../lib/borders.ts';
 import { EARTH_RADIUS_KM, enclosingCap, greatCircleDistanceKm, greatCirclePath, slerpVec, toVec3 } from '../lib/geo.ts';
 import { mergeFractions, pathLengthKm, pathVertexFractions, vectorAlongPath } from '../lib/routePath.ts';
 import { displayAltitudeKm, simplifyTrackIndices, type TrackKind } from '../lib/track.ts';
+import { closestCameraDistance } from '../lib/hiresPack.ts';
 import { SOLAR_SHADING_GLSL } from '../lib/sun.ts';
 import type { LatLng } from '../types.ts';
 import {
@@ -170,6 +171,8 @@ const LEG_HIT_TOLERANCE_PX = 18;
 /** Smaller-dimension field of view (degrees). Narrow FOV keeps the globe photographic. */
 const BASE_FOV = 30;
 const MIN_DISTANCE = 1.32;
+/** Easing out from the closer zoom when full-resolution imagery is switched off. */
+const ZOOM_RELEASE_MS = 500;
 const CAMERA_POLE_CLEARANCE = 0.05;
 /** Arcs start just above the surface so their ends never sink into the tessellated sphere. */
 const ROUTE_LIFT = 0.0018;
@@ -263,6 +266,7 @@ export class GlobeRenderer {
   private borderAbort = new AbortController();
   private textures: GlobeTextures;
   private highRes = false;
+  private releaseZoomLimit = false;
   private reportedHiResTiles = 0;
   private width = 1;
   private height = 1;
@@ -524,7 +528,35 @@ export class GlobeRenderer {
   setHighResImagery(enabled: boolean) {
     this.highRes = enabled;
     this.textures.setHighRes(enabled);
+    this.setZoomLimit(enabled);
     this.requestRender();
+  }
+
+  /**
+   * The pack allows a closer zoom. Switching it off eases a closer camera out to the usual limit; the usual
+   * limit is applied only on arrival, because OrbitControls would otherwise clamp the camera at once.
+   */
+  private setZoomLimit(closer: boolean) {
+    if (closer) {
+      const wasReleasing = this.releaseZoomLimit;
+      this.releaseZoomLimit = false;
+      this.controls.minDistance = closestCameraDistance(MIN_DISTANCE, true);
+      // Turning the pack back on mid-ease should not keep flying out to the usual limit.
+      if (wasReleasing) this.cancelTween();
+      return;
+    }
+    if (this.camera.position.length() < MIN_DISTANCE - 1e-6) {
+      this.releaseZoomLimit = true;
+      this.flyTo(this.camera.position, MIN_DISTANCE, true, ZOOM_RELEASE_MS);
+      if (!this.cameraTween) this.finishZoomRelease();
+      return;
+    }
+    this.finishZoomRelease();
+  }
+
+  private finishZoomRelease() {
+    this.releaseZoomLimit = false;
+    this.controls.minDistance = MIN_DISTANCE;
   }
 
   private updateHighRes() {
@@ -1536,6 +1568,7 @@ export class GlobeRenderer {
     this.camera.lookAt(0, 0, 0);
     if (t >= 1) {
       this.cameraTween = null;
+      if (this.releaseZoomLimit) this.finishZoomRelease();
       this.controls.update();
     }
     return true;
@@ -1544,6 +1577,7 @@ export class GlobeRenderer {
   private cancelTween() {
     if (this.cameraTween) {
       this.cameraTween = null;
+      if (this.releaseZoomLimit) this.finishZoomRelease();
       this.controls.update();
     }
   }

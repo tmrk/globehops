@@ -16,7 +16,7 @@ export const en = {
   'pwa.iosHint': 'To install on iPhone or iPad, tap Share, then Add to Home Screen.',
   'hires.label': 'Full-resolution imagery',
   'hires.description':
-    'Sharper views when you zoom in close, using the full-size NASA Blue Marble and Black Marble maps. It is off by default: turning it on downloads about {0} MB and keeps it on this device.',
+    'Sharper views and a closer zoom, using the full-size NASA Blue Marble and Black Marble maps. It is off by default: turning it on downloads about {0} MB and keeps it on this device.',
   'hires.downloading': 'Downloading the imagery… {0}%',
   'hires.ready': 'The full-resolution imagery is on this device.',
   'hires.failed': 'The imagery could not be downloaded, so the option stays off. Check your connection and try again.',

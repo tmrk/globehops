@@ -17,7 +17,7 @@ export const sv: Messages = {
   'pwa.iosHint': 'På iPhone eller iPad: tryck på Dela och sedan Lägg till på hemskärmen.',
   'hires.label': 'Bilder i full upplösning',
   'hires.description':
-    'Skarpare vyer när du zoomar in nära, med NASA:s Blue Marble och Black Marble i full storlek. Av som standard: när du slår på det hämtas cirka {0} MB som sparas på den här enheten.',
+    'Skarpare vyer och närmare zoom med NASA:s Blue Marble och Black Marble i full storlek. Av som standard: när du slår på det hämtas cirka {0} MB som sparas på den här enheten.',
   'hires.downloading': 'Hämtar bilderna… {0} %',
   'hires.ready': 'Bilderna i full upplösning finns på den här enheten.',
   'hires.failed': 'Bilderna kunde inte hämtas, så inställningen förblir av. Kontrollera anslutningen och försök igen.',

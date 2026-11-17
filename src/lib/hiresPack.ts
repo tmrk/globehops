@@ -140,10 +140,24 @@ export function tilesWithin(
 
 /** Texel density of the 8K map the pack improves on: 8,192 px around 360°. */
 export const BASE_PIXELS_PER_DEGREE = 8192 / 360;
+/** Width in pixels of the full-resolution day map (all tile columns side by side). */
+export const HIRES_DAY_PIXELS = HIRES_GRIDS.day.cols * HIRES_GRIDS.day.tileWidth;
+/** Width in pixels of the 8K map the pack improves on. */
+export const BASE_MAP_PIXELS = BASE_PIXELS_PER_DEGREE * 360;
 /** Tiles only load once the screen shows this many times the 8K map's pixels per degree. */
 export const HIRES_ZOOM_FACTOR = 1.5;
 /** The most day tiles kept on the GPU together (about 40 MB each with mipmaps; four cover any one view). */
 export const MAX_DAY_TILES = 4;
+
+/**
+ * Closest camera distance in globe radii. With the pack in use the altitude shrinks by the ratio of the map
+ * widths, so the view is magnified past the map's own pixels by the same amount as at `standardMinDistance`
+ * with the 8K map.
+ */
+export function closestCameraDistance(standardMinDistance: number, fullResolution: boolean): number {
+  if (!fullResolution) return standardMinDistance;
+  return 1 + (standardMinDistance - 1) * (BASE_MAP_PIXELS / HIRES_DAY_PIXELS);
+}
 
 /**
  * Screen pixels per degree of surface straight below the camera, for a camera `distance` globe radii from the

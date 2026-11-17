@@ -17,7 +17,7 @@ export const hu: Messages = {
   'pwa.iosHint': 'iPhone-on vagy iPaden koppints a Megosztás gombra, majd a „Hozzáadás a Főképernyőhöz” lehetőségre.',
   'hires.label': 'Teljes felbontású műholdképek',
   'hires.description':
-    'Élesebb kép közeli nagyításnál, a NASA Blue Marble és Black Marble térképeinek teljes méretű változatával. Alapból ki van kapcsolva: bekapcsolva kb. {0} MB-ot tölt le, és az eszközön tárolja.',
+    'Élesebb kép és közelebbi nagyítás a NASA Blue Marble és Black Marble térképeinek teljes méretű változatával. Alapból ki van kapcsolva: bekapcsolva kb. {0} MB-ot tölt le, és az eszközön tárolja.',
   'hires.downloading': 'A képek letöltése… {0}%',
   'hires.ready': 'A teljes felbontású képek az eszközön vannak.',
   'hires.failed':
