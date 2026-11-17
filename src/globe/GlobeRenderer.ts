@@ -1651,8 +1651,7 @@ export class GlobeRenderer {
   }
 
   private updateRotateSpeed() {
-    // Geometric speed: the ground under the view centre follows the pointer at every altitude.
-    this.controls.rotateSpeed = orbitRotateSpeed(this.camera.position.length(), this.camera.fov);
+    this.controls.rotateSpeed = orbitRotateSpeed(this.camera.position.length());
   }
 
   private resize() {

@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.29.3 – 2026-11-17 – Original drag speed restored
+
+- **Dragging feels as it used to.** The drag speed at ordinary zoom is back to how it was before 1.29.2.
+- **Still steady up close.** Zoomed in closer than usual with Full-resolution imagery, dragging slows down in step with the zoom, so the map no longer races ahead of your finger.
+
 ## 1.29.2 – 2026-11-17 – Steadier dragging when zoomed in
 
 - **The map stays under your finger.** Zoomed in close, especially with Full-resolution imagery, dragging the globe used to move it further than your finger or mouse. The globe now follows the pointer at every height, so what you grab moves with you.
