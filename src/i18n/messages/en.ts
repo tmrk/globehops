@@ -183,7 +183,7 @@ export const en = {
   'timebar.now': 'Now',
   'common.link': 'Link',
   'a11y.globeInstructions':
-    'Interactive globe showing your journey. Drag to rotate, scroll or pinch to zoom. Arrow keys rotate, plus and minus zoom.',
+    'Interactive globe showing your journey. Drag to rotate, scroll or pinch to zoom. On a touch screen, double-tap and drag up or down to zoom. Arrow keys rotate, plus and minus zoom.',
   'common.language': 'Language',
   'common.close': 'Close',
   'common.appVersion': 'GlobeHops version',

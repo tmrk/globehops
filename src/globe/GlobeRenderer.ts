@@ -77,6 +77,7 @@ import { FOLLOW_APPROACH_MS, followBlend, followDistance, followLead } from './f
 import { sameAircraft, type AircraftView, type FleetAircraft, type Sky } from './simFeed.ts';
 import { moonVantage, SkyBodies } from './skyBodies.ts';
 import { routeGeometrySignature } from './routeGeometry.ts';
+import { DOUBLE_TAP_MS, DoubleTapZoom, TAP_ZOOM_FACTOR } from './doubleTapZoom.ts';
 import { appFrames, type FrameScheduler } from '../state/frames.ts';
 
 export type MarkerRole = 'origin' | 'transfer' | 'destination' | 'single';
@@ -298,6 +299,9 @@ export class GlobeRenderer {
   private disposed = false;
   private resizeObserver: ResizeObserver;
   private pointerDown: { x: number; y: number; t: number } | null = null;
+  private readonly doubleTap = new DoubleTapZoom();
+  private readonly touchIds = new Set<number>();
+  private pendingSelect = 0;
   private lastFits: boolean | null = null;
   private tmp = new Vector3();
   private tmp2 = new Vector3();
@@ -467,8 +471,12 @@ export class GlobeRenderer {
     this.camera.lookAt(0, 0, 0);
 
     this.canvas.addEventListener('wheel', this.onControlsStart, { passive: true });
+    this.canvas.addEventListener('pointerdown', this.onTouchDownCapture, { capture: true });
     this.canvas.addEventListener('pointerdown', this.onPointerDown);
+    this.canvas.addEventListener('pointermove', this.onTouchMove);
     this.canvas.addEventListener('pointerup', this.onPointerUp);
+    this.canvas.addEventListener('pointercancel', this.onTouchCancel);
+    this.canvas.addEventListener('lostpointercapture', this.onTouchCaptureLost);
     this.canvas.addEventListener('webglcontextlost', this.onContextLost);
     this.canvas.addEventListener('webglcontextrestored', this.onContextRestored);
 
@@ -839,8 +847,14 @@ export class GlobeRenderer {
     this.controls.removeEventListener('change', this.requestRender);
     this.controls.dispose();
     this.canvas.removeEventListener('wheel', this.onControlsStart);
+    this.doubleTap.reset();
+    this.clearPendingSelect();
+    this.canvas.removeEventListener('pointerdown', this.onTouchDownCapture, { capture: true });
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
+    this.canvas.removeEventListener('pointermove', this.onTouchMove);
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
+    this.canvas.removeEventListener('pointercancel', this.onTouchCancel);
+    this.canvas.removeEventListener('lostpointercapture', this.onTouchCaptureLost);
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.clearLegs();
@@ -1666,13 +1680,116 @@ export class GlobeRenderer {
   };
 
   private onPointerUp = (e: PointerEvent) => {
+    this.touchIds.delete(e.pointerId);
+    const kind =
+      e.pointerType === 'touch'
+        ? this.doubleTap.pointerUp({
+            pointerType: e.pointerType,
+            pointerId: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            time: performance.now(),
+          })
+        : 'none';
+    if (kind === 'tapZoom' || kind === 'dragEnd') {
+      this.endDoubleTapGesture(e.pointerId, kind === 'tapZoom');
+      return;
+    }
     const d = this.pointerDown;
     this.pointerDown = null;
     if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6 || performance.now() - d.t > 600) return;
     const rect = this.canvas.getBoundingClientRect();
     const hit = this.hitTestLeg(e.clientX - rect.left, e.clientY - rect.top);
-    if (hit !== null) this.options.onLegClick?.(hit);
+    if (hit === null) return;
+    if (kind !== 'tap') {
+      this.options.onLegClick?.(hit);
+      return;
+    }
+    // A touch tap may be the first half of a double tap, so selection waits out the double-tap window
+    // and is dropped if a second tap arrives. Taps that are too long or moved too far select at once.
+    this.clearPendingSelect();
+    this.pendingSelect = window.setTimeout(() => {
+      this.pendingSelect = 0;
+      this.options.onLegClick?.(hit);
+    }, DOUBLE_TAP_MS);
   };
+
+  private clearPendingSelect() {
+    if (this.pendingSelect) window.clearTimeout(this.pendingSelect);
+    this.pendingSelect = 0;
+  }
+
+  /** Runs before OrbitControls sees the touch, so a double-tap-and-drag never starts a rotate. */
+  private onTouchDownCapture = (e: PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    const others = this.touchIds.size;
+    this.touchIds.add(e.pointerId);
+    // A second finger mid-gesture hands the camera back so the pinch can take over.
+    const running = this.doubleTap.gestureId;
+    if (running !== null) this.endDoubleTapGesture(running, false);
+    const start = this.doubleTap.pointerDown(
+      { pointerType: e.pointerType, pointerId: e.pointerId, x: e.clientX, y: e.clientY, time: performance.now() },
+      others,
+      this.camera.position.length(),
+    );
+    if (!start) return;
+    e.stopImmediatePropagation();
+    this.clearPendingSelect();
+    this.pointerDown = null;
+    this.onControlsStart();
+    this.emptyFit = null;
+    this.controls.enabled = false;
+    this.syncControls();
+    try {
+      this.canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // The pointer may already be gone; the gesture then ends on its own.
+    }
+  };
+
+  private onTouchMove = (e: PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    const distance = this.doubleTap.pointerMove(
+      e.pointerId,
+      e.clientX,
+      e.clientY,
+      this.controls.minDistance,
+      this.controls.maxDistance,
+    );
+    if (distance === null) return;
+    this.camera.position.setLength(distance);
+    this.requestRender();
+  };
+
+  private onTouchCancel = (e: PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    this.touchIds.delete(e.pointerId);
+    const running = this.doubleTap.gestureId;
+    if (running === e.pointerId) this.endDoubleTapGesture(running, false);
+    else this.doubleTap.cancel(e.pointerId);
+  };
+
+  private onTouchCaptureLost = (e: PointerEvent) => {
+    const running = this.doubleTap.gestureId;
+    if (running !== null && running === e.pointerId) this.endDoubleTapGesture(running, false);
+  };
+
+  /** Hands the camera back to OrbitControls from where the gesture left it, optionally with one zoom-in step. */
+  private endDoubleTapGesture(pointerId: number, zoomIn: boolean) {
+    this.doubleTap.reset();
+    if (this.canvas.hasPointerCapture?.(pointerId)) this.canvas.releasePointerCapture(pointerId);
+    this.controls.enabled = true;
+    this.syncControls();
+    if (zoomIn) this.nudge(0, 0, TAP_ZOOM_FACTOR);
+  }
+
+  /** Re-reads the camera into OrbitControls and drops any pending rotate momentum, without a jump. */
+  private syncControls() {
+    this.controls.enableDamping = false;
+    this.controls.update();
+    this.controls.enableDamping = true;
+    this.requestRender();
+  }
 
   private onControlsStart = () => {
     // Direct manipulation always wins over automatic camera movement.

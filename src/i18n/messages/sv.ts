@@ -183,7 +183,7 @@ export const sv: Messages = {
   'timebar.now': 'Nu',
   'common.link': 'Länk',
   'a11y.globeInstructions':
-    'Interaktiv jordglob som visar din resa. Dra för att rotera, skrolla eller nyp för att zooma. Piltangenterna roterar, plus och minus zoomar.',
+    'Interaktiv jordglob som visar din resa. Dra för att rotera, skrolla eller nyp för att zooma. På en pekskärm kan du också dubbeltrycka och dra uppåt eller nedåt för att zooma. Piltangenterna roterar, plus och minus zoomar.',
   'common.language': 'Språk',
   'common.close': 'Stäng',
   'common.appVersion': 'GlobeHops-version',

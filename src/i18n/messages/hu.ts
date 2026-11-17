@@ -186,7 +186,7 @@ export const hu: Messages = {
   'timebar.now': 'Most',
   'common.link': 'Link',
   'a11y.globeInstructions':
-    'Interaktív földgömb az útvonaladdal. Húzással forgathatod, görgetéssel vagy két ujjal nagyíthatod. A nyílbillentyűk forgatnak, a plusz és a mínusz nagyít, illetve kicsinyít.',
+    'Interaktív földgömb az útvonaladdal. Húzással forgathatod, görgetéssel vagy két ujjal nagyíthatod. Érintőképernyőn dupla koppintás után felfelé vagy lefelé húzva is nagyíthatsz. A nyílbillentyűk forgatnak, a plusz és a mínusz nagyít, illetve kicsinyít.',
   'common.language': 'Nyelv',
   'common.close': 'Bezárás',
   'common.appVersion': 'GlobeHops-verzió',

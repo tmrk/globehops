@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.28.0 – 2026-11-17 – Double-tap and drag to zoom
+
+- **Zoom with one finger.** On a touch screen, tap twice quickly and keep your finger down on the second tap, then drag: down zooms in and up zooms out, as in Google Maps. Lift your finger and the globe carries on as usual. A double-tap without a drag zooms in one step. Pinching, rotating and tapping a flight work as before, and the mouse is unchanged.
+- **Tapping a flight on a touch screen waits a moment.** A single tap on a route now selects it about a third of a second later, so a double-tap to zoom doesn't also select the flight under your finger.
+
 ## 1.27.0 – 2026-11-14 – Saved trips, and links that open in the app
 
 - **Save a trip with one tap.** The bookmark beside Share keeps the journey, trip or comparison on the globe in **Saved trips**. A saved trip works like a document: later changes to it are saved as you go, and Reset, a suggestion or a link starts something new without overwriting it. Tap the filled bookmark again to remove the trip.
