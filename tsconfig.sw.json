@@ -5,6 +5,6 @@
     "lib": ["ES2023", "WebWorker"],
     "types": []
   },
-  "include": ["src/pwa/sw.ts", "src/pwa/swRouting.ts"],
+  "include": ["src/pwa/sw.ts", "src/pwa/swRouting.ts", "src/pwa/hiresCache.ts", "src/pwa/verifiedFetch.ts"],
   "exclude": []
 }

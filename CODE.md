@@ -119,6 +119,9 @@
 | `src/globe/followCamera.ts`, `src/globe/followCamera.test.ts`                      | Pure phase zoom, predictive lead and frame-rate-independent smoothing with composition tests.                         |
 | `src/globe/math3d.ts`                                                              | ECEF/scene conversions and robust spherical interpolation.                                                            |
 | `src/styles/app.css`                                                               | Tokens, layout, component styles and reduced-motion rules.                                                            |
+| `src/globe/hiresTiles.ts`                                                          | Optional full-resolution tile patches for close views.                                                                |
+| `src/lib/hiresPack.ts`                                                             | Imagery pack grids, manifest types and tile maths.                                                                    |
+| `src/pwa/hiresCache.ts`, `hiresClient.ts`, `hiresImagery.ts`                       | Separate imagery cache, worker client and opt-in state.                                                               |
 | `src/assets/textures/`                                                             | Generated NASA Earth WebP textures and Black Marble night-light masks.                                                |
 | `scripts/update-airports.ts`                                                       | Downloads, caching and validated atomic output writes.                                                                |
 | `scripts/lib/dataset.ts`                                                           | Pure dataset selection, cleaning, validation and hashing.                                                             |
@@ -143,7 +146,7 @@
 | `data/{timezones-build,timezone-overrides}.json`, `data/TIMEZONES.md`              | Zone provenance, exception report, sourced overrides and ODbL terms.                                                  |
 | `scripts/build-icons.ts`                                                           | Stylised Canvas 2D globe icons, iOS launch screens, screenshots and optional social preview.                          |
 | `public/`                                                                          | SVG/PNG icons, manifest and social preview.                                                                           |
-| `scripts/build-textures.ts`                                                        | NASA day/night JPEG resampling, ocean lift, light-mask extraction and WebP.                                           |
+| `scripts/build-textures.ts`                                                        | NASA day/night JPEG resampling, ocean lift, light-mask extraction, WebP; --hires-only.                                |
 | `scripts/version.test.ts`                                                          | Keeps package.json, package-lock.json and the newest RECENT_CHANGES heading on one version.                           |
 | `data/`                                                                            | Aliases, their rationale and airport build provenance.                                                                |
 | `src/**/*.test.ts`, `scripts/*.test.ts`                                            | Unit tests beside production logic.                                                                                   |

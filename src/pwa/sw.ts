@@ -1,6 +1,9 @@
+import { createHiResCache, type HiResManifestLike, type HiResProgress } from './hiresCache.ts';
+import { hash, verifiedFetch } from './verifiedFetch.ts';
 import { navigationCacheUrl, scopedGet } from './swRouting.ts';
 
 declare const __PRECACHE_MANIFEST__: { url: string; revision: string }[];
+declare const __HIRES_MANIFEST__: HiResManifestLike;
 declare const __APP_BUILD__: { version: string; commit: string; date: string };
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const prefix = 'globehops-precache-';
@@ -9,35 +12,9 @@ const revisionsUrl = new URL('__precache-revisions.json', scope).href;
 const entries = __PRECACHE_MANIFEST__;
 const urls = new Set(entries.map((entry) => new URL(entry.url, scope).href));
 
-async function hash(bytes: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
-    .slice(0, 16);
-}
+const hiresManifest = __HIRES_MANIFEST__;
+const hires = createHiResCache({ scope, manifest: hiresManifest, storage: caches });
 const cacheName = hash(new TextEncoder().encode(JSON.stringify(entries)).buffer).then((id) => prefix + id);
-
-async function verifiedFetch(url: string, revision: string): Promise<Response> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const address = new URL(url);
-      address.searchParams.set('__rev', revision);
-      const response = await fetch(address, { cache: 'no-store' });
-      if (!response.ok) throw new Error('Precache response failed');
-      const bytes = await response.arrayBuffer();
-      if ((await hash(bytes)) !== revision) throw new Error('Precache revision mismatch');
-      return new Response(bytes, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-      });
-    } catch (error) {
-      if (attempt === 1) throw error;
-    }
-  }
-  throw new Error('Precache download failed');
-}
 
 worker.addEventListener('install', (event) => {
   event.waitUntil(
@@ -86,6 +63,10 @@ worker.addEventListener('activate', (event) => {
         (await caches.keys()).filter((key) => key.startsWith(prefix) && key !== name).map((key) => caches.delete(key)),
       );
       await worker.clients.claim();
+      // The app update is complete. Bring an installed imagery pack up to date in the background without
+      // holding activation back; nothing happens when the pack was never installed, and a failure is retried
+      // by the page's next sync.
+      void hires.sync().catch(() => {});
     })(),
   );
 });
@@ -95,6 +76,11 @@ worker.addEventListener('fetch', (event) => {
   if (!scopedGet(request.url, scope, request.method, request.headers.has('Range'))) return;
   event.respondWith(
     (async () => {
+      if (request.mode !== 'navigate' && hires.has(request.url)) {
+        const tile = await hires.match(request.url);
+        if (tile) return tile;
+        return fetch(request);
+      }
       const cache = await caches.open(await cacheName);
       if (request.mode === 'navigate') {
         const page = navigationCacheUrl(request.url, scope);
@@ -117,7 +103,27 @@ worker.addEventListener('fetch', (event) => {
   );
 });
 
+/** Runs one imagery pack request for the page, reporting progress and the final state over its port. */
+function packRequest(event: ExtendableMessageEvent, run: (progress: HiResProgress) => Promise<unknown>): void {
+  const port = event.ports[0];
+  const finish = async (failed: boolean) => {
+    const state = await hires.state().catch(() => 'absent' as const);
+    port?.postMessage({ type: 'result', pack: hiresManifest.pack, state, failed });
+  };
+  event.waitUntil(
+    run((done, total) => port?.postMessage({ type: 'progress', done, total })).then(
+      () => finish(false),
+      () => finish(true),
+    ),
+  );
+}
+
 worker.addEventListener('message', (event) => {
-  if (event.data?.type === 'skip-waiting') event.waitUntil(worker.skipWaiting());
-  if (event.data?.type === 'build') event.ports[0]?.postMessage(__APP_BUILD__);
+  const type = event.data?.type;
+  if (type === 'skip-waiting') event.waitUntil(worker.skipWaiting());
+  if (type === 'build') event.ports[0]?.postMessage(__APP_BUILD__);
+  if (type === 'hires-install') packRequest(event, (progress) => hires.install(progress));
+  if (type === 'hires-sync') packRequest(event, (progress) => hires.sync(progress));
+  if (type === 'hires-status') packRequest(event, async () => {});
+  if (type === 'hires-delete') packRequest(event, () => hires.clear());
 });

@@ -64,6 +64,14 @@ Choose **Import a flight path** in the planner, drop a file anywhere on the page
 
 No need to type a booking in. Choose **Map your booking with AI** in the planner, copy the short prompt and paste it into ChatGPT, Gemini, Claude or any other assistant together with your confirmation email, PDF or screenshot. The assistant follows GlobeHops's published [guide for AI assistants](https://globehops.marki.im/llms.txt) and replies with a link that opens your flights, with their real times, connections and return, on the globe. Your booking goes only to the assistant you choose; GlobeHops never sees it.
 
+### Full-resolution imagery (optional)
+
+By default the globe uses compact maps that load quickly and keep the offline app small. If you like to zoom in close, open About (ⓘ), find **App** and turn on **Full-resolution imagery**. GlobeHops then asks before downloading anything: it states the size (about 11 MB) and starts only when you choose **Download**. **Cancel** leaves the switch off and downloads nothing.
+
+The pack is the original NASA Blue Marble (by day) and Black Marble (night lights) at their full size, cut into pieces. Once you are zoomed in close, the globe loads the few pieces around your view and swaps them in when it is still; until then, and wherever a device cannot hold them, the usual maps are used. The progress and the result show beneath the switch. If the download fails, the switch stays off and nothing half-downloaded is kept.
+
+The pack is stored on this device, separately from the app. Turn the switch off to delete it and free the space. Updating GlobeHops never downloads it again, apart from any pieces of the imagery that have actually changed. The switch needs a browser that can keep files for offline use, so it is unavailable otherwise. It is a device setting and is never part of a shared link.
+
 ### Choose your language
 
 GlobeHops speaks **English, Magyar and Svenska**. It chooses automatically using your country (inferred from the browser’s time zone) and browser languages; this is a rough country hint, not your physical location. Change language with the language button or in About (ⓘ) and your choice is remembered. You can also open [English (`/en/`)](https://globehops.marki.im/en/), [Magyar (`/hu/`)](https://globehops.marki.im/hu/) or [Svenska (`/sv/`)](https://globehops.marki.im/sv/), or use `?lang=en`, `?lang=hu` or `?lang=sv`. An explicit language address wins over your saved choice.

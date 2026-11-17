@@ -2,6 +2,13 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.29.0 – 2026-11-17 – Sharper Earth imagery, if you want it
+
+- **Full-resolution imagery (optional).** About now has a **Full-resolution imagery** switch. It is off by default, and nothing extra is downloaded until you turn it on. When you do, GlobeHops first tells you how much it will download (about 11 MB) and waits for you to confirm; Cancel leaves everything as it was.
+- **Sharper when you zoom in.** The pack is the fuller NASA Blue Marble and Black Marble that GlobeHops already uses, at their original size. Once you are zoomed in close, the globe draws the pieces around your view in finer detail, by day and with night lights. It looks exactly as before until you zoom in, and on a device that cannot hold the pieces it keeps the usual maps.
+- **Easy to remove.** Turn the switch off and the imagery is deleted from your device and the globe goes back to the usual maps. If a download fails, the switch stays off and nothing half-downloaded is kept.
+- **App updates leave it alone.** Updating GlobeHops does not download the imagery again. Only pieces of the imagery that have changed are fetched, quietly after the update, and the app update never waits for them. Without the switch on, the offline app is no bigger than before.
+
 ## 1.28.0 – 2026-11-17 – Double-tap and drag to zoom
 
 - **Zoom with one finger.** On a touch screen, tap twice quickly and keep your finger down on the second tap, then drag: down zooms in and up zooms out, as in Google Maps. Lift your finger and the globe carries on as usual. A double-tap without a drag zooms in one step. Pinching, rotating and tapping a flight work as before, and the mouse is unchanged.

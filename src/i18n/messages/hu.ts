@@ -15,6 +15,19 @@ export const hu: Messages = {
   'pwa.failed': 'Nem sikerült frissítést keresni.',
   'pwa.install': 'GlobeHops telepítése',
   'pwa.iosHint': 'iPhone-on vagy iPaden koppints a Megosztás gombra, majd a „Hozzáadás a Főképernyőhöz” lehetőségre.',
+  'hires.label': 'Teljes felbontású műholdképek',
+  'hires.description':
+    'Élesebb kép közeli nagyításnál, a NASA Blue Marble és Black Marble térképeinek teljes méretű változatával. Alapból ki van kapcsolva: bekapcsolva kb. {0} MB-ot tölt le, és az eszközön tárolja.',
+  'hires.downloading': 'A képek letöltése… {0}%',
+  'hires.ready': 'A teljes felbontású képek az eszközön vannak.',
+  'hires.failed':
+    'A képeket nem sikerült letölteni, ezért a beállítás kikapcsolva maradt. Ellenőrizd a kapcsolatot, és próbáld újra.',
+  'hires.updateFailed': 'A képek frissítése nem sikerült. A GlobeHops legközelebb újra megpróbálja.',
+  'hires.unsupported': 'Ez a böngésző nem tudja az eszközön tárolni a képeket, ezért a beállítás nem érhető el.',
+  'hires.confirmTitle': 'Letöltöd a teljes felbontású képeket?',
+  'hires.confirmBody':
+    'Ez kb. {0} MB adatot tölt le, és az eszközön tárolja. A program csak erős nagyításnál használja. A beállítás kikapcsolásával bármikor törölheted. Ha korlátozott a mobilnet-csomagod, használj Wi-Fit.',
+  'hires.confirmAction': 'Letöltés ({0} MB)',
 
   'compare.entry': 'Utazások összehasonlítása',
   'compare.title': 'Összehasonlítás',

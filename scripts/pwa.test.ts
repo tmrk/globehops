@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { assembleManifest, excludedFromPrecache, insertHeadTags, precacheUrl, revision } from './pwa.ts';
+import {
+  assembleManifest,
+  excludedFromPrecache,
+  insertHeadTags,
+  precacheUrl,
+  revision,
+  workerHiResManifest,
+} from './pwa.ts';
+import hiresPackManifest from '../src/data/generated/hires-pack.json' with { type: 'json' };
+import type { HiResManifest } from '../src/lib/hiresPack.ts';
 import { localizedHtml } from '../src/i18n/html.ts';
 
 describe('precache manifest', () => {
@@ -22,6 +31,9 @@ describe('precache manifest', () => {
       'og-image.png',
       'splash/a.png',
       'screenshots/a.webp',
+      'hires/day-0-0.webp',
+      'hires/night-3-1.webp',
+      'hires/manifest.json',
     ]) {
       expect(excludedFromPrecache(path), path).toBe(true);
     }
@@ -34,6 +46,22 @@ describe('precache manifest', () => {
     ]) {
       expect(excludedFromPrecache(path), path).toBe(false);
     }
+  });
+  it('leaves the imagery pack out of the default precache however many tiles the public directory holds', () => {
+    const publicFiles = new Map<string, string | Uint8Array>([['manifest.webmanifest', '{}']]);
+    for (const tile of hiresPackManifest.tiles) publicFiles.set(tile.url, new Uint8Array([1, 2, 3]));
+    expect(publicFiles.size).toBeGreaterThan(40);
+    const withPack = assembleManifest(publicFiles, new Map([['assets/app.js', 'app']]));
+    expect(withPack).toEqual(
+      assembleManifest(new Map([['manifest.webmanifest', '{}']]), new Map([['assets/app.js', 'app']])),
+    );
+    expect(withPack.some((entry) => entry.url.startsWith('hires/'))).toBe(false);
+  });
+  it('bakes only tile URLs and revisions, with the pack identifier, into the worker', () => {
+    const baked = workerHiResManifest(hiresPackManifest as HiResManifest);
+    expect(baked.pack).toBe(hiresPackManifest.pack);
+    expect(baked.tiles).toHaveLength(hiresPackManifest.tiles.length);
+    expect(Object.keys(baked.tiles[0]).sort()).toEqual(['revision', 'url']);
   });
   it('hashes exact UTF-8/binary bytes and makes deterministic manifests with bundle precedence', () => {
     expect(revision('hello')).toBe('2cf24dba5fb0a30e');

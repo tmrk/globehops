@@ -1,0 +1,406 @@
+{
+  "pack": "ce4e0259e1ed1efd",
+  "bytes": 11077254,
+  "tiles": [
+    {
+      "url": "hires/day-0-0.webp",
+      "kind": "day",
+      "col": 0,
+      "row": 0,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 282362,
+      "revision": "06841a5b0e09b027"
+    },
+    {
+      "url": "hires/day-0-1.webp",
+      "kind": "day",
+      "col": 0,
+      "row": 1,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 70350,
+      "revision": "66dbbd5a120d3eaa"
+    },
+    {
+      "url": "hires/day-0-2.webp",
+      "kind": "day",
+      "col": 0,
+      "row": 2,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 81078,
+      "revision": "be84c5896681ad7a"
+    },
+    {
+      "url": "hires/day-0-3.webp",
+      "kind": "day",
+      "col": 0,
+      "row": 3,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 161626,
+      "revision": "db3e23fcefb4d6bf"
+    },
+    {
+      "url": "hires/day-1-0.webp",
+      "kind": "day",
+      "col": 1,
+      "row": 0,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 635382,
+      "revision": "81885601722f38dc"
+    },
+    {
+      "url": "hires/day-1-1.webp",
+      "kind": "day",
+      "col": 1,
+      "row": 1,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 324894,
+      "revision": "e7bc0eab74f28771"
+    },
+    {
+      "url": "hires/day-1-2.webp",
+      "kind": "day",
+      "col": 1,
+      "row": 2,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 45968,
+      "revision": "96a83f4c65cc0419"
+    },
+    {
+      "url": "hires/day-1-3.webp",
+      "kind": "day",
+      "col": 1,
+      "row": 3,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 208674,
+      "revision": "23a0c9eaf9fcce31"
+    },
+    {
+      "url": "hires/day-2-0.webp",
+      "kind": "day",
+      "col": 2,
+      "row": 0,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 524412,
+      "revision": "10f433c706cb5a79"
+    },
+    {
+      "url": "hires/day-2-1.webp",
+      "kind": "day",
+      "col": 2,
+      "row": 1,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 291434,
+      "revision": "27f544ae0f16b5c6"
+    },
+    {
+      "url": "hires/day-2-2.webp",
+      "kind": "day",
+      "col": 2,
+      "row": 2,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 469870,
+      "revision": "77f04c4d950b27ff"
+    },
+    {
+      "url": "hires/day-2-3.webp",
+      "kind": "day",
+      "col": 2,
+      "row": 3,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 363508,
+      "revision": "22f13398ecdc0ccc"
+    },
+    {
+      "url": "hires/day-3-0.webp",
+      "kind": "day",
+      "col": 3,
+      "row": 0,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 254480,
+      "revision": "ca97492e15ee0425"
+    },
+    {
+      "url": "hires/day-3-1.webp",
+      "kind": "day",
+      "col": 3,
+      "row": 1,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 243030,
+      "revision": "7b55743ee39d7409"
+    },
+    {
+      "url": "hires/day-3-2.webp",
+      "kind": "day",
+      "col": 3,
+      "row": 2,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 135090,
+      "revision": "0cd8b0e91d640516"
+    },
+    {
+      "url": "hires/day-3-3.webp",
+      "kind": "day",
+      "col": 3,
+      "row": 3,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 207004,
+      "revision": "27df7b29766cc317"
+    },
+    {
+      "url": "hires/day-4-0.webp",
+      "kind": "day",
+      "col": 4,
+      "row": 0,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 459398,
+      "revision": "e518ea6d194f00ee"
+    },
+    {
+      "url": "hires/day-4-1.webp",
+      "kind": "day",
+      "col": 4,
+      "row": 1,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 579254,
+      "revision": "a29092e70988d5a7"
+    },
+    {
+      "url": "hires/day-4-2.webp",
+      "kind": "day",
+      "col": 4,
+      "row": 2,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 324148,
+      "revision": "743f9cba0fcbb333"
+    },
+    {
+      "url": "hires/day-4-3.webp",
+      "kind": "day",
+      "col": 4,
+      "row": 3,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 196448,
+      "revision": "d60b77a87978d5a3"
+    },
+    {
+      "url": "hires/day-5-0.webp",
+      "kind": "day",
+      "col": 5,
+      "row": 0,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 444850,
+      "revision": "78e2f72d7bee26c4"
+    },
+    {
+      "url": "hires/day-5-1.webp",
+      "kind": "day",
+      "col": 5,
+      "row": 1,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 640906,
+      "revision": "98eefe5d4ceb8aa3"
+    },
+    {
+      "url": "hires/day-5-2.webp",
+      "kind": "day",
+      "col": 5,
+      "row": 2,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 145422,
+      "revision": "f93a6d7cd9871043"
+    },
+    {
+      "url": "hires/day-5-3.webp",
+      "kind": "day",
+      "col": 5,
+      "row": 3,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 196990,
+      "revision": "db00b942a3a40a42"
+    },
+    {
+      "url": "hires/day-6-0.webp",
+      "kind": "day",
+      "col": 6,
+      "row": 0,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 454672,
+      "revision": "82f362111cad06cd"
+    },
+    {
+      "url": "hires/day-6-1.webp",
+      "kind": "day",
+      "col": 6,
+      "row": 1,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 630042,
+      "revision": "94b767ea88f7eaeb"
+    },
+    {
+      "url": "hires/day-6-2.webp",
+      "kind": "day",
+      "col": 6,
+      "row": 2,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 263588,
+      "revision": "794bae0be8234171"
+    },
+    {
+      "url": "hires/day-6-3.webp",
+      "kind": "day",
+      "col": 6,
+      "row": 3,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 152182,
+      "revision": "5ab3669846ec8ad2"
+    },
+    {
+      "url": "hires/day-7-0.webp",
+      "kind": "day",
+      "col": 7,
+      "row": 0,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 380242,
+      "revision": "80e2415c62761e75"
+    },
+    {
+      "url": "hires/day-7-1.webp",
+      "kind": "day",
+      "col": 7,
+      "row": 1,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 161586,
+      "revision": "f9ef524383d884e4"
+    },
+    {
+      "url": "hires/day-7-2.webp",
+      "kind": "day",
+      "col": 7,
+      "row": 2,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 316496,
+      "revision": "d4d469e57d435335"
+    },
+    {
+      "url": "hires/day-7-3.webp",
+      "kind": "day",
+      "col": 7,
+      "row": 3,
+      "width": 2700,
+      "height": 2700,
+      "bytes": 341684,
+      "revision": "a718112a4d0f1dba"
+    },
+    {
+      "url": "hires/night-0-0.webp",
+      "kind": "night",
+      "col": 0,
+      "row": 0,
+      "width": 3375,
+      "height": 3375,
+      "bytes": 115006,
+      "revision": "741a4f9ad768838c"
+    },
+    {
+      "url": "hires/night-0-1.webp",
+      "kind": "night",
+      "col": 0,
+      "row": 1,
+      "width": 3375,
+      "height": 3375,
+      "bytes": 20516,
+      "revision": "c4df68cacd07971f"
+    },
+    {
+      "url": "hires/night-1-0.webp",
+      "kind": "night",
+      "col": 1,
+      "row": 0,
+      "width": 3375,
+      "height": 3375,
+      "bytes": 171246,
+      "revision": "97e843e1ada2df50"
+    },
+    {
+      "url": "hires/night-1-1.webp",
+      "kind": "night",
+      "col": 1,
+      "row": 1,
+      "width": 3375,
+      "height": 3375,
+      "bytes": 115556,
+      "revision": "21fe8565e7916474"
+    },
+    {
+      "url": "hires/night-2-0.webp",
+      "kind": "night",
+      "col": 2,
+      "row": 0,
+      "width": 3375,
+      "height": 3375,
+      "bytes": 417764,
+      "revision": "b1a64837149138e7"
+    },
+    {
+      "url": "hires/night-2-1.webp",
+      "kind": "night",
+      "col": 2,
+      "row": 1,
+      "width": 3375,
+      "height": 3375,
+      "bytes": 44772,
+      "revision": "cab6b1570ef36b31"
+    },
+    {
+      "url": "hires/night-3-0.webp",
+      "kind": "night",
+      "col": 3,
+      "row": 0,
+      "width": 3375,
+      "height": 3375,
+      "bytes": 158266,
+      "revision": "3e56fb6dda4c6424"
+    },
+    {
+      "url": "hires/night-3-1.webp",
+      "kind": "night",
+      "col": 3,
+      "row": 1,
+      "width": 3375,
+      "height": 3375,
+      "bytes": 47058,
+      "revision": "ff9720ab78b3e70e"
+    }
+  ]
+}

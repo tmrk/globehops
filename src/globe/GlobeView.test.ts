@@ -12,9 +12,11 @@ interface RendererStub {
   options: GlobeRendererOptions;
   setReducedMotion: ReturnType<typeof vi.fn>;
   setBordersVisible: ReturnType<typeof vi.fn>;
+  setHighResImagery: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
 }
 
+vi.mock('../hooks/useHiResImagery.ts', () => ({ useHiResImagery: () => ({ enabled: false, status: 'off' }) }));
 vi.mock('../i18n/I18nProvider.tsx', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 vi.mock('./GlobeRenderer.ts', () => ({
   GlobeRenderer: class {
@@ -27,6 +29,7 @@ vi.mock('./GlobeRenderer.ts', () => ({
     }
     setReducedMotion = vi.fn();
     setBordersVisible = vi.fn();
+    setHighResImagery = vi.fn();
     setCountryLabelsVisible = vi.fn();
     setWaterLabelsVisible = vi.fn();
     setUserLocation = vi.fn();
@@ -96,6 +99,8 @@ it('keeps one renderer across prop changes and dispatches callbacks to the lates
   expect(instances).toHaveLength(1);
   expect(renderer.setReducedMotion).toHaveBeenLastCalledWith(false);
   expect(renderer.setBordersVisible).toHaveBeenLastCalledWith(false);
+  // The optional imagery stays off unless its setting is on and the pack is on the device.
+  expect(renderer.setHighResImagery).toHaveBeenLastCalledWith(false);
   renderer.options.onLegClick?.(2);
   expect(props.onLegClick).toHaveBeenCalledWith(2);
   expect(previous).not.toHaveBeenCalled();

@@ -13,6 +13,7 @@ import { GlobeRenderer, type GlobeRoute, type Insets } from './GlobeRenderer.ts'
 import type { LatLng } from '../types.ts';
 import type { SimulationFeed } from './simFeed.ts';
 import { routeGeometrySignature } from './routeGeometry.ts';
+import { useHiResImagery } from '../hooks/useHiResImagery.ts';
 
 export interface GlobeViewProps {
   route: GlobeRoute;
@@ -40,6 +41,9 @@ export interface GlobeViewProps {
 /** React wrapper around the imperative GlobeRenderer. Loaded lazily (Three.js lives in this chunk). */
 export default function GlobeView(props: GlobeViewProps) {
   const { t } = useI18n();
+  const imagery = useHiResImagery();
+  // The full-resolution tiles are used only once the pack is on this device and its setting is on.
+  const highRes = imagery.enabled && imagery.status === 'ready';
 
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GlobeRenderer | null>(null);
@@ -65,6 +69,7 @@ export default function GlobeView(props: GlobeViewProps) {
           lightsLarge: lightsLargeUrl,
           moon: moonUrl,
         },
+        hiresTileBase: import.meta.env.BASE_URL,
         bordersUrl,
         coastlinesUrl,
         countryLabelsUrl,
@@ -111,6 +116,10 @@ export default function GlobeView(props: GlobeViewProps) {
   useEffect(() => {
     rendererRef.current?.setReducedMotion(reducedMotion);
   }, [reducedMotion]);
+
+  useEffect(() => {
+    rendererRef.current?.setHighResImagery(highRes);
+  }, [highRes]);
 
   useEffect(() => {
     rendererRef.current?.setBordersVisible(showBorders);

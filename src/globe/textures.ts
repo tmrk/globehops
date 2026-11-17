@@ -1,5 +1,14 @@
-import { MeshLambertMaterial, NoColorSpace, SRGBColorSpace, Texture, type ColorSpace } from 'three';
+import {
+  MeshLambertMaterial,
+  NoColorSpace,
+  SRGBColorSpace,
+  Texture,
+  type ColorSpace,
+  type Object3D,
+  type WebGLProgramParametersWithUniforms,
+} from 'three';
 import type { GlobeRendererOptions, TextureSet } from './GlobeRenderer.ts';
+import { HiResTiles, type HiResView } from './hiresTiles.ts';
 import { clamp01, easeInOutCubic } from './math3d.ts';
 
 const MEDIUM_TEXTURE_SIZE = 4096;
@@ -33,6 +42,12 @@ interface TextureContext {
    * apply at once.
    */
   lastDrawAt?(): number;
+  /** Where the optional full-resolution tiles go and how they are addressed; absent when there is no pack. */
+  hires?: {
+    parent: Object3D;
+    shade(shader: WebGLProgramParametersWithUniforms): void;
+    urlFor(tileUrl: string): string;
+  };
 }
 
 /**
@@ -56,6 +71,9 @@ export class GlobeTextures {
   /** A sharper day map waiting for the globe to be still, and the night lights' arrival. */
   private pendingMap: { texture: Texture; quality: number } | null = null;
   private pendingLights: (() => void) | null = null;
+  /** Other additions waiting for the same still moment (full-resolution tiles). */
+  private pendingExtras = new Set<() => void>();
+  private hires: HiResTiles | null = null;
   private stillSince: number | null = null;
   private stillTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -94,6 +112,45 @@ export class GlobeTextures {
       });
   }
 
+  /** Switches the optional full-resolution tiles on or off; off (or no pack) leaves exactly today's textures. */
+  setHighRes(enabled: boolean): void {
+    if (this.disposed) return;
+    const options = this.context.hires;
+    if (!enabled || !options) {
+      this.hires?.setEnabled(false);
+      return;
+    }
+    this.hires ??= new HiResTiles({
+      parent: options.parent,
+      base: this.context.material,
+      shade: options.shade,
+      maxTextureSize: this.context.capabilities.maxTextureSize,
+      decode: (url, colorSpace) => this.decode(url, colorSpace),
+      release: (texture) => this.release(texture),
+      afterStill: (apply) => {
+        this.pendingExtras.add(apply);
+        this.whenStill();
+      },
+      illuminated: () => this.context.illuminated(),
+      requestRender: () => this.context.requestRender(),
+      urlFor: options.urlFor,
+      coarsePointer: () => window.matchMedia?.('(pointer: coarse)').matches ?? false,
+      deviceMemoryGb: () => (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8,
+      now: () => performance.now(),
+    });
+    this.hires.setEnabled(true);
+  }
+
+  /** Per frame: lets the full-resolution tiles follow the camera. A no-op unless they are on. */
+  updateHighRes(view: HiResView): void {
+    this.hires?.update(view);
+  }
+
+  /** How many full-resolution tiles are on the globe; 0 when they are off. */
+  highResTiles(): number {
+    return this.hires?.residentCount() ?? 0;
+  }
+
   private async loadMedium(): Promise<void> {
     if (this.disposed || this.mediumState !== 'idle' || this.context.capabilities.maxTextureSize < MEDIUM_TEXTURE_SIZE)
       return;
@@ -121,6 +178,7 @@ export class GlobeTextures {
           this.context.cityLights.value = this.context.reducedMotion() ? CITY_LIGHTS : 0;
           // Let the shader upload finish before starting the fade.
           if (!this.context.reducedMotion()) this.lightsFadeStart = performance.now() + CITY_LIGHTS_UPLOAD_DELAY_MS;
+          this.hires?.refreshLights();
           this.context.requestRender();
         };
         this.whenStill();
@@ -207,7 +265,7 @@ export class GlobeTextures {
 
   /** Applies waiting changes once the globe has not drawn for a moment, or after the deadline regardless. */
   private whenStill(): void {
-    if (this.disposed || (!this.pendingMap && !this.pendingLights)) return;
+    if (this.disposed || (!this.pendingMap && !this.pendingLights && !this.pendingExtras.size)) return;
     const now = performance.now();
     this.stillSince ??= now;
     const drawnAt = this.context.lastDrawAt?.() ?? -Infinity;
@@ -220,8 +278,11 @@ export class GlobeTextures {
     const map = this.pendingMap;
     const lights = this.pendingLights;
     this.pendingMap = this.pendingLights = null;
+    const extras = [...this.pendingExtras];
+    this.pendingExtras.clear();
     if (map) this.swap(map.texture, map.quality);
     lights?.();
+    for (const apply of extras) apply();
   }
 
   private swap(texture: Texture, quality: number): void {
@@ -261,6 +322,9 @@ export class GlobeTextures {
     cancelAnimationFrame(this.retirementFrame);
     clearTimeout(this.stillTimer);
     this.pendingMap = this.pendingLights = null;
+    this.pendingExtras.clear();
+    this.hires?.dispose();
+    this.hires = null;
     for (const texture of [...this.textures]) this.release(texture);
     this.retired.clear();
     this.context.material.map = null;

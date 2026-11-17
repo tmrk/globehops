@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { MeshLambertMaterial, Texture } from 'three';
+import { Group, MeshLambertMaterial, Texture } from 'three';
 import { GlobeTextures } from './textures.ts';
 
 function deferred() {
@@ -253,6 +253,67 @@ describe('texture uploads that keep motion smooth', () => {
     } finally {
       still.dispose();
       vi.useRealTimers();
+    }
+  });
+});
+
+describe('optional full-resolution tiles', () => {
+  const view = {
+    distance: 1.4,
+    fovDegrees: 30,
+    aspect: 1.6,
+    viewportPixels: 1000,
+    x: 1.4 * Math.cos(47.5 * (Math.PI / 180)) * Math.cos(19 * (Math.PI / 180)),
+    y: 1.4 * Math.sin(47.5 * (Math.PI / 180)),
+    z: -1.4 * Math.cos(47.5 * (Math.PI / 180)) * Math.sin(19 * (Math.PI / 180)),
+  };
+  const make = () =>
+    new GlobeTextures({
+      material,
+      capabilities: { maxTextureSize: 8192, getMaxAnisotropy: () => 16 },
+      urls: {
+        preview: '1k',
+        medium: '4k',
+        large: '8k',
+        lightsSmall: 'lights2k',
+        lightsLarge: 'lights4k',
+        moon: 'moon',
+      },
+      cityLights: { value: 0 },
+      reducedMotion: () => false,
+      illuminated: () => false,
+      requestRender: vi.fn(),
+      onReady: ready,
+      hires: { parent: new Group(), shade: () => {}, urlFor: (url) => `h:${url}` },
+    });
+  const hiresRequests = () => [...pending.keys()].filter((url) => url.startsWith('h:'));
+
+  it('request no tile unless the setting is on and the pack available, however close the camera', async () => {
+    const own = make();
+    try {
+      own.updateHighRes(view);
+      own.setHighRes(false);
+      own.updateHighRes(view);
+      await settle();
+      expect(hiresRequests()).toEqual([]);
+    } finally {
+      own.dispose();
+    }
+  });
+  it('request the nearest day tile once switched on, and none after switching off again', async () => {
+    const own = make();
+    try {
+      own.setHighRes(true);
+      own.updateHighRes(view);
+      await settle();
+      expect(hiresRequests()[0]).toBe('h:hires/day-4-0.webp');
+      own.setHighRes(false);
+      pending.clear();
+      own.updateHighRes({ ...view, distance: 1.35 });
+      await settle();
+      expect(hiresRequests()).toEqual([]);
+    } finally {
+      own.dispose();
     }
   });
 });

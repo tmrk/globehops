@@ -65,6 +65,8 @@ export const { load: loadDayNight, save: saveDayNight } = booleanSetting('globeh
 export const { load: loadAvoidAirspace, save: saveAvoidAirspace } = booleanSetting('globehops:avoidAirspace');
 /** Keep long oceanic routes within modelled reach of potential diversion airports; unset means on. */
 export const { load: loadDiversionRouting, save: saveDiversionRouting } = booleanSetting('globehops:diversionRouting');
+/** The opt-in full-resolution imagery pack; unset means off. A device choice, never part of a shared link. */
+export const { load: loadHighResImagery, save: saveHighResImagery } = booleanSetting('globehops:highResImagery');
 /** Whether this browser has ever played a journey; until then the play launcher gives one gentle cue. */
 export const { load: loadPlayed, save: savePlayed } = booleanSetting('globehops:played');
 

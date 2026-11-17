@@ -22,6 +22,17 @@ Credit: **NASA Earth Observatory images by Joshua Stevens, using Suomi NPP VIIRS
 
 `scripts/build-textures.ts` resamples with Lanczos3 to 4096 × 2048 and 2048 × 1024, then `scripts/lib/lights.ts` turns each RGB pixel into a single light value: red minus 0.55 × blue, minus 2, scaled so that 110 is full brightness. This removes the bluish moonlit land, ice and ocean of the composite and keeps the warm-white lights. The masks are WebP (`lights-4k.webp` quality 75, about 143 KB; `lights-2k.webp` quality 80, about 44 KB). The globe shader tints them warm and shows them only on the night side. Lights reflect 2016 and are not live.
 
+### Optional full-resolution tiles
+
+The same two NASA sources (the Blue Marble July 2004 composite above and the Black Marble 2016 composite under City lights) are also self-hosted at their native resolution as an opt-in pack, off by default. Nothing else is added: no other imagery or service. `node scripts/build-textures.ts --hires-only` (or `--hires` with the other sets) downloads either source into `.cache/` when it is missing, applies exactly the same colour edits (`scripts/lib/ocean.ts` for the day map, `scripts/lib/lights.ts` for the night-light mask) without resampling, and cuts them into equirectangular tiles that stay under a 4096 px GPU texture limit:
+
+- Day: 21,600 × 10,800 (about 1.9 km/px) as 8 × 4 tiles of 2,700 × 2,700, WebP quality 80.
+- Night: 13,500 × 6,750 (about 3 km/px) as 4 × 2 tiles of 3,375 × 3,375, single-channel mask, WebP quality 75.
+
+The 40 files (`public/hires/{day,night}-<column>-<row>.webp`, columns from 180°W, rows from the north) total 11,077,254 bytes (10.56 MiB); the largest is about 0.6 MiB, far below Cloudflare Pages' 25 MiB file limit. `src/data/generated/hires-pack.json` records each tile's URL, grid position, pixel size, byte size and content revision (the first 16 hex digits of the SHA-256 of its bytes, as `scripts/pwa.ts` uses), the pack identifier (a hash of every URL and revision, so rebuilding identical tiles changes nothing) and the exact total of the tile files, which is where the size in the confirmation dialog comes from. `scripts/hires.test.ts` fails if the tiles and the manifest drift apart. The 1K, 4K and 8K day maps and the 2K and 4K light masks above are unchanged by this build; only the WebP tiles and that manifest are committed, never the source JPEGs.
+
+The tiles are static files, never bundled and never part of the main offline precache. Turning the option on in About downloads them into their own Cache Storage cache; see [Architecture](ARCHITECTURE.md#offline-app-and-updates). The credits and terms of the two sources are unchanged.
+
 ## Moon
 
 Source: NASA Scientific Visualization Studio, [CGI Moon Kit](https://svs.gsfc.nasa.gov/4720) (SVS 4720), `lroc_color_poles_1k.jpg`: the Lunar Reconnaissance Orbiter Camera (LROC) Wide Angle Camera colour mosaic with the poles filled in, a 1024 × 512 equirectangular JPEG centred on 0° longitude. [Direct download](https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles_1k.jpg).

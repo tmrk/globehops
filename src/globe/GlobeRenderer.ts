@@ -34,6 +34,7 @@ import {
   SRGBColorSpace,
   Vector3,
   WebGLRenderer,
+  type WebGLProgramParametersWithUniforms,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Line2 } from 'three/addons/lines/Line2.js';
@@ -149,6 +150,8 @@ export interface GlobeRendererOptions {
   onFollowAircraftChange?: (enabled: boolean) => void;
   onFitChange?: (fitsInView: boolean) => void;
   onTextureReady?: (quality: 'preview' | 'full') => void;
+  /** Base-relative prefix of the optional full-resolution tile URLs. */
+  hiresTileBase?: string;
   /** The frame loop to draw in; defaults to the app's, after the simulation clock's update. */
   frames?: FrameScheduler;
 }
@@ -259,6 +262,8 @@ export class GlobeRenderer {
   private bordersState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
   private borderAbort = new AbortController();
   private textures: GlobeTextures;
+  private highRes = false;
+  private reportedHiResTiles = 0;
   private width = 1;
   private height = 1;
   private insets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -368,7 +373,7 @@ export class GlobeRenderer {
 
     // Black emissive: the night-light mask rides on emissiveMap but is applied by the custom shader.
     this.earthMaterial = new MeshLambertMaterial({ color: 0xffffff, emissive: 0x000000 });
-    this.earthMaterial.onBeforeCompile = (shader) => {
+    const shadeEarth = (shader: WebGLProgramParametersWithUniforms) => {
       shader.uniforms.uAtmo = { value: ATMOSPHERE_COLOR };
       shader.uniforms.uSunView = this.sunView;
       shader.uniforms.uDayNight = this.dayNight;
@@ -408,6 +413,7 @@ export class GlobeRenderer {
           }`,
         );
     };
+    this.earthMaterial.onBeforeCompile = shadeEarth;
     this.earth = new Mesh(new SphereGeometry(1, GLOBE_SEGMENTS, GLOBE_SEGMENTS / 2), this.earthMaterial);
     this.earth.renderOrder = 0;
     this.scene.add(this.earth);
@@ -495,6 +501,7 @@ export class GlobeRenderer {
       requestRender: this.requestRender,
       onReady: options.onTextureReady,
       lastDrawAt: () => this.drawnAt,
+      hires: { parent: this.scene, shade: shadeEarth, urlFor: (tileUrl) => (options.hiresTileBase ?? '') + tileUrl },
     });
     void this.textures.load();
     this.skyBodies = new SkyBodies({
@@ -512,6 +519,33 @@ export class GlobeRenderer {
 
   // ---------------------------------------------------------------------------------------------
   // Public API
+
+  /** Turns the optional full-resolution imagery on (when its pack is on this device) or off. */
+  setHighResImagery(enabled: boolean) {
+    this.highRes = enabled;
+    this.textures.setHighRes(enabled);
+    this.requestRender();
+  }
+
+  private updateHighRes() {
+    const tiles = this.textures.highResTiles();
+    if (tiles !== this.reportedHiResTiles) {
+      this.reportedHiResTiles = tiles;
+      // Read by tests and diagnostics, like the camera distance.
+      this.container.dataset.hiresTiles = String(tiles);
+    }
+    if (!this.highRes) return;
+    const { x, y, z } = this.camera.position;
+    this.textures.updateHighRes({
+      distance: this.camera.position.length(),
+      fovDegrees: this.camera.fov,
+      aspect: this.camera.aspect,
+      viewportPixels: this.canvas.height,
+      x,
+      y,
+      z,
+    });
+  }
 
   /** Sunlit shading, the Sun and the Moon for one instant; null returns to camera-relative daylight. */
   setSky(sky: Sky | null) {
@@ -932,6 +966,7 @@ export class GlobeRenderer {
     if (this.container.dataset.cameraMotion !== motion) this.container.dataset.cameraMotion = motion;
     this.updateRotateSpeed();
     this.textures.maybeUpgrade(this.camera.position.length());
+    this.updateHighRes();
 
     const distance = this.camera.position.length().toFixed(2);
     if (

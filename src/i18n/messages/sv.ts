@@ -15,6 +15,19 @@ export const sv: Messages = {
   'pwa.failed': 'Det gick inte att söka efter uppdateringar.',
   'pwa.install': 'Installera GlobeHops',
   'pwa.iosHint': 'På iPhone eller iPad: tryck på Dela och sedan Lägg till på hemskärmen.',
+  'hires.label': 'Bilder i full upplösning',
+  'hires.description':
+    'Skarpare vyer när du zoomar in nära, med NASA:s Blue Marble och Black Marble i full storlek. Av som standard: när du slår på det hämtas cirka {0} MB som sparas på den här enheten.',
+  'hires.downloading': 'Hämtar bilderna… {0} %',
+  'hires.ready': 'Bilderna i full upplösning finns på den här enheten.',
+  'hires.failed': 'Bilderna kunde inte hämtas, så inställningen förblir av. Kontrollera anslutningen och försök igen.',
+  'hires.updateFailed': 'Bilderna kunde inte uppdateras. GlobeHops försöker igen nästa gång.',
+  'hires.unsupported':
+    'Den här webbläsaren kan inte spara bilderna på din enhet, så inställningen är inte tillgänglig.',
+  'hires.confirmTitle': 'Hämta bilderna i full upplösning?',
+  'hires.confirmBody':
+    'Det hämtar cirka {0} MB data och sparar det på din enhet. Bilderna används bara när du zoomar in nära. Slå av inställningen när som helst för att ta bort dem. Har du begränsad mobildata, använd Wi-Fi.',
+  'hires.confirmAction': 'Hämta {0} MB',
 
   'compare.entry': 'Jämför resor',
   'compare.title': 'Jämför resor',

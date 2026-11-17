@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as viteBuild, type Plugin } from 'vite';
+import { HIRES_DIRECTORY, type HiResManifest } from '../src/lib/hiresPack.ts';
 
 export interface PrecacheEntry {
   url: string;
@@ -23,8 +24,25 @@ export function excludedFromPrecache(file: string): boolean {
     file.endsWith('.map') ||
     file.split('/').includes('.DS_Store') ||
     file === 'og-image.png' ||
-    /^(splash|screenshots)\//.test(file)
+    /^(splash|screenshots)\//.test(file) ||
+    // The optional full-resolution imagery has its own cache and is only fetched when the visitor opts in.
+    file.startsWith(HIRES_DIRECTORY)
   );
+}
+
+export interface WorkerHiResEntry {
+  url: string;
+  revision: string;
+}
+
+/** What the worker needs of the pack manifest: each tile's URL and revision, and the pack identifier. */
+export function workerHiResManifest(manifest: HiResManifest): { pack: string; tiles: WorkerHiResEntry[] } {
+  return { pack: manifest.pack, tiles: manifest.tiles.map(({ url, revision }) => ({ url, revision })) };
+}
+
+async function readHiResManifest(): Promise<{ pack: string; tiles: WorkerHiResEntry[] }> {
+  const file = fileURLToPath(new URL('../src/data/generated/hires-pack.json', import.meta.url));
+  return workerHiResManifest(JSON.parse(await readFile(file, 'utf8')) as HiResManifest);
 }
 
 export function revision(bytes: string | Uint8Array): string {
@@ -81,6 +99,7 @@ export function pwa(options: {
           Object.values(bundle).map((file) => [file.fileName, file.type === 'chunk' ? file.code : file.source]),
         );
         const manifest = assembleManifest(publicDir ? await publicFiles(publicDir) : new Map(), output);
+        const hires = await readHiResManifest();
         const result = await viteBuild({
           configFile: false,
           publicDir: false,
@@ -88,6 +107,7 @@ export function pwa(options: {
           base: options.base,
           define: {
             __PRECACHE_MANIFEST__: JSON.stringify(manifest),
+            __HIRES_MANIFEST__: JSON.stringify(hires),
             __APP_BUILD__: JSON.stringify(options.build),
           },
           build: {

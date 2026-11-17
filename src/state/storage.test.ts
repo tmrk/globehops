@@ -23,6 +23,8 @@ import {
   saveClockZone,
   loadAnalyticsConsent,
   saveAnalyticsConsent,
+  loadHighResImagery,
+  saveHighResImagery,
 } from './storage.ts';
 describe('safe storage', () => {
   it('round trips preferences with route caps and rejects malformed stored data', () => {
@@ -223,6 +225,34 @@ describe.each([
       expect(() => save(true)).not.toThrow();
     } finally {
       vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('high-resolution imagery setting', () => {
+  it('is off when never chosen and round trips a choice under its own key', () => {
+    const data = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => data.set(key, value),
+    });
+    try {
+      expect(loadHighResImagery() ?? false).toBe(false);
+      data.set('globehops:highResImagery', 'garbage');
+      expect(loadHighResImagery() ?? false).toBe(false);
+      saveHighResImagery(true);
+      expect(data.get('globehops:highResImagery')).toBe('on');
+      expect(loadHighResImagery()).toBe(true);
+      saveHighResImagery(false);
+      expect(loadHighResImagery()).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it('never appears on shared links', async () => {
+    const { readFileSync } = await import('node:fs');
+    for (const file of ['link.ts', 'url.ts', 'sharedLink.ts', 'viewPreferences.ts']) {
+      expect(readFileSync(new URL(`./${file}`, import.meta.url), 'utf8')).not.toContain('highResImagery');
     }
   });
 });

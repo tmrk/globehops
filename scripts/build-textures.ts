@@ -29,14 +29,25 @@
  *
  * The source files are NOT committed (they are large); the generated textures in src/assets/textures/ are.
  *
- * Usage: node scripts/build-textures.ts [--day-only | --night-only | --moon-only] [day.jpg] [night.jpg] [moon.jpg]
+ * Optional full-resolution pack (--hires, or --hires-only for just the pack): the same two sources cut at their
+ * native resolution into tiles, with the same colour edits. Day: 8 × 4 tiles of 2,700 px (WebP quality 80);
+ * night: 4 × 2 tiles of 3,375 px (WebP quality 75 after the light mask). Tiles go to public/hires/ (served as
+ * static files, never bundled and never precached) and src/data/generated/hires-pack.json records every tile's
+ * URL, size and content revision, the pack identifier and the exact total size of the tile files, which is the
+ * download size the app shows. Missing sources are downloaded to .cache/ first. The 1K/4K/8K textures above
+ * are not touched by --hires-only.
+ *
+ * Usage: node scripts/build-textures.ts [--day-only | --night-only | --moon-only | --hires-only] [--hires]
+ *   [day.jpg] [night.jpg] [moon.jpg]
  * Default sources: .cache/bmng/world.topo.bathy.200407.3x21600x10800.jpg,
  * .cache/blackmarble/BlackMarble_2016_3km.jpg and .cache/moon/lroc_color_poles_1k.jpg (URLs below).
  */
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
+import { HIRES_GRIDS, type HiResKind } from '../src/lib/hiresPack.ts';
+import { assembleHiresManifest, sourceSize, tileRect, type BuiltTile } from './lib/hires.ts';
 import { lightMask } from './lib/lights.ts';
 import { liftOceans } from './lib/ocean.ts';
 
@@ -49,11 +60,14 @@ export const MOON_SOURCE_URL = 'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a0
 const root = path.resolve(import.meta.dirname, '..');
 const args = process.argv.slice(2);
 const paths = args.filter((arg) => !arg.startsWith('--'));
-const only = ['day', 'night', 'moon'].filter((name) => args.includes(`--${name}-only`));
+const only = ['day', 'night', 'moon', 'hires'].filter((name) => args.includes(`--${name}-only`));
+const withHires = args.includes('--hires') || only.includes('hires');
 const daySource = paths[0] ?? path.join(root, '.cache/bmng/world.topo.bathy.200407.3x21600x10800.jpg');
 const nightSource = paths[1] ?? path.join(root, '.cache/blackmarble/BlackMarble_2016_3km.jpg');
 const moonSource = paths[2] ?? path.join(root, '.cache/moon/lroc_color_poles_1k.jpg');
 const outDir = path.join(root, 'src/assets/textures');
+const hiresDir = path.join(root, 'public/hires');
+const hiresManifest = path.join(root, 'src/data/generated/hires-pack.json');
 
 const dayOutputs = [
   // Tiny placeholder shown instantly while the real texture streams in.
@@ -141,14 +155,91 @@ async function buildMoon(source: string) {
   await report(target, file, 512);
 }
 
+async function download(url: string, target: string) {
+  console.log(`Downloading ${url}`);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status} downloading ${url}`);
+  await mkdir(path.dirname(target), { recursive: true });
+  const partial = `${target}.partial`;
+  await writeFile(partial, Buffer.from(await response.arrayBuffer()));
+  await rename(partial, target);
+}
+
+/** Cuts one full-resolution source into its grid of tiles, applying the same colour edit as the smaller maps. */
+async function buildHiResKind(kind: HiResKind, source: string): Promise<BuiltTile[]> {
+  const expected = sourceSize(kind);
+  const width = await sourceWidth(source);
+  if (width !== expected.width) throw new Error(`Expected a ${expected.width} px wide ${kind} source, got ${width}`);
+  const { data, info } = await sharp(source, { limitInputPixels: false })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  if (info.channels !== 3 || info.height !== expected.height) {
+    throw new Error(`Unexpected ${kind} source: ${info.width}×${info.height}, ${info.channels} channels`);
+  }
+  const { cols, rows, quality } = HIRES_GRIDS[kind];
+  const built: BuiltTile[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const rect = tileRect(kind, col, row);
+      const tile = await sharp(data, { raw: { width: info.width, height: info.height, channels: 3 } })
+        .extract(rect)
+        .raw()
+        .toBuffer();
+      const encoder =
+        kind === 'day'
+          ? sharp(liftOceans(tile), { raw: { width: rect.width, height: rect.height, channels: 3 } }).webp({
+              quality,
+              effort: 6,
+              smartSubsample: true,
+            })
+          : sharp(lightMask(tile), { raw: { width: rect.width, height: rect.height, channels: 1 } }).webp({
+              quality,
+              effort: 6,
+            });
+      built.push({ kind, col, row, bytes: await encoder.toBuffer() });
+      console.log(`${kind} ${col},${row}: ${(built.at(-1)!.bytes.byteLength / 1024).toFixed(0)} KiB`);
+    }
+  }
+  return built;
+}
+
+async function buildHiRes() {
+  const built = [...(await buildHiResKind('day', daySource)), ...(await buildHiResKind('night', nightSource))];
+  const manifest = assembleHiresManifest(built);
+  await mkdir(hiresDir, { recursive: true });
+  const keep = new Set(manifest.tiles.map((tile) => path.basename(tile.url)));
+  for (const file of await readdir(hiresDir)) if (!keep.has(file)) await rm(path.join(hiresDir, file));
+  for (const tile of built) {
+    const url = manifest.tiles.find(
+      (item) => item.kind === tile.kind && item.col === tile.col && item.row === tile.row,
+    )!.url;
+    await writeFile(path.join(root, 'public', url), tile.bytes);
+  }
+  await mkdir(path.dirname(hiresManifest), { recursive: true });
+  await writeFile(hiresManifest, `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log(
+    `Pack ${manifest.pack}: ${manifest.tiles.length} tiles, ${manifest.bytes} bytes (${(manifest.bytes / 1048576).toFixed(2)} MiB)`,
+  );
+}
+
 async function main() {
-  if (only.length > 1) throw new Error('Choose at most one of --day-only, --night-only and --moon-only');
+  if (only.length > 1) throw new Error('Choose at most one of --day-only, --night-only, --moon-only and --hires-only');
+  sharp.cache(false);
+  if (withHires) {
+    for (const [source, url] of [
+      [daySource, SOURCE_URL],
+      [nightSource, NIGHT_SOURCE_URL],
+    ]) {
+      if (!existsSync(source)) await download(url, source);
+    }
+    if (only[0] === 'hires') return buildHiRes();
+  }
   const jobs: [name: string, source: string, url: string, build: (source: string) => Promise<void>][] = [
     ['Day', daySource, SOURCE_URL, buildDay],
     ['Night', nightSource, NIGHT_SOURCE_URL, buildNight],
     ['Moon', moonSource, MOON_SOURCE_URL, buildMoon],
   ];
-  sharp.cache(false);
   await mkdir(outDir, { recursive: true });
   for (const [name, source, url, build] of jobs) {
     if (only.length && !only.includes(name.toLowerCase())) continue;
@@ -159,6 +250,7 @@ async function main() {
     }
     await build(source);
   }
+  if (withHires) await buildHiRes();
 }
 
 await main();

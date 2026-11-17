@@ -1,6 +1,7 @@
 import { useAppUpdate } from '../hooks/useAppUpdate.ts';
 import { useAppInstall } from '../hooks/useAppInstall.ts';
 import { useI18n } from '../i18n/I18nProvider.tsx';
+import { HiResImagerySetting } from './HiResImagerySetting.tsx';
 
 export function AppSettings() {
   const { t } = useI18n();
@@ -54,6 +55,7 @@ export function AppSettings() {
         </button>
       )}
       {install.iosHint && <p>{t('pwa.iosHint')}</p>}
+      <HiResImagerySetting />
     </section>
   );
 }

@@ -3499,6 +3499,28 @@ button.map-menu__item:hover {
   background: var(--press);
 }
 
+.about__toggle:disabled {
+  opacity: 0.55;
+}
+
+/* The imagery switch sits among the app settings; its status line takes no room while empty. */
+.about__status:empty {
+  margin: 0;
+}
+
+/* Asking before the large download: a narrower sheet over the About dialog. */
+.hires-confirm {
+  width: min(420px, calc(100% - 32px));
+}
+
+.hires-confirm h3 {
+  margin-top: 0;
+  color: var(--text);
+  font-size: var(--text-lg);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
 .about__version {
   margin: 18px 0 0;
   padding-top: 12px;
