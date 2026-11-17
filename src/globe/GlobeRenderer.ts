@@ -79,6 +79,7 @@ import { FOLLOW_APPROACH_MS, followBlend, followDistance, followLead } from './f
 import { sameAircraft, type AircraftView, type FleetAircraft, type Sky } from './simFeed.ts';
 import { moonVantage, SkyBodies } from './skyBodies.ts';
 import { routeGeometrySignature } from './routeGeometry.ts';
+import { orbitRotateSpeed } from './orbitSpeed.ts';
 import { DOUBLE_TAP_MS, DoubleTapZoom, TAP_ZOOM_FACTOR } from './doubleTapZoom.ts';
 import { appFrames, type FrameScheduler } from '../state/frames.ts';
 
@@ -470,7 +471,6 @@ export class GlobeRenderer {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = ORBIT_DAMPING;
     this.controls.zoomSpeed = 0.7;
-    this.controls.rotateSpeed = 0.6;
     this.controls.minDistance = MIN_DISTANCE;
     this.controls.minPolarAngle = CAMERA_POLE_CLEARANCE;
     this.controls.maxPolarAngle = Math.PI - CAMERA_POLE_CLEARANCE;
@@ -495,6 +495,7 @@ export class GlobeRenderer {
     this.emptyFit = this.camera.position.length();
     this.resizeObserver.observe(container);
     this.resize();
+    this.updateRotateSpeed();
     this.textures = new GlobeTextures({
       material: this.earthMaterial,
       capabilities: this.renderer.capabilities,
@@ -1650,8 +1651,8 @@ export class GlobeRenderer {
   }
 
   private updateRotateSpeed() {
-    const d = this.camera.position.length();
-    this.controls.rotateSpeed = Math.max(0.12, Math.min(0.75, (d - 1) * 0.28));
+    // Geometric speed: the ground under the view centre follows the pointer at every altitude.
+    this.controls.rotateSpeed = orbitRotateSpeed(this.camera.position.length(), this.camera.fov);
   }
 
   private resize() {

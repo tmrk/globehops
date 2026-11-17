@@ -2,6 +2,11 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.29.2 – 2026-11-17 – Steadier dragging when zoomed in
+
+- **The map stays under your finger.** Zoomed in close, especially with Full-resolution imagery, dragging the globe used to move it further than your finger or mouse. The globe now follows the pointer at every height, so what you grab moves with you.
+- **Steadier at other zoom levels too.** Dragging at ordinary zoom is slower than before, because the ground under the centre of the view now keeps pace with the pointer.
+
 ## 1.29.1 – 2026-11-17 – Closer zoom with full-resolution imagery
 
 - **Zoom in closer with the sharper maps.** Once Full-resolution imagery is on and ready, you can zoom in closer than usual. Turning the switch off while you are closer than the ordinary limit eases the view back out, rather than jumping.
