@@ -1,24 +1,24 @@
 {
-  "generatedAt": "2026-11-16T12:56:01.008Z",
+  "generatedAt": "2026-11-18T13:13:21.179Z",
   "source": "OurAirports (https://ourairports.com/data/) – public domain",
-  "upstreamCommit": "1cdbf9cbed1e47bed8f115ec173b91aeb999e44f",
+  "upstreamCommit": "13c732d99cd8a0147f3a42533bff671bcb8000cf",
   "files": {
     "airports.csv": {
-      "sha256": "9d6a27f0a3067364cd92ea49589c3f515d0330c3aa5ff30e98b007cbfabd05df",
-      "bytes": 12761443,
-      "lastModified": "Mon, 16 Nov 2026 02:53:59 GMT",
-      "rows": 86368
+      "sha256": "8d406ed66ccc287f75b718a6681fa73d080ba61332bad47abf46bd3e21171558",
+      "bytes": 12761885,
+      "lastModified": "Wed, 18 Nov 2026 02:54:37 GMT",
+      "rows": 86371
     },
     "countries.csv": {
       "sha256": "2a9dbee691125b0cdb8ceb5fe227c48c903f99c488963b8e53e2ab366521c639",
       "bytes": 24583,
-      "lastModified": "Mon, 16 Nov 2026 02:53:59 GMT",
+      "lastModified": "Wed, 18 Nov 2026 02:54:37 GMT",
       "rows": 249
     },
     "regions.csv": {
       "sha256": "9220d6582b804cfdec8432e5bb21456699c9df8969bf5d8886beb62ff0b1318b",
       "bytes": 485265,
-      "lastModified": "Mon, 16 Nov 2026 02:53:59 GMT",
+      "lastModified": "Wed, 18 Nov 2026 02:54:37 GMT",
       "rows": 3987
     }
   },
@@ -27,5 +27,5 @@
     "scheduled": 4327,
     "withIata": 9053
   },
-  "contentHash": "fba33d62e290408f787ad40d2b196128d8e5c5ba02d830d42f33333cf453cf4a"
+  "contentHash": "a83430fbcef2b834288b9f6a61fd2f25978585d7e4c3223230c17c0035ec6708"
 }
