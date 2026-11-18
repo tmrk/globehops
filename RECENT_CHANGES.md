@@ -2,6 +2,12 @@
 
 Every release has a [semantic version](https://semver.org/) (shown in About, and faintly in the bottom-left corner on desktop) and a git tag `v<version>`. Versions up to 1.5.0 were assigned after the fact to the releases below.
 
+## 1.30.0 – 2026-11-18 – Drag with momentum
+
+- **The globe glides on when you let go.** Flick the globe and it keeps turning for a moment, slowing gently to a stop, as in map apps. A quick flick glides further than a slow drag, and if you hold still before lifting your finger it stops where it is. It feels the same at every zoom, including the closer zoom with Full-resolution imagery.
+- **The globe stays under your finger.** While you drag, the globe now follows your finger or mouse exactly, rather than trailing slightly behind it. The drag speed is unchanged.
+- **Touch to stop.** Touching or clicking the globe stops a glide at once. Pinching and double-tap-and-drag zooming don't set it gliding, and with reduced motion on there is no glide at all.
+
 ## 1.29.3 – 2026-11-17 – Original drag speed restored
 
 - **Dragging feels as it used to.** The drag speed at ordinary zoom is back to how it was before 1.29.2.

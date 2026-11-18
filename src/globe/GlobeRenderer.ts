@@ -2,7 +2,7 @@
  * Imperative Three.js globe. Owned by <GlobeView>; React never touches the scene directly.
  *
  * Design notes
- * - Render on demand: a frame is drawn only while something changes (camera damping, tweens,
+ * - Render on demand: a frame is drawn only while something changes (a glide after a drag, tweens,
  *   reveal animations, texture uploads). An idle globe costs no GPU time.
  * - Routes are true great circles (spherical interpolation of unit vectors). The visual arc follows
  *   a simplified flight profile (climb to cruising altitude, cruise, descend; see lib/altitude.ts)
@@ -81,6 +81,7 @@ import { moonVantage, SkyBodies } from './skyBodies.ts';
 import { routeGeometrySignature } from './routeGeometry.ts';
 import { orbitRotateSpeed } from './orbitSpeed.ts';
 import { DOUBLE_TAP_MS, DoubleTapZoom, TAP_ZOOM_FACTOR } from './doubleTapZoom.ts';
+import { DragInertia } from './dragInertia.ts';
 import { appFrames, type FrameScheduler } from '../state/frames.ts';
 
 export type MarkerRole = 'origin' | 'transfer' | 'destination' | 'single';
@@ -162,8 +163,6 @@ const GLOBE_SEGMENTS = 128;
 const INSET_KEYS = ['top', 'right', 'bottom', 'left'] as const;
 /** Panels' room eases in with this time constant (about a fifth of the way each 60 Hz frame). */
 const INSET_EASE_MS = 67;
-/** OrbitControls damps once per update; this is its share at 60 Hz, scaled to the actual frame time. */
-const ORBIT_DAMPING = 0.09;
 /** Frame time assumed for the first frame after the globe was still. */
 const NOMINAL_FRAME_MS = 1000 / 60;
 const ILLUMINATION_FADE_MS = 360;
@@ -310,6 +309,10 @@ export class GlobeRenderer {
   private resizeObserver: ResizeObserver;
   private pointerDown: { x: number; y: number; t: number } | null = null;
   private readonly doubleTap = new DoubleTapZoom();
+  /** Lets a drag glide on after release; OrbitControls' own damping would make the globe trail the finger. */
+  private readonly inertia = new DragInertia();
+  /** More than one finger touched during the current drag, so it ends without a glide. */
+  private multiTouchDrag = false;
   private readonly touchIds = new Set<number>();
   private pendingSelect = 0;
   private lastFits: boolean | null = null;
@@ -468,13 +471,13 @@ export class GlobeRenderer {
 
     this.controls = new OrbitControls(this.camera, this.canvas);
     this.controls.enablePan = false;
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = ORBIT_DAMPING;
     this.controls.zoomSpeed = 0.7;
     this.controls.minDistance = MIN_DISTANCE;
     this.controls.minPolarAngle = CAMERA_POLE_CLEARANCE;
     this.controls.maxPolarAngle = Math.PI - CAMERA_POLE_CLEARANCE;
     this.controls.addEventListener('start', this.onControlsStart);
+    this.controls.addEventListener('start', this.onDragStart);
+    this.controls.addEventListener('end', this.onDragEnd);
     this.controls.addEventListener('change', this.requestRender);
 
     this.camera.position.copy(latLngToVector3(30, 0, 5));
@@ -911,6 +914,8 @@ export class GlobeRenderer {
     this.resizeObserver.disconnect();
     this.borderAbort.abort();
     this.controls.removeEventListener('start', this.onControlsStart);
+    this.controls.removeEventListener('start', this.onDragStart);
+    this.controls.removeEventListener('end', this.onDragEnd);
     this.controls.removeEventListener('change', this.requestRender);
     this.controls.dispose();
     this.canvas.removeEventListener('wheel', this.onControlsStart);
@@ -989,10 +994,12 @@ export class GlobeRenderer {
     active = this.stepPlane(now) || active;
     active = this.stepIllumination(now) || active;
     active = this.textures.stepLights(now) || active;
-    // OrbitControls.update() returns true while damping is still moving the camera.
     if (!this.cameraTween && !(this.followAircraft && this.aircraft)) {
-      this.controls.dampingFactor = 1 - (1 - ORBIT_DAMPING) ** (elapsed / NOMINAL_FRAME_MS);
+      if (this.inertia.active) cameraMoving = this.stepGlide(elapsed) || cameraMoving;
       cameraMoving = this.controls.update() || cameraMoving;
+      if (this.inertia.dragging) this.recordDrag(now);
+    } else {
+      this.inertia.cancel();
     }
     active = cameraMoving || active;
     const motion = cameraMoving ? 'moving' : 'settled';
@@ -1535,10 +1542,9 @@ export class GlobeRenderer {
       toDir.set(horiz.x, Math.sign(toDir.y) * maxY, horiz.z);
     }
     const toDist = Math.max(this.controls.minDistance, Math.min(this.controls.maxDistance, distance));
-    // Flush any residual damping so it doesn't fight the tween.
-    this.controls.enableDamping = false;
+    // Stop any glide so it doesn't fight the tween.
+    this.inertia.cancel();
     this.controls.update();
-    this.controls.enableDamping = true;
 
     const fromDir = this.camera.position.clone().normalize();
     const fromDist = this.camera.position.length();
@@ -1793,6 +1799,7 @@ export class GlobeRenderer {
     if (e.pointerType !== 'touch') return;
     const others = this.touchIds.size;
     this.touchIds.add(e.pointerId);
+    if (others > 0) this.multiTouchDrag = true;
     // A second finger mid-gesture hands the camera back so the pinch can take over.
     const running = this.doubleTap.gestureId;
     if (running !== null) this.endDoubleTapGesture(running, false);
@@ -1833,6 +1840,7 @@ export class GlobeRenderer {
   private onTouchCancel = (e: PointerEvent) => {
     if (e.pointerType !== 'touch') return;
     this.touchIds.delete(e.pointerId);
+    this.inertia.cancel();
     const running = this.doubleTap.gestureId;
     if (running === e.pointerId) this.endDoubleTapGesture(running, false);
     else this.doubleTap.cancel(e.pointerId);
@@ -1852,12 +1860,48 @@ export class GlobeRenderer {
     if (zoomIn) this.nudge(0, 0, TAP_ZOOM_FACTOR);
   }
 
-  /** Re-reads the camera into OrbitControls and drops any pending rotate momentum, without a jump. */
+  /** Re-reads the camera into OrbitControls and drops any glide, without a jump. */
   private syncControls() {
-    this.controls.enableDamping = false;
+    this.inertia.cancel();
     this.controls.update();
-    this.controls.enableDamping = true;
     this.requestRender();
+  }
+
+  /** Any new touch or click stops a glide at once, so the globe stays where the pointer lands. */
+  private onDragStart = () => {
+    // OrbitControls starts again as fingers come and go; a drag that had a second finger stays a pinch.
+    if (!this.inertia.dragging) this.multiTouchDrag = false;
+    if (this.touchIds.size > 1) this.multiTouchDrag = true;
+    this.inertia.begin();
+  };
+
+  private onDragEnd = () => {
+    if (this.options.reducedMotion || this.multiTouchDrag || !this.inertia.dragging) {
+      this.inertia.cancel();
+      return;
+    }
+    // Screen pixels per radian of drag, as in OrbitControls' rotate, so the glide's speed limits hold at any zoom.
+    const pxPerRadian = this.canvas.clientHeight / (2 * Math.PI * this.controls.rotateSpeed);
+    if (this.inertia.release(performance.now(), pxPerRadian)) this.requestRender();
+  };
+
+  /** The camera's orbit angles, as OrbitControls measures them (y up, centred on the globe). */
+  private recordDrag(now: number) {
+    const p = this.camera.position;
+    this.inertia.record(now, Math.atan2(p.x, p.z), Math.acos(Math.max(-1, Math.min(1, p.y / p.length()))));
+  }
+
+  /** Turns the camera by this frame's share of the glide; returns whether it moved. */
+  private stepGlide(elapsed: number): boolean {
+    if (this.options.reducedMotion) {
+      this.inertia.cancel();
+      return false;
+    }
+    const step = this.inertia.step(elapsed);
+    if (!step) return false;
+    this.controls.rotateLeft(-step.dTheta);
+    this.controls.rotateUp(-step.dPhi);
+    return true;
   }
 
   private onControlsStart = () => {

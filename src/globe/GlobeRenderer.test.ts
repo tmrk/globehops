@@ -349,3 +349,107 @@ it('removes all owned DOM and detaches the reparented light on repeat-safe dispo
   expect(state().keyLight.parent).toBeNull();
   expect(material.onBeforeCompile).not.toBe(shaderHook);
 });
+
+describe('drag momentum', () => {
+  let clock = 0;
+  const frame = (ms = 16) => {
+    clock += ms;
+    (renderer as unknown as { renderFrame: (now: number) => void }).renderFrame(clock);
+  };
+  const pointer = (type: string, x: number, pointerType = 'mouse', pointerId = 1) => {
+    const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: 450, button: 0 });
+    Object.assign(event, { pointerType, pointerId, isPrimary: true });
+    renderer.canvas.dispatchEvent(event);
+  };
+  const longitude = () => Math.atan2(state().camera.position.x, state().camera.position.z);
+  /** Drags right at about 1500 px/s, a frame at a time, and lets go. */
+  const flick = (pointerType = 'mouse') => {
+    pointer('pointerdown', 500, pointerType);
+    for (let i = 1; i <= 10; i++) {
+      pointer('pointermove', 500 + i * 24, pointerType);
+      frame();
+    }
+    pointer('pointerup', 740, pointerType);
+  };
+
+  beforeEach(() => {
+    clock = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    Object.defineProperty(renderer.canvas, 'clientHeight', { configurable: true, value: 900 });
+    Object.assign(renderer.canvas, { setPointerCapture: vi.fn(), releasePointerCapture: vi.fn() });
+    renderer.setReducedMotion(false);
+    frame();
+  });
+
+  it('keeps the globe under the pointer during the drag and glides on after release', () => {
+    const start = longitude();
+    pointer('pointerdown', 500);
+    pointer('pointermove', 524);
+    frame();
+    const perStep = start - longitude();
+    // No lag: the whole of the pointer's movement is applied in the same frame.
+    expect(perStep).toBeGreaterThan(0);
+    pointer('pointermove', 548);
+    frame();
+    expect(start - longitude()).toBeCloseTo(2 * perStep, 9);
+    pointer('pointerup', 548);
+    const released = longitude();
+    frame();
+    expect(released - longitude()).toBeGreaterThan(0);
+    for (let i = 0; i < 80; i++) frame();
+    const glide = released - longitude();
+    // A modest glide: more than a step, well short of a spin.
+    expect(glide).toBeGreaterThan(perStep);
+    expect(glide).toBeLessThan(20 * perStep);
+    expect(container.dataset.cameraMotion).toBe('settled');
+  });
+
+  it('stops the glide when the pointer lands again', () => {
+    flick();
+    frame();
+    pointer('pointerdown', 600);
+    const held = longitude();
+    frame();
+    frame();
+    expect(longitude()).toBeCloseTo(held, 12);
+    pointer('pointerup', 600);
+  });
+
+  it('glides after a one-finger drag and stops when a finger lands again', () => {
+    flick('touch');
+    const released = longitude();
+    frame();
+    expect(released - longitude()).toBeGreaterThan(0);
+    clock += 400;
+    pointer('pointerdown', 600, 'touch');
+    const held = longitude();
+    frame();
+    frame();
+    expect(longitude()).toBeCloseTo(held, 12);
+    pointer('pointerup', 600, 'touch');
+  });
+
+  it('does not glide under reduced motion', () => {
+    renderer.setReducedMotion(true);
+    flick();
+    const released = longitude();
+    frame();
+    frame();
+    expect(longitude()).toBeCloseTo(released, 12);
+  });
+
+  it('does not glide after a pinch', () => {
+    pointer('pointerdown', 500, 'touch', 1);
+    pointer('pointerdown', 700, 'touch', 2);
+    pointer('pointerup', 700, 'touch', 2);
+    for (let i = 1; i <= 10; i++) {
+      pointer('pointermove', 500 + i * 24, 'touch', 1);
+      frame();
+    }
+    pointer('pointerup', 740, 'touch', 1);
+    const released = longitude();
+    frame();
+    frame();
+    expect(longitude()).toBeCloseTo(released, 12);
+  });
+});
