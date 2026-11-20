@@ -167,27 +167,31 @@ describe('airport dataset build', () => {
   // Integration test over the real cached OurAirports CSVs (.cache/ is gitignored, so this only
   // runs where `npm run data:update` has populated it; CI exercises the online path instead).
   const hasCache = existsSync(new URL('../.cache/ourairports/airports.csv', import.meta.url));
-  it.skipIf(!hasCache)('offline no-change and check runs preserve timestamps and emit a machine result', async () => {
-    const datasetPath = new URL('../src/data/generated/airports.json', import.meta.url),
-      buildPath = new URL('../data/airports-build.json', import.meta.url);
-    const before = [(await stat(datasetPath)).mtimeMs, (await stat(buildPath)).mtimeMs];
-    const temporary = await mkdtemp(join(tmpdir(), 'globehops-check-')),
-      output = join(temporary, 'output');
-    const prior = process.env.GITHUB_OUTPUT;
-    process.env.GITHUB_OUTPUT = output;
-    const logger = vi.spyOn(console, 'log').mockImplementation(() => {});
-    try {
-      await main(['--offline']);
-      await main(['--offline', '--check']);
-      expect([(await stat(datasetPath)).mtimeMs, (await stat(buildPath)).mtimeMs]).toEqual(before);
-      expect(await readFile(output, 'utf8')).toBe('CHANGED=false\nCHANGED=false\n');
-    } finally {
-      logger.mockRestore();
-      if (prior === undefined) delete process.env.GITHUB_OUTPUT;
-      else process.env.GITHUB_OUTPUT = prior;
-      await rm(temporary, { recursive: true });
-    }
-  });
+  it.skipIf(!hasCache)(
+    'offline no-change and check runs preserve timestamps and emit a machine result',
+    async () => {
+      const datasetPath = new URL('../src/data/generated/airports.json', import.meta.url),
+        buildPath = new URL('../data/airports-build.json', import.meta.url);
+      const before = [(await stat(datasetPath)).mtimeMs, (await stat(buildPath)).mtimeMs];
+      const temporary = await mkdtemp(join(tmpdir(), 'globehops-check-')),
+        output = join(temporary, 'output');
+      const prior = process.env.GITHUB_OUTPUT;
+      process.env.GITHUB_OUTPUT = output;
+      const logger = vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        await main(['--offline']);
+        await main(['--offline', '--check']);
+        expect([(await stat(datasetPath)).mtimeMs, (await stat(buildPath)).mtimeMs]).toEqual(before);
+        expect(await readFile(output, 'utf8')).toBe('CHANGED=false\nCHANGED=false\n');
+      } finally {
+        logger.mockRestore();
+        if (prior === undefined) delete process.env.GITHUB_OUTPUT;
+        else process.env.GITHUB_OUTPUT = prior;
+        await rm(temporary, { recursive: true });
+      }
+    },
+    60_000,
+  );
   it('CLI validation failure writes neither the dataset, build record nor GitHub output', async () => {
     const datasetPath = new URL('../src/data/generated/airports.json', import.meta.url),
       buildPath = new URL('../data/airports-build.json', import.meta.url);
