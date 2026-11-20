@@ -3,8 +3,8 @@
   "release": "2026f",
   "license": "ODbL-1.0",
   "attribution": "Contains information from timezone-boundary-builder, which is made available under the Open Database License (ODbL); boundaries derived from OpenStreetMap © OpenStreetMap contributors.",
-  "generatedAt": "2026-11-18T13:13:44.853Z",
-  "airportsContentHash": "a83430fbcef2b834288b9f6a61fd2f25978585d7e4c3223230c17c0035ec6708",
+  "generatedAt": "2026-11-20T14:29:19.564Z",
+  "airportsContentHash": "00ce3ec8d4c64f2523398cff24483c489beaf03d1748cd5ed529fe61b66914a3",
   "counts": {
     "airports": 9933,
     "zones": 387,
