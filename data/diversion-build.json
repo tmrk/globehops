@@ -1,19 +1,19 @@
 {
   "source": "OurAirports airports.csv and runways.csv (https://ourairports.com/data/) – public domain",
-  "generatedAt": "2026-11-23T14:58:19.487Z",
-  "upstreamCommit": "c2c6bb03826504bd062b03f66d109074ab8e2bfd",
+  "generatedAt": "2026-11-24T15:01:06.373Z",
+  "upstreamCommit": "52f8e87ff0e29bc0f260ac20b261c05ec575a1a8",
   "files": {
     "airports.csv": {
-      "sha256": "200f6b42633c9c37e18049d5e7de5a9e347698661c68a52ee7359a0e5d128ee3",
-      "bytes": 12763057,
-      "lastModified": "Mon, 23 Nov 2026 02:53:52 GMT",
-      "rows": 86383
+      "sha256": "a903f63c4a5fef41acd82ed0876acce0d1efd470849e1a6a1f79d34948b6123b",
+      "bytes": 12763634,
+      "lastModified": "Tue, 24 Nov 2026 02:53:49 GMT",
+      "rows": 86387
     },
     "runways.csv": {
-      "sha256": "aecbf51dc5aa2e1d0373297076c0cf82e62e916bbabc63f2d8c487cca4856e23",
-      "bytes": 3976372,
-      "lastModified": "Mon, 23 Nov 2026 02:53:52 GMT",
-      "rows": 48445
+      "sha256": "9c97fcfefaeb43df9bcfa467ec5634b9a53dcc946b24da06aced9de1bceefda5",
+      "bytes": 3976264,
+      "lastModified": "Tue, 24 Nov 2026 02:53:49 GMT",
+      "rows": 48448
     }
   },
   "criteria": {
@@ -25,9 +25,9 @@
   },
   "counts": {
     "airports": 2628,
-    "inputAirports": 86383,
-    "inputRunways": 48445,
-    "excludedType": 81101,
+    "inputAirports": 86387,
+    "inputRunways": 48448,
+    "excludedType": 81105,
     "excludedPosition": 0,
     "excludedReviewed": 1,
     "excludedNoRunway": 2653,
@@ -42,7 +42,7 @@
     "lightingUnknown": 0
   },
   "limitations": "Potential diversion airports and modelled coverage only; not an operator’s authorisation. Runway evidence cannot establish operational suitability: RFFS, hours, weather, NOTAMs, approach aids, fuel, pavement strength and permission (including military access) are unknown. Lighting is recorded, not required.",
-  "contentHash": "c3f96ff20dea6d67293963ae9673b106942c583d7c0f89b5f8470af1409f0d38",
+  "contentHash": "c19468ab45fa0d62ad3dde90db72b7ca9e5e1862cfe78d88847112cac3c5e246",
   "selectedRunways": [
     [3, 233754, 1],
     [8, 237996, 1],
@@ -2790,7 +2790,7 @@
     "COMPACTED SAND": { "surface": "unpaved", "count": 2 },
     "COMPACTED SOIL": { "surface": "unknown", "count": 1 },
     "COMPOSITE": { "surface": "unknown", "count": 1 },
-    "CON": { "surface": "concrete", "count": 3701 },
+    "CON": { "surface": "concrete", "count": 3702 },
     "CON-ROOF": { "surface": "unknown", "count": 2 },
     "CON/ASP": { "surface": "paved", "count": 2 },
     "CON/GRS": { "surface": "unpaved", "count": 7 },
@@ -2816,7 +2816,7 @@
     "CONC/GRVL": { "surface": "unpaved", "count": 1 },
     "CONC/MTAL": { "surface": "unknown", "count": 1 },
     "CONC/TURF": { "surface": "unpaved", "count": 1 },
-    "CONCRETE": { "surface": "concrete", "count": 273 },
+    "CONCRETE": { "surface": "concrete", "count": 274 },
     "CONCRETE + GRASS. MTOM 2T": { "surface": "unpaved", "count": 1 },
     "CONCRETE AND ASP": { "surface": "unknown", "count": 1 },
     "CONCRETE AND TURF.": { "surface": "unpaved", "count": 1 },
@@ -2829,7 +2829,7 @@
     "CONCRETE/GRASS": { "surface": "unpaved", "count": 1 },
     "CONCRETE/GRAVEL": { "surface": "unpaved", "count": 10 },
     "CONCRETE/GROOVED": { "surface": "unknown", "count": 1 },
-    "CONCRETE/TURF": { "surface": "unpaved", "count": 18 },
+    "CONCRETE/TURF": { "surface": "unpaved", "count": 17 },
     "CONCRETE/TURFH1": { "surface": "unpaved", "count": 1 },
     "COP": { "surface": "unknown", "count": 28 },
     "COR": { "surface": "unknown", "count": 11 },
@@ -3005,7 +3005,7 @@
     "GREY GRAVEL": { "surface": "unpaved", "count": 2 },
     "GREY SILT CLAY": { "surface": "unpaved", "count": 1 },
     "GROUND": { "surface": "unknown", "count": 27 },
-    "GRS": { "surface": "unpaved", "count": 2258 },
+    "GRS": { "surface": "unpaved", "count": 2259 },
     "GRS EMERGENCY STRIP": { "surface": "unpaved", "count": 1 },
     "GRS/GVL": { "surface": "unpaved", "count": 1 },
     "GRV": { "surface": "unknown", "count": 35 },
@@ -3180,7 +3180,7 @@
     "TRTD-DIRT-F": { "surface": "unpaved", "count": 1 },
     "TRTD-DIRT-P": { "surface": "unpaved", "count": 2 },
     "TUEF": { "surface": "unknown", "count": 1 },
-    "TURF": { "surface": "unpaved", "count": 8864 },
+    "TURF": { "surface": "unpaved", "count": 8865 },
     "TURF / GRASS": { "surface": "unpaved", "count": 1 },
     "TURF / GRAVEL": { "surface": "unpaved", "count": 1 },
     "TURF / SNOW": { "surface": "unpaved", "count": 1 },
