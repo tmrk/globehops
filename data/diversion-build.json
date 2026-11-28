@@ -1,18 +1,18 @@
 {
   "source": "OurAirports airports.csv and runways.csv (https://ourairports.com/data/) – public domain",
-  "generatedAt": "2026-11-27T14:02:05.599Z",
-  "upstreamCommit": "a9426f7711df70678dfb745ceaa3d8891bf98328",
+  "generatedAt": "2026-11-28T13:17:41.969Z",
+  "upstreamCommit": "1e084138da34cf3497ced75ab0077dab8bed531b",
   "files": {
     "airports.csv": {
-      "sha256": "b6ae8329691c9fc7b89d840e386fe65a9986e125c808cf885ae73e1ecb18aea8",
-      "bytes": 12765124,
-      "lastModified": "Fri, 27 Nov 2026 02:53:50 GMT",
+      "sha256": "fe8548a0c8c63e868ab9575614d7ebc14c625119c1e4d2b065432ed930ce00fb",
+      "bytes": 12765133,
+      "lastModified": "Sat, 28 Nov 2026 02:53:56 GMT",
       "rows": 86397
     },
     "runways.csv": {
-      "sha256": "5948888ea0b0c55a6b39a31d059f9e4a2fdb8fb1ae0ebd72b43ddd210893b9cd",
-      "bytes": 4090642,
-      "lastModified": "Fri, 27 Nov 2026 02:53:50 GMT",
+      "sha256": "e51215a90679dcbb653e8df68dde617b19c3f32754bddafe3a98505e6d3cdead",
+      "bytes": 4090686,
+      "lastModified": "Sat, 28 Nov 2026 02:53:57 GMT",
       "rows": 49909
     }
   },
